@@ -24,7 +24,7 @@ residentPortionLength equ (residentPortionEnd - residentPortion)
 
   mov ax,0
   mov ds,ax
-  mov word[0x412],640 - ((residentPortionLength + 1023)/1024)   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
+  mov word[0x413],640 - ((residentPortionLength + 1023)/1024)   ; Reduce BIOS RAM count to reduce chances of DOS stomping on our resident portion
 
   mov dx,0xc000
 romScanLoop:

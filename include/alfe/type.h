@@ -1290,7 +1290,7 @@ private:
         }
         bool argumentsMatch(List<Type>::Iterator i) const
         {
-            if (!i->canConvertTo(_argumentType))
+            if (i.end() || !i->canConvertTo(_argumentType))
                 return false;
             ++i;
             return _parent.argumentsMatch(i);

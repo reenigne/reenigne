@@ -802,3 +802,37 @@ Think about how to do temporal diffusion
             We don't actually need to call setNextBitmap() more than once if we don't care about tearing
             As long as we do the final write (i.e. copy from output) in the same thread as the paint we won't tear anyway
 
+
+e has type LValue<Bitmap> and value (ConfigFile*, "inputPicture")
+  e.value<LValue> is (ConfigFile*, "inputPicture")
+  e.value<LValue>.rValue() is BitmapValue (as returned by converting from string)
+    However, we need it to be Structure* in order to be able to use . on it
+      It ought to be possible to use . on an rValue
+        Anything that we can use . on has to be a Structure* (in ALFE everything will be a Structure* but for ConfigFiles we allow other types for convenience)
+        Perhaps rvalue . is a similar convenience feature
+          How do we determine if we should use rvalue or not?
+            inputPicture is an lvalue because we can assign to it, so it represented by an LValue type
+          Who should own the Structure*?
+            Ideally the ConfigFile (or other parent) could continue to own it, and we'd automatically get the Structure* from that
+              To that we need some way to go from an Value<arbitrary thing deriving from Structure> to a Structure*
+                Perhaps we can add a method to Any which is like value<> but instead pointer<>
+                  Trouble with that is that the Any::Body classes are unrelated and reinterpret_cast<> could break
+                  Also we'd like to able to continue to use the existing Structure* stuff, we don't want to force Structures to be owned by ConfigFiles
+                  Really Structure must either always be owned by ConfigFile or never owned by ConfigFile, and we've already chosen never
+                    So how can we keep track of our Bitmaps?
+                      For the purpose of cga2ntsc we can have a single one, but it would be nice to be a little more general
+                        Perhaps it would be better to have ConfigFile own all the Structures
+                        Why did we do it this way in the first place?
+                          Because for Berapa we didn't want the ConfigFile to have an active role after construction
+                            So we've got an ownership problem in general - either objects are owned by ConfigFile (in which case we can't have the Berapa separation) or they aren't (and we can't have the Bitmap ownership)
+                              What if we use Reference<Structure> instead of Structure*?
+        Ultimately this problem needs to be solved by ALFE
+        Solution: a set of owning objects are used in ConfigFile but for the purposes of ALFE/Berapa they can instantiate other objects
+          This will require some rework in Berapa
+          For Berapa, we don't really want to have make Component a Handle/Body system
+            So: change Reference<Component> and Structure* to Reference<Structure>
+            When we create a Structure, put it in the Value as Reference<Structure>
+              Let's continue to use Structure* for non-owning places like LValue (convert with &*ref)
+            This doesn't work because we want to have components that are sub-components of other components
+        Let's solve this by just having a single Bitmap for now, and if at some point we want more we can do a Berapa-like solution or have some mechanism for deallocating Structure* on assignment
+

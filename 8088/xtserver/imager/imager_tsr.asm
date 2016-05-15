@@ -730,6 +730,8 @@ loader:
   mov [cs:oldInterrupt10],ax
   mov [cs:oldInterrupt10+2],cx
 
+  mov word[0x413],640
+
   pop ds
 
   setResidentInterrupt 0x10, int10Routine

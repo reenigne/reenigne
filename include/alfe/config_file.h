@@ -16,7 +16,6 @@
 #include "alfe/concrete_functions.h"
 #include "alfe/array_functions.h"
 #include "alfe/boolean_functions.h"
-#include "alfe/relational_functions.h"
 
 template<class T> class ConfigFileT;
 typedef ConfigFileT<void> ConfigFile;
@@ -95,6 +94,7 @@ public:
         addFunco(GreaterThanIntegerInteger());
         addFunco(LessThanOrEqualToIntegerInteger());
         addFunco(GreaterThanOrEqualToIntegerInteger());
+        addFunco(NegativeInteger());
     }
     template<class V> ConfigOption<V> addOption(String name)
     {

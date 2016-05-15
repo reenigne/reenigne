@@ -102,10 +102,12 @@
     <ClInclude Include="..\..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\..\include\alfe\hash_table.h" />
     <ClInclude Include="..\..\..\..\include\alfe\identifier.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\integer_functions.h" />
     <ClInclude Include="..\..\..\..\include\alfe\linked_list.h" />
     <ClInclude Include="..\..\..\..\include\alfe\main.h" />
     <ClInclude Include="..\..\..\..\include\alfe\ntsc_decode.h" />
     <ClInclude Include="..\..\..\..\include\alfe\operator.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\reference.h" />
     <ClInclude Include="..\..\..\..\include\alfe\rotors.h" />
     <ClInclude Include="..\..\..\..\include\alfe\set.h" />
     <ClInclude Include="..\..\..\..\include\alfe\string.h" />

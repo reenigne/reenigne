@@ -660,94 +660,94 @@ private:
 
 typedef CGAMatcherT<void> CGAMatcher;
 
-class Particle
-{
-public:
-    void plot(Bitmap<DWORD> bitmap, Vector rPosition)
-    {
-        Vector size = bitmap.size();
-        Byte* buffer = bitmap.data();
-        int byteWidth = bitmap.stride();
-        double zOffset = rPosition.x*0.01;
-        double scale = rPosition.y*0.01;
-        double x = _position.x/(_position.z + zOffset)*scale;
-        double y = _position.y/(_position.z + zOffset)*scale;
-        int x0 = static_cast<int>(size.x*x/5.0 + size.x/2);
-        int y0 = static_cast<int>(size.x*y/5.0 + size.y/2);
-        int r = byteClamp(_colour.x);
-        int g = byteClamp(_colour.y);
-        int b = byteClamp(_colour.z);
-        DWord c = (r << 16) | (g << 8) | b;
-        plot(bitmap, Vector(x0,     y0    ), c);
-        if (!_big) {
-            if (r < 16 && g < 16 && b < 16) {
-                c = 0xffffff;
-                plot(bitmap, Vector(x0 - 1, y0 - 1), c);
-                plot(bitmap, Vector(x0 + 1, y0 - 1), c);
-                plot(bitmap, Vector(x0 - 1, y0 + 1), c);
-                plot(bitmap, Vector(x0 + 1, y0 + 1), c);
-            }
-            return;
-        }
-        plot(bitmap, Vector(x0 - 1, y0 - 2), c);
-        plot(bitmap, Vector(x0,     y0 - 2), c);
-        plot(bitmap, Vector(x0 + 1, y0 - 2), c);
-        plot(bitmap, Vector(x0 - 2, y0 - 1), c);
-        plot(bitmap, Vector(x0 - 1, y0 - 1), c);
-        plot(bitmap, Vector(x0,     y0 - 1), c);
-        plot(bitmap, Vector(x0 + 1, y0 - 1), c);
-        plot(bitmap, Vector(x0 + 2, y0 - 1), c);
-        plot(bitmap, Vector(x0 - 2, y0    ), c);
-        plot(bitmap, Vector(x0 - 1, y0    ), c);
-        plot(bitmap, Vector(x0 + 1, y0    ), c);
-        plot(bitmap, Vector(x0 + 2, y0    ), c);
-        plot(bitmap, Vector(x0 - 2, y0 + 1), c);
-        plot(bitmap, Vector(x0 - 1, y0 + 1), c);
-        plot(bitmap, Vector(x0,     y0 + 1), c);
-        plot(bitmap, Vector(x0 + 1, y0 + 1), c);
-        plot(bitmap, Vector(x0 + 2, y0 + 1), c);
-        plot(bitmap, Vector(x0 - 1, y0 + 2), c);
-        plot(bitmap, Vector(x0,     y0 + 2), c);
-        plot(bitmap, Vector(x0 + 1, y0 + 2), c);
-        if (r < 16 && g < 16 && b < 16) {
-            c = 0xffffff;
-            plot(bitmap, Vector(x0 - 1, y0 - 3), c);
-            plot(bitmap, Vector(x0,     y0 - 3), c);
-            plot(bitmap, Vector(x0 + 1, y0 - 3), c);
-            plot(bitmap, Vector(x0 - 1, y0 + 3), c);
-            plot(bitmap, Vector(x0,     y0 + 3), c);
-            plot(bitmap, Vector(x0 + 1, y0 + 3), c);
-            plot(bitmap, Vector(x0 - 2, y0 - 2), c);
-            plot(bitmap, Vector(x0 + 2, y0 - 2), c);
-            plot(bitmap, Vector(x0 - 3, y0 - 1), c);
-            plot(bitmap, Vector(x0 + 3, y0 - 1), c);
-            plot(bitmap, Vector(x0 - 3, y0    ), c);
-            plot(bitmap, Vector(x0 + 3, y0    ), c);
-            plot(bitmap, Vector(x0 - 3, y0 + 1), c);
-            plot(bitmap, Vector(x0 + 3, y0 + 1), c);
-            plot(bitmap, Vector(x0 - 2, y0 + 2), c);
-            plot(bitmap, Vector(x0 + 2, y0 + 2), c);
-        }
-    }
-    void plot(Bitmap<DWORD> bitmap, Vector p, DWord c)
-    {
-        if (p.inside(bitmap.size()))
-            bitmap[p] = c;
-    }
-    bool operator<(const Particle& other) const { return _position.z > other._position.z; }
-    void transform(double* matrix)
-    {
-        Vector3<double> c = (_colour - Vector3<double>(128.0, 128.0, 128.0))/128.0;
-        _position.x = c.x*matrix[0] + c.y*matrix[1] + c.z*matrix[2];
-        _position.y = c.x*matrix[3] + c.y*matrix[4] + c.z*matrix[5];
-        _position.z = c.x*matrix[6] + c.y*matrix[7] + c.z*matrix[8];
-    }
-
-    Colour _colour;
-    Vector3<double> _position;
-    bool _big;
-};
-
+//class Particle
+//{
+//public:
+//    void plot(Bitmap<DWORD> bitmap, Vector rPosition)
+//    {
+//        Vector size = bitmap.size();
+//        Byte* buffer = bitmap.data();
+//        int byteWidth = bitmap.stride();
+//        double zOffset = rPosition.x*0.01;
+//        double scale = rPosition.y*0.01;
+//        double x = _position.x/(_position.z + zOffset)*scale;
+//        double y = _position.y/(_position.z + zOffset)*scale;
+//        int x0 = static_cast<int>(size.x*x/5.0 + size.x/2);
+//        int y0 = static_cast<int>(size.x*y/5.0 + size.y/2);
+//        int r = byteClamp(_colour.x);
+//        int g = byteClamp(_colour.y);
+//        int b = byteClamp(_colour.z);
+//        DWord c = (r << 16) | (g << 8) | b;
+//        plot(bitmap, Vector(x0,     y0    ), c);
+//        if (!_big) {
+//            if (r < 16 && g < 16 && b < 16) {
+//                c = 0xffffff;
+//                plot(bitmap, Vector(x0 - 1, y0 - 1), c);
+//                plot(bitmap, Vector(x0 + 1, y0 - 1), c);
+//                plot(bitmap, Vector(x0 - 1, y0 + 1), c);
+//                plot(bitmap, Vector(x0 + 1, y0 + 1), c);
+//            }
+//            return;
+//        }
+//        plot(bitmap, Vector(x0 - 1, y0 - 2), c);
+//        plot(bitmap, Vector(x0,     y0 - 2), c);
+//        plot(bitmap, Vector(x0 + 1, y0 - 2), c);
+//        plot(bitmap, Vector(x0 - 2, y0 - 1), c);
+//        plot(bitmap, Vector(x0 - 1, y0 - 1), c);
+//        plot(bitmap, Vector(x0,     y0 - 1), c);
+//        plot(bitmap, Vector(x0 + 1, y0 - 1), c);
+//        plot(bitmap, Vector(x0 + 2, y0 - 1), c);
+//        plot(bitmap, Vector(x0 - 2, y0    ), c);
+//        plot(bitmap, Vector(x0 - 1, y0    ), c);
+//        plot(bitmap, Vector(x0 + 1, y0    ), c);
+//        plot(bitmap, Vector(x0 + 2, y0    ), c);
+//        plot(bitmap, Vector(x0 - 2, y0 + 1), c);
+//        plot(bitmap, Vector(x0 - 1, y0 + 1), c);
+//        plot(bitmap, Vector(x0,     y0 + 1), c);
+//        plot(bitmap, Vector(x0 + 1, y0 + 1), c);
+//        plot(bitmap, Vector(x0 + 2, y0 + 1), c);
+//        plot(bitmap, Vector(x0 - 1, y0 + 2), c);
+//        plot(bitmap, Vector(x0,     y0 + 2), c);
+//        plot(bitmap, Vector(x0 + 1, y0 + 2), c);
+//        if (r < 16 && g < 16 && b < 16) {
+//            c = 0xffffff;
+//            plot(bitmap, Vector(x0 - 1, y0 - 3), c);
+//            plot(bitmap, Vector(x0,     y0 - 3), c);
+//            plot(bitmap, Vector(x0 + 1, y0 - 3), c);
+//            plot(bitmap, Vector(x0 - 1, y0 + 3), c);
+//            plot(bitmap, Vector(x0,     y0 + 3), c);
+//            plot(bitmap, Vector(x0 + 1, y0 + 3), c);
+//            plot(bitmap, Vector(x0 - 2, y0 - 2), c);
+//            plot(bitmap, Vector(x0 + 2, y0 - 2), c);
+//            plot(bitmap, Vector(x0 - 3, y0 - 1), c);
+//            plot(bitmap, Vector(x0 + 3, y0 - 1), c);
+//            plot(bitmap, Vector(x0 - 3, y0    ), c);
+//            plot(bitmap, Vector(x0 + 3, y0    ), c);
+//            plot(bitmap, Vector(x0 - 3, y0 + 1), c);
+//            plot(bitmap, Vector(x0 + 3, y0 + 1), c);
+//            plot(bitmap, Vector(x0 - 2, y0 + 2), c);
+//            plot(bitmap, Vector(x0 + 2, y0 + 2), c);
+//        }
+//    }
+//    void plot(Bitmap<DWORD> bitmap, Vector p, DWord c)
+//    {
+//        if (p.inside(bitmap.size()))
+//            bitmap[p] = c;
+//    }
+//    bool operator<(const Particle& other) const { return _position.z > other._position.z; }
+//    void transform(double* matrix)
+//    {
+//        Vector3<double> c = (_colour - Vector3<double>(128.0, 128.0, 128.0))/128.0;
+//        _position.x = c.x*matrix[0] + c.y*matrix[1] + c.z*matrix[2];
+//        _position.y = c.x*matrix[3] + c.y*matrix[4] + c.z*matrix[5];
+//        _position.z = c.x*matrix[6] + c.y*matrix[7] + c.z*matrix[8];
+//    }
+//
+//    Colour _colour;
+//    Vector3<double> _position;
+//    bool _big;
+//};
+//
 //class GamutWindow : public BitmapWindow
 //{
 //public:
@@ -941,7 +941,144 @@ private:
 };
 typedef NumericSliderWindowT<void> NumericSliderWindow;
 
-template<class T> class BrightnessSliderWindowT : public NumericSliderWindow
+template<class T> class KnobSliderT
+{
+public:
+    KnobSliderT() : _knob(this), _sliding(false) { }
+    void create()
+    {
+        _caption.size();
+        _popup.create();
+    }
+    void setText(String text) { _caption.setText(text); }
+    void setHost(CGA2NTSCWindow* host)
+    {
+        _host = host;
+        host->add(&_caption);
+        host->add(&_knob);
+        host->add(&_edit);
+    }
+    void setPositionAndSize(Vector position, Vector size)
+    {
+        _caption.setPosition(position);
+        _knob.setSize(Vector(size.y, size.y));
+        _knob.setPosition(Vector(_caption.right(), position.y));
+        _edit.setPosition(_knob.topRight());
+    }
+    Vector bottomLeft() { return _caption.bottomLeft(); }
+    int right() const { return _edit.right(); }
+    void setRange(double low, double high)
+    {
+        _slider.setRange(positionFromValue(low), positionFromValue(high));
+    }
+
+protected:
+    CGA2NTSCWindow* _host;
+private:
+    void knobEvent(Vector position, bool buttonDown)
+    {
+        if (buttonDown && !_sliding) {
+            _popup.show(SW_SHOW);
+        }
+        if (!buttonDown && _sliding) {
+            _popup.show(SW_HIDE);
+        }
+        _sliding = buttonDown;
+    }
+
+    class KnobWindow : public BitmapWindow
+    {
+    public:
+        KnobWindow(KnobSliderT* host) : _host(host) { }
+        bool mouseInput(Vector position, int buttons)
+        {
+            bool lButton = (buttons & MK_LBUTTON) != 0;
+            _host->knobEvent(position, lButton);
+            return lButton;  // Capture when button is down
+        }
+    private:
+        KnobSliderT* _host;
+    };
+    class PopupWindow : public BitmapWindow
+    {
+    public:
+        PopupWindow()
+        {
+            HDC hdcScreen = GetDC(NULL);
+            _hdcBackBuffer = CreateCompatibleDC(hdcScreen);
+            _hbmBackBuffer = CreateCompatibleBitmap(hdcScreen, 100, 100);
+            _hbmOld = SelectObject(_hdcBackBuffer, _hbmBackBuffer);
+        }
+        ~PopupWindow()
+        {
+            SelectObject(_hdcBackBuffer, _hbmOld);
+
+        }
+
+        void create()
+        {
+            setStyle(WS_VISIBLE | SS_OWNERDRAW | WS_EX_LAYERED);
+            setSize(100, 100);
+        }
+        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+            switch (uMsg) {
+                case WM_PAINT:
+                {
+                    PaintHandle paintHandle(this);
+                    if (paintHandle.zeroArea() || !_bitmap.valid())
+                        return 0;
+                    Vector ptl = paintHandle.topLeft();
+                    Vector pbr = paintHandle.bottomRight();
+                    Vector br = size();
+                    pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+                    Vector ps = pbr - ptl;
+                    if (ps.x <= 0 || ps.y <= 0)
+                        return 0;
+                    Vector s = size();
+                    _bmi.bmiHeader.biWidth = s.x;
+                    _bmi.bmiHeader.biHeight = -s.y;
+                    paint();
+                    IF_ZERO_THROW(SetDIBitsToDevice(
+                        _hdcBackBuffer,
+                        ptl.x,
+                        ptl.y,
+                        ps.x,
+                        ps.y,
+                        ptl.x,
+                        s.y - pbr.y,
+                        0,
+                        s.y,
+                        _bitmap.data(),
+                        &_bmi,
+                        DIB_RGB_COLORS));
+
+                    POINT ptSrc;
+                    ptSrc.x = 0;
+                    ptSrc.y = 0;
+                    BOOL r = UpdateLayeredWindow(_hWnd,)
+                    return 0;
+                }
+            }
+            return BitmapWindow::handleMessage(uMsg, wParam, lParam);
+        }
+    private:
+        HDC _hdcBackBuffer;
+        HBITMAP _hbmBackBuffer;
+        HGDIOBJ _hbmOld;
+    };
+
+    TextWindow _caption;
+    KnobWindow _knob;
+    EditWindow _edit;
+    PopupWindow _popup;
+    bool _sliding;
+
+    friend class KnobWindow;
+};
+typedef KnobSliderT<void> KnobSlider;
+
+template<class T> class BrightnessSliderWindowT : public KnobSlider
 {
 public:
     void valueSet(double value) { _host->brightnessSet(value); }
@@ -2019,13 +2156,11 @@ public:
     {
         _backgroundSelected = value;
         setPaletteAndBackground();
-        beginConvert();
     }
     void paletteSet(int value)
     {
         _paletteSelected = value;
         setPaletteAndBackground();
-        beginConvert();
     }
     void setPaletteAndBackground()
     {
@@ -2035,6 +2170,7 @@ public:
             _matcher->setPalette(
                 _backgroundSelected + (_paletteSelected << 4));
         }
+        beginConvert();
     }
     void scanlinesPerRowSet(int value)
     {
@@ -2124,6 +2260,7 @@ public:
     {
         _output->setBrightness(brightness);
         _matcher->setBrightness(brightness);
+        beginConvert();
         //if (!_updating) {
         //    update();
         //    uiUpdate();
@@ -2133,6 +2270,7 @@ public:
     {
         _output->setSaturation(saturation);
         _matcher->setSaturation(saturation);
+        beginConvert();
         //if (!_updating) {
         //    update();
         //    autoContrastClip();
@@ -2143,6 +2281,7 @@ public:
     {
         _output->setContrast(contrast);
         _matcher->setContrast(contrast);
+        beginConvert();
         //if (!_updating) {
         //    update();
         //    autoBrightness();
@@ -2154,6 +2293,7 @@ public:
     {
         _output->setHue(hue);
         _matcher->setHue(hue);
+        beginConvert();
         //if (!_updating) {
         //    update();
         //    allAutos();
@@ -2182,7 +2322,7 @@ public:
         _output->setNewCGA(newCGA);
         _matcher->setNewCGA(newCGA);
         //_composite.setNewCGA(newCGA);
-        reCreateNTSC();
+        beginConvert();
     }
     void ntscPrimariesPressed()
     {
@@ -2324,8 +2464,8 @@ public:
     //    _contrast.setValue(_output->getContrast() * 256/(_white - _black));
     //    update();
     //}
-    void resetColours() { _colours = Set<UInt64>(); }
-    void addColour(UInt64 seq) { _colours.add(seq); }
+    //void resetColours() { _colours = Set<UInt64>(); }
+    //void addColour(UInt64 seq) { _colours.add(seq); }
 
 private:
     template<class T> void add2(T* p)
@@ -2399,19 +2539,22 @@ private:
 class BitmapValue : public Structure
 {
 public:
-    BitmapValue() { }
-    BitmapValue(String filename) : _name(filename)
+    void load(String filename)
     {
+        _name = filename;
         // We parse the filename relative to the current directory here instead
         // of relative to the config file path because the filename usually
         // comes from the command line.
         _bitmap = PNGFileFormat<SRGB>().load(File(filename, true));
+        Vector size = _bitmap.size();
+        _size.set("x", size.x, Span());
+        _size.set("y", size.y, Span());
     }
     Bitmap<SRGB> bitmap() { return _bitmap; }
     Value getValue(Identifier identifier) const
     {
         if (identifier == Identifier("size"))
-            return _bitmap.size();
+            return Value(VectorType(), &_size, Span());
         return Structure::getValue(identifier);
     }
     String name() { return _name; }
@@ -2420,18 +2563,24 @@ public:
         return _name == other._name;
     }
 private:
+    Structure _size;
     String _name;
     Bitmap<SRGB> _bitmap;
 };
 
-class BitmapType : public NamedNullary<StructuredType, BitmapType>
+class BitmapType : public StructuredType
 {
 public:
+    BitmapType(BitmapValue* bitmapValue)
+      : StructuredType(create<Body>(bitmapValue)) { }
     static String name() { return "Bitmap"; }
     class Body : public StructuredType::Body
     {
     public:
-        Body() : StructuredType::Body("Bitmap", members()) { }
+        Body(BitmapValue* bitmapValue)
+          : StructuredType::Body("Bitmap", members()),
+            _bitmapValue(bitmapValue)
+        { }
         List<StructuredType::Member> members()
         {
             List<StructuredType::Member> vectorMembers;
@@ -2444,25 +2593,33 @@ public:
         }
         Value convert(const Value& value) const
         {
-            return Value(BitmapType(), BitmapValue(value.value<String>()),
+            _bitmapValue->load(value.value<String>());
+            return Value(type(), static_cast<Structure*>(_bitmapValue),
                 value.span());
         }
         Value defaultValue() const
         {
-            return Value(BitmapType(), BitmapValue(), Span());
+            return Value(type(), static_cast<Structure*>(_bitmapValue),
+                Span());
         }
+    private:
+        BitmapValue* _bitmapValue;
     };
 };
 
-class BitmapIsRGBIFunction : public Nullary<Function, BitmapIsRGBIFunction>
+class BitmapIsRGBIFunction : public Function
 {
 public:
-    class Body : public Nullary::Body
+    BitmapIsRGBIFunction(BitmapType bitmapType)
+      : Function(create<Body>(bitmapType)) { }
+    class Body : public Function::Body
     {
     public:
+        Body(BitmapType bitmapType) : _bitmapType(bitmapType) { }
         Value evaluate(List<Value> arguments, Span span) const
         {
-            auto bitmap = arguments.begin()->value<BitmapValue>().bitmap();
+            auto bitmap = static_cast<BitmapValue*>(
+                arguments.begin()->value<Structure*>())->bitmap();
             Vector size = bitmap.size();
 
             int maxDistance = 0;
@@ -2495,8 +2652,10 @@ public:
         Identifier identifier() const { return "bitmapIsRGBI"; }
         FunctionType type() const
         {
-            return FunctionType(BooleanType(), BitmapType());
+            return FunctionType(BooleanType(), _bitmapType);
         }
+    private:
+        BitmapType _bitmapType;
     };
 };
 
@@ -2505,8 +2664,11 @@ class Program : public WindowProgram<CGA2NTSCWindow>
 public:
     void run()
     {
+        BitmapValue bitmapValue;
+        BitmapType bitmapType(&bitmapValue);
+
         ConfigFile configFile;
-        configFile.addOption("inputPicture", BitmapType());
+        configFile.addOption("inputPicture", bitmapType);
         configFile.addDefaultOption("mode", 0x1a);
         configFile.addDefaultOption("palette", 0x0f);
         configFile.addDefaultOption("interlaceMode", 0);
@@ -2541,7 +2703,7 @@ public:
         configFile.addDefaultOption("doubleWidth", false);
         configFile.addDefaultOption("doubleHeight", false);
 
-        configFile.addFunco(BitmapIsRGBIFunction());
+        configFile.addFunco(BitmapIsRGBIFunction(bitmapType));
 
         List<Value> arguments;
 
@@ -2633,8 +2795,7 @@ public:
         _output.setCombFilterTemporal(
             configFile.get<int>("combFilterTemporal"));
 
-        BitmapValue inputBitmap = configFile.get<BitmapValue>("inputPicture");
-        Bitmap<SRGB> input = inputBitmap.bitmap();
+        Bitmap<SRGB> input = bitmapValue.bitmap();
         Bitmap<SRGB> input2 = input;
         Vector size = input.size();
         if (!configFile.get<bool>("doubleHeight")) {
@@ -2711,7 +2872,7 @@ public:
         if (!interactive)
             timer.output("Elapsed time");
 
-        String inputFileName = inputBitmap.name();
+        String inputFileName = bitmapValue.name();
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
             if (inputFileName[i] == '.')
