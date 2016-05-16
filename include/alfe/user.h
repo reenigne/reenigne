@@ -652,6 +652,10 @@ protected:
     void setClassName(LPCWSTR className) { _className = className; }
 
     void setStyle(DWORD style) { _style = style; }
+    void setExtendedStyle(DWORD extendedStyle)
+    {
+        _extendedStyle = extendedStyle;
+    }
 
     HWND _hWnd;
     HDC _hdc;
@@ -845,6 +849,17 @@ public:
             Vector size(s.cx, s.cy);
             setSize(size);
         }
+    }
+};
+
+class EditWindow : public WindowsWindow
+{
+public:
+    void setWindows(Windows* windows)
+    {
+        WindowsWindow::setWindows(windows);
+        setClassName(WC_EDIT);
+        setStyle(WS_CHILD | WS_VISIBLE);
     }
 };
 

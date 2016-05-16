@@ -945,10 +945,16 @@ template<class T> class KnobSliderT
 {
 public:
     KnobSliderT() : _knob(this), _sliding(false) { }
-    void create()
+    virtual void create()
     {
         _caption.size();
-        _popup.create();
+        _lightGrey = GetSysColor(COLOR_BTNFACE);
+        if (_lightGrey == 0)
+            _lightGrey = 0xc0c0c0;
+        _darkGrey = GetSysColor(COLOR_GRAYTEXT);
+        if (_darkGrey == 0)
+            _darkGrey = 0x808080;
+        _black = GetSysColor(COLOR_WINDOWTEXT);
     }
     void setText(String text) { _caption.setText(text); }
     void setHost(CGA2NTSCWindow* host)
@@ -957,6 +963,7 @@ public:
         host->add(&_caption);
         host->add(&_knob);
         host->add(&_edit);
+        host->add(&_popup);
     }
     void setPositionAndSize(Vector position, Vector size)
     {
@@ -969,8 +976,11 @@ public:
     int right() const { return _edit.right(); }
     void setRange(double low, double high)
     {
-        _slider.setRange(positionFromValue(low), positionFromValue(high));
+        _min = low;
+        _max = high;
     }
+    void setValue(double value) { _value = value; }
+    double getValue() { return _value; }
 
 protected:
     CGA2NTSCWindow* _host;
@@ -983,6 +993,8 @@ private:
         if (!buttonDown && _sliding) {
             _popup.show(SW_HIDE);
         }
+        if (buttonDown)
+            _popup.setPosition(position);
         _sliding = buttonDown;
     }
 
@@ -990,82 +1002,132 @@ private:
     {
     public:
         KnobWindow(KnobSliderT* host) : _host(host) { }
+        void setSize(Vector size)
+        {
+            Bitmap<DWORD> bitmap = Bitmap<DWORD>(size);
+            BitmapWindow::setSize(size);
+            Byte* row = bitmap.data();
+            for (int y = 0; y < size.y; ++y) {
+                int yy = y - size.y/2;
+                DWORD* b = reinterpret_cast<DWORD*>(row);
+                for (int x = 0; x < size.x; ++x) {
+                    int xx = x - size.x/2;
+                    if (xx*xx + yy*yy < size.x*size.x/4)
+                        *b = _host->_darkGrey;
+                    else
+                        *b = _host->_lightGrey;
+                    ++b;
+                }
+                row += bitmap.stride();
+            }
+            setNextBitmap(bitmap);
+        }
         bool mouseInput(Vector position, int buttons)
         {
+            if (_hWnd == 0)
+                return false;
             bool lButton = (buttons & MK_LBUTTON) != 0;
-            _host->knobEvent(position, lButton);
+            POINT point;
+            point.x = position.x;
+            point.y = position.y;
+            IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
+            _host->knobEvent(Vector(point.x, point.y), lButton);
             return lButton;  // Capture when button is down
         }
+        void create() { _host->create(); BitmapWindow::create(); }
     private:
         KnobSliderT* _host;
     };
-    class PopupWindow : public BitmapWindow
+    class PopupWindow : public WindowsWindow
     {
     public:
+        void setWindows(Windows* windows)
+        {
+            WindowsWindow::setWindows(windows);
+            setClassName(WC_STATIC);
+            setStyle(WS_POPUP);
+            setExtendedStyle(WS_EX_LAYERED);
+        }
         PopupWindow()
         {
             HDC hdcScreen = GetDC(NULL);
-            _hdcBackBuffer = CreateCompatibleDC(hdcScreen);
+            _hdcSrc = CreateCompatibleDC(hdcScreen);
             _hbmBackBuffer = CreateCompatibleBitmap(hdcScreen, 100, 100);
-            _hbmOld = SelectObject(_hdcBackBuffer, _hbmBackBuffer);
+            ReleaseDC(NULL, hdcScreen);
+            _hbmOld = SelectObject(_hdcSrc, _hbmBackBuffer);
         }
         ~PopupWindow()
         {
-            SelectObject(_hdcBackBuffer, _hbmOld);
-
+            SelectObject(_hdcSrc, _hbmOld);
+            DeleteObject(_hbmBackBuffer);
+            DeleteDC(_hdcSrc);
         }
+        void update()
+        {
+            if (!_bitmap.valid())
+                _bitmap = Bitmap<DWORD>(Vector(100, 100));
+            Byte* row = _bitmap.data();
+            for (int y = 0; y < 100; ++y) {
+                DWORD* b = reinterpret_cast<DWORD*>(row);
+                for (int x = 0; x < 100; ++x) {
+                    *b = ((x*255)/100) * 0x01010101;
+                    ++b;
+                }
+                row += _bitmap.stride();
+            }
 
+            Vector s = size();
+            _bmi.bmiHeader.biWidth = s.x;
+            _bmi.bmiHeader.biHeight = -s.y;
+            IF_ZERO_THROW(SetDIBitsToDevice(
+                _hdcSrc,
+                0,
+                0,
+                s.x,
+                s.y,
+                0,
+                0,
+                0,
+                s.y,
+                _bitmap.data(),
+                &_bmi,
+                DIB_RGB_COLORS));
+            POINT ptSrc;
+            ptSrc.x = 0;
+            ptSrc.y = 0;
+            SIZE size;
+            size.cx = s.x;
+            size.cy = s.y;
+            BLENDFUNCTION blend;
+            blend.BlendOp = AC_SRC_OVER;
+            blend.BlendFlags = 0;
+            blend.SourceConstantAlpha = 255;
+            blend.AlphaFormat = AC_SRC_ALPHA;
+            BOOL r = UpdateLayeredWindow(_hWnd, NULL, NULL, &size, _hdcSrc,
+                &ptSrc, 0, &blend, ULW_ALPHA);
+        }
         void create()
         {
-            setStyle(WS_VISIBLE | SS_OWNERDRAW | WS_EX_LAYERED);
-            setSize(100, 100);
-        }
-        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-        {
-            switch (uMsg) {
-                case WM_PAINT:
-                {
-                    PaintHandle paintHandle(this);
-                    if (paintHandle.zeroArea() || !_bitmap.valid())
-                        return 0;
-                    Vector ptl = paintHandle.topLeft();
-                    Vector pbr = paintHandle.bottomRight();
-                    Vector br = size();
-                    pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
-                    Vector ps = pbr - ptl;
-                    if (ps.x <= 0 || ps.y <= 0)
-                        return 0;
-                    Vector s = size();
-                    _bmi.bmiHeader.biWidth = s.x;
-                    _bmi.bmiHeader.biHeight = -s.y;
-                    paint();
-                    IF_ZERO_THROW(SetDIBitsToDevice(
-                        _hdcBackBuffer,
-                        ptl.x,
-                        ptl.y,
-                        ps.x,
-                        ps.y,
-                        ptl.x,
-                        s.y - pbr.y,
-                        0,
-                        s.y,
-                        _bitmap.data(),
-                        &_bmi,
-                        DIB_RGB_COLORS));
-
-                    POINT ptSrc;
-                    ptSrc.x = 0;
-                    ptSrc.y = 0;
-                    BOOL r = UpdateLayeredWindow(_hWnd,)
-                    return 0;
-                }
-            }
-            return BitmapWindow::handleMessage(uMsg, wParam, lParam);
+            ZeroMemory(&_bmi, sizeof(BITMAPINFO));
+            _bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+            _bmi.bmiHeader.biPlanes = 1;
+            _bmi.bmiHeader.biBitCount = 32;
+            _bmi.bmiHeader.biCompression = BI_RGB;
+            _bmi.bmiHeader.biSizeImage = 0;
+            _bmi.bmiHeader.biXPelsPerMeter = 0;
+            _bmi.bmiHeader.biYPelsPerMeter = 0;
+            _bmi.bmiHeader.biClrUsed = 0;
+            _bmi.bmiHeader.biClrImportant = 0;
+            WindowsWindow::create();
+            setSize(Vector(100, 100));
+            update();
         }
     private:
-        HDC _hdcBackBuffer;
+        HDC _hdcSrc;
         HBITMAP _hbmBackBuffer;
         HGDIOBJ _hbmOld;
+        Bitmap<DWORD> _bitmap;
+        BITMAPINFO _bmi;
     };
 
     TextWindow _caption;
@@ -1073,6 +1135,14 @@ private:
     EditWindow _edit;
     PopupWindow _popup;
     bool _sliding;
+    double _value;
+    double _min;
+    double _max;
+    Vector _dragStart;
+    double _valueStart;
+    DWORD _lightGrey;
+    DWORD _darkGrey;
+    DWORD _black;
 
     friend class KnobWindow;
 };
@@ -1086,6 +1156,7 @@ public:
     {
         setText("Brightness: ");
         setRange(-2, 2);
+        KnobSlider::create();
     }
 };
 typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
@@ -1098,6 +1169,7 @@ public:
     {
         setText("Saturation: ");
         setRange(0, 4);
+        NumericSliderWindow::create();
     }
 };
 typedef SaturationSliderWindowT<void> SaturationSliderWindow;
@@ -1110,6 +1182,7 @@ public:
     {
         setText("Contrast: ");
         setRange(0, 4);
+        NumericSliderWindow::create();
     }
 };
 typedef ContrastSliderWindowT<void> ContrastSliderWindow;
@@ -1122,6 +1195,7 @@ public:
     {
         setText("Hue: ");
         setRange(-180, 180);
+        NumericSliderWindow::create();
     }
 };
 typedef HueSliderWindowT<void> HueSliderWindow;
@@ -1135,6 +1209,7 @@ public:
     {
         setText("Chroma bandwidth: ");
         setRange(0, 2);
+        NumericSliderWindow::create();
     }
 };
 typedef ChromaBandwidthSliderWindowT<void> ChromaBandwidthSliderWindow;
@@ -1147,6 +1222,7 @@ public:
     {
         setText("Luma bandwidth: ");
         setRange(0, 2);
+        NumericSliderWindow::create();
     }
 };
 typedef LumaBandwidthSliderWindowT<void> LumaBandwidthSliderWindow;
@@ -1372,6 +1448,7 @@ public:
     {
         setText("Horizontal diffusion: ");
         setRange(0, 1);
+        NumericSliderWindow::create();
     }
 };
 typedef DiffusionHorizontalSliderWindowT<void> DiffusionHorizontalSliderWindow;
@@ -1385,6 +1462,7 @@ public:
     {
         setText("Vertical diffusion: ");
         setRange(0, 1);
+        NumericSliderWindow::create();
     }
 };
 typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
@@ -1398,6 +1476,7 @@ public:
     {
         setText("Temporal diffusion: ");
         setRange(0, 1);
+        NumericSliderWindow::create();
     }
 };
 typedef DiffusionTemporalSliderWindowT<void> DiffusionTemporalSliderWindow;
@@ -1410,6 +1489,7 @@ public:
     {
         setText("Quality: ");
         setRange(0, 1);
+        NumericSliderWindow::create();
     }
 };
 typedef QualitySliderWindowT<void> QualitySliderWindow;
@@ -1524,6 +1604,7 @@ public:
     {
         setText("Scanline width: ");
         setRange(0, 1);
+        NumericSliderWindow::create();
     }
 };
 typedef ScanlineWidthSliderWindowT<void> ScanlineWidthSliderWindow;
@@ -1557,6 +1638,7 @@ public:
     {
         setText("Scanline offset: ");
         setRange(0, 1);
+        NumericSliderWindow::create();
     }
 };
 typedef ScanlineOffsetSliderWindowT<void> ScanlineOffsetSliderWindow;
@@ -1569,6 +1651,7 @@ public:
     {
         setText("Zoom: ");
         setRange(1, 10);
+        NumericSliderWindow::create();
     }
     double positionFromValue(double value) { return log(value); }
     double valueFromPosition(double position) { return exp(position); }
@@ -1598,6 +1681,7 @@ public:
     {
         setText("Aspect Ratio: ");
         setRange(1, 2);
+        NumericSliderWindow::create();
     }
 };
 typedef AspectRatioSliderWindowT<void> AspectRatioSliderWindow;
