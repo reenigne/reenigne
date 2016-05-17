@@ -1010,6 +1010,21 @@ public:
         WindowsWindow::create();
     }
 
+    // Override this if you just want a simple bitmap that is updated
+    virtual void draw2() { }
+
+    // Override this to have more control, e.g. for a rendering from a
+    // different thread.
+    void draw()
+    {
+        Vector s = size();
+        if (_bitmap.size().x < s.x || _bitmap.size().y < s.y) {
+            _bitmap = Bitmap<DWORD>(Vector(max(_bitmap.size().x, s.x),
+                max(_bitmap.size().y, s.y)));
+        }
+        draw2();
+    }
+
     void resize()
     {
         draw();
@@ -1062,6 +1077,7 @@ public:
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 
+    // Override this to restart animation only when painting actually happens.
     virtual void paint() { };
 
     Bitmap<DWORD> setNextBitmap(Bitmap<DWORD> nextBitmap)

@@ -944,7 +944,7 @@ typedef NumericSliderWindowT<void> NumericSliderWindow;
 template<class T> class KnobSliderT
 {
 public:
-    KnobSliderT() : _knob(this), _sliding(false) { }
+    KnobSliderT() : _knob(this), _popup(this), _sliding(false) { }
     virtual void create()
     {
         _caption.size();
@@ -987,14 +987,15 @@ protected:
 private:
     void knobEvent(Vector position, bool buttonDown)
     {
-        if (buttonDown && !_sliding) {
-            _popup.show(SW_SHOW);
+        if (buttonDown) {
+            _dragStart = position;
+            _valueStart = _value;
+            _popup.update(position);
+            if (!_sliding)
+                _popup.show(SW_SHOW);
         }
-        if (!buttonDown && _sliding) {
+        if (!buttonDown && _sliding)
             _popup.show(SW_HIDE);
-        }
-        if (buttonDown)
-            _popup.setPosition(position);
         _sliding = buttonDown;
     }
 
@@ -1002,25 +1003,23 @@ private:
     {
     public:
         KnobWindow(KnobSliderT* host) : _host(host) { }
-        void setSize(Vector size)
+        void draw2()
         {
-            Bitmap<DWORD> bitmap = Bitmap<DWORD>(size);
-            BitmapWindow::setSize(size);
-            Byte* row = bitmap.data();
-            for (int y = 0; y < size.y; ++y) {
-                int yy = y - size.y/2;
+            Vector s = size();
+            Byte* row = data();
+            for (int y = 0; y < s.y; ++y) {
+                int yy = y - s.y/2;
                 DWORD* b = reinterpret_cast<DWORD*>(row);
-                for (int x = 0; x < size.x; ++x) {
-                    int xx = x - size.x/2;
-                    if (xx*xx + yy*yy < size.x*size.x/4)
+                for (int x = 0; x < s.x; ++x) {
+                    int xx = x - s.x/2;
+                    if (xx*xx + yy*yy < s.x*s.x/4)
                         *b = _host->_darkGrey;
                     else
                         *b = _host->_lightGrey;
                     ++b;
                 }
-                row += bitmap.stride();
+                row += stride();
             }
-            setNextBitmap(bitmap);
         }
         bool mouseInput(Vector position, int buttons)
         {
@@ -1041,6 +1040,7 @@ private:
     class PopupWindow : public WindowsWindow
     {
     public:
+        PopupWindow(KnobSliderT* host) : _host(host) { }
         void setWindows(Windows* windows)
         {
             WindowsWindow::setWindows(windows);
@@ -1050,10 +1050,9 @@ private:
         }
         PopupWindow()
         {
-            HDC hdcScreen = GetDC(NULL);
-            _hdcSrc = CreateCompatibleDC(hdcScreen);
+            _hdcScreen = GetDC(NULL);
+            _hdcSrc = CreateCompatibleDC(_hdcScreen);
             _hbmBackBuffer = CreateCompatibleBitmap(hdcScreen, 100, 100);
-            ReleaseDC(NULL, hdcScreen);
             _hbmOld = SelectObject(_hdcSrc, _hbmBackBuffer);
         }
         ~PopupWindow()
@@ -1061,22 +1060,72 @@ private:
             SelectObject(_hdcSrc, _hbmOld);
             DeleteObject(_hbmBackBuffer);
             DeleteDC(_hdcSrc);
+            ReleaseDC(NULL, _hdcScreen);
         }
-        void update()
+        void update(Vector position)
         {
-            if (!_bitmap.valid())
-                _bitmap = Bitmap<DWORD>(Vector(100, 100));
-            Byte* row = _bitmap.data();
-            for (int y = 0; y < 100; ++y) {
-                DWORD* b = reinterpret_cast<DWORD*>(row);
-                for (int x = 0; x < 100; ++x) {
-                    *b = ((x*255)/100) * 0x01010101;
-                    ++b;
-                }
-                row += _bitmap.stride();
+            int length = _host->size().x;
+            double valueLow = _host->_min;
+            double valueHigh = _host->_max;
+            double valueStart = _host->_valueStart;
+            Vector dragStart = _host->_dragStart;
+            double value;
+            Vector2<double> a;
+            if (position == dragStart) {
+                value = _valueStart;
+                a = Vector2<double>(0, length/(valueLow - valueHigh));
+            }
+            else {
+                Vector delta = position - _host->_dragStart;
+                double distance = sqrt(delta.modulus2());
+                if (delta.x < delta.y)
+                    distance = -distance;
+                value = _valueStart + distance*(valueHigh - valueLow)/length;
+                a = Vector2Cast<double>(dragStart - position)/
+                    (valueStart - value);
+            }
+            auto b = Vector2Cast<double>(dragStart) - a*valueStart;
+            Vector2<double> low = a*valueLow + b;
+            Vector2<double> high = a*valueHigh + b;
+
+            double endPadding = _host->size().y/4;
+            Vector2<double> x = (high-low)*endPadding/length;
+            Vector2<double> y = 2*Vector2<double>(x.y, -x.x);
+            Vector2<double> corners[4];
+            corners[0] = low - x - y;
+            corners[1] = low - x + y;
+            corners[2] = high + x + y;
+            corners[3] = high + x - y;
+
+            Vector topLeft = Vector2Cast<int>(corners[0]);
+            Vector bottomRight(0, 0);
+            for (int i = 0; i < 4; ++i) {
+                topLeft.x = min(topLeft.x, static_cast<int>(corners[i].x));
+                topLeft.y = min(topLeft.y, static_cast<int>(corners[i].y));
+                bottomRight.x =
+                    max(topLeft.x, static_cast<int>(corners[i].x + 1));
+                bottomRight.y =
+                    max(topLeft.y, static_cast<int>(corners[i].y + 1));
             }
 
-            Vector s = size();
+            Vector s = bottomRight - topLeft;
+            if (s.x > _bitmap.size().x || s.y > _bitmap.size().y) {
+                _bitmap = Bitmap<DWORD>(Vector(max(s.x, _bitmap.size().x),
+                    max(s.y, _bitmap.size().y)));
+                SelectObject(_hdcSrc, _hbmOld);
+                DeleteObject(_hbmBackBuffer);
+                _hbmBackBuffer = CreateCompatibleBitmap(hdcScreen,
+                    _bitmap.size().x, _bitmap.size().y);
+                SelectObject(_hdcSrc, _hbmBackBuffer);
+            }
+
+            setSize(s);
+            setPosition(topLeft);
+            for (int i = 0; i < 4; ++i)
+                corners[i] -= topLeft;
+            _bitmap.fill(0);  // Transparent
+            fillQuad(_bitmap, &corners[0], _host->_lightGrey);
+
             _bmi.bmiHeader.biWidth = s.x;
             _bmi.bmiHeader.biHeight = -s.y;
             IF_ZERO_THROW(SetDIBitsToDevice(
@@ -1123,6 +1172,14 @@ private:
             update();
         }
     private:
+        static void fillQuad(Bitmap<DWORD> _bitmap, Vector2<double>* points,
+            DWORD colour)
+        {
+
+        }
+
+        KnobSliderT* _host;
+        HDC _hdcScreen;
         HDC _hdcSrc;
         HBITMAP _hbmBackBuffer;
         HGDIOBJ _hbmOld;
@@ -1145,6 +1202,7 @@ private:
     DWORD _black;
 
     friend class KnobWindow;
+    friend class PopupWindow;
 };
 typedef KnobSliderT<void> KnobSlider;
 
