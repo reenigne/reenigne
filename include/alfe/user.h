@@ -1018,10 +1018,8 @@ public:
     void draw()
     {
         Vector s = size();
-        if (_bitmap.size().x < s.x || _bitmap.size().y < s.y) {
-            _bitmap = Bitmap<DWORD>(Vector(max(_bitmap.size().x, s.x),
-                max(_bitmap.size().y, s.y)));
-        }
+        if (_bitmap.size().x != s.x || _bitmap.size().y < s.y)
+            _bitmap = Bitmap<DWORD>(Vector(s.x, max(_bitmap.size().y, s.y)));
         draw2();
     }
 

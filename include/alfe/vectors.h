@@ -138,6 +138,16 @@ public:
     T y;
 };
 
+template<class T> T dot(const Vector2<T>& a, const Vector2<T>& b)
+{
+    return a.x*b.x + a.y*b.y;
+}
+
+template<class T> T cross(const Vector2<T>& a, const Vector2<T>& b)
+{
+    return a.x*b.y - a.y*b.x;
+}
+
 template<class T> Vector2<T> operator+(const T& n, const Vector2<T>& v)
 {
     return v + n;

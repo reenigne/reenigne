@@ -34,8 +34,8 @@ public:
     Rotor2(Vector2<T>& a, Vector2<T>& b)
     {
         T m = sqrt(a.modulus2()*b.modulus2());
-        _c = (b.x*a.x + b.y*a.y)/m;
-        _s = (b.x*a.y - b.y*a.x)/m;
+        _c = dot(a, b)/m;
+        _s = cross(b, a)/m;
     }
     Rotor2(const Rotor2& other) : _c(other._c), _s(other._s) { }
     template<class T2> Rotor2(const Rotor2<T2>& other)
@@ -107,12 +107,12 @@ public:
     template<class T2> Rotor3(const Rotor3<T2>& other)
       : _sc(other._sc), _yz(other._yz), _zx(other._zx), _xy(other._xy) { }
     const Rotor3& operator=(const Rotor3& other)
-    { 
+    {
         _sc = other._sc;
         _yz = other._yz;
         _zx = other._zx;
         _xy = other._xy;
-        return *this; 
+        return *this;
     }
     const Rotor3& operator*=(const Rotor3& other)
     {
@@ -125,7 +125,7 @@ public:
         return *this;
     }
     Rotor3 operator*(const Rotor3& other) const
-    {   
+    {
         return Rotor3(
             _sc*other._sc - _yz*other._yz - _zx*other._zx - _xy*other._xy,
             _sc*other._yz + _yz*other._sc - _zx*other._xy + _xy*other._zx,
@@ -142,7 +142,7 @@ public:
     // possible rotors that rotate 180 degrees.
 
     // The conjugate rotor rotates in the opposite direction.
-    Rotor3 conjugate() const { return Rotor3(_sc, -_yz, -zx, -xy); }  
+    Rotor3 conjugate() const { return Rotor3(_sc, -_yz, -zx, -xy); }
 
     void toMatrix(T* matrix)
     {

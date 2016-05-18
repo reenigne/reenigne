@@ -110,6 +110,9 @@
     <ClInclude Include="..\..\..\..\include\alfe\integer_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\alfe\knob.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\..\include\alfe.natvis" />
