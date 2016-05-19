@@ -833,14 +833,14 @@ public:
     {
         WindowsWindow::setWindows(windows);
         setClassName(WC_STATIC);
-        setStyle(WS_CHILD | WS_VISIBLE);
+        setStyle(WS_CHILD | WS_VISIBLE | /*SS_CENTER |*/ SS_CENTERIMAGE);
     }
     void create()
     {
         WindowsWindow::create();
-        size();
+        autoSize();
     }
-    void size()
+    void autoSize()
     {
         if (_hWnd != NULL) {
             SIZE s;
@@ -1010,7 +1010,8 @@ public:
         WindowsWindow::create();
     }
 
-    // Override this if you just want a simple bitmap that is updated
+    // Override this if you just want a simple bitmap that is updated from the
+    // UI thread.
     virtual void draw2() { }
 
     // Override this to have more control, e.g. for a rendering from a
@@ -1021,6 +1022,7 @@ public:
         if (_bitmap.size().x != s.x || _bitmap.size().y < s.y)
             _bitmap = Bitmap<DWORD>(Vector(s.x, max(_bitmap.size().y, s.y)));
         draw2();
+        invalidate();
     }
 
     void resize()
@@ -1089,11 +1091,12 @@ public:
     int stride() const { return _bitmap.stride(); }
     const Byte* data() const { return _bitmap.data(); }
     Byte* data() { return _bitmap.data(); }
+protected:
+    Bitmap<DWORD> _bitmap;
 
 private:
     Mutex _mutex;
 
-    Bitmap<DWORD> _bitmap;
     Bitmap<DWORD> _nextBitmap;
     Bitmap<DWORD> _lastBitmap;
 

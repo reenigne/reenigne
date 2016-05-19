@@ -922,7 +922,7 @@ private:
     {
         double v = valueFromPosition(value);
         _text.setText(format("%f", v));
-        _text.size();
+        _text.autoSize();
         valueSet(v);
     }
 

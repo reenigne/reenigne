@@ -290,31 +290,31 @@ public:
     {
         _output.setBrightness(brightness);
         _brightnessText.setText(format("%f", brightness));
-        _brightnessText.size();
+        _brightnessText.autoSize();
     }
     void setSaturation(double saturation)
     {
         _output.setSaturation(saturation);
         _saturationText.setText(format("%f", saturation));
-        _saturationText.size();
+        _saturationText.autoSize();
     }
     void setContrast(double contrast)
     {
         _output.setContrast(contrast);
         _contrastText.setText(format("%f", contrast));
-        _contrastText.size();
+        _contrastText.autoSize();
     }
     void setHue(double hue)
     {
         _output.setHue(hue);
         _hueText.setText(format("%f", hue));
-        _hueText.size();
+        _hueText.autoSize();
     }
     void setSharpness(double sharpness)
     {
         _output.setSharpness(sharpness);
         _sharpnessText.setText(format("%f", sharpness));
-        _sharpnessText.size();
+        _sharpnessText.autoSize();
     }
 
     void keyboardCharacter(int character)

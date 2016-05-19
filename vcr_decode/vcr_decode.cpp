@@ -821,55 +821,55 @@ public:
     {
         _output.setBrightness(brightness);
         _brightnessText.setText(format("%f", brightness));
-        _brightnessText.size();
+        _brightnessText.autoSize();
     }
     void setSaturation(double saturation)
     {
         _output.setSaturation(saturation);
         _saturationText.setText(format("%f", saturation));
-        _saturationText.size();
+        _saturationText.autoSize();
     }
     void setContrast(double contrast)
     {
         _output.setContrast(contrast);
         _contrastText.setText(format("%f", contrast));
-        _contrastText.size();
+        _contrastText.autoSize();
     }
     void setHue(double hue)
     {
         _output.setHue(hue);
         _hueText.setText(format("%f", hue));
-        _hueText.size();
+        _hueText.autoSize();
     }
     void setLumaCutoff(double lumaCutoff)
     {
         _output.setSharpness(lumaCutoff);
         _lumaCutoffText.setText(format("%f", lumaCutoff));
-        _lumaCutoffText.size();
+        _lumaCutoffText.autoSize();
     }
     void setLumaHeterodyneFrequency(double lumaHeterodyneFrequency)
     {
         _output.setHeterodyneFrequency(lumaHeterodyneFrequency);
         _lumaHeterodyneFrequencyText.setText(format("%f", lumaHeterodyneFrequency));
-        _lumaHeterodyneFrequencyText.size();
+        _lumaHeterodyneFrequencyText.autoSize();
     }
     void setChromaCutoff(double chromaCutoff)
     {
         _output.setChromaCutoff(chromaCutoff);
         _chromaCutoffText.setText(format("%f", chromaCutoff));
-        _chromaCutoffText.size();
+        _chromaCutoffText.autoSize();
     }
     void setDeinterlacing(double deinterlacing)
     {
         _output.setDeinterlacing(deinterlacing);
         _deinterlacingText.setText(format("%f", deinterlacing));
-        _deinterlacingText.size();
+        _deinterlacingText.autoSize();
     }
     void setFieldNumber(double fieldNumber)
     {
         _output.setFieldNumber(fieldNumber);
         _fieldNumberText.setText(format("%f", fieldNumber));
-        _fieldNumberText.size();
+        _fieldNumberText.autoSize();
     }
 
     void keyboardCharacter(int character)
