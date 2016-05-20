@@ -6,7 +6,8 @@
 template<class T> class KnobSlider
 {
 public:
-    KnobSlider() : _knob(this), _popup(this), _sliding(false) { }
+    KnobSlider()
+      : _knob(this), _popup(this), _sliding(false), _useChromaKey(false) { }
     virtual void create()
     {
         _caption.size();
@@ -89,23 +90,11 @@ private:
             if (!_created)
                 return;
             Vector s = size();
-            Byte* row = data();
-            for (int y = 0; y < s.y; ++y) {
-                int yy = y - s.y/2;
-                DWORD* b = reinterpret_cast<DWORD*>(row);
-                for (int x = 0; x < s.x; ++x) {
-                    int xx = x - s.x/2;
-                    if (xx*xx + yy*yy < s.x*s.x/4)
-                        *b = _host->_darkGrey;
-                    else
-                        *b = _host->_lightGrey;
-                    ++b;
-                }
-                row += stride();
-            }
+            Vector2<double> c = Vector2Cast<double>(s)/2.0;
+            _bitmap.fill(_host->_lightGrey);
+            fillCircle(_bitmap, _host->_darkGrey, c, s.x/2.0);
             double a = clamp(0.0, (_host->_value - _host->_min)/
                 (_host->_max - _host->_min), 1.0)*3/4;
-            Vector2<double> c = Vector2Cast<double>(s)/2.0;
             Rotor2<double> r(-a);
             Vector2<double> o = Vector2<double>(-1, 1)*r*s.x/sqrt(8) + c;
             Vector2<double> w = Vector2<double>(1, 1)*r;
@@ -203,12 +192,11 @@ private:
             Vector topLeft = Vector2Cast<int>(corners[0]);
             Vector bottomRight = topLeft + Vector(1, 1);
             for (int i = 1; i < 4; ++i) {
-                topLeft.x = min(topLeft.x, static_cast<int>(corners[i].x));
-                topLeft.y = min(topLeft.y, static_cast<int>(corners[i].y));
-                bottomRight.x =
-                    max(bottomRight.x, static_cast<int>(corners[i].x + 1));
-                bottomRight.y =
-                    max(bottomRight.y, static_cast<int>(corners[i].y + 1));
+                Vector c = Vector2Cast<int>(corners[i]);
+                topLeft.x = min(topLeft.x, c.x);
+                topLeft.y = min(topLeft.y, c.y);
+                bottomRight.x = max(bottomRight.x, c.x + 1);
+                bottomRight.y = max(bottomRight.y, c.y + 1);
             }
 
             Vector s = bottomRight - topLeft;
@@ -282,6 +270,10 @@ private:
             blend.AlphaFormat = AC_SRC_ALPHA;
             BOOL r = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
                 &ptSrc, 0, &blend, ULW_ALPHA);
+            if (r == 0) {
+                _host->_useChromaKey = true;
+                update(position);
+            }
         }
         void create()
         {
@@ -319,6 +311,7 @@ private:
     Vector _dragStart;
     double _valueStart;
     Vector _size;
+    bool _useChromaKey;
 
     DWORD _lightGrey;
     DWORD _darkGrey;
@@ -381,9 +374,8 @@ private:
         }
     }
 
-    static int fillParallelogram(Bitmap<DWORD> _bitmap,
-        Vector2<double>* points, DWORD colour, Vector2<double> tl,
-        Vector2<double> size)
+    static int fillParallelogram(Bitmap<DWORD> bitmap, Vector2<double>* points,
+        DWORD colour, Vector2<double> tl, Vector2<double> size)
     {
         Vector2<double> rect[4];
         rect[0] = tl;
@@ -407,7 +399,7 @@ private:
         }
         if (allInside) {
             if (size.x >= 1 && size.y >= 1) {
-                _bitmap.subBitmap(Vector2Cast<int>(tl),
+                bitmap.subBitmap(Vector2Cast<int>(tl),
                     Vector2Cast<int>(size)).fill(colour | 0xff000000);
             }
             return static_cast<int>(size.x * size.y * 256);
@@ -433,15 +425,15 @@ private:
             Vector2<double> s;
             if (size.x > size.y) {
                 s = Vector2<double>(static_cast<int>(size.x)/2, 0);
-                fillParallelogram(_bitmap, points, colour, tl,
+                fillParallelogram(bitmap, points, colour, tl,
                     Vector2<double>(s.x, size.y));
             }
             else {
                 s = Vector2<double>(0, static_cast<int>(size.y)/2);
-                fillParallelogram(_bitmap, points, colour, tl,
+                fillParallelogram(bitmap, points, colour, tl,
                     Vector2<double>(size.x, s.y));
             }
-            fillParallelogram(_bitmap, points, colour, tl + s, size - s);
+            fillParallelogram(bitmap, points, colour, tl + s, size - s);
             return 0;
         }
         Vector2<double> s;
@@ -449,10 +441,10 @@ private:
             s = Vector2<double>(size.x/2, 0);
         else
             s = Vector2<double>(0, size.y/2);
-        int area = fillParallelogram(_bitmap, points, colour, tl, size - s) +
-            fillParallelogram(_bitmap, points, colour, tl + s, size - s);
+        int area = fillParallelogram(bitmap, points, colour, tl, size - s) +
+            fillParallelogram(bitmap, points, colour, tl + s, size - s);
         if (size.x == 1 && size.y == 1)
-            plot(&_bitmap[Vector2Cast<int>(tl)], colour, area);
+            plot(&bitmap[Vector2Cast<int>(tl)], colour, area);
         return area;
     }
 
@@ -481,140 +473,80 @@ private:
             (byteClamp(gSRGB) << 8) | byteClamp(bSRGB);
     }
 
-    static void fillCircle(Bitmap<DWORD> bitmap, DWORD colour)
+    static void fillCircle(Bitmap<DWORD> bitmap, DWORD colour,
+        Vector2<double> c, double r)
     {
-        //Vector topLeft = Vector2Cast<int>(points[0]);
-        //Vector bottomRight = topLeft + Vector(1, 1);
-        //for (int i = 1; i < 4; ++i) {
-        //    topLeft.x = min(topLeft.x, static_cast<int>(points[i].x));
-        //    topLeft.y = min(topLeft.y, static_cast<int>(points[i].y));
-        //    bottomRight.x =
-        //        max(bottomRight.x, static_cast<int>(points[i].x + 1));
-        //    bottomRight.y =
-        //        max(bottomRight.y, static_cast<int>(points[i].y + 1));
-        //}
-        //Vector s = bottomRight - topLeft;
-        //bitmap = bitmap.subBitmap(topLeft, s);
-        //Vector2<double> corners[4];
-        //for (int i = 0; i < 4; ++i)
-        //    corners[i] = points[i] - topLeft;
-
-        //if (s.x > s.y) {
-        //    int sx2 = s.x/2;
-        //    Vector2<double> s2(sx2, s.y);
-        //    fillParallelogram(bitmap, corners, colour, Vector2<double>(0, 0),
-        //        s2);
-        //    fillParallelogram(bitmap, corners, colour, Vector2<double>(sx2, 0),
-        //        s2);
-        //}
-        //else {
-        //    int sy2 = s.y/2;
-        //    Vector2<double> s2(s.x, sy2);
-        //    fillParallelogram(bitmap, corners, colour, Vector2<double>(0, 0),
-        //        s2);
-        //    fillParallelogram(bitmap, corners, colour, Vector2<double>(0, sy2),
-        //        s2);
-        //}
+        r *= r;
+        Vector2<double> s = Vector2Cast<double>(bitmap.size());
+        Vector2<double> m = Vector2Cast<double>(bitmap.size()/2);
+        Vector2<double> z(0, 0);
+        fillCircle(bitmap, colour, c, r, Vector2<double>(0, 0), m);
+        fillCircle(bitmap, colour, c, r, Vector2<double>(m.x, 0),
+            Vector2<double>(s.x - m.x, m.y));
+        fillCircle(bitmap, colour, c, r, Vector2<double>(0, m.y),
+            Vector2<double>(m.x, s.y - m.y));
+        fillCircle(bitmap, colour, c, r, m, s - m);
     }
 
-    static int fillParallelogram(Bitmap<DWORD> _bitmap,
-        Vector2<double>* points, DWORD colour, Vector2<double> tl,
-        Vector2<double> size)
+    static int fillCircle(Bitmap<DWORD> bitmap, DWORD colour,
+        Vector2<double> c, double r2, Vector2<double> tl, Vector2<double> size)
     {
-        //Vector2<double> rect[4];
-        //rect[0] = tl;
-        //rect[1] = tl + Vector2<double>(size.x, 0);
-        //rect[2] = tl + Vector2<double>(0, size.y);
-        //rect[3] = tl + size;
-        //int i;
-        //bool allInside = true;
-        //bool allOutside = true;
-        //for (i = 0; i < 4; ++i) {
-        //    if (insideParallelogram(rect[i], points)) {
-        //        allOutside = false;
-        //        if (!allInside)
-        //            break;
-        //    }
-        //    else {
-        //        allInside = false;
-        //        if (!allOutside)
-        //            break;
-        //    }
-        //}
-        //if (allInside) {
-        //    if (size.x >= 1 && size.y >= 1) {
-        //        _bitmap.subBitmap(Vector2Cast<int>(tl),
-        //            Vector2Cast<int>(size)).fill(colour | 0xff000000);
-        //    }
-        //    return static_cast<int>(size.x * size.y * 256);
-        //}
-        //if (allOutside) {
-        //    bool intersects = false;
-        //    for (int i = 0; i < 4; ++i) {
-        //        for (int j = 0; j < 4; ++j) {
-        //            if (lineSegmentsIntersect(points[i], points[(i + 1) & 3],
-        //                rect[j], rect[(j + 1) & 3])) {
-        //                intersects = true;
-        //                i = 4;
-        //                j = 4;
-        //            }
-        //        }
-        //    }
-        //    if (!intersects)
-        //        return 0;
-        //}
-        //if (size.x <= 1.0f/16 && size.y <= 1.0f/16)
-        //    return 1;
-        //if (size.x > 1 || size.y > 1) {
-        //    Vector2<double> s;
-        //    if (size.x > size.y) {
-        //        s = Vector2<double>(static_cast<int>(size.x)/2, 0);
-        //        fillParallelogram(_bitmap, points, colour, tl,
-        //            Vector2<double>(s.x, size.y));
-        //    }
-        //    else {
-        //        s = Vector2<double>(0, static_cast<int>(size.y)/2);
-        //        fillParallelogram(_bitmap, points, colour, tl,
-        //            Vector2<double>(size.x, s.y));
-        //    }
-        //    fillParallelogram(_bitmap, points, colour, tl + s, size - s);
-        //    return 0;
-        //}
-        //Vector2<double> s;
-        //if (size.x > size.y)
-        //    s = Vector2<double>(size.x/2, 0);
-        //else
-        //    s = Vector2<double>(0, size.y/2);
-        //int area = fillParallelogram(_bitmap, points, colour, tl, size - s) +
-        //    fillParallelogram(_bitmap, points, colour, tl + s, size - s);
-        //if (size.x == 1 && size.y == 1) {
-        //    // We know that area/256 of the pixel is covered by the
-        //    // parallelogram.
-        //    double coverage = area/256.0;
-        //    double gamma = 2.2;
-        //    double rLinear = pow(GetRValue(colour)*coverage/255.0, gamma);
-        //    double gLinear = pow(GetGValue(colour)*coverage/255.0, gamma);
-        //    double bLinear = pow(GetBValue(colour)*coverage/255.0, gamma);
-        //    Vector p = Vector2Cast<int>(tl);
-        //    DWORD b = _bitmap[p];
-        //    double bCoverage = ((b >> 24) & 0xff)/255.0;
-        //    double bRLinear = pow(((b >> 16) & 0xff)/255.0, gamma);
-        //    double bGLinear = pow(((b >> 8) & 0xff)/255.0, gamma);
-        //    double bBLinear = pow((b & 0xff)/255.0, gamma);
-        //    bRLinear = bRLinear*(1 - coverage) + rLinear;
-        //    bGLinear = bGLinear*(1 - coverage) + gLinear;
-        //    bBLinear = bBLinear*(1 - coverage) + bLinear;
-        //    bCoverage = bCoverage*(1 - coverage) + coverage;
-        //    int rSRGB = static_cast<int>(pow(bRLinear, 1/gamma)*255.0 + 0.5);
-        //    int gSRGB = static_cast<int>(pow(bGLinear, 1/gamma)*255.0 + 0.5);
-        //    int bSRGB = static_cast<int>(pow(bBLinear, 1/gamma)*255.0 + 0.5);
-        //    int alpha = static_cast<int>(bCoverage*255.0 + 0.5);
-        //    _bitmap[p] = (byteClamp(alpha) << 24) |
-        //        (byteClamp(rSRGB) << 16) | (byteClamp(gSRGB) << 8) |
-        //        byteClamp(bSRGB);
-        //    //printf("Area %i output %i alpha %i\n",area, rSRGB, alpha);
-        //}
-        //return area;
+        Vector2<double> rect[4];
+        rect[0] = tl;
+        rect[1] = tl + Vector2<double>(size.x, 0);
+        rect[2] = tl + Vector2<double>(0, size.y);
+        rect[3] = tl + size;
+        int i;
+        bool allInside = true;
+        bool allOutside = true;
+        for (i = 0; i < 4; ++i) {
+            if ((rect[i] - c).modulus2() < r2) {
+                allOutside = false;
+                if (!allInside)
+                    break;
+            }
+            else {
+                allInside = false;
+                if (!allOutside)
+                    break;
+            }
+        }
+        if (allInside) {
+            if (size.x >= 1 && size.y >= 1) {
+                bitmap.subBitmap(Vector2Cast<int>(tl),
+                    Vector2Cast<int>(size)).fill(colour | 0xff000000);
+            }
+            return static_cast<int>(size.x * size.y * 256);
+        }
+        if (allOutside)
+            return 0;
+        if (size.x <= 1.0f/16 && size.y <= 1.0f/16)
+            return 1;
+        if (size.x > 1 || size.y > 1) {
+            Vector2<double> s;
+            if (size.x > size.y) {
+                s = Vector2<double>(static_cast<int>(size.x)/2, 0);
+                fillCircle(bitmap, colour, c, r2, tl,
+                    Vector2<double>(s.x, size.y));
+            }
+            else {
+                s = Vector2<double>(0, static_cast<int>(size.y)/2);
+                fillCircle(bitmap, colour, c, r2, tl,
+                    Vector2<double>(size.x, s.y));
+            }
+            fillCircle(bitmap, colour, c, r2, tl + s, size - s);
+            return 0;
+        }
+        Vector2<double> s;
+        if (size.x > size.y)
+            s = Vector2<double>(size.x/2, 0);
+        else
+            s = Vector2<double>(0, size.y/2);
+        int area = fillCircle(bitmap, colour, c, r2, tl, size - s) +
+            fillCircle(bitmap, colour, c, r2, tl + s, size - s);
+        if (size.x == 1 && size.y == 1)
+            plot(&bitmap[Vector2Cast<int>(tl)], colour, area);
+        return area;
     }
 };
 
