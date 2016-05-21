@@ -3,6 +3,8 @@
 #ifndef INCLUDED_KNOB_H
 #define INCLUDED_KNOB_H
 
+const COLORREF chromaKey = RGB(0xff, 0x0, 0xff);
+
 template<class T> class KnobSlider
 {
 public:
@@ -115,7 +117,7 @@ private:
             point.y = position.y;
             IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
             _host->knobEvent(Vector(point.x, point.y), lButton);
-            return lButton;  // Capture when button is down
+            return false; //return lButton;  // Capture when button is down
         }
         void create()
         {
@@ -239,6 +241,26 @@ private:
             corners[3] = p + x + y;
             fillParallelogram(_bitmap, &corners[0], _host->_black);
 
+            if (_host->_useChromaKey) {
+                Byte* row = _bitmap.data();
+                for (int y = 0; y < _bitmap.size().y; ++y) {
+                    DWORD* p = reinterpret_cast<DWORD*>(row);
+                    for (int x = 0; x < _bitmap.size().x; ++x) {
+                        if (((*p) >> 24) < 0x80)
+                            *p = 0xff000000 | chromaKey;
+                        else
+                            *p = _host->_lightGrey;
+                        ++p;
+                    }
+                    row += _bitmap.stride();
+                }
+                //setPosition(topLeft);
+                //setSize(s);
+                invalidate();
+                //UpdateWindow(_hWnd);
+                return;
+            }
+
             _bmi.bmiHeader.biWidth = s.x;
             _bmi.bmiHeader.biHeight = -s.y;
             IF_ZERO_THROW(SetDIBitsToDevice(
@@ -268,10 +290,13 @@ private:
             blend.BlendFlags = 0;
             blend.SourceConstantAlpha = 255;
             blend.AlphaFormat = AC_SRC_ALPHA;
-            BOOL r = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
-                &ptSrc, 0, &blend, ULW_ALPHA);
+            BOOL r; // = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
+            //    &ptSrc, 0, &blend, ULW_ALPHA);
+            r = 0;
             if (r == 0) {
                 _host->_useChromaKey = true;
+                //SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
+                //    LWA_COLORKEY);
                 update(position);
             }
         }
@@ -287,8 +312,69 @@ private:
             _bmi.bmiHeader.biYPelsPerMeter = 0;
             _bmi.bmiHeader.biClrUsed = 0;
             _bmi.bmiHeader.biClrImportant = 0;
+              setSize(Vector(100, 100));
+              setPosition(Vector(0, 0));
             WindowsWindow::create();
+            SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
+                LWA_COLORKEY);
         }
+        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+            switch (uMsg) {
+                case WM_CREATE:
+                {
+                    BOOL r = SetLayeredWindowAttributes(_hWnd, chromaKey, 255, LWA_COLORKEY);
+                    if (r == 0)
+                        printf("SetLayerWindowAttributes failed");
+                }
+                    return 0;
+                case WM_PAINT:
+                    if (!_host->_useChromaKey)
+                        break;
+                    {
+                        PaintHandle paintHandle(this);
+                        printf("%i %i %i %i\n", paintHandle.topLeft().x, paintHandle.topLeft().y, paintHandle.bottomRight().x, paintHandle.bottomRight().y);
+                        //TextOut(paintHandle.hDC(), 0, 0, L"Hello, Windows!", 15);
+                            //RECT rect;
+                            //rect.bottom = size().y;
+                            //rect.top = 0;
+                            //rect.left = 0;
+                            //rect.right = size().x;
+                            //FillRect(paintHandle.hDC(), &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
+
+                        //if (!paintHandle.zeroArea()) {
+                            if (!_bitmap.valid())
+                                return 0;
+                            Vector ptl = Vector(0, 0); // paintHandle.topLeft();
+                            Vector pbr = size(); //paintHandle.bottomRight();
+                            Vector br = size();
+                            pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+                            Vector ps = pbr - ptl;
+                            if (ps.x <= 0 || ps.y <= 0)
+                                return 0;
+                            Vector s = size();
+                            _bmi.bmiHeader.biWidth = s.x;
+                            _bmi.bmiHeader.biHeight = -s.y;
+                            IF_ZERO_THROW(SetDIBitsToDevice(
+                                paintHandle.hDC(),
+                                ptl.x,
+                                ptl.y,
+                                ps.x,
+                                ps.y,
+                                ptl.x,
+                                s.y - pbr.y,
+                                0,
+                                s.y,
+                                _bitmap.data(),
+                                &_bmi,
+                                DIB_RGB_COLORS));
+                        //}
+                        return 0;
+                    }
+            }
+            return WindowsWindow::handleMessage(uMsg, wParam, lParam);
+        }
+
     private:
 
         KnobSlider* _host;
