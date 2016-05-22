@@ -256,7 +256,7 @@ private:
     void drawBand(DeviceContext* dc)
     {
         Pen pen(PS_DOT, 0, BLACK_PEN);
-        SelectedPen sp(dc, &pen);
+        SelectedObject sp(dc, pen);
 
         POINT points[5];
         points[0].x = _zoomPosition.x; points[0].y = _zoomPosition.y;

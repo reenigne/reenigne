@@ -1266,8 +1266,11 @@ public:
     void setRGBI(Bitmap<Byte> rgbi)
     {
         _rgbi = rgbi;
-        _ntsc = Bitmap<Byte>(_rgbi.size() - Vector(1, 0));
-        allocateBitmap();
+        {
+            Lock lock(&_mutex);
+            _ntsc = Bitmap<Byte>(_rgbi.size() - Vector(1, 0));
+            allocateBitmap2();
+        }
         reCreateNTSC();
     }
     void reCreateNTSC()
@@ -1298,20 +1301,25 @@ public:
     }
     void run()
     {
-        //Timer timer;
-        const Byte* ntscRow = _ntsc.data();
-        Byte* outputRow = _bitmap.data();
-        for (int yy = 0; yy < _ntsc.size().y; ++yy) {
-            _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(outputRow),
-                _ntsc.size().x - 6, _bitmap.size().x);
-            memcpy(outputRow + _bitmap.stride(), outputRow,
-                _bitmap.size().x*sizeof(DWORD));
-            outputRow += _bitmap.stride()*2;
-            ntscRow += _ntsc.stride();
+        Bitmap<Byte> ntsc;
+        Bitmap<DWORD> bitmap;
+        {
+            Lock lock(&_mutex);
+            ntsc = _ntsc;
+            bitmap = _bitmap;
         }
-        //timer.output("resampling ");
+        const Byte* ntscRow = ntsc.data();
+        Byte* outputRow = bitmap.data();
+        for (int yy = 0; yy < ntsc.size().y; ++yy) {
+            _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(outputRow),
+                ntsc.size().x - 6, bitmap.size().x);
+            memcpy(outputRow + bitmap.stride(), outputRow,
+                bitmap.size().x*sizeof(DWORD));
+            outputRow += bitmap.stride()*2;
+            ntscRow += ntsc.stride();
+        }
         if (_window != 0)
-            _window->draw(_bitmap);
+            _window->draw(bitmap);
     }
     void save(String outputFileName)
     {
@@ -1414,6 +1422,11 @@ public:
 private:
     void allocateBitmap()
     {
+        Lock lock(&_mutex);
+        allocateBitmap2();
+    }
+    void allocateBitmap2()
+    {
         Vector size = requiredSize();
         if (size.x > _bitmap.size().x || size.y > _bitmap.size().y)
             _bitmap = Bitmap<DWORD>(size);
@@ -1440,6 +1453,7 @@ private:
     int _combFilterVertical;
     int _combFilterTemporal;
     CGA2NTSCWindow* _window;
+    Mutex _mutex;
 };
 
 typedef CGAOutputT<void> CGAOutput;

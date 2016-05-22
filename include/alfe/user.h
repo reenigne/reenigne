@@ -12,22 +12,42 @@
 
 class WindowsWindow;
 
-class Font : Uncopyable
+class GDIObject : public ConstHandle
 {
 public:
-    Font()
+    GDIObject() { }
+    GDIObject(HGDIOBJ object) : _object(object)
+    {
+        IF_NULL_THROW(object);
+        ConstHandle::operator=(create<Body>(object));
+    }
+    operator HGDIOBJ() const { return _object; }
+    HGDIOBJ object() const { return _object; }
+protected:
+    class Body : public ConstHandle::Body
+    {
+    public:
+        Body(HGDIOBJ object) : _object(object) { }
+        ~Body() { DeleteObject(_object); }
+        HGDIOBJ _object;
+    };
+    HGDIOBJ _object;
+};
+
+class Font : public GDIObject
+{
+public:
+    Font() : GDIObject(object()) { }
+    operator HFONT() const { return static_cast<HFONT>(_object); }
+private:
+    HGDIOBJ object()
     {
         NONCLIENTMETRICS ncm;
         ncm.cbSize = sizeof(NONCLIENTMETRICS) - sizeof(ncm.iPaddedBorderWidth);
         IF_FALSE_THROW(SystemParametersInfo(SPI_GETNONCLIENTMETRICS,
             ncm.cbSize, &ncm, 0));
-        _font = CreateFontIndirect(&ncm.lfMessageFont);
-        IF_NULL_THROW(_font);
+        return CreateFontIndirect(&ncm.lfMessageFont);
     }
-    ~Font() { DeleteObject(_font); }
-    operator HFONT () const { return _font; }
-private:
-    HFONT _font;
 };
 
 template<class T> class WindowsT : Uncopyable
@@ -391,9 +411,11 @@ class DeviceContext : Uncopyable
 {
 public:
     void NoFailSelectObject(HGDIOBJ hObject) { ::SelectObject(_hdc, hObject); }
-    void SelectObject(HGDIOBJ hObject)
+    HGDIOBJ SelectObject(HGDIOBJ hObject)
     {
-        IF_NULL_THROW(::SelectObject(_hdc, hObject));
+        HGDIOBJ r = ::SelectObject(_hdc, hObject);
+        IF_NULL_THROW(r);
+        return r;
     }
     void SetROP2(int fnDrawMode)
     {
@@ -407,7 +429,6 @@ public:
 protected:
     HDC _hdc;
 };
-
 
 class WindowsWindow : public ContainerWindow
 {
@@ -946,16 +967,26 @@ private:
 class WindowDeviceContext : public DeviceContext
 {
 public:
-    WindowDeviceContext(const WindowsWindow* window) : _window(window)
+    WindowDeviceContext(HWND hWnd) : _hWnd(hWnd)
     {
-        _hdc = GetDC(window->hWnd());
+        _hdc = GetDC(_hWnd);
         IF_NULL_THROW(_hdc);
     }
-    ~WindowDeviceContext() { ReleaseDC(_window->hWnd(), _hdc); }
+    ~WindowDeviceContext() { ReleaseDC(_hWnd, _hdc); }
 private:
-    const WindowsWindow* _window;
+    HWND _hWnd;
 };
 
+class OwnedDeviceContext : public DeviceContext
+{
+public:
+    OwnedDeviceContext(HDC hdc)
+    {
+        _hdc = hdc;
+        IF_NULL_THROW(_hdc);
+    }
+    ~OwnedDeviceContext() { DeleteDC(_hdc); }
+};
 
 class PaintHandle : public DeviceContext
 {
@@ -1019,8 +1050,10 @@ public:
     void draw()
     {
         Vector s = size();
-        if (_bitmap.size().x != s.x || _bitmap.size().y < s.y)
-            _bitmap = Bitmap<DWORD>(Vector(s.x, max(_bitmap.size().y, s.y)));
+        if (_bitmap.size().x < s.x || _bitmap.size().y < s.y) {
+            _bitmap = Bitmap<DWORD>(Vector(max(_bitmap.size().x, s.x),
+                max(_bitmap.size().y, s.y)));
+        }
         draw2();
         invalidate();
     }
@@ -1103,35 +1136,36 @@ private:
     BITMAPINFO _bmi;
 };
 
-class Pen
+class Pen : public GDIObject
 {
 public:
     Pen(int fnPenStyle, int nWidth, COLORREF crColor)
-    {
-        m_hPen = CreatePen(fnPenStyle, nWidth, crColor);
-        IF_NULL_THROW(m_hPen);
-    }
-    ~Pen() { DeleteObject(m_hPen); }
-    operator HPEN() { return m_hPen; }
-private:
-    HPEN m_hPen;
+      : GDIObject(CreatePen(fnPenStyle, nWidth, crColor)) { }
+    operator HPEN() { return static_cast<HPEN>(_object); }
 };
 
-
-class SelectedPen
+class SelectedObject : public ConstHandle
 {
 public:
-    SelectedPen(DeviceContext* dc, Pen* pen) : _dc(dc)
-    {
-        _dc->SelectObject(*pen);
-    }
-    ~SelectedPen()
-    {
-        _dc->NoFailSelectObject(GetStockObject(BLACK_PEN));
-    }
+    SelectedObject() { }
+    SelectedObject(DeviceContext* dc, const GDIObject& object)
+      : ConstHandle(create<Body>(dc, object)) { }
 private:
-    DeviceContext* _dc;
+    class Body : public ConstHandle::Body
+    {
+    public:
+        Body(DeviceContext* dc, const GDIObject& object) : _dc(dc)
+        {
+            _previous = dc->SelectObject(object);
+        }
+        ~Body()
+        {
+            _dc->NoFailSelectObject(_previous);
+        }
+    private:
+        DeviceContext* _dc;
+        HGDIOBJ _previous;
+    };
 };
-
 
 #endif // INCLUDED_USER_H

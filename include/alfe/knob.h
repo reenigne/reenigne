@@ -34,7 +34,9 @@ public:
             Vector(0, (size.y - _caption.size().y)/2));
         _knob.setSize(Vector(size.y, size.y));
         _knob.setPosition(Vector(_caption.right(), position.y));
-        _edit.setPosition(_knob.topRight() + (size.y - _edit.size().y)/2);
+        Vector editTL = _knob.topRight() + Vector(size.y/2, 0);
+        _edit.setPosition(editTL);
+        _edit.setSize(size + position - editTL);
     }
     Vector bottomLeft() { return _caption.bottomLeft(); }
     int right() const { return _edit.right(); }
@@ -117,7 +119,7 @@ private:
             point.y = position.y;
             IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
             _host->knobEvent(Vector(point.x, point.y), lButton);
-            return false; //return lButton;  // Capture when button is down
+            return lButton;  // Capture when button is down
         }
         void create()
         {
@@ -130,53 +132,58 @@ private:
         KnobSlider* _host;
         bool _created;
     };
+
     class PopupWindow : public WindowsWindow
     {
     public:
-        PopupWindow(KnobSlider* host) : _host(host)
+        PopupWindow(KnobSlider* host)
+          : _host(host), _waitingForPaint(false), _gotNewPosition(false),
+            _delta(0, 1), _hdcScreen(NULL),
+            _hdcSrc(CreateCompatibleDC(_hdcScreen))
         {
-            _hdcScreen = GetDC(NULL);
-            _hdcSrc = CreateCompatibleDC(_hdcScreen);
-            _hbmBackBuffer = CreateCompatibleBitmap(_hdcScreen, 100, 100);
-            _hbmOld = SelectObject(_hdcSrc, _hbmBackBuffer);
+            _hbmBackBuffer =
+                GDIObject(CreateCompatibleBitmap(_hdcScreen, 100, 100));
+            _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
         }
         void setWindows(Windows* windows)
         {
             WindowsWindow::setWindows(windows);
-            setClassName(WC_STATIC);
             setStyle(WS_POPUP);
             setExtendedStyle(WS_EX_LAYERED);
         }
-        ~PopupWindow()
-        {
-            SelectObject(_hdcSrc, _hbmOld);
-            DeleteObject(_hbmBackBuffer);
-            DeleteDC(_hdcSrc);
-            ReleaseDC(NULL, _hdcScreen);
-        }
         void update(Vector position)
         {
+            if (_waitingForPaint) {
+                _gotNewPosition = true;
+                _newPosition = position;
+                return;
+            }
+            _gotNewPosition = false;
+
             int length = _host->_size.x;
             double valueLow = _host->_min;
             double valueHigh = _host->_max;
             double valueStart = _host->_valueStart;
+            double valueDelta = valueHigh - valueLow;
             Vector dragStart = _host->_dragStart;
             double value;
             Vector2<double> a;
-            if (position == dragStart) {
-                value = valueStart;
-                a = Vector2<double>(0, length/(valueLow - valueHigh));
+            Vector2<double> delta = Vector2Cast<double>(position - dragStart);
+            double distance = sqrt(delta.modulus2());
+            if (distance < 40) {
+                value = valueStart + dot(delta, _delta)*valueDelta/length;
+                a = _delta*length/valueDelta;
             }
             else {
-                Vector delta = position - _host->_dragStart;
-                double distance = sqrt(delta.modulus2());
-                if (delta.x < delta.y)
+                _delta = delta/sqrt(delta.modulus2());
+                if (delta.x < delta.y) {
                     distance = -distance;
-                value = valueStart + distance*(valueHigh - valueLow)/length;
-                a = Vector2Cast<double>(dragStart - position)/
-                    (valueStart - value);
-                value = clamp(valueLow, value, valueHigh);
+                    _delta = -_delta;
+                }
+                value = valueStart + distance*valueDelta/length;
+                a = delta/(value - valueStart);
             }
+            value = clamp(valueLow, value, valueHigh);
             _host->setValue(value);
             auto b = Vector2Cast<double>(dragStart) - a*valueStart;
             Vector2<double> low = a*valueLow + b;
@@ -202,24 +209,28 @@ private:
             }
 
             Vector s = bottomRight - topLeft;
-            if (s.x != _bitmap.size().x || s.y > _bitmap.size().y) {
-                _bitmap = Bitmap<DWORD>(Vector(s.x,
+            if (s.x > _bitmap.size().x || s.y > _bitmap.size().y) {
+                _bitmap = Bitmap<DWORD>(Vector(max(s.x, _bitmap.size().x),
                     max(s.y, _bitmap.size().y)));
-                SelectObject(_hdcSrc, _hbmOld);
-                DeleteObject(_hbmBackBuffer);
-                _hbmBackBuffer = CreateCompatibleBitmap(_hdcScreen,
-                    _bitmap.size().x, _bitmap.size().y);
-                SelectObject(_hdcSrc, _hbmBackBuffer);
+                _hbmOld = SelectedObject();
+                _hbmBackBuffer = GDIObject(CreateCompatibleBitmap(_hdcScreen,
+                    _bitmap.size().x, _bitmap.size().y));
+                _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
             }
 
             for (int i = 0; i < 4; ++i)
                 corners[i] -= topLeft;
             low -= topLeft;
             high -= topLeft;
-            _bitmap.fill(0);  // Transparent
+            // Transparent
+            if (_host->_useChromaKey)
+                _bitmap.fill(0xff000000 | chromaKey);
+            else
+                _bitmap.fill(0);
 
             // Background
-            fillParallelogram(_bitmap, &corners[0], _host->_lightGrey);
+            fillParallelogram(_bitmap, &corners[0], _host->_lightGrey,
+                !_host->_useChromaKey);
 
             // Track
             x = (high-low)*2/length;
@@ -241,41 +252,15 @@ private:
             corners[3] = p + x + y;
             fillParallelogram(_bitmap, &corners[0], _host->_black);
 
+            sizeSet(s);
             if (_host->_useChromaKey) {
-                Byte* row = _bitmap.data();
-                for (int y = 0; y < _bitmap.size().y; ++y) {
-                    DWORD* p = reinterpret_cast<DWORD*>(row);
-                    for (int x = 0; x < _bitmap.size().x; ++x) {
-                        if (((*p) >> 24) < 0x80)
-                            *p = 0xff000000 | chromaKey;
-                        else
-                            *p = _host->_lightGrey;
-                        ++p;
-                    }
-                    row += _bitmap.stride();
-                }
-                //setPosition(topLeft);
-                //setSize(s);
+                MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
                 invalidate();
-                //UpdateWindow(_hWnd);
+                _waitingForPaint = true;
                 return;
             }
 
-            _bmi.bmiHeader.biWidth = s.x;
-            _bmi.bmiHeader.biHeight = -s.y;
-            IF_ZERO_THROW(SetDIBitsToDevice(
-                _hdcSrc,
-                0,
-                0,
-                s.x,
-                s.y,
-                0,
-                0,
-                0,
-                s.y,
-                _bitmap.data(),
-                &_bmi,
-                DIB_RGB_COLORS));
+            setDIBits(_hdcSrc, Vector(0, 0), s);
             POINT ptSrc;
             ptSrc.x = 0;
             ptSrc.y = 0;
@@ -290,13 +275,12 @@ private:
             blend.BlendFlags = 0;
             blend.SourceConstantAlpha = 255;
             blend.AlphaFormat = AC_SRC_ALPHA;
-            BOOL r; // = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
-            //    &ptSrc, 0, &blend, ULW_ALPHA);
-            r = 0;
+            BOOL r = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
+                &ptSrc, 0, &blend, ULW_ALPHA);
             if (r == 0) {
                 _host->_useChromaKey = true;
-                //SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
-                //    LWA_COLORKEY);
+                SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
+                    LWA_COLORKEY);
                 update(position);
             }
         }
@@ -312,83 +296,73 @@ private:
             _bmi.bmiHeader.biYPelsPerMeter = 0;
             _bmi.bmiHeader.biClrUsed = 0;
             _bmi.bmiHeader.biClrImportant = 0;
-              setSize(Vector(100, 100));
-              setPosition(Vector(0, 0));
             WindowsWindow::create();
-            SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
-                LWA_COLORKEY);
         }
         virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
-            switch (uMsg) {
-                case WM_CREATE:
-                {
-                    BOOL r = SetLayeredWindowAttributes(_hWnd, chromaKey, 255, LWA_COLORKEY);
-                    if (r == 0)
-                        printf("SetLayerWindowAttributes failed");
-                }
-                    return 0;
-                case WM_PAINT:
-                    if (!_host->_useChromaKey)
-                        break;
-                    {
-                        PaintHandle paintHandle(this);
-                        printf("%i %i %i %i\n", paintHandle.topLeft().x, paintHandle.topLeft().y, paintHandle.bottomRight().x, paintHandle.bottomRight().y);
-                        //TextOut(paintHandle.hDC(), 0, 0, L"Hello, Windows!", 15);
-                            //RECT rect;
-                            //rect.bottom = size().y;
-                            //rect.top = 0;
-                            //rect.left = 0;
-                            //rect.right = size().x;
-                            //FillRect(paintHandle.hDC(), &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-                        //if (!paintHandle.zeroArea()) {
-                            if (!_bitmap.valid())
-                                return 0;
-                            Vector ptl = Vector(0, 0); // paintHandle.topLeft();
-                            Vector pbr = size(); //paintHandle.bottomRight();
-                            Vector br = size();
-                            pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
-                            Vector ps = pbr - ptl;
-                            if (ps.x <= 0 || ps.y <= 0)
-                                return 0;
-                            Vector s = size();
-                            _bmi.bmiHeader.biWidth = s.x;
-                            _bmi.bmiHeader.biHeight = -s.y;
-                            IF_ZERO_THROW(SetDIBitsToDevice(
-                                paintHandle.hDC(),
-                                ptl.x,
-                                ptl.y,
-                                ps.x,
-                                ps.y,
-                                ptl.x,
-                                s.y - pbr.y,
-                                0,
-                                s.y,
-                                _bitmap.data(),
-                                &_bmi,
-                                DIB_RGB_COLORS));
-                        //}
-                        return 0;
-                    }
+            if (uMsg == WM_PAINT && _host->_useChromaKey) {
+                _waitingForPaint = false;
+                PaintHandle p(this);
+                setDIBits(p.hDC(), p.topLeft(), p.bottomRight());
+                if (_gotNewPosition)
+                    update(_newPosition);
+                return 0;
             }
             return WindowsWindow::handleMessage(uMsg, wParam, lParam);
         }
 
     private:
+        void setDIBits(HDC hdc, Vector ptl, Vector pbr)
+        {
+            Vector br = size();
+            pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+            Vector ps = pbr - ptl;
+            if (ps.x <= 0 || ps.y <= 0 || !_bitmap.valid())
+                return;
+            Vector s = size();
+            _bmi.bmiHeader.biWidth = _bitmap.stride() / sizeof(DWORD);
+            _bmi.bmiHeader.biHeight = -s.y;
+            IF_ZERO_THROW(SetDIBitsToDevice(
+                hdc,
+                ptl.x,
+                ptl.y,
+                ps.x,
+                ps.y,
+                ptl.x,
+                s.y - pbr.y,
+                0,
+                s.y,
+                _bitmap.data(),
+                &_bmi,
+                DIB_RGB_COLORS));
+        }
 
         KnobSlider* _host;
-        HDC _hdcScreen;
-        HDC _hdcSrc;
-        HBITMAP _hbmBackBuffer;
-        HGDIOBJ _hbmOld;
+        WindowDeviceContext _hdcScreen;
+        OwnedDeviceContext _hdcSrc;
+        GDIObject _hbmBackBuffer;
+        SelectedObject _hbmOld;
         Bitmap<DWORD> _bitmap;
         BITMAPINFO _bmi;
+        bool _waitingForPaint;
+        bool _gotNewPosition;
+        Vector _newPosition;
+        Vector2<double> _delta;
+    };
+
+    class EditControl : public EditWindow
+    {
+    public:
+        void setWindows(Windows* windows)
+        {
+            EditWindow::setWindows(windows);
+            setExtendedStyle(WS_EX_CLIENTEDGE);
+        }
     };
 
     TextWindow _caption;
     KnobWindow _knob;
-    EditWindow _edit;
+    EditControl _edit;
     PopupWindow _popup;
     bool _sliding;
     double _value;
@@ -424,7 +398,7 @@ private:
     }
 
     static void fillParallelogram(Bitmap<DWORD> bitmap,
-        Vector2<double>* points, DWORD colour)
+        Vector2<double>* points, DWORD colour, bool antiAlias = true)
     {
         Vector topLeft = Vector2Cast<int>(points[0]);
         Vector bottomRight = topLeft + Vector(1, 1);
@@ -446,22 +420,22 @@ private:
             int sx2 = s.x/2;
             Vector2<double> s2(sx2, s.y);
             fillParallelogram(bitmap, corners, colour, Vector2<double>(0, 0),
-                s2);
+                s2, antiAlias);
             fillParallelogram(bitmap, corners, colour, Vector2<double>(sx2, 0),
-                s2);
+                s2, antiAlias);
         }
         else {
             int sy2 = s.y/2;
             Vector2<double> s2(s.x, sy2);
             fillParallelogram(bitmap, corners, colour, Vector2<double>(0, 0),
-                s2);
+                s2, antiAlias);
             fillParallelogram(bitmap, corners, colour, Vector2<double>(0, sy2),
-                s2);
+                s2, antiAlias);
         }
     }
 
     static int fillParallelogram(Bitmap<DWORD> bitmap, Vector2<double>* points,
-        DWORD colour, Vector2<double> tl, Vector2<double> size)
+        DWORD colour, Vector2<double> tl, Vector2<double> size, bool antiAlias)
     {
         Vector2<double> rect[4];
         rect[0] = tl;
@@ -512,14 +486,19 @@ private:
             if (size.x > size.y) {
                 s = Vector2<double>(static_cast<int>(size.x)/2, 0);
                 fillParallelogram(bitmap, points, colour, tl,
-                    Vector2<double>(s.x, size.y));
+                    Vector2<double>(s.x, size.y), antiAlias);
             }
             else {
                 s = Vector2<double>(0, static_cast<int>(size.y)/2);
                 fillParallelogram(bitmap, points, colour, tl,
-                    Vector2<double>(size.x, s.y));
+                    Vector2<double>(size.x, s.y), antiAlias);
             }
-            fillParallelogram(bitmap, points, colour, tl + s, size - s);
+            fillParallelogram(bitmap, points, colour, tl + s, size - s,
+                antiAlias);
+            return 0;
+        }
+        if (!antiAlias) {
+            plot(&bitmap[Vector2Cast<int>(tl)], colour, 256);
             return 0;
         }
         Vector2<double> s;
@@ -527,8 +506,9 @@ private:
             s = Vector2<double>(size.x/2, 0);
         else
             s = Vector2<double>(0, size.y/2);
-        int area = fillParallelogram(bitmap, points, colour, tl, size - s) +
-            fillParallelogram(bitmap, points, colour, tl + s, size - s);
+        int area = fillParallelogram(bitmap, points, colour, tl, size - s,
+            antiAlias) + fillParallelogram(bitmap, points, colour, tl + s,
+                size - s, antiAlias);
         if (size.x == 1 && size.y == 1)
             plot(&bitmap[Vector2Cast<int>(tl)], colour, area);
         return area;
