@@ -88,6 +88,7 @@ public:
         addFunco(ShiftRightConcreteInteger());
         addFunco(PowerIntegerInteger());
         addFunco(PowerRationalInteger());
+        addFunco(NegativeRational());
         addFunco(IndexArray());
         addFunco(LogicalNotBoolean());
         addFunco(LessThanIntegerInteger());
@@ -262,12 +263,33 @@ public:
             s.throwError("Unknown identifier " + i.name());
         return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
     }
-    Tyco resolveTycoIdentifier(TycoIdentifier i)
+    Tyco resolveTycoIdentifier(TycoIdentifier i) const
     {
         String s = i.name();
         if (!_types.hasKey(s))
             return Tyco();
         return _types[s];
+    }
+
+    template<class U> U evaluate(String text, const U& def)
+    {
+        CharacterSource s(text);
+        Value c;
+        try {
+            Expression e = Expression::parse(&s);
+            if (!e.valid())
+                return def;
+            Value v = e.evaluate(&_context);
+            if (!v.valid())
+                return def;
+            c = v.convertTo(typeFromCompileTimeType<U>());
+            if (!c.valid())
+                return def;
+        }
+        catch (...) {
+            return def;
+        }
+        return c.template value<U>();
     }
 private:
 

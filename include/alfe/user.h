@@ -141,6 +141,14 @@ private:
                             dynamic_cast<ComboBox*>(getContext(hWnd))
                                 ->changed();
                             break;
+                        case EN_CHANGE:
+                            {
+                                auto c = getContext(lParam);
+                                auto w = dynamic_cast<EditWindow*>(c);
+                                if (w != 0)
+                                    w->changed();
+                            }
+                            break;
                     }
                     break;
                 case WM_HSCROLL:
@@ -522,6 +530,20 @@ public:
             IF_ZERO_THROW(SetWindowText(_hWnd, w));
         }
     }
+    String getText()
+    {
+        int length = 16;
+        Array<WCHAR> buf;
+        do {
+            buf.allocate(length);
+            int n = GetWindowText(_hWnd, &buf[0], length);
+            IF_ZERO_CHECK_THROW_LAST_ERROR(n);
+            if (n < length - 1)
+                break;
+            length *= 2;
+        } while (true);
+        return String(&buf[0]);
+    }
 
     void setSize(Vector size)
     {
@@ -579,6 +601,7 @@ public:
         ContainerWindow::positionSet(position);
     }
     HWND hWnd() const { return _hWnd; }
+    HDC getDC() { return _hdc; }
 
     void postMessage(UINT msg, WPARAM wParam = 0, LPARAM lParam = 0)
     {
@@ -798,7 +821,7 @@ public:
         SIZE s;
         NullTerminatedWideString w(_text);
         IF_ZERO_THROW(GetTextExtentPoint32(_hdc, w, _text.length(), &s));
-        Vector size(s.cx + 20, s.cy + 20);
+        Vector size(s.cx + 20, s.cy + 10);
         setSize(size);
         setCheckState(_checked);
     }
@@ -882,6 +905,7 @@ public:
         setClassName(WC_EDIT);
         setStyle(WS_CHILD | WS_VISIBLE);
     }
+    virtual void changed() { }
 };
 
 class Slider : public WindowsWindow

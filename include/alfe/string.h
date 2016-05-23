@@ -677,7 +677,7 @@ String format(const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    int c = vsnprintf(0, 0, format, args);
+    int c = vsnprintf(0, 0, format, args) + 1;
     String s(c);
     vsnprintf(reinterpret_cast<char*>(s.data()), c, format, args);
     return s.subString(0, s.length() - 1);  // Discard trailing null byte

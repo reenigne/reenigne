@@ -587,8 +587,12 @@ public:
         for (const Operator* op = ops; op->valid(); ++op) {
             Span span;
             Operator o = op->parse(source, &span);
-            if (o.valid())
-                return unary(o, span, parseUnary(source));
+            if (o.valid()) {
+                Expression inner = parseUnary(source);
+                if (!inner.valid())
+                    return inner;
+                return unary(o, span, inner);
+            }
         }
         return parsePower(source);
     }

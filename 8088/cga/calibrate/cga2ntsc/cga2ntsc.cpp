@@ -735,7 +735,8 @@ public:
 };
 typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
 
-template<class T> class SaturationSliderWindowT : public NumericSliderWindow
+template<class T> class SaturationSliderWindowT
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->saturationSet(value); }
@@ -743,12 +744,13 @@ public:
     {
         setText("Saturation: ");
         setRange(0, 4);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef SaturationSliderWindowT<void> SaturationSliderWindow;
 
-template<class T> class ContrastSliderWindowT: public NumericSliderWindow
+template<class T> class ContrastSliderWindowT
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->contrastSet(value); }
@@ -756,12 +758,12 @@ public:
     {
         setText("Contrast: ");
         setRange(0, 4);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef ContrastSliderWindowT<void> ContrastSliderWindow;
 
-template<class T> class HueSliderWindowT : public NumericSliderWindow
+template<class T> class HueSliderWindowT : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->hueSet(value); }
@@ -769,13 +771,13 @@ public:
     {
         setText("Hue: ");
         setRange(-180, 180);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef HueSliderWindowT<void> HueSliderWindow;
 
 template<class T> class ChromaBandwidthSliderWindowT
-    : public NumericSliderWindow
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->chromaBandwidthSet(value); }
@@ -783,12 +785,13 @@ public:
     {
         setText("Chroma bandwidth: ");
         setRange(0, 2);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef ChromaBandwidthSliderWindowT<void> ChromaBandwidthSliderWindow;
 
-template<class T> class LumaBandwidthSliderWindowT : public NumericSliderWindow
+template<class T> class LumaBandwidthSliderWindowT
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->lumaBandwidthSet(value); }
@@ -796,7 +799,7 @@ public:
     {
         setText("Luma bandwidth: ");
         setRange(0, 2);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef LumaBandwidthSliderWindowT<void> LumaBandwidthSliderWindow;
@@ -948,7 +951,7 @@ private:
 typedef PaletteComboT<void> PaletteCombo;
 
 template<class T> class DiffusionHorizontalSliderWindowT
-  : public NumericSliderWindow
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->diffusionHorizontalSet(value); }
@@ -956,13 +959,13 @@ public:
     {
         setText("Horizontal diffusion: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef DiffusionHorizontalSliderWindowT<void> DiffusionHorizontalSliderWindow;
 
 template<class T> class DiffusionVerticalSliderWindowT
-  : public NumericSliderWindow
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->diffusionVerticalSet(value); }
@@ -970,13 +973,13 @@ public:
     {
         setText("Vertical diffusion: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
 
 template<class T> class DiffusionTemporalSliderWindowT
-  : public NumericSliderWindow
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->diffusionTemporalSet(value); }
@@ -984,12 +987,13 @@ public:
     {
         setText("Temporal diffusion: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef DiffusionTemporalSliderWindowT<void> DiffusionTemporalSliderWindow;
 
-template<class T> class QualitySliderWindowT : public NumericSliderWindow
+template<class T> class QualitySliderWindowT
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->qualitySet(value); }
@@ -997,7 +1001,7 @@ public:
     {
         setText("Quality: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef QualitySliderWindowT<void> QualitySliderWindow;
@@ -1104,7 +1108,8 @@ private:
 };
 typedef CharacterSetComboT<void> CharacterSetCombo;
 
-template<class T> class ScanlineWidthSliderWindowT : public NumericSliderWindow
+template<class T> class ScanlineWidthSliderWindowT
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->scanlineWidthSet(value); }
@@ -1112,7 +1117,7 @@ public:
     {
         setText("Scanline width: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef ScanlineWidthSliderWindowT<void> ScanlineWidthSliderWindow;
@@ -1138,7 +1143,7 @@ private:
 typedef ScanlineProfileComboT<void> ScanlineProfileCombo;
 
 template<class T> class ScanlineOffsetSliderWindowT
-  : public NumericSliderWindow
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->scanlineOffsetSet(value); }
@@ -1146,12 +1151,12 @@ public:
     {
         setText("Scanline offset: ");
         setRange(0, 1);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef ScanlineOffsetSliderWindowT<void> ScanlineOffsetSliderWindow;
 
-template<class T> class ZoomSliderWindowT : public NumericSliderWindow
+template<class T> class ZoomSliderWindowT : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->scanlineOffsetSet(value); }
@@ -1159,7 +1164,7 @@ public:
     {
         setText("Zoom: ");
         setRange(1, 10);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
     double positionFromValue(double value) { return log(value); }
     double valueFromPosition(double position) { return exp(position); }
@@ -1181,7 +1186,8 @@ private:
 };
 typedef ScanlineBleedingCheckBoxT<void> ScanlineBleedingCheckBox;
 
-template<class T> class AspectRatioSliderWindowT : public NumericSliderWindow
+template<class T> class AspectRatioSliderWindowT
+  : public KnobSlider<CGA2NTSCWindow>
 {
 public:
     void valueSet(double value) { _host->aspectRatioSet(value); }
@@ -1189,7 +1195,7 @@ public:
     {
         setText("Aspect Ratio: ");
         setRange(1, 2);
-        NumericSliderWindow::create();
+        KnobSlider<CGA2NTSCWindow>::create();
     }
 };
 typedef AspectRatioSliderWindowT<void> AspectRatioSliderWindow;
@@ -1568,27 +1574,21 @@ public:
         int w = _outputWindow.right() + 20;
 
         Vector vSpace(0, 15);
+        Vector ks(180, 24);
+        int captionWidth = 100;
 
-        _brightness.setPositionAndSize(Vector(w, 20), Vector(301, 24));
-
-        _saturation.setPositionAndSize(_brightness.bottomLeft() + 2*vSpace,
-            Vector(301, 24));
-
-        _contrast.setPositionAndSize(_saturation.bottomLeft() + 2*vSpace,
-            Vector(301, 24));
-
-        _hue.setPositionAndSize(_contrast.bottomLeft() + 2*vSpace,
-            Vector(301, 24));
-
-        _chromaBandwidth.setPositionAndSize(_hue.bottomLeft() + 2*vSpace,
-            Vector(301, 24));
+        _brightness.setPositionAndSize(Vector(w, 20), ks, captionWidth);
+        _saturation.setPositionAndSize(_brightness.bottomLeft() + vSpace, ks, captionWidth);
+        _contrast.setPositionAndSize(_saturation.bottomLeft() + vSpace, ks, captionWidth);
+        _hue.setPositionAndSize(_contrast.bottomLeft() + vSpace, ks, captionWidth);
+        _chromaBandwidth.setPositionAndSize(_hue.bottomLeft() + vSpace, ks, captionWidth);
         _lumaBandwidth.setPositionAndSize(
-            _chromaBandwidth.bottomLeft() + 2*vSpace, Vector(301, 24));
+            _chromaBandwidth.bottomLeft() + vSpace, ks, captionWidth);
 
-        _newCGA.setPosition(_lumaBandwidth.bottomLeft() + 2*vSpace);
+        _newCGA.setPosition(_lumaBandwidth.bottomLeft() + vSpace);
         _ntscPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
 
-        _matchMode.setPosition(_ntscPrimaries.bottomLeft() + 2*vSpace);
+        _matchMode.setPosition(_ntscPrimaries.bottomLeft() + vSpace);
         _mode.setPosition(_matchMode.bottomLeft() + vSpace);
         _background.setPosition(_mode.topRight());
         _palette.setPosition(_background.topRight());
@@ -1602,32 +1602,32 @@ public:
         _interlaceCombo.setPosition(_phaseCheckBox.topRight());
 
         _diffusionHorizontal.setPositionAndSize(
-            _matchMode.bottomLeft() + 3*vSpace, Vector(301, 24));
+            _matchMode.bottomLeft() + vSpace, ks, captionWidth);
 
         _diffusionVertical.setPositionAndSize(
-            _diffusionHorizontal.bottomLeft() + vSpace, Vector(301, 24));
+            _diffusionHorizontal.bottomLeft() + vSpace, ks, captionWidth);
 
         _diffusionTemporal.setPositionAndSize(
-            _diffusionVertical.bottomLeft() + vSpace, Vector(301, 24));
+            _diffusionVertical.bottomLeft() + vSpace, ks, captionWidth);
 
         _quality.setPositionAndSize(
-            _diffusionTemporal.bottomLeft() + vSpace, Vector(301, 24));
+            _diffusionTemporal.bottomLeft() + vSpace, ks, captionWidth);
 
         _scanlineWidth.setPositionAndSize(
-            _quality.bottomLeft() + vSpace, Vector(301, 24));
+            _quality.bottomLeft() + vSpace, ks, captionWidth);
 
         _scanlineProfile.setPosition(_scanlineWidth.bottomLeft());
 
         _scanlineOffset.setPositionAndSize(
-            _scanlineProfile.bottomLeft() + vSpace, Vector(301, 24));
+            _scanlineProfile.bottomLeft() + vSpace, ks, captionWidth);
 
         _zoom.setPositionAndSize(
-            _scanlineOffset.bottomLeft() + vSpace, Vector(301, 24));
+            _scanlineOffset.bottomLeft() + vSpace, ks, captionWidth);
 
         _scanlineBleeding.setPosition(_zoom.bottomLeft());
 
         _aspectRatio.setPositionAndSize(
-            _scanlineBleeding.bottomLeft() + vSpace, Vector(301, 24));
+            _scanlineBleeding.bottomLeft() + vSpace, ks, captionWidth);
 
         _combFilterVertical.setPosition(_aspectRatio.bottomLeft());
         _combFilterTemporal.setPosition(_combFilterVertical.topRight());
@@ -1636,6 +1636,23 @@ public:
     {
         if (character == VK_ESCAPE)
             remove();
+    }
+    void setConfig(ConfigFile* config)
+    {
+        _brightness.setConfig(config);
+        _saturation.setConfig(config);
+        _contrast.setConfig(config);
+        _hue.setConfig(config);
+        _chromaBandwidth.setConfig(config);
+        _lumaBandwidth.setConfig(config);
+        _diffusionHorizontal.setConfig(config);
+        _diffusionVertical.setConfig(config);
+        _diffusionTemporal.setConfig(config);
+        _quality.setConfig(config);
+        _scanlineWidth.setConfig(config);
+        _scanlineOffset.setConfig(config);
+        _zoom.setConfig(config);
+        _aspectRatio.setConfig(config);
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
     void setShower(CGAShower* shower) { _shower = shower; }
@@ -1852,6 +1869,7 @@ private:
     Program* _program;
     int _paletteSelected;
     int _backgroundSelected;
+    ConfigFile* _config;
 };
 
 class BitmapValue : public Structure
@@ -2061,6 +2079,7 @@ public:
             File(configFile.get<String>("fftWisdom"), config.parent()));
 
         _matcher.setProgram(this);
+        _window.setConfig(&configFile);
         _window.setMatcher(&_matcher);
         _window.setShower(&_shower);
         _window.setOutput(&_output);
