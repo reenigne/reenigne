@@ -556,11 +556,15 @@ public:
         _forward.execute();
 
         // Filter Y
-        int chromaLow =
-            static_cast<int>((inputTimeLength*(4 - _chromaBandwidth))/16);
-        int chromaHigh =
-            static_cast<int>((inputTimeLength*(4 + _chromaBandwidth))/16);
-        int lumaHigh = static_cast<int>(inputTimeLength*_lumaBandwidth/4);
+        int chromaLow = clamp(0,
+            static_cast<int>((inputTimeLength*(4 - _chromaBandwidth))/16),
+            outputFrequencyLength);
+        int chromaHigh = clamp(0,
+            static_cast<int>((inputTimeLength*(4 + _chromaBandwidth))/16),
+            outputFrequencyLength);
+        int lumaHigh = clamp(0,
+            static_cast<int>(inputTimeLength*_lumaBandwidth/4),
+            outputFrequencyLength);
         if (lumaHigh < chromaLow) {
             for (int f = lumaHigh; f < outputFrequencyLength; ++f)
                 _frequency[f] = 0;
@@ -590,8 +594,9 @@ public:
         _forward.execute();
 
         // Filter I
-        int chromaCutoff =
-            static_cast<int>(inputTimeLength*_chromaBandwidth/16);
+        int chromaCutoff = clamp(0,
+            static_cast<int>(inputTimeLength*_chromaBandwidth/16),
+            outputFrequencyLength);
         for (int f = chromaCutoff; f < outputFrequencyLength; ++f)
             _frequency[f] = 0;
         _backward.execute(_frequency, _iTime);

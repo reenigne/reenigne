@@ -586,11 +586,6 @@ public:
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
     int getCharacterSet() { return _characterSet; }
 
-    bool getNTSCPrimaries() { return _decoder.getNTSCPrimaries(); }
-    void setNTSCPrimaries(bool ntscPrimaries)
-    {
-        _decoder.setNTSCPrimaries(ntscPrimaries);
-    }
     double getHue() { return _decoder.getHue(); }
     void setHue(double hue) { _decoder.setHue(hue); }
     double getSaturation() { return _decoder.getSaturation(); }
@@ -660,66 +655,6 @@ private:
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
-
-template<class T> class NumericSliderWindowT
-{
-public:
-    void setText(String text) { _caption.setText(text); }
-    void setHost(CGA2NTSCWindow* host)
-    {
-        _host = host;
-        host->add(&_slider);
-        host->add(&_caption);
-        host->add(&_text);
-        _slider.setHost(this);
-    }
-    void setPositionAndSize(Vector position, Vector size)
-    {
-        _slider.setSize(size);
-        _slider.setPosition(position);
-        _caption.setPosition(_slider.bottomLeft() + Vector(0, 15));
-        _text.setPosition(_caption.topRight());
-    }
-    Vector bottomLeft() { return _caption.bottomLeft(); }
-    int right() const { return _slider.right(); }
-    void setRange(double low, double high)
-    {
-        _slider.setRange(positionFromValue(low), positionFromValue(high));
-    }
-    void setValue(double value) { _slider.setValue(positionFromValue(value)); }
-    double getValue() { return valueFromPosition(_slider.getValue()); }
-
-protected:
-    virtual void create() { }
-    virtual void valueSet(double value) { }
-    virtual double positionFromValue(double value) { return value; }
-    virtual double valueFromPosition(double position) { return position; }
-
-    CGA2NTSCWindow* _host;
-private:
-    void valueSet1(double value)
-    {
-        double v = valueFromPosition(value);
-        _text.setText(format("%f", v));
-        _text.autoSize();
-        valueSet(v);
-    }
-
-    class NumericSlider : public Slider
-    {
-    public:
-        void setHost(NumericSliderWindowT* host) { _host = host; }
-        void valueSet(double value) { _host->valueSet1(value); }
-        void create() { _host->create(); Slider::create(); }
-    private:
-        NumericSliderWindowT* _host;
-    };
-    NumericSlider _slider;
-    TextWindow _caption;
-    TextWindow _text;
-    friend class NumericSlider;
-};
-typedef NumericSliderWindowT<void> NumericSliderWindow;
 
 template<class T> class BrightnessSliderWindowT
   : public KnobSlider<CGA2NTSCWindow>
@@ -818,21 +753,6 @@ private:
     CGA2NTSCWindow* _host;
 };
 typedef NewCGAButtonWindowT<void> NewCGAButtonWindow;
-
-template<class T> class NTSCPrimariesButtonWindowT : public ToggleButton
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->ntscPrimariesPressed(); }
-    void create()
-    {
-        setText("NTSC Primaries");
-        ToggleButton::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef NTSCPrimariesButtonWindowT<void> NTSCPrimariesButtonWindow;
 
 template<class T> class MatchModeButtonT : public ToggleButton
 {
@@ -1142,24 +1062,10 @@ private:
 };
 typedef ScanlineProfileComboT<void> ScanlineProfileCombo;
 
-template<class T> class ScanlineOffsetSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->scanlineOffsetSet(value); }
-    void create()
-    {
-        setText("Scanline offset: ");
-        setRange(0, 1);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef ScanlineOffsetSliderWindowT<void> ScanlineOffsetSliderWindow;
-
 template<class T> class ZoomSliderWindowT : public KnobSlider<CGA2NTSCWindow>
 {
 public:
-    void valueSet(double value) { _host->scanlineOffsetSet(value); }
+    void valueSet(double value) { _host->zoomSet(value); }
     void create()
     {
         setText("Zoom: ");
@@ -1260,7 +1166,17 @@ public:
         bitmap.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
         _bitmap = setNextBitmap(_bitmap);
         invalidate();
+        postMessage(WM_USER + 1);
     }
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        if (uMsg == WM_USER + 1) {
+            updateWindow();
+            return 0;
+        }
+        return BitmapWindow::handleMessage(uMsg, wParam, lParam);
+    }
+
 private:
     Bitmap<DWORD> _bitmap;
 };
@@ -1351,12 +1267,6 @@ public:
         restart();
     }
     int getScanlineProfile() { return _scanlineProfile; }
-    void setScanlineOffset(double offset)
-    {
-        _scanlineOffset = offset;
-        restart();
-    }
-    double getScanlineOffset() { return _scanlineOffset; }
     void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
     double getZoom() { return _zoom; }
     void setScanlineBleeding(bool bleeding)
@@ -1385,12 +1295,6 @@ public:
     int getCombFilterTemporal() { return _combFilterTemporal; }
     ResamplingNTSCDecoder* getDecoder() { return &_decoder; }
 
-    bool getNTSCPrimaries() { return _decoder.getNTSCPrimaries(); }
-    void setNTSCPrimaries(bool ntscPrimaries)
-    {
-        _decoder.setNTSCPrimaries(ntscPrimaries);
-        restart();
-    }
     double getHue() { return _decoder.getHue(); }
     void setHue(double hue) { _decoder.setHue(hue); restart(); }
     double getSaturation() { return _decoder.getSaturation(); }
@@ -1452,7 +1356,6 @@ private:
     ResamplingNTSCDecoder _decoder;
     double _scanlineWidth;
     int _scanlineProfile;
-    double _scanlineOffset;
     double _zoom;
     bool _scanlineBleeding;
     double _aspectRatio;
@@ -1477,7 +1380,6 @@ public:
         _chromaBandwidth.setHost(this);
         _lumaBandwidth.setHost(this);
         add2(&_newCGA);
-        add2(&_ntscPrimaries);
         add2(&_matchMode);
         add2(&_mode);
         add2(&_background);
@@ -1495,7 +1397,6 @@ public:
         add2(&_characterSetCombo);
         _scanlineWidth.setHost(this);
         add2(&_scanlineProfile);
-        _scanlineOffset.setHost(this);
         _zoom.setHost(this);
         add2(&_scanlineBleeding);
         _aspectRatio.setHost(this);
@@ -1541,7 +1442,6 @@ public:
         _characterSetCombo.set(_matcher->getCharacterSet());
         _scanlinesPerRow.set(_matcher->getScanlinesPerRow() - 1);
         _scanlinesRepeat.set(_matcher->getScanlinesRepeat() - 1);
-        _ntscPrimaries.setCheckState(_output->getNTSCPrimaries());
         _brightness.setValue(_output->getBrightness());
         _saturation.setValue(_output->getSaturation());
         _hue.setValue(_output->getHue());
@@ -1551,7 +1451,6 @@ public:
         _newCGA.setCheckState(_output->getNewCGA());
         _scanlineWidth.setValue(_output->getScanlineWidth());
         _scanlineProfile.set(_output->getScanlineProfile());
-        _scanlineOffset.setValue(_output->getScanlineOffset());
         _zoom.setValue(_output->getZoom());
         _scanlineBleeding.setCheckState(_output->getScanlineBleeding());
         _aspectRatio.setValue(_output->getAspectRatio());
@@ -1586,9 +1485,8 @@ public:
             _chromaBandwidth.bottomLeft() + vSpace, ks, captionWidth);
 
         _newCGA.setPosition(_lumaBandwidth.bottomLeft() + vSpace);
-        _ntscPrimaries.setPosition(_newCGA.topRight() + Vector(20, 0));
 
-        _matchMode.setPosition(_ntscPrimaries.bottomLeft() + vSpace);
+        _matchMode.setPosition(_newCGA.bottomLeft() + vSpace);
         _mode.setPosition(_matchMode.bottomLeft() + vSpace);
         _background.setPosition(_mode.topRight());
         _palette.setPosition(_background.topRight());
@@ -1618,11 +1516,8 @@ public:
 
         _scanlineProfile.setPosition(_scanlineWidth.bottomLeft());
 
-        _scanlineOffset.setPositionAndSize(
-            _scanlineProfile.bottomLeft() + vSpace, ks, captionWidth);
-
         _zoom.setPositionAndSize(
-            _scanlineOffset.bottomLeft() + vSpace, ks, captionWidth);
+            _scanlineProfile.bottomLeft() + vSpace, ks, captionWidth);
 
         _scanlineBleeding.setPosition(_zoom.bottomLeft());
 
@@ -1650,7 +1545,6 @@ public:
         _diffusionTemporal.setConfig(config);
         _quality.setConfig(config);
         _scanlineWidth.setConfig(config);
-        _scanlineOffset.setConfig(config);
         _zoom.setConfig(config);
         _aspectRatio.setConfig(config);
     }
@@ -1721,7 +1615,6 @@ public:
     }
     void scanlineWidthSet(double value) { _output->setScanlineWidth(value); }
     void scanlineProfileSet(int value) { _output->setScanlineProfile(value); }
-    void scanlineOffsetSet(double value) { _output->setScanlineOffset(value); }
     void zoomSet(double value) { _output->setZoom(value); }
     void scanlineBleedingPressed()
     {
@@ -1812,12 +1705,6 @@ public:
         _matcher->setNewCGA(newCGA);
         beginConvert();
     }
-    void ntscPrimariesPressed()
-    {
-        bool ntscPrimaries = _ntscPrimaries.checked();
-        _output->setNTSCPrimaries(ntscPrimaries);
-        _matcher->setNTSCPrimaries(ntscPrimaries);
-    }
 
     void reCreateNTSC()
     {
@@ -1839,7 +1726,6 @@ private:
     ChromaBandwidthSliderWindow _chromaBandwidth;
     LumaBandwidthSliderWindow _lumaBandwidth;
     NewCGAButtonWindow _newCGA;
-    NTSCPrimariesButtonWindow _ntscPrimaries;
     MatchModeButton _matchMode;
     ModeCombo _mode;
     BackgroundCombo _background;
@@ -1857,7 +1743,6 @@ private:
     CharacterSetCombo _characterSetCombo;
     ScanlineWidthSliderWindow _scanlineWidth;
     ScanlineProfileCombo _scanlineProfile;
-    ScanlineOffsetSliderWindow _scanlineOffset;
     ZoomSliderWindow _zoom;
     ScanlineBleedingCheckBox _scanlineBleeding;
     AspectRatioSliderWindow _aspectRatio;
@@ -2017,7 +1902,6 @@ public:
         configFile.addDefaultOption("hue", 0.0);
         configFile.addDefaultOption("chromaBandwidth", 1.0);
         configFile.addDefaultOption("lumaBandwidth", 1.0);
-        configFile.addDefaultOption("ntscPrimaries", false);
         configFile.addDefaultOption("horizontalDiffusion", 0.5);
         configFile.addDefaultOption("verticalDiffusion", 0.5);
         configFile.addDefaultOption("temporalDiffusion", 0.0);
@@ -2029,7 +1913,6 @@ public:
         configFile.addDefaultOption("scanlineWidth", 0.5);
         configFile.addDefaultOption("scanlineProfile", 0);
         configFile.addDefaultOption("scanlineBleeding", false);
-        configFile.addDefaultOption("scanlineOffset", 0.0);
         configFile.addDefaultOption("zoom", 2.0);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
@@ -2101,9 +1984,6 @@ public:
         _matcher.setROM(
             File(configFile.get<String>("cgaROM"), config.parent()));
 
-        bool ntscPrimaries = configFile.get<bool>("ntscPrimaries");
-        _output.setNTSCPrimaries(ntscPrimaries);
-        _matcher.setNTSCPrimaries(ntscPrimaries);
         double brightness = configFile.get<double>("brightness");
         _output.setBrightness(brightness);
         _matcher.setBrightness(brightness);
@@ -2123,7 +2003,6 @@ public:
         _matcher.setNewCGA(newCGA);
         _output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         _output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
-        _output.setScanlineOffset(configFile.get<double>("scanlineOffset"));
         _output.setZoom(configFile.get<double>("zoom"));
         _output.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
         _output.setAspectRatio(configFile.get<double>("aspectRatio"));

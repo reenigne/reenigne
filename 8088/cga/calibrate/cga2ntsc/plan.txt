@@ -836,3 +836,31 @@ e has type LValue<Bitmap> and value (ConfigFile*, "inputPicture")
             This doesn't work because we want to have components that are sub-components of other components
         Let's solve this by just having a single Bitmap for now, and if at some point we want more we can do a Berapa-like solution or have some mechanism for deallocating Structure* on assignment
 
+
+
+
+    Do any display settings other than brightness/contrast/hue/saturation/cga-output affect matching?
+      Matching occurs at the step before size and scanlines are applied
+      Filtering doesn't affect colour space, so should not affect matching
+        This is not quite true - best fit for HF data depends on luma bandwidth
+          So, add a sharpness control to the match decoding controls
+          Is there an equivalent for comb filtering?
+            Yes! So we need to have the comb filter controls on the matcher as well as the output
+    After matching, we should be able to change mode/palette as well
+    In general, these problems will be solved by having cga2ntsc be the "import module" for cgaart
+      What should the two windows show?
+        cgaart window shows final output
+        import window shows input before matching?
+        Model as a sequence of transformations:
+                                             cga2ntsc   ?                           cgaart
+                                                v       v                             v
+          Input image -> colour space adjusted -> match -> colour space adjusted -> output
+      If we display post-match (i.e. CGA output) we'd really need to have all the controls that cga2ntsc has
+      When moving from cga2ntsc to cgaart, let's add import as a whole separate function, keeping the current cga2ntsc as the basis of cgaart
+        The import module will be able to change brightness/contrast/saturation/hue of the import image
+        cga2ntsc doesn't need to have any facilities for changing the brightness/contrast/saturation/hue of input images, so only need one set of these settings
+          For batch usage, cga2ntsc is not really the proper tool for this (using >8 bits per channel might improve results for extreme settings changes, but this is a corner case)
+        We will need to compute/use a sharpness setting and apply comb filters for matching
+        We can get rid of the distinction between show mode and match mode - show mode is just matching in RGBI mode and outputting in composite
+
+

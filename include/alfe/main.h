@@ -241,8 +241,10 @@ public:
                     break;
                 if (msg.message == WM_QUIT)
                     break;
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                if (!IsDialogMessage(_window.hWnd(), &msg)) {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
             } while (true);
         } while (msg.message != WM_QUIT);
         _returnValue = static_cast<int>(msg.wParam);

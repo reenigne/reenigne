@@ -80,6 +80,10 @@ public:
         valueSet(value);
         _knob.draw();
     }
+    void changeValue(double amount)
+    {
+        setValue(clamp(_min, _value + (_max - _min)*amount, _max));
+    }
     double getValue() { return _value; }
     void setConfig(ConfigFile* config) { _config = config; }
 
@@ -125,7 +129,7 @@ private:
             Vector s = size();
             Vector2<double> c = Vector2Cast<double>(s)/2.0;
             _bitmap.fill(_host->_lightGrey);
-            fillCircle(_bitmap, _host->_darkGrey, c,
+            fillCircle(_bitmap, _host->_darkGrey, Vector2Cast<float>(c),
                 static_cast<float>(s.x/2.0));
             double a = clamp(0.0, (_host->_value - _host->_min)/
                 (_host->_max - _host->_min), 1.0)*3/4;
@@ -133,10 +137,10 @@ private:
             Vector2<double> o = Vector2<double>(-1, 1)*r*s.x/sqrt(8) + c;
             Vector2<double> w = Vector2<double>(1, 1)*r;
             Vector2<float> points[4];
-            points[0] = c - w;
-            points[1] = c + w;
-            points[2] = o - w;
-            points[3] = o + w;
+            points[0] = Vector2Cast<float>(c - w);
+            points[1] = Vector2Cast<float>(c + w);
+            points[2] = Vector2Cast<float>(o - w);
+            points[3] = Vector2Cast<float>(o + w);
             fillParallelogram(_bitmap, &points[0], _host->_black);
         }
         bool mouseInput(Vector position, int buttons)
@@ -183,12 +187,12 @@ private:
         }
         void update(Vector position)
         {
-            if (_waitingForPaint) {
-                _gotNewPosition = true;
-                _newPosition = position;
-                return;
-            }
-            _gotNewPosition = false;
+            //if (_waitingForPaint) {
+            //    _gotNewPosition = true;
+            //    _newPosition = position;
+            //    return;
+            //}
+            //_gotNewPosition = false;
 
             int length = _host->_size.x;
             double valueLow = _host->_min;
@@ -223,10 +227,10 @@ private:
             Vector2<double> x = (high-low)*endPadding/length;
             Vector2<double> y = 2.0*Vector2<double>(x.y, -x.x);
             Vector2<float> corners[4];
-            corners[0] = low - x - y;
-            corners[1] = low - x + y;
-            corners[2] = high + x - y;
-            corners[3] = high + x + y;
+            corners[0] = Vector2Cast<float>(low - x - y);
+            corners[1] = Vector2Cast<float>(low - x + y);
+            corners[2] = Vector2Cast<float>(high + x - y);
+            corners[3] = Vector2Cast<float>(high + x + y);
 
             Vector topLeft = Vector2Cast<int>(corners[0]);
             Vector bottomRight = topLeft + Vector(1, 1);
@@ -249,7 +253,7 @@ private:
             }
 
             for (int i = 0; i < 4; ++i)
-                corners[i] -= topLeft;
+                corners[i] -= Vector2Cast<float>(topLeft);
             low -= topLeft;
             high -= topLeft;
             // Transparent
@@ -265,10 +269,10 @@ private:
             // Track
             x = (high-low)*2/length;
             y = Vector2<double>(x.y, -x.x);
-            corners[0] = low - y;
-            corners[1] = low + y;
-            corners[2] = high - y;
-            corners[3] = high + y;
+            corners[0] = Vector2Cast<float>(low - y);
+            corners[1] = Vector2Cast<float>(low + y);
+            corners[2] = Vector2Cast<float>(high - y);
+            corners[3] = Vector2Cast<float>(high + y);
             fillParallelogram(_bitmap, &corners[0], _host->_darkGrey);
 
             // Handle
@@ -276,16 +280,17 @@ private:
             y = 2.0*Vector2<double>(x.y, -x.x);
             Vector2<double> p = low +
                 (value - valueLow)*(high - low)/(valueHigh - valueLow);
-            corners[0] = p - x - y;
-            corners[1] = p - x + y;
-            corners[2] = p + x - y;
-            corners[3] = p + x + y;
+            corners[0] = Vector2Cast<float>(p - x - y);
+            corners[1] = Vector2Cast<float>(p - x + y);
+            corners[2] = Vector2Cast<float>(p + x - y);
+            corners[3] = Vector2Cast<float>(p + x + y);
             fillParallelogram(_bitmap, &corners[0], _host->_black);
 
             sizeSet(s);
             if (_host->_useChromaKey) {
                 MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
                 invalidate();
+                updateWindow();
                 _waitingForPaint = true;
                 return;
             }
@@ -331,11 +336,11 @@ private:
         virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             if (uMsg == WM_PAINT && _host->_useChromaKey) {
-                _waitingForPaint = false;
+                //_waitingForPaint = false;
                 PaintHandle p(this);
                 setDIBits(p.hDC(), p.topLeft(), p.bottomRight());
-                if (_gotNewPosition)
-                    update(_newPosition);
+                //if (_gotNewPosition)
+                //    update(_newPosition);
                 return 0;
             }
             return WindowsWindow::handleMessage(uMsg, wParam, lParam);
@@ -388,12 +393,33 @@ private:
         {
             EditWindow::setWindows(windows);
             setExtendedStyle(WS_EX_CLIENTEDGE);
+            setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | WS_TABSTOP);
         }
         void changed()
         {
             String t = getText();
             double v = _host->_config->evaluate<double>(t, _host->_value);
             _host->setValueFromEdit(v);
+        }
+        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+            if (uMsg == WM_KEYDOWN) {
+                switch (wParam) {
+                    case VK_UP:
+                        _host->changeValue(0.01);
+                        return 0;
+                    case VK_DOWN:
+                        _host->changeValue(-0.01);
+                        return 0;
+                    case VK_PRIOR:
+                        _host->changeValue(0.1);
+                        return 0;
+                    case VK_NEXT:
+                        _host->changeValue(-0.1);
+                        return 0;
+                }
+            }
+            return EditWindow::handleMessage(uMsg, wParam, lParam);
         }
     private:
         KnobSlider* _host;
@@ -454,7 +480,7 @@ private:
         bitmap = bitmap.subBitmap(topLeft, s);
         Vector2<float> corners[4];
         for (int i = 0; i < 4; ++i)
-            corners[i] = points[i] - topLeft;
+            corners[i] = points[i] - Vector2Cast<float>(topLeft);
 
         if (s.x > s.y) {
             float sx2 = static_cast<float>(s.x/2);
@@ -524,12 +550,14 @@ private:
         if (size.x > 1 || size.y > 1) {
             Vector2<float> s;
             if (size.x > size.y) {
-                s = Vector2<float>(static_cast<int>(size.x)/2, 0);
+                s = Vector2<float>(
+                    static_cast<float>(static_cast<int>(size.x)/2), 0);
                 fillParallelogram(bitmap, points, colour, tl,
                     Vector2<float>(s.x, size.y), antiAlias);
             }
             else {
-                s = Vector2<float>(0, static_cast<int>(size.y)/2);
+                s = Vector2<float>(0,
+                    static_cast<float>(static_cast<int>(size.y)/2));
                 fillParallelogram(bitmap, points, colour, tl,
                     Vector2<float>(size.x, s.y), antiAlias);
             }
@@ -557,11 +585,11 @@ private:
     // area/256 of the pixel *p is to be covered by colour
     static void plot(DWORD* p, DWORD colour, int area)
     {
-        float coverage = area/256.0;
-        float gamma = 2.2;
-        float rLinear = pow(((colour >> 16) & 0xff)*coverage/255.0, gamma);
-        float gLinear = pow(((colour >> 8) & 0xff)*coverage/255.0, gamma);
-        float bLinear = pow((colour & 0xff)*coverage/255.0, gamma);
+        float coverage = static_cast<float>(area)/256.0f;
+        float gamma = 2.2f;
+        float rLinear = pow(((colour >> 16) & 0xff)*coverage/255.0f, gamma);
+        float gLinear = pow(((colour >> 8) & 0xff)*coverage/255.0f, gamma);
+        float bLinear = pow((colour & 0xff)*coverage/255.0f, gamma);
         DWORD b = *p;
         float bCoverage = ((b >> 24) & 0xff)/255.0f;
         float bRLinear = pow(((b >> 16) & 0xff)/255.0f, gamma);
@@ -571,10 +599,10 @@ private:
         bGLinear = bGLinear*(1 - coverage) + gLinear;
         bBLinear = bBLinear*(1 - coverage) + bLinear;
         bCoverage = bCoverage*(1 - coverage) + coverage;
-        int rSRGB = static_cast<int>(pow(bRLinear, 1/gamma)*255.0 + 0.5);
-        int gSRGB = static_cast<int>(pow(bGLinear, 1/gamma)*255.0 + 0.5);
-        int bSRGB = static_cast<int>(pow(bBLinear, 1/gamma)*255.0 + 0.5);
-        int alpha = static_cast<int>(bCoverage*255.0 + 0.5);
+        int rSRGB = static_cast<int>(pow(bRLinear, 1/gamma)*255.0f + 0.5f);
+        int gSRGB = static_cast<int>(pow(bGLinear, 1/gamma)*255.0f + 0.5f);
+        int bSRGB = static_cast<int>(pow(bBLinear, 1/gamma)*255.0f + 0.5f);
+        int alpha = static_cast<int>(bCoverage*255.0f + 0.5f);
         *p = (byteClamp(alpha) << 24) | (byteClamp(rSRGB) << 16) |
             (byteClamp(gSRGB) << 8) | byteClamp(bSRGB);
     }
@@ -631,12 +659,14 @@ private:
         if (size.x > 1 || size.y > 1) {
             Vector2<float> s;
             if (size.x > size.y) {
-                s = Vector2<float>(static_cast<int>(size.x)/2, 0);
+                s = Vector2<float>(
+                    static_cast<float>(static_cast<int>(size.x)/2), 0);
                 fillCircle(bitmap, colour, c, r2, tl,
                     Vector2<float>(s.x, size.y));
             }
             else {
-                s = Vector2<float>(0, static_cast<int>(size.y)/2);
+                s = Vector2<float>(0,
+                    static_cast<float>(static_cast<int>(size.y)/2));
                 fillCircle(bitmap, colour, c, r2, tl,
                     Vector2<float>(size.x, s.y));
             }

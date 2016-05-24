@@ -607,6 +607,8 @@ public:
     {
         PostMessage(_hWnd, msg, wParam, lParam);
     }
+
+    void updateWindow() { IF_ZERO_THROW(UpdateWindow(_hWnd)); }
 private:
     void destroy()
     {
@@ -903,7 +905,7 @@ public:
     {
         WindowsWindow::setWindows(windows);
         setClassName(WC_EDIT);
-        setStyle(WS_CHILD | WS_VISIBLE);
+        setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL);
     }
     virtual void changed() { }
 };
@@ -948,6 +950,65 @@ private:
     double _min;
     double _max;
     double _pos;
+};
+
+template<class T> class NumericSliderWindow
+{
+public:
+    void setText(String text) { _caption.setText(text); }
+    void setHost(T* host)
+    {
+        _host = host;
+        host->add(&_slider);
+        host->add(&_caption);
+        host->add(&_text);
+        _slider.setHost(this);
+    }
+    void setPositionAndSize(Vector position, Vector size)
+    {
+        _slider.setSize(size);
+        _slider.setPosition(position);
+        _caption.setPosition(_slider.bottomLeft() + Vector(0, 15));
+        _text.setPosition(_caption.topRight());
+    }
+    Vector bottomLeft() { return _caption.bottomLeft(); }
+    int right() const { return _slider.right(); }
+    void setRange(double low, double high)
+    {
+        _slider.setRange(positionFromValue(low), positionFromValue(high));
+    }
+    void setValue(double value) { _slider.setValue(positionFromValue(value)); }
+    double getValue() { return valueFromPosition(_slider.getValue()); }
+
+protected:
+    virtual void create() { }
+    virtual void valueSet(double value) { }
+    virtual double positionFromValue(double value) { return value; }
+    virtual double valueFromPosition(double position) { return position; }
+
+    T* _host;
+private:
+    void valueSet1(double value)
+    {
+        double v = valueFromPosition(value);
+        _text.setText(format("%f", v));
+        _text.autoSize();
+        valueSet(v);
+    }
+
+    class NumericSlider : public Slider
+    {
+    public:
+        void setHost(NumericSliderWindowT* host) { _host = host; }
+        void valueSet(double value) { _host->valueSet1(value); }
+        void create() { _host->create(); Slider::create(); }
+    private:
+        NumericSliderWindowT* _host;
+    };
+    NumericSlider _slider;
+    TextWindow _caption;
+    TextWindow _text;
+    friend class NumericSlider;
 };
 
 class ComboBox : public WindowsWindow
