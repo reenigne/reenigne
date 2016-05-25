@@ -496,7 +496,7 @@ private:
 class ResamplingNTSCDecoder
 {
 public:
-    ResamplingNTSCDecoder() : _rigor(FFTW_EXHAUSTIVE) { }
+    ResamplingNTSCDecoder() : _rigor(FFTW_MEASURE) { } //EXHAUSTIVE) { }
     void calculateBurst(Byte* burst)
     {
         Complex<float> iq;

@@ -57,8 +57,6 @@ public:
 
         setValue(_value);
     }
-    Vector bottomLeft() { return _caption.bottomLeft(); }
-    int right() const { return _edit.right(); }
     void setRange(double low, double high)
     {
         _min = low;
@@ -84,8 +82,15 @@ public:
     {
         setValue(clamp(_min, _value + (_max - _min)*amount, _max));
     }
-    double getValue() { return _value; }
+    double getValue() const { return _value; }
     void setConfig(ConfigFile* config) { _config = config; }
+    Vector size() const { return _size; }
+    int left() const { return _caption.left(); }
+    int top() const { return _knob.top(); }
+    int right() const { return _edit.right(); }
+    int bottom() const { return _knob.bottom(); }
+    Vector topLeft() const { return Vector(left(), top()); }
+    Vector bottomLeft() const { return Vector(left(), bottom()); }
 
 protected:
     T* _host;
@@ -171,8 +176,7 @@ private:
     {
     public:
         PopupWindow(KnobSlider* host)
-          : _host(host), _waitingForPaint(false), _gotNewPosition(false),
-            _delta(0, -1), _hdcScreen(NULL),
+          : _host(host), _delta(0, -1), _hdcScreen(NULL),
             _hdcSrc(CreateCompatibleDC(_hdcScreen))
         {
             _hbmBackBuffer =
@@ -187,13 +191,6 @@ private:
         }
         void update(Vector position)
         {
-            //if (_waitingForPaint) {
-            //    _gotNewPosition = true;
-            //    _newPosition = position;
-            //    return;
-            //}
-            //_gotNewPosition = false;
-
             int length = _host->_size.x;
             double valueLow = _host->_min;
             double valueHigh = _host->_max;
@@ -291,7 +288,6 @@ private:
                 MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
                 invalidate();
                 updateWindow();
-                _waitingForPaint = true;
                 return;
             }
 
@@ -336,11 +332,8 @@ private:
         virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             if (uMsg == WM_PAINT && _host->_useChromaKey) {
-                //_waitingForPaint = false;
                 PaintHandle p(this);
                 setDIBits(p.hDC(), p.topLeft(), p.bottomRight());
-                //if (_gotNewPosition)
-                //    update(_newPosition);
                 return 0;
             }
             return WindowsWindow::handleMessage(uMsg, wParam, lParam);
@@ -379,9 +372,6 @@ private:
         SelectedObject _hbmOld;
         Bitmap<DWORD> _bitmap;
         BITMAPINFO _bmi;
-        bool _waitingForPaint;
-        bool _gotNewPosition;
-        Vector _newPosition;
         Vector2<double> _delta;
     };
 

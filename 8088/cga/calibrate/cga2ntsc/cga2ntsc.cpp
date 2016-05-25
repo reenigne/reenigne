@@ -769,14 +769,14 @@ private:
 };
 typedef MatchModeButtonT<void> MatchModeButton;
 
-template<class T> class ModeComboT : public ComboBox
+template<class T> class ModeComboT : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->modeSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Mode: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("40 column text");
         add("80 column text");
         add("1bpp graphics");
@@ -790,74 +790,70 @@ public:
         set(2);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef ModeComboT<void> ModeCombo;
 
-template<class T> class BackgroundComboT : public ComboBox
+template<class T> class BackgroundComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->backgroundSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Background: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         for (int i = 0; i < 16; ++i)
             add(decimal(i));
         add("Auto");
         set(15);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef BackgroundComboT<void> BackgroundCombo;
 
-template<class T> class ScanlinesPerRowComboT : public ComboBox
+template<class T> class ScanlinesPerRowComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->scanlinesPerRowSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Scanlines per row: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         for (int i = 1; i <= 32; ++i)
             add(decimal(i));
         set(1);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef ScanlinesPerRowComboT<void> ScanlinesPerRowCombo;
 
-template<class T> class ScanlinesRepeatComboT : public ComboBox
+template<class T> class ScanlinesRepeatComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->scanlinesRepeatSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Scanlines repeat: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         for (int i = 1; i <= 32; ++i)
             add(decimal(i));
         set(0);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef ScanlinesRepeatComboT<void> ScanlinesRepeatCombo;
 
-template<class T> class PaletteComboT : public ComboBox
+template<class T> class PaletteComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->paletteSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Palette: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("2/4/6");
         add("10/12/14");
         add("3/5/7");
@@ -865,8 +861,6 @@ public:
         set(3);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef PaletteComboT<void> PaletteCombo;
 
@@ -971,14 +965,15 @@ private:
 };
 typedef PhaseCheckBoxT<void> PhaseCheckBox;
 
-template<class T> class InterlaceComboT : public ComboBox
+template<class T> class InterlaceComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->interlaceSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Interlace: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("None");
         add("Flicker");
         add("Sync");
@@ -1000,19 +995,18 @@ public:
         set(0);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef InterlaceComboT<void> InterlaceCombo;
 
-template<class T> class CharacterSetComboT : public ComboBox
+template<class T> class CharacterSetComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->characterSetSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Character set: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("0xdd");
         add("0x13/0x55");
         add("1K");
@@ -1023,8 +1017,6 @@ public:
         set(3);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef CharacterSetComboT<void> CharacterSetCombo;
 
@@ -1042,14 +1034,15 @@ public:
 };
 typedef ScanlineWidthSliderWindowT<void> ScanlineWidthSliderWindow;
 
-template<class T> class ScanlineProfileComboT : public ComboBox
+template<class T> class ScanlineProfileComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->characterSetSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Scanline profile: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("rectangular");
         add("triangle");
         add("semicircle");
@@ -1057,8 +1050,6 @@ public:
         set(0);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef ScanlineProfileComboT<void> ScanlineProfileCombo;
 
@@ -1106,41 +1097,39 @@ public:
 };
 typedef AspectRatioSliderWindowT<void> AspectRatioSliderWindow;
 
-template<class T> class CombFilterVerticalComboT : public ComboBox
+template<class T> class CombFilterVerticalComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->combFilterVerticalSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Comb filter vertical: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("none");
         add("(1, 1)");
         add("(1, 2, 1)");
         set(0);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef CombFilterVerticalComboT<void> CombFilterVerticalCombo;
 
-template<class T> class CombFilterTemporalComboT : public ComboBox
+template<class T> class CombFilterTemporalComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
     void changed(int value) { _host->combFilterTemporalSet(value); }
     void create()
     {
-        ComboBox::create();
+        setText("Comb filter temporal: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
         add("none");
         add("(1, 1)");
         add("(1, 2, 1)");
         set(0);
         autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
 typedef CombFilterTemporalComboT<void> CombFilterTemporalCombo;
 
@@ -1157,6 +1146,9 @@ public:
     }
     void draw(Bitmap<DWORD> bitmap)
     {
+        if (size().x < 0 || size().x >= 0x4000 || size().y < 0 ||
+            size().y >= 0x4000)
+            return;
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(size());
         // Just copy from the top left corner for now.
@@ -1381,11 +1373,11 @@ public:
         _lumaBandwidth.setHost(this);
         add2(&_newCGA);
         add2(&_matchMode);
-        add2(&_mode);
-        add2(&_background);
-        add2(&_palette);
-        add2(&_scanlinesPerRow);
-        add2(&_scanlinesRepeat);
+        _mode.setHost(this);
+        _background.setHost(this);
+        _palette.setHost(this);
+        _scanlinesPerRow.setHost(this);
+        _scanlinesRepeat.setHost(this);
         _diffusionHorizontal.setHost(this);
         _diffusionVertical.setHost(this);
         _diffusionTemporal.setHost(this);
@@ -1393,15 +1385,15 @@ public:
         add2(&_bwCheckBox);
         add2(&_blinkCheckBox);
         add2(&_phaseCheckBox);
-        add2(&_interlaceCombo);
-        add2(&_characterSetCombo);
+        _interlaceCombo.setHost(this);
+        _characterSetCombo.setHost(this);
         _scanlineWidth.setHost(this);
-        add2(&_scanlineProfile);
+        _scanlineProfile.setHost(this);
         _zoom.setHost(this);
         add2(&_scanlineBleeding);
         _aspectRatio.setHost(this);
-        add2(&_combFilterVertical);
-        add2(&_combFilterTemporal);
+        _combFilterVertical.setHost(this);
+        _combFilterTemporal.setHost(this);
     }
     void create()
     {
@@ -1460,72 +1452,88 @@ public:
         matchModePressed();
 
         setText("CGA to NTSC");
-        setSize(Vector(640, 480));
-
+        setSize(Vector(781, 830));
         RootWindow::create();
-
-        sizeSet(size());
-        setSize(Vector(_brightness.right() + 20, _outputWindow.bottom() + 20));
     }
     void sizeSet(Vector size)
     {
-        _outputWindow.setPosition(Vector(20, 20));
-        int w = _outputWindow.right() + 20;
+        RootWindow::sizeSet(size);
 
         Vector vSpace(0, 15);
+        Vector hSpace(15, 0);
         Vector ks(180, 24);
         int captionWidth = 100;
 
-        _brightness.setPositionAndSize(Vector(w, 20), ks, captionWidth);
-        _saturation.setPositionAndSize(_brightness.bottomLeft() + vSpace, ks, captionWidth);
-        _contrast.setPositionAndSize(_saturation.bottomLeft() + vSpace, ks, captionWidth);
-        _hue.setPositionAndSize(_contrast.bottomLeft() + vSpace, ks, captionWidth);
-        _chromaBandwidth.setPositionAndSize(_hue.bottomLeft() + vSpace, ks, captionWidth);
+        Vector pad(20, 20);
+
+        _newCGA.setPosition(
+            Vector(size.x - (_newCGA.size().x + pad.x), pad.y));
+        _brightness.setPositionAndSize(
+            Vector(size.x - (ks.x + pad.x), _newCGA.bottom()) + vSpace, ks,
+            captionWidth);
+        _saturation.setPositionAndSize(_brightness.bottomLeft() + vSpace, ks,
+            captionWidth);
+        _contrast.setPositionAndSize(_saturation.bottomLeft() + vSpace, ks,
+            captionWidth);
+        _hue.setPositionAndSize(_contrast.bottomLeft() + vSpace, ks,
+            captionWidth);
+
+        _chromaBandwidth.setPositionAndSize(_hue.bottomLeft() + vSpace, ks,
+            captionWidth);
         _lumaBandwidth.setPositionAndSize(
             _chromaBandwidth.bottomLeft() + vSpace, ks, captionWidth);
+        _combFilterVertical.setTopLeft(_lumaBandwidth.bottomLeft() + vSpace);
+        _combFilterTemporal.setTopLeft(_combFilterVertical.bottomLeft() +
+            vSpace);
 
-        _newCGA.setPosition(_lumaBandwidth.bottomLeft() + vSpace);
-
-        _matchMode.setPosition(_newCGA.bottomLeft() + vSpace);
-        _mode.setPosition(_matchMode.bottomLeft() + vSpace);
-        _background.setPosition(_mode.topRight());
-        _palette.setPosition(_background.topRight());
-        _characterSetCombo.setPosition(_palette.topLeft());
-        _scanlinesPerRow.setPosition(_palette.topRight());
-        _scanlinesRepeat.setPosition(_scanlinesPerRow.topRight());
-
-        _bwCheckBox.setPosition(_matchMode.bottomLeft() + vSpace);
-        _blinkCheckBox.setPosition(_bwCheckBox.topRight());
-        _phaseCheckBox.setPosition(_blinkCheckBox.topRight());
-        _interlaceCombo.setPosition(_phaseCheckBox.topRight());
-
-        _diffusionHorizontal.setPositionAndSize(
-            _matchMode.bottomLeft() + vSpace, ks, captionWidth);
-
-        _diffusionVertical.setPositionAndSize(
-            _diffusionHorizontal.bottomLeft() + vSpace, ks, captionWidth);
-
-        _diffusionTemporal.setPositionAndSize(
-            _diffusionVertical.bottomLeft() + vSpace, ks, captionWidth);
-
-        _quality.setPositionAndSize(
-            _diffusionTemporal.bottomLeft() + vSpace, ks, captionWidth);
-
+        _scanlineProfile.setTopLeft(_combFilterTemporal.bottomLeft() + vSpace);
         _scanlineWidth.setPositionAndSize(
-            _quality.bottomLeft() + vSpace, ks, captionWidth);
-
-        _scanlineProfile.setPosition(_scanlineWidth.bottomLeft());
-
-        _zoom.setPositionAndSize(
             _scanlineProfile.bottomLeft() + vSpace, ks, captionWidth);
+        _scanlineBleeding.setPosition(_scanlineWidth.bottomLeft() + vSpace);
 
-        _scanlineBleeding.setPosition(_zoom.bottomLeft());
+        _zoom.setPositionAndSize(_scanlineBleeding.bottomLeft() + vSpace, ks,
+            captionWidth);
+        _aspectRatio.setPositionAndSize(_zoom.bottomLeft() + vSpace, ks,
+            captionWidth);
 
-        _aspectRatio.setPositionAndSize(
-            _scanlineBleeding.bottomLeft() + vSpace, ks, captionWidth);
 
-        _combFilterVertical.setPosition(_aspectRatio.bottomLeft());
-        _combFilterTemporal.setPosition(_combFilterVertical.topRight());
+        _characterSetCombo.setTopLeft(
+            Vector(pad.x, size.y - (_characterSetCombo.size().y + pad.y)));
+        _quality.setPositionAndSize(_characterSetCombo.topLeft()
+            - (Vector(0, _quality.size().y) + vSpace), ks, captionWidth);
+        _diffusionTemporal.setPositionAndSize(_quality.topLeft()
+            - (Vector(0, _diffusionTemporal.size().y) + vSpace), ks,
+            captionWidth);
+        _diffusionVertical.setPositionAndSize(_diffusionTemporal.topLeft()
+            - (Vector(0, _diffusionVertical.size().y) + vSpace), ks,
+            captionWidth);
+        _diffusionHorizontal.setPositionAndSize(_diffusionVertical.topLeft()
+            - (Vector(0, _diffusionHorizontal.size().y) + vSpace), ks,
+            captionWidth);
+
+        _phaseCheckBox.setPosition(_diffusionHorizontal.topLeft() -
+            (Vector(0, _phaseCheckBox.size().y) + vSpace));
+        _interlaceCombo.setTopLeft(_phaseCheckBox.topRight() + hSpace);
+        _scanlinesPerRow.setTopLeft(_phaseCheckBox.topLeft() -
+            (Vector(0, _scanlinesPerRow.size().y) + vSpace));
+        _scanlinesRepeat.setTopLeft(_scanlinesPerRow.topRight() + hSpace);
+        _palette.setTopLeft(_scanlinesPerRow.topLeft() -
+            (Vector(0, _palette.size().y) + vSpace));
+        _background.setTopLeft(_palette.topRight() + hSpace);
+
+        _mode.setTopLeft(_palette.topLeft() -
+            (Vector(0, _mode.size().y) + vSpace));
+        _bwCheckBox.setPosition(_mode.topRight() + hSpace);
+        _blinkCheckBox.setPosition(_bwCheckBox.topRight() + hSpace);
+
+        _matchMode.setPosition(_mode.topLeft() -
+            (Vector(0, _matchMode.size().y) + vSpace));
+
+
+        _outputWindow.setPosition(pad);
+        _outputWindow.setSize(Vector(_brightness.left(), _matchMode.top())
+            - 2*pad);
+        //console.write(format("%i %i\n", _outputWindow.size().x, _outputWindow.size().y));
     }
     void keyboardCharacter(int character)
     {

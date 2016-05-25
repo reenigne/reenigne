@@ -106,7 +106,7 @@ private:
     static LRESULT CALLBACK wndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
         LPARAM lParam)
     {
-        // Avoid reentering and causing a cascade of alerts if a assert fails.
+        // Avoid reentering and causing a cascade of alerts if an assert fails.
         if (alerting)
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
 
@@ -243,7 +243,7 @@ public:
     void sizeSet(Vector size) { _size = size; }
     void setPosition(Vector topLeft) { _topLeft = topLeft; }
     void positionSet(Vector topLeft) { _topLeft = topLeft; }
-    Vector size() const { return _size; }
+    virtual Vector size() const { return _size; }
     Vector topLeft() const { return _topLeft; }
     virtual void resize() { }
     virtual void doneResize() { }
@@ -276,12 +276,12 @@ public:
     virtual void draw() { }
 
     int top() const { return _topLeft.y; }
-    int bottom() const { return _topLeft.y + _size.y; }
+    int bottom() const { return _topLeft.y + size().y; }
     int left() const { return _topLeft.x; }
-    int right() const { return _topLeft.x + _size.x; }
-    Vector topRight() const { return _topLeft + Vector(_size.x, 0); }
-    Vector bottomRight() const { return _topLeft + _size; }
-    Vector bottomLeft() const { return _topLeft + Vector(0, _size.y); }
+    int right() const { return _topLeft.x + size().x; }
+    Vector topRight() const { return _topLeft + Vector(size().x, 0); }
+    Vector bottomRight() const { return _topLeft + size(); }
+    Vector bottomLeft() const { return _topLeft + Vector(0, size().y); }
 private:
     ContainerWindow* _parent;
     Vector _size;
@@ -815,7 +815,7 @@ public:
     {
         WindowsWindow::setWindows(windows);
         setClassName(WC_BUTTON);
-        setStyle(BS_PUSHBUTTON | BS_TEXT | WS_CHILD | WS_VISIBLE);
+        setStyle(BS_PUSHBUTTON | BS_TEXT | WS_CHILD | WS_VISIBLE | WS_TABSTOP);
     }
     void create()
     {
@@ -857,7 +857,7 @@ public:
     void create()
     {
         setStyle(BS_AUTOCHECKBOX | BS_PUSHLIKE | BS_PUSHBUTTON | BS_TEXT |
-            WS_CHILD | WS_VISIBLE);
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP);
         Button::create();
     }
 };
@@ -867,7 +867,18 @@ class CheckBox : public Button
 public:
     void create()
     {
-        setStyle(BS_AUTOCHECKBOX | BS_TEXT | WS_CHILD | WS_VISIBLE);
+        setStyle(BS_AUTOCHECKBOX | BS_TEXT | WS_CHILD | WS_VISIBLE |
+            WS_TABSTOP);
+        Button::create();
+    }
+};
+
+class GroupBoxWindow : public Button
+{
+public:
+    void create()
+    {
+        setStyle(BS_GROUPBOX | BS_TEXT | WS_CHILD | WS_VISIBLE);
         Button::create();
     }
 };
@@ -919,7 +930,7 @@ public:
     {
         WindowsWindow::setWindows(windows);
         setClassName(TRACKBAR_CLASS);
-        setStyle(WS_CHILD | WS_VISIBLE);
+        setStyle(WS_CHILD | WS_VISIBLE | WS_TABSTOP);
     }
     void create()
     {
@@ -999,11 +1010,11 @@ private:
     class NumericSlider : public Slider
     {
     public:
-        void setHost(NumericSliderWindowT* host) { _host = host; }
+        void setHost(NumericSliderWindow* host) { _host = host; }
         void valueSet(double value) { _host->valueSet1(value); }
         void create() { _host->create(); Slider::create(); }
     private:
-        NumericSliderWindowT* _host;
+        NumericSliderWindow* _host;
     };
     NumericSlider _slider;
     TextWindow _caption;
@@ -1019,7 +1030,8 @@ public:
     {
         WindowsWindow::setWindows(windows);
         setClassName(WC_COMBOBOX);
-        setStyle(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL);
+        setStyle(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL |
+            WS_TABSTOP);
     }
     void create()
     {
@@ -1045,8 +1057,77 @@ public:
         _width = max(_width, static_cast<int>(size.cx));
     }
     void autoSize() { setSize(Vector(_width + 20, 200)); }
+    Vector size() const
+    {
+        if (_hWnd == NULL)
+            return Vector(0, 0);
+        COMBOBOXINFO info = { sizeof(COMBOBOXINFO) };
+        IF_ZERO_THROW(GetComboBoxInfo(_hWnd, &info));
+        RECT rect;
+        IF_ZERO_THROW(GetClientRect(info.hwndCombo, &rect));
+        return Vector(rect.right - rect.left, rect.bottom - rect.top);
+    }
 private:
     int _width;
+};
+
+template<class T> class CaptionedComboBox
+{
+public:
+    CaptionedComboBox() : _combo(this) { }
+    virtual void create()
+    {
+        _caption.size();
+    }
+    void setText(String text) { _caption.setText(text); }
+    void setHost(T* host)
+    {
+        _host = host;
+        host->add(&_caption);
+        host->add(&_combo);
+    }
+    void setTopLeft(Vector tl)
+    {
+        _caption.setPosition(tl);
+        _combo.setPosition(tl + Vector(_caption.size().x, 0));
+    }
+    void add(String s) { _combo.add(s); }
+    Vector size() const
+    {
+        return Vector(_caption.size().x + _combo.size().x,
+            max(_caption.size().y, _combo.size().y));
+    }
+    int left() const { return _caption.left(); }
+    int top() const { return _caption.top(); }
+    int right() const { return _combo.right(); }
+    int bottom() const { return _combo.bottom(); }
+    Vector topLeft() const { return Vector(left(), top()); }
+    Vector topRight() const { return Vector(right(), top()); }
+    Vector bottomLeft() const { return Vector(left(), bottom()); }
+    Vector bottomRight() const { return Vector(right(), bottom()); }
+    virtual void changed(int value) = 0;
+    void set(int value) { _combo.set(value); }
+    void autoSize()
+    {
+        _caption.autoSize();
+        _combo.autoSize();
+        _combo.setPosition(_caption.topRight());
+    }
+protected:
+    T* _host;
+private:
+    class Combo : public ComboBox
+    {
+    public:
+        Combo(CaptionedComboBox* host) : _host(host) { }
+        void changed(int value) { _host->changed(value); }
+        void create() { ComboBox::create(); _host->create(); }
+    private:
+        CaptionedComboBox* _host;
+    };
+
+    TextWindow _caption;
+    Combo _combo;
 };
 
 class WindowDeviceContext : public DeviceContext
@@ -1154,34 +1235,35 @@ public:
             case WM_PAINT:
                 {
                     PaintHandle paintHandle(this);
-                    if (!paintHandle.zeroArea()) {
-                        if (!_bitmap.valid())
-                            return 0;
-                        Vector ptl = paintHandle.topLeft();
-                        Vector pbr = paintHandle.bottomRight();
-                        Vector br = size();
-                        pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
-                        Vector ps = pbr - ptl;
-                        if (ps.x <= 0 || ps.y <= 0)
-                            return 0;
-                        Vector s = size();
-                        _bmi.bmiHeader.biWidth = s.x;
-                        _bmi.bmiHeader.biHeight = -s.y;
-                        paint();
-                        IF_ZERO_THROW(SetDIBitsToDevice(
-                            paintHandle.hDC(),
-                            ptl.x,
-                            ptl.y,
-                            ps.x,
-                            ps.y,
-                            ptl.x,
-                            s.y - pbr.y,
-                            0,
-                            s.y,
-                            _bitmap.data(),
-                            &_bmi,
-                            DIB_RGB_COLORS));
-                    }
+                    if (paintHandle.zeroArea())
+                        return 0;
+                    if (!_bitmap.valid())
+                        return 0;
+                    Vector ptl = paintHandle.topLeft();
+                    Vector pbr = paintHandle.bottomRight();
+                    Vector br = _bitmap.size();
+                    pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+                    Vector ps = pbr - ptl;
+                    if (ps.x <= 0 || ps.y <= 0)
+                        return 0;
+                    Vector s = _bitmap.size();
+                    _bmi.bmiHeader.biWidth =
+                        _bitmap.stride() / sizeof(DWORD);
+                    _bmi.bmiHeader.biHeight = -s.y;
+                    paint();
+                    IF_ZERO_THROW(SetDIBitsToDevice(
+                        paintHandle.hDC(),
+                        ptl.x,
+                        ptl.y,
+                        ps.x,
+                        ps.y,
+                        ptl.x,
+                        s.y - pbr.y,
+                        0,
+                        s.y,
+                        _bitmap.data(),
+                        &_bmi,
+                        DIB_RGB_COLORS));
                     return 0;
                 }
             case WM_USER:

@@ -862,5 +862,41 @@ e has type LValue<Bitmap> and value (ConfigFile*, "inputPicture")
           For batch usage, cga2ntsc is not really the proper tool for this (using >8 bits per channel might improve results for extreme settings changes, but this is a corner case)
         We will need to compute/use a sharpness setting and apply comb filters for matching
         We can get rid of the distinction between show mode and match mode - show mode is just matching in RGBI mode and outputting in composite
+        Actually cgaart+import is essentially two cga2ntsc windows that share the same data, but have different settings in general
+        Old-cga2ntsc "Show mode" is essentially matching with RGBI output then switching to composite. So make it require two steps
+          To do it in batch mode will require two instantiations
 
+
+    Display - right of image
+      Colour
+        add2(&_newCGA);
+        _brightness.setHost(this);
+        _saturation.setHost(this);
+        _contrast.setHost(this);
+        _hue.setHost(this);
+      Filter
+        _chromaBandwidth.setHost(this);
+        _lumaBandwidth.setHost(this);
+        add2(&_combFilterVertical);
+        add2(&_combFilterTemporal);
+      Scanlines
+        add2(&_scanlineProfile);
+        _scanlineWidth.setHost(this);
+        add2(&_scanlineBleeding);
+      Size
+        _zoom.setHost(this);
+        _aspectRatio.setHost(this);
+    Matching - below image
+        add2(&_matchMode);
+      CGA mode
+        add2(&_mode);             add2(&_bwCheckBox);        add2(&_blinkCheckBox);
+        add2(&_palette);        add2(&_background);
+        add2(&_scanlinesPerRow);        add2(&_scanlinesRepeat);
+        add2(&_phaseCheckBox);          add2(&_interlaceCombo);
+      Other
+        _diffusionHorizontal.setHost(this);
+        _diffusionVertical.setHost(this);
+        _diffusionTemporal.setHost(this);
+        _quality.setHost(this);
+        add2(&_characterSetCombo);
 
