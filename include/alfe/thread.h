@@ -321,7 +321,8 @@ public:
     bool cancelling(Task* task)
     {
         Lock lock(&_mutex);
-        return task->_state == Task::cancelPending;
+        return task->_state == Task::cancelPending ||
+            task->_state == Task::restartPending;
     }
 
     // Called by thread when it has completed its task

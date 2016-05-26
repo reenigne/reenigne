@@ -134,8 +134,10 @@ private:
                 case WM_COMMAND:
                     switch (HIWORD(wParam)) {
                         case BN_CLICKED:
-                            dynamic_cast<Button*>(getContext(lParam))
-                                ->clicked();
+                            if (lParam != 0) {
+                                dynamic_cast<Button*>(getContext(lParam))
+                                    ->clicked();
+                            }
                             break;
                         case CBN_SELCHANGE:
                             dynamic_cast<ComboBox*>(getContext(hWnd))
@@ -454,7 +456,7 @@ public:
         _windows = windows;
         _text = _windows->caption();
         _className = _windows->className();
-        _style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+        _style = WS_OVERLAPPEDWINDOW /*| WS_CLIPCHILDREN*/;
         _extendedStyle = 0;
         _menu = NULL;
         Window* window = _container.getNext();
@@ -514,6 +516,8 @@ public:
 
     void invalidateRectangle(Vector topLeft, Vector size)
     {
+        if (_hWnd == NULL)
+            return;
         RECT rect;
         rect.left = topLeft.x;
         rect.top = topLeft.y;
@@ -608,7 +612,11 @@ public:
         PostMessage(_hWnd, msg, wParam, lParam);
     }
 
-    void updateWindow() { IF_ZERO_THROW(UpdateWindow(_hWnd)); }
+    void updateWindow()
+    {
+        if (_hWnd != NULL)
+            IF_ZERO_THROW(UpdateWindow(_hWnd));
+    }
 private:
     void destroy()
     {
@@ -1046,6 +1054,7 @@ public:
     {
         changed(static_cast<int>(SendMessage(_hWnd, CB_GETCURSEL, 0, 0)));
     }
+    void close() { ComboBox_ShowDropdown(_hWnd, FALSE); }
     void add(String s)
     {
         NullTerminatedWideString ns(s);

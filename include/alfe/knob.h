@@ -10,7 +10,7 @@ template<class T> class KnobSlider
 public:
     KnobSlider()
       : _knob(this), _popup(this), _edit(this), _sliding(false),
-        _useChromaKey(false), _config(0)
+        _useChromaKey(false), _config(0), _size(180, 24), _captionWidth(100)
     { }
     virtual void create()
     {
@@ -28,21 +28,29 @@ public:
         host->add(&_edit);
         host->add(&_popup);
     }
-    void setPositionAndSize(Vector position, Vector size, int captionWidth)
+    void setCaptionWidth(int width) { _captionWidth = width; }
+    void autoSize()
     {
-        _size = size;
         _caption.autoSize();
-        _caption.setPosition(position +
-            Vector(0, (size.y - _caption.size().y)/2));
-        _knob.setSize(Vector(size.y, size.y));
-        _knob.setPosition(Vector(_caption.left() + captionWidth, position.y));
+        int newCaptionWidth = _caption.size().x;
+        if (newCaptionWidth < 0 || newCaptionWidth >= 0x4000)
+            newCaptionWidth = 100;
+        _size.x += newCaptionWidth - _captionWidth;
+        _captionWidth = newCaptionWidth;
+    }
+    void setTopLeft(Vector tl)
+    {
+        _caption.autoSize();
+        _caption.setPosition(tl + Vector(0, (_size.y - _caption.size().y)/2));
+        _knob.setSize(Vector(_size.y, _size.y));
+        _knob.setPosition(Vector(_caption.left() + _captionWidth, tl.y));
 
         TEXTMETRIC metric;
         GetTextMetrics(_edit.getDC(), &metric);
         int height = metric.tmHeight;
 
-        int editL = _knob.right() + size.y/2;
-        _edit.setSize(Vector(size.x + position.x - editL, height));
+        int editL = _knob.right() + _size.y/2;
+        _edit.setSize(Vector(_size.x + tl.x - editL, height));
 
         RECT editRect;
         BOOL r = GetWindowRect(_edit.hWnd(), &editRect);
@@ -52,7 +60,7 @@ public:
         }
 
         int editT = _knob.top() +
-            (size.y - (editRect.bottom - editRect.top))/2;
+            (_size.y - (editRect.bottom - editRect.top))/2;
         _edit.setPosition(Vector(editL, editT));
 
         setValue(_value);
@@ -91,6 +99,8 @@ public:
     int bottom() const { return _knob.bottom(); }
     Vector topLeft() const { return Vector(left(), top()); }
     Vector bottomLeft() const { return Vector(left(), bottom()); }
+    Vector topRight() const { return Vector(right(), top()); }
+    Vector bottomRight() const { return Vector(right(), bottom()); }
 
 protected:
     T* _host;
@@ -426,6 +436,7 @@ private:
     Vector _dragStart;
     double _valueStart;
     Vector _size;
+    int _captionWidth;
     bool _useChromaKey;
     DWORD _lightGrey;
     DWORD _darkGrey;

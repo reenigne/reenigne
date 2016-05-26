@@ -739,20 +739,23 @@ public:
 };
 typedef LumaBandwidthSliderWindowT<void> LumaBandwidthSliderWindow;
 
-template<class T> class NewCGAButtonWindowT : public ToggleButton
+template<class T> class ConnectorComboT
+  : public CaptionedComboBox<CGA2NTSCWindow>
 {
 public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->newCGAPressed(); }
+    void changed(int value) { _host->connectorSet(value); }
     void create()
     {
-        setText("New CGA");
-        ToggleButton::create();
+        setText("Connector: ");
+        CaptionedComboBox<CGA2NTSCWindow>::create();
+        add("RGBI");
+        add("Composite (old)");
+        add("Composite (new)");
+        set(1);
+        autoSize();
     }
-private:
-    CGA2NTSCWindow* _host;
 };
-typedef NewCGAButtonWindowT<void> NewCGAButtonWindow;
+typedef ConnectorComboT<void> ConnectorCombo;
 
 template<class T> class MatchModeButtonT : public ToggleButton
 {
@@ -777,13 +780,13 @@ public:
     {
         setText("Mode: ");
         CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("40 column text");
-        add("80 column text");
+        add("low-resolution text");
+        add("high-resolution text");
         add("1bpp graphics");
         add("2bpp graphics");
-        add("40 column text with 1bpp graphics");
-        add("80 column text with 1bpp graphics");
-        add("1bpp graphics, odd bits ignored");
+        add("low-res text with 1bpp");
+        add("high-res text with 1bpp");
+        add("high-res 1bpp graphics");
         add("high-res 2bpp graphics");
         add("Auto -HRES");
         add("Auto +HRES");
@@ -871,7 +874,7 @@ public:
     void valueSet(double value) { _host->diffusionHorizontalSet(value); }
     void create()
     {
-        setText("Horizontal diffusion: ");
+        setText("Diffusion: Horizontal: ");
         setRange(0, 1);
         KnobSlider<CGA2NTSCWindow>::create();
     }
@@ -885,7 +888,7 @@ public:
     void valueSet(double value) { _host->diffusionVerticalSet(value); }
     void create()
     {
-        setText("Vertical diffusion: ");
+        setText("Vertical: ");
         setRange(0, 1);
         KnobSlider<CGA2NTSCWindow>::create();
     }
@@ -899,7 +902,7 @@ public:
     void valueSet(double value) { _host->diffusionTemporalSet(value); }
     void create()
     {
-        setText("Temporal diffusion: ");
+        setText("Temporal: ");
         setRange(0, 1);
         KnobSlider<CGA2NTSCWindow>::create();
     }
@@ -1027,7 +1030,7 @@ public:
     void valueSet(double value) { _host->scanlineWidthSet(value); }
     void create()
     {
-        setText("Scanline width: ");
+        setText("Width: ");
         setRange(0, 1);
         KnobSlider<CGA2NTSCWindow>::create();
     }
@@ -1041,7 +1044,7 @@ public:
     void changed(int value) { _host->characterSetSet(value); }
     void create()
     {
-        setText("Scanline profile: ");
+        setText("Profile: ");
         CaptionedComboBox<CGA2NTSCWindow>::create();
         add("rectangular");
         add("triangle");
@@ -1075,7 +1078,7 @@ public:
     void clicked() { _host->scanlineBleedingPressed(); }
     void create()
     {
-        setText("Scanline bleeding");
+        setText("Bleeding");
         CheckBox::create();
     }
 private:
@@ -1091,7 +1094,7 @@ public:
     void create()
     {
         setText("Aspect Ratio: ");
-        setRange(1, 2);
+        setRange(0.5, 2);
         KnobSlider<CGA2NTSCWindow>::create();
     }
 };
@@ -1244,12 +1247,12 @@ public:
         s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
     }
 
-    void setNewCGA(bool newCGA)
+    void setConnector(int connector)
     {
-        _composite.setNewCGA(newCGA);
+        _composite.setNewCGA(connector == 2);
         reCreateNTSC();
     }
-    bool getNewCGA() { return _composite.getNewCGA(); }
+    int getConnector() { return _composite.getNewCGA() ? 2 : 1; }
     void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
     void setScanlineWidth(double width) { _scanlineWidth = width; restart(); }
     double getScanlineWidth() { return _scanlineWidth; }
@@ -1371,7 +1374,7 @@ public:
         _hue.setHost(this);
         _chromaBandwidth.setHost(this);
         _lumaBandwidth.setHost(this);
-        add2(&_newCGA);
+        _connector.setHost(this);
         add2(&_matchMode);
         _mode.setHost(this);
         _background.setHost(this);
@@ -1394,6 +1397,14 @@ public:
         _aspectRatio.setHost(this);
         _combFilterVertical.setHost(this);
         _combFilterTemporal.setHost(this);
+        add(&_monitorGroup);
+        add(&_colourGroup);
+        add(&_filterGroup);
+        add(&_scanlinesGroup);
+        add(&_scalingGroup);
+        add(&_videoCardGroup);
+        add(&_registersGroup);
+        add(&_matchingGroup);
     }
     void create()
     {
@@ -1440,7 +1451,7 @@ public:
         _contrast.setValue(_output->getContrast());
         _chromaBandwidth.setValue(_output->getChromaBandwidth());
         _lumaBandwidth.setValue(_output->getLumaBandwidth());
-        _newCGA.setCheckState(_output->getNewCGA());
+        _connector.set(_output->getConnector());
         _scanlineWidth.setValue(_output->getScanlineWidth());
         _scanlineProfile.set(_output->getScanlineProfile());
         _zoom.setValue(_output->getZoom());
@@ -1451,9 +1462,20 @@ public:
         _matchMode.setCheckState(_program->getMatchMode());
         matchModePressed();
 
+        _monitorGroup.setText("Monitor");
+        _colourGroup.setText("Colour");
+        _filterGroup.setText("Filter");
+        _scanlinesGroup.setText("Scanlines");
+        _scalingGroup.setText("Scaling");
+        _videoCardGroup.setText("Video card");
+        _registersGroup.setText("Registers");
+        _matchingGroup.setText("Matching");
+
         setText("CGA to NTSC");
-        setSize(Vector(781, 830));
+        Vector initialSize(781, 830);
+        setSize(initialSize);
         RootWindow::create();
+        setSize(initialSize + Vector(533, 400) - _outputWindow.size());
     }
     void sizeSet(Vector size)
     {
@@ -1461,58 +1483,78 @@ public:
 
         Vector vSpace(0, 15);
         Vector hSpace(15, 0);
-        Vector ks(180, 24);
-        int captionWidth = 100;
+        Vector groupTL(10, 20);
+        Vector groupBR(10, 10);
 
         Vector pad(20, 20);
 
-        _newCGA.setPosition(
-            Vector(size.x - (_newCGA.size().x + pad.x), pad.y));
-        _brightness.setPositionAndSize(
-            Vector(size.x - (ks.x + pad.x), _newCGA.bottom()) + vSpace, ks,
-            captionWidth);
-        _saturation.setPositionAndSize(_brightness.bottomLeft() + vSpace, ks,
-            captionWidth);
-        _contrast.setPositionAndSize(_saturation.bottomLeft() + vSpace, ks,
-            captionWidth);
-        _hue.setPositionAndSize(_contrast.bottomLeft() + vSpace, ks,
-            captionWidth);
+        int knobWidth = _brightness.size().x + 2*groupBR.x + pad.x;
+        _connector.setTopLeft(
+            Vector(size.x - knobWidth, pad.y + groupTL.y));
+        _brightness.setTopLeft(_connector.bottomLeft() + groupTL + vSpace);
+        _saturation.setTopLeft(_brightness.bottomLeft() + vSpace);
+        _contrast.setTopLeft(_saturation.bottomLeft() + vSpace);
+        _hue.setTopLeft(_contrast.bottomLeft() + vSpace);
 
-        _chromaBandwidth.setPositionAndSize(_hue.bottomLeft() + vSpace, ks,
-            captionWidth);
-        _lumaBandwidth.setPositionAndSize(
-            _chromaBandwidth.bottomLeft() + vSpace, ks, captionWidth);
+        _colourGroup.setPosition(_brightness.topLeft() - groupTL);
+        _colourGroup.setSize(groupTL + groupBR + _hue.bottomRight() -
+            _brightness.topLeft());
+
+        Vector groupGap(0, groupBR.y + vSpace.y + groupTL.y);
+        _chromaBandwidth.setTopLeft(_hue.bottomLeft() + groupGap);
+        _lumaBandwidth.setTopLeft(_chromaBandwidth.bottomLeft() + vSpace);
         _combFilterVertical.setTopLeft(_lumaBandwidth.bottomLeft() + vSpace);
         _combFilterTemporal.setTopLeft(_combFilterVertical.bottomLeft() +
             vSpace);
 
-        _scanlineProfile.setTopLeft(_combFilterTemporal.bottomLeft() + vSpace);
-        _scanlineWidth.setPositionAndSize(
-            _scanlineProfile.bottomLeft() + vSpace, ks, captionWidth);
+        _filterGroup.setPosition(_chromaBandwidth.topLeft() - groupTL);
+        _filterGroup.setSize(groupTL + groupBR +
+            _combFilterTemporal.bottomRight() - _chromaBandwidth.topLeft());
+
+        _scanlineProfile.setTopLeft(
+            _combFilterTemporal.bottomLeft() + groupGap);
+        _scanlineWidth.setTopLeft(_scanlineProfile.bottomLeft() + vSpace);
         _scanlineBleeding.setPosition(_scanlineWidth.bottomLeft() + vSpace);
 
-        _zoom.setPositionAndSize(_scanlineBleeding.bottomLeft() + vSpace, ks,
-            captionWidth);
-        _aspectRatio.setPositionAndSize(_zoom.bottomLeft() + vSpace, ks,
-            captionWidth);
+        _scanlinesGroup.setPosition(_scanlineProfile.topLeft() - groupTL);
+        _scanlinesGroup.setSize(groupTL + groupBR +
+            Vector(_scanlineWidth.right(), _scanlineBleeding.bottom()) -
+            _scanlineProfile.topLeft());
+
+        _zoom.setTopLeft(_scanlineBleeding.bottomLeft() + groupGap);
+        _aspectRatio.setTopLeft(_zoom.bottomLeft() + vSpace);
+
+        _scalingGroup.setPosition(_zoom.topLeft() - groupTL);
+        _scalingGroup.setSize(groupTL + groupBR + _aspectRatio.bottomRight() -
+            _zoom.topLeft());
+
+        _monitorGroup.setPosition(Vector(_colourGroup.left(), _connector.top())
+            - groupTL);
+        _monitorGroup.setSize(groupBR + _scalingGroup.bottomRight() -
+            _monitorGroup.topLeft());
 
 
-        _characterSetCombo.setTopLeft(
-            Vector(pad.x, size.y - (_characterSetCombo.size().y + pad.y)));
-        _quality.setPositionAndSize(_characterSetCombo.topLeft()
-            - (Vector(0, _quality.size().y) + vSpace), ks, captionWidth);
-        _diffusionTemporal.setPositionAndSize(_quality.topLeft()
-            - (Vector(0, _diffusionTemporal.size().y) + vSpace), ks,
-            captionWidth);
-        _diffusionVertical.setPositionAndSize(_diffusionTemporal.topLeft()
-            - (Vector(0, _diffusionVertical.size().y) + vSpace), ks,
-            captionWidth);
-        _diffusionHorizontal.setPositionAndSize(_diffusionVertical.topLeft()
-            - (Vector(0, _diffusionHorizontal.size().y) + vSpace), ks,
-            captionWidth);
+        _characterSetCombo.setTopLeft(Vector(pad.x + 2*groupTL.x,
+            size.y - (_characterSetCombo.size().y + 2*groupBR.y + pad.y)));
+        _quality.setTopLeft(_characterSetCombo.topLeft()
+            - (Vector(0, _quality.size().y) + vSpace));
+        _diffusionHorizontal.setTopLeft(_quality.topLeft()
+            - (Vector(0, _diffusionHorizontal.size().y) + vSpace));
+        _diffusionVertical.autoSize();
+        _diffusionVertical.setTopLeft(
+            _diffusionHorizontal.topRight() + hSpace);
+        _diffusionTemporal.autoSize();
+        _diffusionTemporal.setTopLeft(_diffusionVertical.topRight() + hSpace);
+        _matchMode.setPosition(_diffusionHorizontal.topLeft()
+            - (Vector(0, _matchMode.size().y) + vSpace));
 
-        _phaseCheckBox.setPosition(_diffusionHorizontal.topLeft() -
-            (Vector(0, _phaseCheckBox.size().y) + vSpace));
+        _matchingGroup.setPosition(_matchMode.topLeft() - groupTL);
+        _matchingGroup.setSize(groupTL + groupBR +
+            Vector(_diffusionTemporal.right(), _characterSetCombo.bottom()) -
+            _matchMode.topLeft());
+
+        _phaseCheckBox.setPosition(_matchMode.topLeft() -
+            (Vector(0, _phaseCheckBox.size().y) + groupGap));
         _interlaceCombo.setTopLeft(_phaseCheckBox.topRight() + hSpace);
         _scanlinesPerRow.setTopLeft(_phaseCheckBox.topLeft() -
             (Vector(0, _scanlinesPerRow.size().y) + vSpace));
@@ -1520,20 +1562,26 @@ public:
         _palette.setTopLeft(_scanlinesPerRow.topLeft() -
             (Vector(0, _palette.size().y) + vSpace));
         _background.setTopLeft(_palette.topRight() + hSpace);
-
         _mode.setTopLeft(_palette.topLeft() -
             (Vector(0, _mode.size().y) + vSpace));
         _bwCheckBox.setPosition(_mode.topRight() + hSpace);
         _blinkCheckBox.setPosition(_bwCheckBox.topRight() + hSpace);
 
-        _matchMode.setPosition(_mode.topLeft() -
-            (Vector(0, _matchMode.size().y) + vSpace));
+        _registersGroup.setPosition(_mode.topLeft() - groupTL);
+        _registersGroup.setSize(groupTL + groupBR +
+            _interlaceCombo.bottomRight() - _mode.topLeft());
+
+        _videoCardGroup.setPosition(_registersGroup.topLeft() - groupTL);
+        _videoCardGroup.setSize(groupTL + groupBR +
+            _matchingGroup.bottomRight() - _registersGroup.topLeft());
 
 
         _outputWindow.setPosition(pad);
-        _outputWindow.setSize(Vector(_brightness.left(), _matchMode.top())
-            - 2*pad);
-        //console.write(format("%i %i\n", _outputWindow.size().x, _outputWindow.size().y));
+        _outputWindow.setSize(
+            Vector(_monitorGroup.left(), _videoCardGroup.top()) - 2*pad);
+
+        //invalidate();
+        //updateWindow();
     }
     void keyboardCharacter(int character)
     {
@@ -1706,11 +1754,10 @@ public:
     {
         _output->setLumaBandwidth(lumaBandwidth);
     }
-    void newCGAPressed()
+    void connectorSet(int connector)
     {
-        bool newCGA = _newCGA.checked();
-        _output->setNewCGA(newCGA);
-        _matcher->setNewCGA(newCGA);
+        _output->setConnector(connector);
+        _matcher->setNewCGA(connector == 2);
         beginConvert();
     }
 
@@ -1733,7 +1780,7 @@ private:
     HueSliderWindow _hue;
     ChromaBandwidthSliderWindow _chromaBandwidth;
     LumaBandwidthSliderWindow _lumaBandwidth;
-    NewCGAButtonWindow _newCGA;
+    ConnectorCombo _connector;
     MatchModeButton _matchMode;
     ModeCombo _mode;
     BackgroundCombo _background;
@@ -1756,6 +1803,15 @@ private:
     AspectRatioSliderWindow _aspectRatio;
     CombFilterVerticalCombo _combFilterVertical;
     CombFilterTemporalCombo _combFilterTemporal;
+    GroupBoxWindow _monitorGroup;
+    GroupBoxWindow _colourGroup;
+    GroupBoxWindow _filterGroup;
+    GroupBoxWindow _scanlinesGroup;
+    GroupBoxWindow _scalingGroup;
+    GroupBoxWindow _videoCardGroup;
+    GroupBoxWindow _registersGroup;
+    GroupBoxWindow _matchingGroup;
+
     CGAMatcher* _matcher;
     CGAShower* _shower;
     CGAOutput* _output;
@@ -1914,7 +1970,7 @@ public:
         configFile.addDefaultOption("verticalDiffusion", 0.5);
         configFile.addDefaultOption("temporalDiffusion", 0.0);
         configFile.addDefaultOption("quality", 0.5);
-        configFile.addDefaultOption("newCGA", false);
+        configFile.addDefaultOption("connector", 1);
         configFile.addDefaultOption("characterSet", 3);
         configFile.addDefaultOption("cgaROM", String("5788005.u33"));
         configFile.addDefaultOption("aspectRatio", 5.0/6.0);
@@ -2006,9 +2062,9 @@ public:
         _matcher.setContrast(contrast);
         _output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
         _output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
-        bool newCGA = configFile.get<bool>("newCGA");
-        _output.setNewCGA(newCGA);
-        _matcher.setNewCGA(newCGA);
+        int connector = configFile.get<int>("connector");
+        _output.setConnector(connector);
+        _matcher.setNewCGA(connector == 2);
         _output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         _output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
         _output.setZoom(configFile.get<double>("zoom"));
