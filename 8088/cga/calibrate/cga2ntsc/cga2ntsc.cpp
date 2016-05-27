@@ -1141,10 +1141,8 @@ class OutputWindow : public BitmapWindow
 public:
     void create()
     {
-        Vector size(648, 400);
-        setSize(size);
         BitmapWindow::create();
-        _bitmap = Bitmap<DWORD>(size);
+        _bitmap = Bitmap<DWORD>(size());
         setNextBitmap(_bitmap);
     }
     void draw(Bitmap<DWORD> bitmap)
@@ -1475,10 +1473,14 @@ public:
         Vector initialSize(781, 830);
         setSize(initialSize);
         RootWindow::create();
-        setSize(initialSize + Vector(533, 400) - _outputWindow.size());
+        show(SW_SHOWNORMAL);
+        setSize(initialSize + initialSize - size() + Vector(533, 400) -
+            _outputWindow.size());
     }
     void sizeSet(Vector size)
     {
+        if (size.x <= 0 || size.y <= 0)
+            return;
         RootWindow::sizeSet(size);
 
         Vector vSpace(0, 15);
@@ -1509,7 +1511,8 @@ public:
 
         _filterGroup.setPosition(_chromaBandwidth.topLeft() - groupTL);
         _filterGroup.setSize(groupTL + groupBR +
-            _combFilterTemporal.bottomRight() - _chromaBandwidth.topLeft());
+            Vector(_chromaBandwidth.right(), _combFilterTemporal.bottom()) -
+            _chromaBandwidth.topLeft());
 
         _scanlineProfile.setTopLeft(
             _combFilterTemporal.bottomLeft() + groupGap);
@@ -1580,9 +1583,10 @@ public:
         _outputWindow.setSize(
             Vector(_monitorGroup.left(), _videoCardGroup.top()) - 2*pad);
 
-        //invalidate();
-        //updateWindow();
+        redrawWindow(RDW_ERASE | RDW_FRAME | RDW_INTERNALPAINT |
+            RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
     }
+    bool eraseBackground() { return standardEraseBackground(); }
     void keyboardCharacter(int character)
     {
         if (character == VK_ESCAPE)

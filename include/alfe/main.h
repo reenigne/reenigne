@@ -114,9 +114,7 @@ private:
     void initializeWindows()
     {
         BEGIN_CHECKED {
-            _windows.initialize(_hInst);
             initializeWindowsCommandLine();
-            _windows.check();
         }
         END_CHECKED(Exception& e) {
             NullTerminatedWideString s(e.message());
@@ -245,6 +243,7 @@ public:
                     TranslateMessage(&msg);
                     DispatchMessage(&msg);
                 }
+                _windows.check();
             } while (true);
         } while (msg.message != WM_QUIT);
         _returnValue = static_cast<int>(msg.wParam);
