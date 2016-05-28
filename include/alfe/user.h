@@ -83,6 +83,9 @@ class ContainerWindow;
 template<class T> class WindowT;
 typedef WindowT<void> Window;
 
+// Currently we are not really using the functionality of a Window that is not
+// a WindowsWindow, but we may do so in the future.
+
 template<class T> class WindowT
   : public LinkedListMember<WindowT<T>>
 {
@@ -113,12 +116,6 @@ public:
             _parent->childRemoved(this);
             LinkedListMember::remove();
         }
-    }
-
-    virtual void invalidate() { invalidateRectangle(Vector(0, 0), _size); }
-    virtual void invalidateRectangle(Vector topLeft, Vector size)
-    {
-        _parent->invalidateRectangle(_topLeft + topLeft, size);
     }
 
     // The draw() function should do any updates necessary for an animation and
@@ -420,18 +417,6 @@ public:
 
     void show(int nShowCmd) { ShowWindow(_hWnd, nShowCmd); }
 
-    void invalidateRectangle(Vector topLeft, Vector size)
-    {
-        if (_hWnd == NULL)
-            return;
-        RECT rect;
-        rect.left = topLeft.x;
-        rect.top = topLeft.y;
-        rect.right = topLeft.x + size.x;
-        rect.bottom = topLeft.y + size.y;
-        IF_ZERO_THROW(InvalidateRect(_hWnd, &rect, FALSE));
-    }
-
     void setText(String text)
     {
         _text = text;
@@ -519,11 +504,22 @@ public:
         if (_hWnd != NULL)
             IF_ZERO_THROW(UpdateWindow(_hWnd));
     }
+    void redrawWindow(Vector topLeft, Vector size, UINT flags)
+    {
+        if (_hWnd == NULL)
+            return;
+        RECT rect;
+        rect.left = topLeft.x;
+        rect.top = topLeft.y;
+        rect.right = topLeft.x + size.x;
+        rect.bottom = topLeft.y + size.y;
+        IF_ZERO_THROW(RedrawWindow(_hWnd, &rect, NULL, flags));
+    }
     void redrawWindow(UINT flags)
     {
-        if (_hWnd != NULL)
-            IF_ZERO_THROW(RedrawWindow(_hWnd, NULL, NULL, flags));
+        redrawWindow(Vector(0, 0), size(), flags);
     }
+    void invalidate() { redrawWindow(RDW_INVALIDATE | RDW_FRAME); }
 private:
     Vector adjustRect(Vector size)
     {
@@ -561,24 +557,6 @@ private:
 protected:
     virtual bool command(WORD code) { return false; }
     virtual bool hScroll(WORD code, WORD position) { return false; }
-    virtual bool eraseBackground() { return false; }
-    bool standardEraseBackground()
-    {
-        HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
-        SelectedObject bo(&_dc, hBrush);
-        Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
-        SelectedObject po(&_dc, pen);
-        RECT rect;
-        GetClientRect(_hWnd, &rect);
-        Rectangle(_dc, rect.left, rect.top, rect.right, rect.bottom);
-        invalidate();
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->invalidate();
-            window = _container.getNext(window);
-        }
-        return true;
-    }
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         int w = static_cast<int>(wParam);
@@ -646,11 +624,6 @@ protected:
                 destroy();
                 remove();
                 break;
-            case WM_ERASEBKGND:
-                if (eraseBackground())
-                    return 1;
-                break;
-
         }
         return originalHandleMessage(uMsg, wParam, lParam);
     }
@@ -721,6 +694,68 @@ private:
         LPARAM lParam)
     {
         return getContext(hWnd)->handleMessage(uMsg, wParam, lParam);
+    }
+};
+
+class PaintHandle : public DeviceContext
+{
+public:
+    PaintHandle(const WindowsWindow* window) : _window(window)
+    {
+        IF_NULL_THROW(BeginPaint(_window->hWnd(), &_ps));
+        _hdc = _ps.hdc;
+    }
+    ~PaintHandle() { EndPaint(_window->hWnd(), &_ps); }
+    Vector topLeft() const
+    {
+        return Vector(_ps.rcPaint.left, _ps.rcPaint.top);
+    }
+    Vector bottomRight() const
+    {
+        return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom);
+    }
+    bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
+    bool erase() const { return _ps.fErase != 0; }
+private:
+    const WindowsWindow* _window;
+    PAINTSTRUCT _ps;
+};
+
+class CompoundWindow : public WindowsWindow
+{
+public:
+    LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        if (uMsg == WM_PAINT) {
+            PaintHandle paintHandle(this);
+            if (paintHandle.zeroArea())
+                return 0;
+            if (!paintHandle.erase())
+                return 0;
+            HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
+            SelectedObject bo(&paintHandle, hBrush);
+            Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
+            SelectedObject po(&paintHandle, pen);
+            Vector tl = paintHandle.topLeft();
+            Vector br = paintHandle.bottomRight();
+            Rectangle(paintHandle, tl.x, tl.y, br.x, br.y);
+            return 0;
+        }
+        return WindowsWindow::handleMessage(uMsg, wParam, lParam);
+    }
+};
+
+class RootWindow : public CompoundWindow
+{
+public:
+    void childRemoved(Window* child)
+    {
+        if (_container.getNext(child) == 0 && _container.getNext() == child) {
+            // Once there are no more child windows left, the thread must
+            // end.
+            PostQuitMessage(0);
+        }
+        CompoundWindow::childRemoved(child);
     }
 };
 
@@ -798,20 +833,6 @@ private:
     DWORD _lastTickCount;
     bool _stopped;
     Window* _drawWindow;
-};
-
-class RootWindow : public WindowsWindow
-{
-public:
-    void childRemoved(Window* child)
-    {
-        if (_container.getNext(child) == 0 && _container.getNext() == child) {
-            // Once there are no more child windows left, the thread must
-            // end.
-            PostQuitMessage(0);
-        }
-        WindowsWindow::childRemoved(child);
-    }
 };
 
 class Button : public WindowsWindow
@@ -896,6 +917,28 @@ public:
     {
         setStyle(BS_GROUPBOX | BS_TEXT | WS_CHILD | WS_VISIBLE);
         Button::create();
+    }
+    LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+    {
+        if (uMsg == WM_PAINT) {
+            PaintHandle paintHandle(this);
+            if (paintHandle.zeroArea())
+                return 0;
+            if (paintHandle.erase()) {
+                HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
+                SelectedObject bo(&paintHandle, hBrush);
+                Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
+                SelectedObject po(&paintHandle, pen);
+                Vector tl = paintHandle.topLeft();
+                Vector br = paintHandle.bottomRight();
+                Rectangle(paintHandle, tl.x, tl.y, br.x, br.y);
+                redrawWindow(tl, br - tl,
+                    RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+            }
+        }
+        if (uMsg == WM_ERASEBKGND)
+            return 0;
+        return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 };
 
@@ -1191,30 +1234,6 @@ public:
     ~OwnedDeviceContext() { DeleteDC(_hdc); }
 };
 
-class PaintHandle : public DeviceContext
-{
-public:
-    PaintHandle(const WindowsWindow* window) : _window(window)
-    {
-        IF_NULL_THROW(BeginPaint(_window->hWnd(), &_ps));
-        _hdc = _ps.hdc;
-    }
-    ~PaintHandle() { EndPaint(_window->hWnd(), &_ps); }
-    HDC hDC() const { return _ps.hdc; }
-    Vector topLeft() const
-    {
-        return Vector(_ps.rcPaint.left, _ps.rcPaint.top);
-    }
-    Vector bottomRight() const
-    {
-        return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom);
-    }
-    bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
-private:
-    const WindowsWindow* _window;
-    PAINTSTRUCT _ps;
-};
-
 
 class BitmapWindow : public WindowsWindow
 {
@@ -1289,7 +1308,7 @@ public:
                     _bmi.bmiHeader.biHeight = -s.y;
                     paint();
                     IF_ZERO_THROW(SetDIBitsToDevice(
-                        paintHandle.hDC(),
+                        paintHandle,
                         ptl.x,
                         ptl.y,
                         ps.x,

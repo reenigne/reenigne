@@ -343,7 +343,7 @@ private:
         {
             if (uMsg == WM_PAINT && _host->_useChromaKey) {
                 PaintHandle p(this);
-                setDIBits(p.hDC(), p.topLeft(), p.bottomRight());
+                setDIBits(p, p.topLeft(), p.bottomRight());
                 return 0;
             }
             return WindowsWindow::handleMessage(uMsg, wParam, lParam);

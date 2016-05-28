@@ -739,24 +739,6 @@ public:
 };
 typedef LumaBandwidthSliderWindowT<void> LumaBandwidthSliderWindow;
 
-template<class T> class ConnectorComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->connectorSet(value); }
-    void create()
-    {
-        setText("Connector: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("RGBI");
-        add("Composite (old)");
-        add("Composite (new)");
-        set(1);
-        autoSize();
-    }
-};
-typedef ConnectorComboT<void> ConnectorCombo;
-
 template<class T> class MatchModeButtonT : public ToggleButton
 {
 public:
@@ -1366,6 +1348,9 @@ public:
     CGA2NTSCWindowT()
     {
         add(&_outputWindow);
+        add(&_monitorGroup);
+        add(&_videoCardGroup);
+
         _brightness.setHost(this);
         _saturation.setHost(this);
         _contrast.setHost(this);
@@ -1586,7 +1571,6 @@ public:
         redrawWindow(RDW_ERASE | RDW_FRAME | RDW_INTERNALPAINT |
             RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
     }
-    bool eraseBackground() { return standardEraseBackground(); }
     void keyboardCharacter(int character)
     {
         if (character == VK_ESCAPE)
@@ -1778,43 +1762,103 @@ private:
     }
 
     OutputWindow _outputWindow;
-    BrightnessSliderWindow _brightness;
-    SaturationSliderWindow _saturation;
-    ContrastSliderWindow _contrast;
-    HueSliderWindow _hue;
-    ChromaBandwidthSliderWindow _chromaBandwidth;
-    LumaBandwidthSliderWindow _lumaBandwidth;
-    ConnectorCombo _connector;
-    MatchModeButton _matchMode;
-    ModeCombo _mode;
-    BackgroundCombo _background;
-    PaletteCombo _palette;
-    ScanlinesPerRowCombo _scanlinesPerRow;
-    ScanlinesRepeatCombo _scanlinesRepeat;
-    DiffusionHorizontalSliderWindow _diffusionHorizontal;
-    DiffusionVerticalSliderWindow _diffusionVertical;
-    DiffusionTemporalSliderWindow _diffusionTemporal;
-    QualitySliderWindow _quality;
-    BWCheckBox _bwCheckBox;
-    BlinkCheckBox _blinkCheckBox;
-    PhaseCheckBox _phaseCheckBox;
-    InterlaceCombo _interlaceCombo;
-    CharacterSetCombo _characterSetCombo;
-    ScanlineWidthSliderWindow _scanlineWidth;
-    ScanlineProfileCombo _scanlineProfile;
-    ZoomSliderWindow _zoom;
-    ScanlineBleedingCheckBox _scanlineBleeding;
-    AspectRatioSliderWindow _aspectRatio;
-    CombFilterVerticalCombo _combFilterVertical;
-    CombFilterTemporalCombo _combFilterTemporal;
-    GroupBoxWindow _monitorGroup;
-    GroupBoxWindow _colourGroup;
-    GroupBoxWindow _filterGroup;
-    GroupBoxWindow _scanlinesGroup;
-    GroupBoxWindow _scalingGroup;
-    GroupBoxWindow _videoCardGroup;
-    GroupBoxWindow _registersGroup;
-    GroupBoxWindow _matchingGroup;
+    struct MonitorGroup : public GroupBoxWindow
+    {
+        MonitorGroup(CGA2NTSCWindow* host) : _host(host), _connector(host)
+        {
+            add(&_connector);
+            add(&_colourGroup);
+            add(&_filterGroup);
+            add(&_scanlinesGroup);
+            add(&_scalingGroup);
+        }
+        struct ConnectorCombo : public CaptionedComboBox
+        {
+            ConnectorCombo(CGA2NTSCWindow* host) : _host(host) { }
+            void changed(int value) { _host->connectorSet(value); }
+            void create()
+            {
+                setText("Connector: ");
+                CaptionedComboBox::create();
+                add("RGBI");
+                add("Composite (old)");
+                add("Composite (new)");
+                set(1);
+                autoSize();
+            }
+            CGA2NTSCWindow* _host;
+        };
+        struct ColourGroup : public GroupBoxWindow
+        {
+            BrightnessSliderWindow _brightness;
+            SaturationSliderWindow _saturation;
+            ContrastSliderWindow _contrast;
+            HueSliderWindow _hue;
+            CGA2NTSCWindow* _host;
+        };
+        ColourGroup _colourGroup;
+        struct FilterGroup : public GroupBoxWindow
+        {
+            ChromaBandwidthSliderWindow _chromaBandwidth;
+            LumaBandwidthSliderWindow _lumaBandwidth;
+            CombFilterVerticalCombo _combFilterVertical;
+            CombFilterTemporalCombo _combFilterTemporal;
+            CGA2NTSCWindow* _host;
+        };
+        FilterGroup _filterGroup;
+        struct ScanlinesGroup : public GroupBoxWindow
+        {
+            ScanlineProfileCombo _scanlineProfile;
+            ScanlineWidthSliderWindow _scanlineWidth;
+            ScanlineBleedingCheckBox _scanlineBleeding;
+            CGA2NTSCWindow* _host;
+        };
+        ScanlinesGroup _scanlinesGroup;
+        struct ScalingGroup : public GroupBoxWindow
+        {
+            ZoomSliderWindow _zoom;
+            AspectRatioSliderWindow _aspectRatio;
+            CGA2NTSCWindow* _host;
+        };
+        ScalingGroup _scalingGroup;
+        CGA2NTSCWindow* _host;
+    };
+    MonitorGroup _monitorGroup;
+    struct VideoCardGroup : public GroupBoxWindow
+    {
+        VideoCardGroup(CGA2NTSCWindow* host) : _host(host)
+        {
+            add(&_registersGroup);
+            add(&_matchingGroup);
+        }
+        struct RegistersGroup : public GroupBoxWindow
+        {
+            ModeCombo _mode;
+            BWCheckBox _bwCheckBox;
+            BlinkCheckBox _blinkCheckBox;
+            PaletteCombo _palette;
+            BackgroundCombo _background;
+            ScanlinesPerRowCombo _scanlinesPerRow;
+            ScanlinesRepeatCombo _scanlinesRepeat;
+            PhaseCheckBox _phaseCheckBox;
+            InterlaceCombo _interlaceCombo;
+            CGA2NTSCWindow* _host;
+        };
+        RegistersGroup _registersGroup;
+        struct MatchingGroup : public GroupBoxWindow
+        {
+            MatchModeButton _matchMode;
+            DiffusionHorizontalSliderWindow _diffusionHorizontal;
+            DiffusionVerticalSliderWindow _diffusionVertical;
+            DiffusionTemporalSliderWindow _diffusionTemporal;
+            QualitySliderWindow _quality;
+            CharacterSetCombo _characterSetCombo;
+            CGA2NTSCWindow* _host;
+        };
+        MatchingGroup _matchingGroup;
+        CGA2NTSCWindow* _host;
+    };
+    VideoCardGroup _videoCardGroup;
 
     CGAMatcher* _matcher;
     CGAShower* _shower;
