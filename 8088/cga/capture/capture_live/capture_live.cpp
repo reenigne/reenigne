@@ -199,8 +199,7 @@ typedef SharpnessSliderWindowT<void> SharpnessSliderWindow;
 class CaptureWindow : public RootWindow
 {
 public:
-    void restart() { _animated.restart(); }
-    void setWindows(Windows* windows)
+    CaptureWindow()
     {
         _output.setCaptureWindow(this);
 
@@ -225,8 +224,8 @@ public:
 
         _animated.setDrawWindow(&_output);
         _animated.setRate(60);
-        RootWindow::setWindows(windows);
     }
+    void restart() { _animated.restart(); }
     void create()
     {
         _brightnessCaption.setText("Brightness: ");

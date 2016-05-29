@@ -559,10 +559,7 @@ Creating the window hierarchy
     call the base create()
       that calls create() on the child windows
 
-For Windows windows:
-  Need to call setWindows() before calling add() or create()
-    create() calls setWindows() on children
-The Windows object is how the HINSTANCE and the window class (which encapsulates the window procedure) get passed to the Window
+The Windows object is how the font object gets passed to the Window and where exceptions are stashed between the windows procedure and the message loop
 
 Do we want to use child window identifiers?
   Nah - I'm not sure it's portable and it would just lead to a switch statement in the handler to determine the button pressed.

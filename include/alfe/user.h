@@ -9,6 +9,7 @@
 #include <WindowsX.h>
 #include <CommCtrl.h>
 #include <vector>
+#include <functional>
 
 class WindowsWindow;
 
@@ -92,15 +93,14 @@ template<class T> class WindowT
 public:
     WindowT() : _parent(0), _topLeft(Vector(0, 0)) { }
     ~WindowT() { remove(); }
-    virtual void create() = 0;
+    virtual void create() { layout(); }
+    virtual void layout() { }
     void setParent(ContainerWindow* window) { _parent = window; }
     ContainerWindow* parent() const { return _parent; }
     void setSize(Vector size) { _size = size; }
     void sizeSet(Vector size) { _size = size; }
-    void setPosition(Vector topLeft) { _topLeft = topLeft; }
     void positionSet(Vector topLeft) { _topLeft = topLeft; }
     virtual Vector size() const { return _size; }
-    Vector topLeft() const { return _topLeft; }
     virtual void resize() { }
     virtual void doneResize() { }
     virtual void keyboardCharacter(int character) { }
@@ -129,9 +129,23 @@ public:
     int bottom() const { return _topLeft.y + size().y; }
     int left() const { return _topLeft.x; }
     int right() const { return _topLeft.x + size().x; }
+    Vector topLeft() const { return _topLeft; }
     Vector topRight() const { return _topLeft + Vector(size().x, 0); }
     Vector bottomRight() const { return _topLeft + size(); }
     Vector bottomLeft() const { return _topLeft + Vector(0, size().y); }
+    void setTopLeft(Vector topLeft) { _topLeft = topLeft; }
+    void setTopRight(Vector topRight)
+    {
+        _topLeft = topRight - Vector(size().x, 0);
+    }
+    void setBottomLeft(Vector bottomLeft)
+    {
+        _topLeft = bottomLeft - Vector(0, size().y);
+    }
+    void setBottomRight(Vector bottomRight)
+    {
+        _topLeft = bottomRight - size();
+    }
 private:
     ContainerWindow* _parent;
     Vector _size;
@@ -150,6 +164,7 @@ public:
             window->create();
             window = _container.getNext(window);
         }
+        Window::create();
     }
     void remove()
     {
@@ -328,35 +343,34 @@ public:
     WindowsWindow()
       : _hWnd(NULL), _resizing(false), _origWndProc(0), _className(0),
         _style(WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN), _extendedStyle(0),
-        _menu(NULL)
+        _menu(NULL), _windowsParent(0)
     {
         _dc.setDC(NULL);
         sizeSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
         positionSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
     }
-
-    virtual void setWindows(Windows* windows)
-    {
-        _windows = windows;
-        Window* window = _container.getNext();
-        while (window != 0) {
-            WindowsWindow* w = dynamic_cast<WindowsWindow*>(window);
-            if (w != 0)
-                w->setWindows(windows);
-            window = _container.getNext(window);
-        }
-    }
-
+    void setWindows(Windows* windows) { _windows = windows; }
     virtual void create()
     {
         reset();
         Vector s = adjustRect(size());
         Vector position = topLeft();
 
-        WindowsWindow* p = dynamic_cast<WindowsWindow*>(parent());
+        Window* p = parent();
+        while (p != 0) {
+            auto w = dynamic_cast<WindowsWindow*>(p);
+            if (w != 0) {
+                _windowsParent = w;
+                _windows = w->_windows;
+                break;
+            }
+            else
+                position += p->topLeft();
+            p = p->parent();
+        }
         HWND hWndParent = NULL;
-        if (p != 0)
-            hWndParent = p->hWnd();
+        if (_windowsParent != 0)
+            hWndParent = _windowsParent->hWnd();
 
         NullTerminatedWideString caption(_text);
 
@@ -366,7 +380,7 @@ public:
 
         LPCWSTR className = _className;
         if (className == 0)
-            className = WC_STATIC; //EDIT;
+            className = WC_EDIT;
 
         HINSTANCE hInstance = GetModuleHandle(NULL);
         IF_ZERO_THROW(hInstance);
@@ -427,16 +441,9 @@ public:
     }
     String getText()
     {
-        int length = 16;
-        Array<WCHAR> buf;
-        do {
-            buf.allocate(length);
-            int n = GetWindowText(_hWnd, &buf[0], length);
-            IF_ZERO_CHECK_THROW_LAST_ERROR(n);
-            if (n < length - 1)
-                break;
-            length *= 2;
-        } while (true);
+        int l = GetWindowTextLength(_hWnd) + 1;
+        Array<WCHAR> buf(l);
+        IF_ZERO_CHECK_THROW_LAST_ERROR(GetWindowText(_hWnd, &buf[0], l));
         return String(&buf[0]);
     }
 
@@ -466,14 +473,21 @@ public:
         ContainerWindow::sizeSet(size);
     }
 
-    void setPosition(Vector position)
+    void setTopLeft(Vector position)
     {
         if (_hWnd != NULL) {
+            Vector tl = position;
+            Window* p = parent();
+            while (p != 0 && p != static_cast<Window*>(_windowsParent)) {
+                tl += p->topLeft();
+                p = p->parent();
+            }
+
             IF_ZERO_THROW(SetWindowPos(
                 _hWnd,                                // hWnd
                 NULL,                                 // hWndInsertAfter
-                position.x,                           // X
-                position.y,                           // Y
+                tl.x,                                 // X
+                tl.y,                                 // Y
                 0,                                    // cx
                 0,                                    // cy
                 SWP_NOZORDER | SWP_NOSIZE |
@@ -658,6 +672,7 @@ protected:
 private:
     bool _resizing;
     Windows* _windows;
+    WindowsWindow* _windowsParent;
     DWORD _extendedStyle;
     LPCWSTR _className;
     HMENU _menu;
@@ -714,7 +729,7 @@ public:
     {
         return Vector(_ps.rcPaint.right, _ps.rcPaint.bottom);
     }
-    bool zeroArea() const { return (topLeft()-bottomRight()).zeroArea(); }
+    bool zeroArea() const { return (topLeft() - bottomRight()).zeroArea(); }
     bool erase() const { return _ps.fErase != 0; }
 private:
     const WindowsWindow* _window;
@@ -838,14 +853,13 @@ private:
 class Button : public WindowsWindow
 {
 public:
-    Button() : _checked(false) { }
-    virtual void clicked() { }
-    void setWindows(Windows* windows)
+    Button() : _checked(false)
     {
-        WindowsWindow::setWindows(windows);
         setClassName(WC_BUTTON);
         setStyle(BS_PUSHBUTTON | BS_TEXT | WS_CHILD | WS_VISIBLE | WS_TABSTOP);
     }
+    virtual void clicked(bool value) { _clicked(value); }
+    void setClicked(std::function<void(bool)> clicked) { _clicked = clicked; }
     void create()
     {
         WindowsWindow::create();
@@ -879,13 +893,15 @@ public:
     bool command(WORD code)
     {
         if (code == BN_CLICKED) {
-            clicked();
+            clicked(
+                (Button_GetState(_hWnd) & (BST_CHECKED | BST_PUSHED)) != 0);
             return true;
         }
         return false;
     }
 private:
     bool _checked;
+    std::function<void(bool)> _clicked;
 };
 
 class ToggleButton : public Button
@@ -910,7 +926,7 @@ public:
     }
 };
 
-class GroupBoxWindow : public Button
+class GroupBox : public Button
 {
 public:
     void create()
@@ -945,18 +961,12 @@ public:
 class TextWindow : public WindowsWindow
 {
 public:
-    void setWindows(Windows* windows)
+    TextWindow()
     {
-        WindowsWindow::setWindows(windows);
         setClassName(WC_STATIC);
         setStyle(WS_CHILD | WS_VISIBLE | /*SS_CENTER |*/ SS_CENTERIMAGE);
     }
-    void create()
-    {
-        WindowsWindow::create();
-        autoSize();
-    }
-    void autoSize()
+    void layout()
     {
         if (_hWnd != NULL) {
             SIZE s;
@@ -970,9 +980,8 @@ public:
 class EditWindow : public WindowsWindow
 {
 public:
-    void setWindows(Windows* windows)
+    EditWindow()
     {
-        WindowsWindow::setWindows(windows);
         setClassName(WC_EDIT);
         setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL);
     }
@@ -990,14 +999,12 @@ public:
 class Slider : public WindowsWindow
 {
 public:
-    Slider() : _min(0), _pos(0), _max(1) { }
-    virtual void valueSet(double value) { }
-    void setWindows(Windows* windows)
+    Slider() : _min(0), _pos(0), _max(1)
     {
-        WindowsWindow::setWindows(windows);
         setClassName(TRACKBAR_CLASS);
         setStyle(WS_CHILD | WS_VISIBLE | WS_TABSTOP);
     }
+    virtual void valueSet(double value) { }
     void create()
     {
         WindowsWindow::create();
@@ -1049,9 +1056,9 @@ public:
     void setPositionAndSize(Vector position, Vector size)
     {
         _slider.setSize(size);
-        _slider.setPosition(position);
-        _caption.setPosition(_slider.bottomLeft() + Vector(0, 15));
-        _text.setPosition(_caption.topRight());
+        _slider.setTopLeft(position);
+        _caption.setTopLeft(_slider.bottomLeft() + Vector(0, 15));
+        _text.setTopLeft(_caption.topRight());
     }
     Vector bottomLeft() { return _caption.bottomLeft(); }
     int right() const { return _slider.right(); }
@@ -1074,7 +1081,7 @@ private:
     {
         double v = valueFromPosition(value);
         _text.setText(format("%f", v));
-        _text.autoSize();
+        _text.layout();
         valueSet(v);
     }
 
@@ -1093,17 +1100,17 @@ private:
     friend class NumericSlider;
 };
 
-class ComboBox : public WindowsWindow
+class DropDownList : public WindowsWindow
 {
 public:
-    virtual void changed(int value) { }
-    void setWindows(Windows* windows)
+    DropDownList()
     {
-        WindowsWindow::setWindows(windows);
         setClassName(WC_COMBOBOX);
         setStyle(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL |
             WS_TABSTOP);
     }
+    virtual void changed(int value) { _changed(value); }
+    void setChanged(std::function<void(int)> changed) { _changed = changed; }
     void create()
     {
         WindowsWindow::create();
@@ -1128,7 +1135,13 @@ public:
         IF_ZERO_THROW(GetTextExtentPoint32(_dc, w, s.length(), &size));
         _width = max(_width, static_cast<int>(size.cx + 10));
     }
-    void autoSize() { setSize(Vector(_width + 20, 200)); }
+    void layout()
+    {
+        COMBOBOXINFO info = { sizeof(COMBOBOXINFO) };
+        IF_ZERO_THROW(GetComboBoxInfo(_hWnd, &info));
+        setSize(
+            Vector(_width + info.rcButton.right - info.rcButton.left, 200));
+    }
     Vector size() const
     {
         if (_hWnd == NULL)
@@ -1149,65 +1162,41 @@ public:
     }
 private:
     int _width;
+    std::function<void(int)> _changed;
 };
 
-template<class T> class CaptionedComboBox
+class CaptionedDropDownList : public ContainerWindow
 {
 public:
-    CaptionedComboBox() : _combo(this) { }
-    virtual void create()
+    CaptionedDropDownList()
     {
-        _caption.size();
+        ContainerWindow::add(&_caption);
+        ContainerWindow::add(&_list);
     }
     void setText(String text) { _caption.setText(text); }
-    void setHost(T* host)
+    void add(String s) { _list.add(s); }
+    void set(int value) { _list.set(value); }
+    void layout()
     {
-        _host = host;
-        host->add(&_caption);
-        host->add(&_combo);
+        int captionHeight = _caption.size().y;
+        int listHeight = _list.size().y;
+        int captionY = 0;
+        int listY = 0;
+        if (captionHeight > listHeight)
+            listY = (captionHeight - listHeight)/2;
+        else
+            captionY = (listHeight - captionHeight)/2;
+        _caption.setTopLeft(Vector(0, captionY));
+        _list.setTopLeft(Vector(_caption.right(), listY));
+        setSize(Vector(_list.right(), max(_caption.bottom(), _list.bottom())));
     }
-    void setTopLeft(Vector tl)
+    void setChanged(std::function<void(int)> changed)
     {
-        _caption.setPosition(tl);
-        _combo.setPosition(tl + Vector(_caption.size().x, 0));
+        _list.setChanged(changed);
     }
-    void add(String s) { _combo.add(s); }
-    Vector size() const
-    {
-        return Vector(_caption.size().x + _combo.size().x,
-            max(_caption.size().y, _combo.size().y));
-    }
-    int left() const { return _caption.left(); }
-    int top() const { return _caption.top(); }
-    int right() const { return _combo.right(); }
-    int bottom() const { return _combo.bottom(); }
-    Vector topLeft() const { return Vector(left(), top()); }
-    Vector topRight() const { return Vector(right(), top()); }
-    Vector bottomLeft() const { return Vector(left(), bottom()); }
-    Vector bottomRight() const { return Vector(right(), bottom()); }
-    virtual void changed(int value) = 0;
-    void set(int value) { _combo.set(value); }
-    void autoSize()
-    {
-        _caption.autoSize();
-        _combo.autoSize();
-        _combo.setPosition(_caption.topRight());
-    }
-protected:
-    T* _host;
 private:
-    class Combo : public ComboBox
-    {
-    public:
-        Combo(CaptionedComboBox* host) : _host(host) { }
-        void changed(int value) { _host->changed(value); }
-        void create() { ComboBox::create(); _host->create(); }
-    private:
-        CaptionedComboBox* _host;
-    };
-
     TextWindow _caption;
-    Combo _combo;
+    DropDownList _list;
 };
 
 class WindowDeviceContext : public DeviceContext
@@ -1238,15 +1227,11 @@ public:
 class BitmapWindow : public WindowsWindow
 {
 public:
-    BitmapWindow() { }
-
-    void setWindows(Windows* windows)
+    BitmapWindow()
     {
-        WindowsWindow::setWindows(windows);
         setClassName(WC_STATIC);
         setStyle(WS_CHILD | WS_VISIBLE | SS_OWNERDRAW);
     }
-
     void create()
     {
         ZeroMemory(&_bmi, sizeof(BITMAPINFO));

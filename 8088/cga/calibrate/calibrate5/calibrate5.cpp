@@ -957,18 +957,15 @@ typedef CalibrateBitmapWindowT<void> CalibrateBitmapWindow;
 class CalibrateWindow : public RootWindow
 {
 public:
-    void restart() { _animated.restart(); }
-    void setWindows(Windows* windows)
+    CalibrateWindow()
     {
         _bitmap.setCalibrateWindow(this);
-
         add(&_bitmap);
         add(&_animated);
-
         _animated.setDrawWindow(&_bitmap);
         _animated.setRate(1);
-        RootWindow::setWindows(windows);
     }
+    void restart() { _animated.restart(); }
     void create()
     {
         setText("CGA Calibration");

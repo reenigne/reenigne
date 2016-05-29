@@ -656,506 +656,6 @@ private:
 
 typedef CGAMatcherT<void> CGAMatcher;
 
-template<class T> class BrightnessSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->brightnessSet(value); }
-    void create()
-    {
-        setText("Brightness: ");
-        setRange(-2, 2);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef BrightnessSliderWindowT<void> BrightnessSliderWindow;
-
-template<class T> class SaturationSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->saturationSet(value); }
-    void create()
-    {
-        setText("Saturation: ");
-        setRange(0, 4);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef SaturationSliderWindowT<void> SaturationSliderWindow;
-
-template<class T> class ContrastSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->contrastSet(value); }
-    void create()
-    {
-        setText("Contrast: ");
-        setRange(0, 4);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef ContrastSliderWindowT<void> ContrastSliderWindow;
-
-template<class T> class HueSliderWindowT : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->hueSet(value); }
-    void create()
-    {
-        setText("Hue: ");
-        setRange(-180, 180);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef HueSliderWindowT<void> HueSliderWindow;
-
-template<class T> class ChromaBandwidthSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->chromaBandwidthSet(value); }
-    void create()
-    {
-        setText("Chroma bandwidth: ");
-        setRange(0, 2);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef ChromaBandwidthSliderWindowT<void> ChromaBandwidthSliderWindow;
-
-template<class T> class LumaBandwidthSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->lumaBandwidthSet(value); }
-    void create()
-    {
-        setText("Luma bandwidth: ");
-        setRange(0, 2);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef LumaBandwidthSliderWindowT<void> LumaBandwidthSliderWindow;
-
-template<class T> class MatchModeButtonT : public ToggleButton
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->matchModePressed(); }
-    void create()
-    {
-        setText("Match");
-        ToggleButton::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef MatchModeButtonT<void> MatchModeButton;
-
-template<class T> class ModeComboT : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->modeSet(value); }
-    void create()
-    {
-        setText("Mode: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("low-resolution text");
-        add("high-resolution text");
-        add("1bpp graphics");
-        add("2bpp graphics");
-        add("low-res text with 1bpp");
-        add("high-res text with 1bpp");
-        add("high-res 1bpp graphics");
-        add("high-res 2bpp graphics");
-        add("Auto -HRES");
-        add("Auto +HRES");
-        set(2);
-        autoSize();
-    }
-};
-typedef ModeComboT<void> ModeCombo;
-
-template<class T> class BackgroundComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->backgroundSet(value); }
-    void create()
-    {
-        setText("Background: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        for (int i = 0; i < 16; ++i)
-            add(decimal(i));
-        add("Auto");
-        set(15);
-        autoSize();
-    }
-};
-typedef BackgroundComboT<void> BackgroundCombo;
-
-template<class T> class ScanlinesPerRowComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->scanlinesPerRowSet(value); }
-    void create()
-    {
-        setText("Scanlines per row: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        for (int i = 1; i <= 32; ++i)
-            add(decimal(i));
-        set(1);
-        autoSize();
-    }
-};
-typedef ScanlinesPerRowComboT<void> ScanlinesPerRowCombo;
-
-template<class T> class ScanlinesRepeatComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->scanlinesRepeatSet(value); }
-    void create()
-    {
-        setText("Scanlines repeat: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        for (int i = 1; i <= 32; ++i)
-            add(decimal(i));
-        set(0);
-        autoSize();
-    }
-};
-typedef ScanlinesRepeatComboT<void> ScanlinesRepeatCombo;
-
-template<class T> class PaletteComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->paletteSet(value); }
-    void create()
-    {
-        setText("Palette: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("2/4/6");
-        add("10/12/14");
-        add("3/5/7");
-        add("11/13/15");
-        set(3);
-        autoSize();
-    }
-};
-typedef PaletteComboT<void> PaletteCombo;
-
-template<class T> class DiffusionHorizontalSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->diffusionHorizontalSet(value); }
-    void create()
-    {
-        setText("Diffusion: Horizontal: ");
-        setRange(0, 1);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef DiffusionHorizontalSliderWindowT<void> DiffusionHorizontalSliderWindow;
-
-template<class T> class DiffusionVerticalSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->diffusionVerticalSet(value); }
-    void create()
-    {
-        setText("Vertical: ");
-        setRange(0, 1);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef DiffusionVerticalSliderWindowT<void> DiffusionVerticalSliderWindow;
-
-template<class T> class DiffusionTemporalSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->diffusionTemporalSet(value); }
-    void create()
-    {
-        setText("Temporal: ");
-        setRange(0, 1);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef DiffusionTemporalSliderWindowT<void> DiffusionTemporalSliderWindow;
-
-template<class T> class QualitySliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->qualitySet(value); }
-    void create()
-    {
-        setText("Quality: ");
-        setRange(0, 1);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef QualitySliderWindowT<void> QualitySliderWindow;
-
-template<class T> class BWCheckBoxT : public CheckBox
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->bwPressed(); }
-    void create()
-    {
-        setText("+BW");
-        CheckBox::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef BWCheckBoxT<void> BWCheckBox;
-
-template<class T> class BlinkCheckBoxT : public CheckBox
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->blinkPressed(); }
-    void create()
-    {
-        setText("+BLINK");
-        CheckBox::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef BlinkCheckBoxT<void> BlinkCheckBox;
-
-template<class T> class PhaseCheckBoxT : public CheckBox
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->phasePressed(); }
-    void create()
-    {
-        setText("Phase 0");
-        CheckBox::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef PhaseCheckBoxT<void> PhaseCheckBox;
-
-template<class T> class InterlaceComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->interlaceSet(value); }
-    void create()
-    {
-        setText("Interlace: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("None");
-        add("Flicker");
-        add("Sync");
-        add("Sync and video");
-        add("Even");
-        add("Odd");
-        add("Video");
-        add("Video and flicker");
-        add("Sync flicker");
-        add("Sync video and flicker");
-        add("Even flicker");
-        add("Odd flicker");
-        add("Sync even");
-        add("Sync odd");
-        add("Sync even flicker");
-        add("Sync odd flicker");
-        add("Sync and video swapped");
-        add("Sync video and flicker swapped");
-        set(0);
-        autoSize();
-    }
-};
-typedef InterlaceComboT<void> InterlaceCombo;
-
-template<class T> class CharacterSetComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->characterSetSet(value); }
-    void create()
-    {
-        setText("Character set: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("0xdd");
-        add("0x13/0x55");
-        add("1K");
-        add("all");
-        add("0xb1");
-        add("0xb0/0xb1");
-        add("ISAV");
-        set(3);
-        autoSize();
-    }
-};
-typedef CharacterSetComboT<void> CharacterSetCombo;
-
-template<class T> class ScanlineWidthSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->scanlineWidthSet(value); }
-    void create()
-    {
-        setText("Width: ");
-        setRange(0, 1);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef ScanlineWidthSliderWindowT<void> ScanlineWidthSliderWindow;
-
-template<class T> class ScanlineProfileComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->characterSetSet(value); }
-    void create()
-    {
-        setText("Profile: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("rectangular");
-        add("triangle");
-        add("semicircle");
-        add("gaussian");
-        set(0);
-        autoSize();
-    }
-};
-typedef ScanlineProfileComboT<void> ScanlineProfileCombo;
-
-template<class T> class ZoomSliderWindowT : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->zoomSet(value); }
-    void create()
-    {
-        setText("Zoom: ");
-        setRange(1, 10);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-    double positionFromValue(double value) { return log(value); }
-    double valueFromPosition(double position) { return exp(position); }
-};
-typedef ZoomSliderWindowT<void> ZoomSliderWindow;
-
-template<class T> class ScanlineBleedingCheckBoxT : public CheckBox
-{
-public:
-    void setHost(CGA2NTSCWindow* host) { _host = host; }
-    void clicked() { _host->scanlineBleedingPressed(); }
-    void create()
-    {
-        setText("Bleeding");
-        CheckBox::create();
-    }
-private:
-    CGA2NTSCWindow* _host;
-};
-typedef ScanlineBleedingCheckBoxT<void> ScanlineBleedingCheckBox;
-
-template<class T> class AspectRatioSliderWindowT
-  : public KnobSlider<CGA2NTSCWindow>
-{
-public:
-    void valueSet(double value) { _host->aspectRatioSet(value); }
-    void create()
-    {
-        setText("Aspect Ratio: ");
-        setRange(0.5, 2);
-        KnobSlider<CGA2NTSCWindow>::create();
-    }
-};
-typedef AspectRatioSliderWindowT<void> AspectRatioSliderWindow;
-
-template<class T> class CombFilterVerticalComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->combFilterVerticalSet(value); }
-    void create()
-    {
-        setText("Comb filter vertical: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("none");
-        add("(1, 1)");
-        add("(1, 2, 1)");
-        set(0);
-        autoSize();
-    }
-};
-typedef CombFilterVerticalComboT<void> CombFilterVerticalCombo;
-
-template<class T> class CombFilterTemporalComboT
-  : public CaptionedComboBox<CGA2NTSCWindow>
-{
-public:
-    void changed(int value) { _host->combFilterTemporalSet(value); }
-    void create()
-    {
-        setText("Comb filter temporal: ");
-        CaptionedComboBox<CGA2NTSCWindow>::create();
-        add("none");
-        add("(1, 1)");
-        add("(1, 2, 1)");
-        set(0);
-        autoSize();
-    }
-};
-typedef CombFilterTemporalComboT<void> CombFilterTemporalCombo;
-
-class OutputWindow : public BitmapWindow
-{
-public:
-    void create()
-    {
-        BitmapWindow::create();
-        _bitmap = Bitmap<DWORD>(size());
-        setNextBitmap(_bitmap);
-    }
-    void draw(Bitmap<DWORD> bitmap)
-    {
-        if (size().x < 0 || size().x >= 0x4000 || size().y < 0 ||
-            size().y >= 0x4000)
-            return;
-        if (!_bitmap.valid())
-            _bitmap = Bitmap<DWORD>(size());
-        // Just copy from the top left corner for now.
-        Vector zero(0, 0);
-        Vector size(min(bitmap.size().x, _bitmap.size().x),
-            min(bitmap.size().y, _bitmap.size().y));
-        bitmap.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
-        _bitmap = setNextBitmap(_bitmap);
-        invalidate();
-        postMessage(WM_USER + 1);
-    }
-    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-    {
-        if (uMsg == WM_USER + 1) {
-            updateWindow();
-            return 0;
-        }
-        return BitmapWindow::handleMessage(uMsg, wParam, lParam);
-    }
-
-private:
-    Bitmap<DWORD> _bitmap;
-};
-
 template<class T> class CGAOutputT : public ThreadTask
 {
 public:
@@ -1345,71 +845,52 @@ typedef CGAOutputT<void> CGAOutput;
 template<class T> class CGA2NTSCWindowT : public RootWindow
 {
 public:
-    CGA2NTSCWindowT()
+    CGA2NTSCWindowT() : _monitor(this), _videoCard(this)
     {
+        setText("CGA to NTSC");
         add(&_outputWindow);
-        add(&_monitorGroup);
-        add(&_videoCardGroup);
-
-        _brightness.setHost(this);
-        _saturation.setHost(this);
-        _contrast.setHost(this);
-        _hue.setHost(this);
-        _chromaBandwidth.setHost(this);
-        _lumaBandwidth.setHost(this);
-        _connector.setHost(this);
-        add2(&_matchMode);
-        _mode.setHost(this);
-        _background.setHost(this);
-        _palette.setHost(this);
-        _scanlinesPerRow.setHost(this);
-        _scanlinesRepeat.setHost(this);
-        _diffusionHorizontal.setHost(this);
-        _diffusionVertical.setHost(this);
-        _diffusionTemporal.setHost(this);
-        _quality.setHost(this);
-        add2(&_bwCheckBox);
-        add2(&_blinkCheckBox);
-        add2(&_phaseCheckBox);
-        _interlaceCombo.setHost(this);
-        _characterSetCombo.setHost(this);
-        _scanlineWidth.setHost(this);
-        _scanlineProfile.setHost(this);
-        _zoom.setHost(this);
-        add2(&_scanlineBleeding);
-        _aspectRatio.setHost(this);
-        _combFilterVertical.setHost(this);
-        _combFilterTemporal.setHost(this);
-        add(&_monitorGroup);
-        add(&_colourGroup);
-        add(&_filterGroup);
-        add(&_scanlinesGroup);
-        add(&_scalingGroup);
-        add(&_videoCardGroup);
-        add(&_registersGroup);
-        add(&_matchingGroup);
+        add(&_monitor);
+        add(&_videoCard);
     }
     void create()
     {
+        _monitor._connector.set(_output->getConnector());
+        _monitor._colour._brightness.setValue(_output->getBrightness());
+        _monitor._colour._saturation.setValue(_output->getSaturation());
+        _monitor._colour._contrast.setValue(_output->getContrast());
+        _monitor._colour._hue.setValue(_output->getHue());
+        _monitor._filter._chromaBandwidth.setValue(
+            _output->getChromaBandwidth());
+        _monitor._filter._lumaBandwidth.setValue(_output->getLumaBandwidth());
+        _monitor._filter._combFilterVertical.set(
+            _output->getCombFilterVertical());
+        _monitor._filter._combFilterTemporal.set(
+            _output->getCombFilterTemporal());
+        _monitor._scanlines._profile.set(_output->getScanlineProfile());
+        _monitor._scanlines._width.setValue(_output->getScanlineWidth());
+        _monitor._scanlines._bleeding.setCheckState(
+            _output->getScanlineBleeding());
+        _monitor._scaling._zoom.setValue(_output->getZoom());
+        _monitor._scaling._aspectRatio.setValue(_output->getAspectRatio());
         int mode = _matcher->getMode();
+        int m;
         if ((mode & 0x80) != 0)
-            _mode.set(8 + (mode & 1));
+            m = 8 + (mode & 1);
         else {
             switch (mode & 0x13) {
-                case 0: _mode.set(0); break;
-                case 1: _mode.set(1); break;
-                case 2: _mode.set(3); break;
-                case 3: _mode.set(7); break;
-                case 0x10: _mode.set(4); break;
-                case 0x11: _mode.set(5); break;
-                case 0x12: _mode.set(2); break;
-                case 0x13: _mode.set(6); break;
+                case 0: m = 0; break;
+                case 1: m = 1; break;
+                case 2: m = 3; break;
+                case 3: m = 7; break;
+                case 0x10: m = 4; break;
+                case 0x11: m = 5; break;
+                case 0x12: m = 2; break;
+                case 0x13: m = 6; break;
             }
         }
-        _bwCheckBox.setCheckState((mode & 4) != 0);
-        _blinkCheckBox.setCheckState((mode & 0x20) != 0);
-        _phaseCheckBox.setCheckState(_matcher->getPhase() == 0);
-        _interlaceCombo.set(_matcher->getInterlace());
+        _videoCard._registers._mode.set(m);
+        _videoCard._registers._bw.setCheckState((mode & 4) != 0);
+        _videoCard._registers._blink.setCheckState((mode & 0x20) != 0);
         int palette = _matcher->getPalette();
         if (palette == 0xff) {
             _paletteSelected = 0;
@@ -1419,157 +900,46 @@ public:
             _paletteSelected = (palette >> 4) & 3;
             _backgroundSelected = palette & 0xf;
         }
-        _palette.set(_paletteSelected);
-        _background.set(_backgroundSelected);
-        _diffusionHorizontal.setValue(_matcher->getDiffusionHorizontal());
-        _diffusionVertical.setValue(_matcher->getDiffusionVertical());
-        _diffusionTemporal.setValue(_matcher->getDiffusionTemporal());
-        _quality.setValue(_matcher->getQuality());
-        _characterSetCombo.set(_matcher->getCharacterSet());
-        _scanlinesPerRow.set(_matcher->getScanlinesPerRow() - 1);
-        _scanlinesRepeat.set(_matcher->getScanlinesRepeat() - 1);
-        _brightness.setValue(_output->getBrightness());
-        _saturation.setValue(_output->getSaturation());
-        _hue.setValue(_output->getHue());
-        _contrast.setValue(_output->getContrast());
-        _chromaBandwidth.setValue(_output->getChromaBandwidth());
-        _lumaBandwidth.setValue(_output->getLumaBandwidth());
-        _connector.set(_output->getConnector());
-        _scanlineWidth.setValue(_output->getScanlineWidth());
-        _scanlineProfile.set(_output->getScanlineProfile());
-        _zoom.setValue(_output->getZoom());
-        _scanlineBleeding.setCheckState(_output->getScanlineBleeding());
-        _aspectRatio.setValue(_output->getAspectRatio());
-        _combFilterVertical.set(_output->getCombFilterVertical());
-        _combFilterTemporal.set(_output->getCombFilterTemporal());
-        _matchMode.setCheckState(_program->getMatchMode());
-        matchModePressed();
-
-        _monitorGroup.setText("Monitor");
-        _colourGroup.setText("Colour");
-        _filterGroup.setText("Filter");
-        _scanlinesGroup.setText("Scanlines");
-        _scalingGroup.setText("Scaling");
-        _videoCardGroup.setText("Video card");
-        _registersGroup.setText("Registers");
-        _matchingGroup.setText("Matching");
-
-        setText("CGA to NTSC");
-        Vector initialSize(781, 830);
-        setSize(initialSize);
+        _videoCard._registers._palette.set(_paletteSelected);
+        _videoCard._registers._background.set(_backgroundSelected);
+        _videoCard._registers._scanlinesPerRow.set(
+            _matcher->getScanlinesPerRow() - 1);
+        _videoCard._registers._scanlinesRepeat.set(
+            _matcher->getScanlinesRepeat() - 1);
+        _videoCard._registers._phase.setCheckState(_matcher->getPhase() == 0);
+        _videoCard._registers._interlace.set(_matcher->getInterlace());
+        _videoCard._matching._matchMode.setCheckState(
+            _program->getMatchMode());
+        _videoCard._matching._diffusionHorizontal.setValue(
+            _matcher->getDiffusionHorizontal());
+        _videoCard._matching._diffusionVertical.setValue(
+            _matcher->getDiffusionVertical());
+        _videoCard._matching._diffusionTemporal.setValue(
+            _matcher->getDiffusionTemporal());
+        _videoCard._matching._quality.setValue(_matcher->getQuality());
+        _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
         RootWindow::create();
-        show(SW_SHOWNORMAL);
-        setSize(initialSize + initialSize - size() + Vector(533, 400) -
-            _outputWindow.size());
     }
     void sizeSet(Vector size)
     {
         if (size.x <= 0 || size.y <= 0)
             return;
         RootWindow::sizeSet(size);
-
-        Vector vSpace(0, 15);
-        Vector hSpace(15, 0);
-        Vector groupTL(10, 20);
-        Vector groupBR(10, 10);
-
+        int owx = max(_videoCard.size().x,
+            size.x - (_monitor.size().x + 3*pad().x));
+        int owy = max(0, size.y - (_videoCard.size().y + 3*pad().y));
+        _outputWindow.setSize(Vector(owx, owy));
+        layout();
+    }
+    void layout()
+    {
         Vector pad(20, 20);
-
-        int knobWidth = _brightness.size().x + 2*groupBR.x + pad.x;
-        _connector.setTopLeft(
-            Vector(size.x - knobWidth, pad.y + groupTL.y));
-        _brightness.setTopLeft(_connector.bottomLeft() + groupTL + vSpace);
-        _saturation.setTopLeft(_brightness.bottomLeft() + vSpace);
-        _contrast.setTopLeft(_saturation.bottomLeft() + vSpace);
-        _hue.setTopLeft(_contrast.bottomLeft() + vSpace);
-
-        _colourGroup.setPosition(_brightness.topLeft() - groupTL);
-        _colourGroup.setSize(groupTL + groupBR + _hue.bottomRight() -
-            _brightness.topLeft());
-
-        Vector groupGap(0, groupBR.y + vSpace.y + groupTL.y);
-        _chromaBandwidth.setTopLeft(_hue.bottomLeft() + groupGap);
-        _lumaBandwidth.setTopLeft(_chromaBandwidth.bottomLeft() + vSpace);
-        _combFilterVertical.setTopLeft(_lumaBandwidth.bottomLeft() + vSpace);
-        _combFilterTemporal.setTopLeft(_combFilterVertical.bottomLeft() +
-            vSpace);
-
-        _filterGroup.setPosition(_chromaBandwidth.topLeft() - groupTL);
-        _filterGroup.setSize(groupTL + groupBR +
-            Vector(_chromaBandwidth.right(), _combFilterTemporal.bottom()) -
-            _chromaBandwidth.topLeft());
-
-        _scanlineProfile.setTopLeft(
-            _combFilterTemporal.bottomLeft() + groupGap);
-        _scanlineWidth.setTopLeft(_scanlineProfile.bottomLeft() + vSpace);
-        _scanlineBleeding.setPosition(_scanlineWidth.bottomLeft() + vSpace);
-
-        _scanlinesGroup.setPosition(_scanlineProfile.topLeft() - groupTL);
-        _scanlinesGroup.setSize(groupTL + groupBR +
-            Vector(_scanlineWidth.right(), _scanlineBleeding.bottom()) -
-            _scanlineProfile.topLeft());
-
-        _zoom.setTopLeft(_scanlineBleeding.bottomLeft() + groupGap);
-        _aspectRatio.setTopLeft(_zoom.bottomLeft() + vSpace);
-
-        _scalingGroup.setPosition(_zoom.topLeft() - groupTL);
-        _scalingGroup.setSize(groupTL + groupBR + _aspectRatio.bottomRight() -
-            _zoom.topLeft());
-
-        _monitorGroup.setPosition(Vector(_colourGroup.left(), _connector.top())
-            - groupTL);
-        _monitorGroup.setSize(groupBR + _scalingGroup.bottomRight() -
-            _monitorGroup.topLeft());
-
-
-        _characterSetCombo.setTopLeft(Vector(pad.x + 2*groupTL.x,
-            size.y - (_characterSetCombo.size().y + 2*groupBR.y + pad.y)));
-        _quality.setTopLeft(_characterSetCombo.topLeft()
-            - (Vector(0, _quality.size().y) + vSpace));
-        _diffusionHorizontal.setTopLeft(_quality.topLeft()
-            - (Vector(0, _diffusionHorizontal.size().y) + vSpace));
-        _diffusionVertical.autoSize();
-        _diffusionVertical.setTopLeft(
-            _diffusionHorizontal.topRight() + hSpace);
-        _diffusionTemporal.autoSize();
-        _diffusionTemporal.setTopLeft(_diffusionVertical.topRight() + hSpace);
-        _matchMode.setPosition(_diffusionHorizontal.topLeft()
-            - (Vector(0, _matchMode.size().y) + vSpace));
-
-        _matchingGroup.setPosition(_matchMode.topLeft() - groupTL);
-        _matchingGroup.setSize(groupTL + groupBR +
-            Vector(_diffusionTemporal.right(), _characterSetCombo.bottom()) -
-            _matchMode.topLeft());
-
-        _phaseCheckBox.setPosition(_matchMode.topLeft() -
-            (Vector(0, _phaseCheckBox.size().y) + groupGap));
-        _interlaceCombo.setTopLeft(_phaseCheckBox.topRight() + hSpace);
-        _scanlinesPerRow.setTopLeft(_phaseCheckBox.topLeft() -
-            (Vector(0, _scanlinesPerRow.size().y) + vSpace));
-        _scanlinesRepeat.setTopLeft(_scanlinesPerRow.topRight() + hSpace);
-        _palette.setTopLeft(_scanlinesPerRow.topLeft() -
-            (Vector(0, _palette.size().y) + vSpace));
-        _background.setTopLeft(_palette.topRight() + hSpace);
-        _mode.setTopLeft(_palette.topLeft() -
-            (Vector(0, _mode.size().y) + vSpace));
-        _bwCheckBox.setPosition(_mode.topRight() + hSpace);
-        _blinkCheckBox.setPosition(_bwCheckBox.topRight() + hSpace);
-
-        _registersGroup.setPosition(_mode.topLeft() - groupTL);
-        _registersGroup.setSize(groupTL + groupBR +
-            _interlaceCombo.bottomRight() - _mode.topLeft());
-
-        _videoCardGroup.setPosition(_registersGroup.topLeft() - groupTL);
-        _videoCardGroup.setSize(groupTL + groupBR +
-            _matchingGroup.bottomRight() - _registersGroup.topLeft());
-
-
-        _outputWindow.setPosition(pad);
-        _outputWindow.setSize(
-            Vector(_monitorGroup.left(), _videoCardGroup.top()) - 2*pad);
-
-        redrawWindow(RDW_ERASE | RDW_FRAME | RDW_INTERNALPAINT |
-            RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+        _outputWindow.setTopLeft(pad);
+        int r = _outputWindow.right();
+        _videoCard.setTopLeft(_outputWindow.bottomLeft() + Vector(0, pad.y));
+        r = max(r, _videoCard.right());
+        _monitor.setTopLeft(_outputWindow.topRight() + Vector(pad.x, 0));
+        setSize(pad + Vector(_monitor.right(), _videoCard.bottom()));
     }
     void keyboardCharacter(int character)
     {
@@ -1578,19 +948,19 @@ public:
     }
     void setConfig(ConfigFile* config)
     {
-        _brightness.setConfig(config);
-        _saturation.setConfig(config);
-        _contrast.setConfig(config);
-        _hue.setConfig(config);
-        _chromaBandwidth.setConfig(config);
-        _lumaBandwidth.setConfig(config);
-        _diffusionHorizontal.setConfig(config);
-        _diffusionVertical.setConfig(config);
-        _diffusionTemporal.setConfig(config);
-        _quality.setConfig(config);
-        _scanlineWidth.setConfig(config);
-        _zoom.setConfig(config);
-        _aspectRatio.setConfig(config);
+        _monitor._colour._brightness.setConfig(config);
+        _monitor._colour._saturation.setConfig(config);
+        _monitor._colour._contrast.setConfig(config);
+        _monitor._colour._hue.setConfig(config);
+        _monitor._filter._chromaBandwidth.setConfig(config);
+        _monitor._filter._lumaBandwidth.setConfig(config);
+        _monitor._scanlines._width.setConfig(config);
+        _monitor._scaling._zoom.setConfig(config);
+        _monitor._scaling._aspectRatio.setConfig(config);
+        _videoCard._matching._diffusionHorizontal.setConfig(config);
+        _videoCard._matching._diffusionVertical.setConfig(config);
+        _videoCard._matching._diffusionTemporal.setConfig(config);
+        _videoCard._matching._quality.setConfig(config);
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
     void setShower(CGAShower* shower) { _shower = shower; }
@@ -1602,8 +972,9 @@ public:
     void modeSet(int value)
     {
         static const int modes[8] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3};
-        int mode = modes[value] | 8 | (_bwCheckBox.checked() ? 4 : 0) |
-            (_blinkCheckBox.checked() ? 0x20 : 0);
+        int mode = modes[value] | 8 |
+            (_videoCard._registers._bw.checked() ? 4 : 0) |
+            (_videoCard._registers._blink.checked() ? 0x20 : 0);
         _matcher->setMode(mode);
         beginConvert();
     }
@@ -1660,9 +1031,9 @@ public:
     void scanlineWidthSet(double value) { _output->setScanlineWidth(value); }
     void scanlineProfileSet(int value) { _output->setScanlineProfile(value); }
     void zoomSet(double value) { _output->setZoom(value); }
-    void scanlineBleedingPressed()
+    void scanlineBleedingSet(bool value)
     {
-        _output->setScanlineBleeding(_scanlineBleeding.checked() ? 0 : 1);
+        _output->setScanlineBleeding(value);
     }
     void aspectRatioSet(double value) { _output->setAspectRatio(value); }
     void combFilterVerticalSet(int value)
@@ -1673,26 +1044,21 @@ public:
     {
         _output->setCombFilterTemporal(value);
     }
-    void bwPressed()
+    void bwSet(bool value)
     {
-        bool bw = _bwCheckBox.checked();
-        _matcher->setMode((_matcher->getMode() & ~4) | (bw ? 4 : 0));
-        _output->setBW(bw);
-        //_composite.setBW(bw);
+        _matcher->setMode((_matcher->getMode() & ~4) | (value ? 4 : 0));
+        _output->setBW(value);
+        //_composite.setBW(value);
         beginConvert();
     }
-    void blinkPressed()
+    void blinkSet(bool value)
     {
-        bool blink = _blinkCheckBox.checked();
         int mode = _matcher->getMode();
-        _matcher->setMode((mode & ~0x20) | (blink ? 0x20 : 0));
+        _matcher->setMode((mode & ~0x20) | (value ? 0x20 : 0));
         if ((mode & 2) == 0)
             beginConvert();
     }
-    void phasePressed()
-    {
-        _matcher->setPhase(_phaseCheckBox.checked() ? 0 : 1);
-    }
+    void phaseSet(bool value) { _matcher->setPhase(value ? 0 : 1); }
     void interlaceSet(int value)
     {
         _matcher->setInterlace(value);
@@ -1703,9 +1069,9 @@ public:
         _matcher->setCharacterSet(value);
         beginConvert();
     }
-    void matchModePressed()
+    void matchModeSet(bool value)
     {
-        _program->setMatchMode(_matchMode.checked());
+        _program->setMatchMode(value);
         beginConvert();
         reCreateNTSC();
     }
@@ -1755,110 +1121,471 @@ public:
     }
 
 private:
-    template<class T> void add2(T* p)
-    {
-        add(p);
-        p->setHost(this);
-    }
+    Vector vSpace() { return Vector(0, 15); }
+    Vector hSpace() { return Vector(15, 0); }
+    Vector pad() { return Vector(20, 20); }
 
-    OutputWindow _outputWindow;
-    struct MonitorGroup : public GroupBoxWindow
+    class OutputWindow : public BitmapWindow
     {
-        MonitorGroup(CGA2NTSCWindow* host) : _host(host), _connector(host)
+    public:
+        void create()
         {
-            add(&_connector);
-            add(&_colourGroup);
-            add(&_filterGroup);
-            add(&_scanlinesGroup);
-            add(&_scalingGroup);
+            BitmapWindow::create();
+            _bitmap = Bitmap<DWORD>(size());
+            setNextBitmap(_bitmap);
         }
-        struct ConnectorCombo : public CaptionedComboBox
+        void draw(Bitmap<DWORD> bitmap)
         {
-            ConnectorCombo(CGA2NTSCWindow* host) : _host(host) { }
-            void changed(int value) { _host->connectorSet(value); }
-            void create()
+            if (size().x < 0 || size().x >= 0x4000 || size().y < 0 ||
+                size().y >= 0x4000)
+                return;
+            if (!_bitmap.valid())
+                _bitmap = Bitmap<DWORD>(size());
+            // Just copy from the top left corner for now.
+            Vector zero(0, 0);
+            Vector size(min(bitmap.size().x, _bitmap.size().x),
+                min(bitmap.size().y, _bitmap.size().y));
+            bitmap.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
+            _bitmap = setNextBitmap(_bitmap);
+            invalidate();
+            postMessage(WM_USER + 1);
+        }
+        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+            if (uMsg == WM_USER + 1) {
+                updateWindow();
+                return 0;
+            }
+            return BitmapWindow::handleMessage(uMsg, wParam, lParam);
+        }
+
+    private:
+        Bitmap<DWORD> _bitmap;
+    };
+    OutputWindow _outputWindow;
+    struct MonitorGroup : public GroupBox
+    {
+        MonitorGroup(CGA2NTSCWindow* host)
+          : _host(host), _colour(host), _filter(host),
+            _scanlines(host), _scaling(host)
+        {
+            setText("Monitor");
+            _connector.setChanged(
+                [&](int value) { _host->connectorSet(value); });
+            _connector.setText("Connector: ");
+            add(&_connector);
+            add(&_colour);
+            add(&_filter);
+            add(&_scanlines);
+            add(&_scaling);
+        }
+        void create()
+        {
+            GroupBox::create();
+            _connector.add("RGBI");
+            _connector.add("Composite (old)");
+            _connector.add("Composite (new)");
+            _connector.set(1);
+        }
+        void layout()
+        {
+            Vector vSpace = _host->vSpace();
+            _connector.setTopLeft(Vector(0, 0));
+            int r = _connector.right();
+            _colour.setTopLeft(_connector.bottomLeft() + vSpace);
+            r = max(r, _colour.right());
+            _filter.setTopLeft(_colour.bottomLeft() + vSpace);
+            r = max(r, _filter.right());
+            _scanlines.setTopLeft(_filter.bottomLeft() + vSpace);
+            r = max(r, _scanlines.right());
+            _scaling.setTopLeft(_scanlines.bottomLeft() + vSpace);
+            r = max(r, _scaling.right());
+            setSize(Vector(r, _scaling.bottom()));
+        }
+        CaptionedDropDownList _connector;
+        struct ColourGroup : public GroupBox
+        {
+            ColourGroup(CGA2NTSCWindow* host) : _host(host)
             {
-                setText("Connector: ");
-                CaptionedComboBox::create();
-                add("RGBI");
-                add("Composite (old)");
-                add("Composite (new)");
-                set(1);
-                autoSize();
+                setText("Colour");
+                _brightness.setValueSet(
+                    [&](double value) { _host->brightnessSet(value); });
+                _brightness.setText("Brightness: ");
+                _brightness.setRange(-2, 2);
+                add(&_brightness);
+                _saturation.setValueSet(
+                    [&](double value) { _host->saturationSet(value); });
+                _saturation.setText("Saturation: ");
+                _saturation.setRange(0, 4);
+                add(&_saturation);
+                _contrast.setValueSet(
+                    [&](double value) { _host->contrastSet(value); });
+                _contrast.setText("Contrast: ");
+                _contrast.setRange(0, 4);
+                add(&_contrast);
+                _hue.setValueSet([&](double value) { _host->hueSet(value); });
+                _hue.setText("Hue: ");
+                _hue.setRange(-180, 180);
+                add(&_hue);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                _brightness.setTopLeft(Vector(0, 0));
+                int r = _brightness.right();
+                _saturation.setTopLeft(_brightness.bottomLeft() + vSpace);
+                r = max(r, _saturation.right());
+                _contrast.setTopLeft(_saturation.bottomLeft() + vSpace);
+                r = max(r, _contrast.right());
+                _hue.setTopLeft(_contrast.bottomLeft() + vSpace);
+                r = max(r, _hue.right());
+                setSize(Vector(r, _hue.bottom()));
             }
             CGA2NTSCWindow* _host;
+            KnobSlider _brightness;
+            KnobSlider _saturation;
+            KnobSlider _contrast;
+            KnobSlider _hue;
         };
-        struct ColourGroup : public GroupBoxWindow
+        ColourGroup _colour;
+        struct FilterGroup : public GroupBox
         {
-            BrightnessSliderWindow _brightness;
-            SaturationSliderWindow _saturation;
-            ContrastSliderWindow _contrast;
-            HueSliderWindow _hue;
+            FilterGroup(CGA2NTSCWindow* host) : _host(host)
+            {
+                setText("Filter");
+                _chromaBandwidth.setValueSet(
+                    [&](double value) { _host->chromaBandwidthSet(value); });
+                _chromaBandwidth.setText("Chroma bandwidth: ");
+                _chromaBandwidth.setRange(0, 2);
+                add(&_chromaBandwidth);
+                _lumaBandwidth.setValueSet(
+                    [&](double value) { _host->lumaBandwidthSet(value); });
+                _lumaBandwidth.setText("Luma bandwidth: ");
+                _lumaBandwidth.setRange(0, 2);
+                add(&_lumaBandwidth);
+                _combFilterVertical.setChanged(
+                    [&](int value) { _host->combFilterVerticalSet(value); });
+                _combFilterVertical.setText("Comb filter vertical: ");
+                add(&_combFilterVertical);
+                _combFilterTemporal.setChanged(
+                    [&](int value) { _host->combFilterTemporalSet(value); });
+                _combFilterTemporal.setText("Comb filter temporal: ");
+                add(&_combFilterTemporal);
+            }
+            void create()
+            {
+                GroupBox::create();
+                _combFilterVertical.add("none");
+                _combFilterVertical.add("(1, 1)");
+                _combFilterVertical.add("(1, 2, 1)");
+                _combFilterVertical.set(0);
+                _combFilterTemporal.add("none");
+                _combFilterTemporal.add("(1, 1)");
+                _combFilterTemporal.add("(1, 2, 1)");
+                _combFilterTemporal.set(0);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                _chromaBandwidth.setTopLeft(Vector(0, 0));
+                int r = _chromaBandwidth.right();
+                _lumaBandwidth.setTopLeft(
+                    _chromaBandwidth.bottomLeft() + vSpace);
+                r = max(r, _lumaBandwidth.right());
+                _combFilterVertical.setTopLeft(
+                    _chromaBandwidth.bottomLeft() + vSpace);
+                r = max(r, _combFilterVertical.right());
+                _combFilterTemporal.setTopLeft(
+                    _combFilterVertical.bottomLeft() + vSpace);
+                r = max(r, _combFilterTemporal.right());
+                setSize(Vector(r, _combFilterTemporal.bottom()));
+            }
             CGA2NTSCWindow* _host;
+            KnobSlider _chromaBandwidth;
+            KnobSlider _lumaBandwidth;
+            CaptionedDropDownList _combFilterVertical;
+            CaptionedDropDownList _combFilterTemporal;
         };
-        ColourGroup _colourGroup;
-        struct FilterGroup : public GroupBoxWindow
+        FilterGroup _filter;
+        struct ScanlinesGroup : public GroupBox
         {
-            ChromaBandwidthSliderWindow _chromaBandwidth;
-            LumaBandwidthSliderWindow _lumaBandwidth;
-            CombFilterVerticalCombo _combFilterVertical;
-            CombFilterTemporalCombo _combFilterTemporal;
+            ScanlinesGroup(CGA2NTSCWindow* host) : _host(host)
+            {
+                setText("Scanlines");
+                _profile.setChanged(
+                    [&](int value) { _host->scanlineProfileSet(value); });
+                _profile.setText("Profile: ");
+                add(&_profile);
+                _width.setValueSet(
+                    [&](double value) { _host->scanlineWidthSet(value); });
+                _width.setText("Width: ");
+                _width.setRange(0, 1);
+                add(&_width);
+                _bleeding.setClicked(
+                    [&](bool value) { _host->scanlineBleedingSet(value); });
+                _bleeding.setText("Bleeding");
+                add(&_bleeding);
+            }
+            void create()
+            {
+                GroupBox::create();
+                _profile.add("rectangular");
+                _profile.add("triangle");
+                _profile.add("semicircle");
+                _profile.add("gaussian");
+                _profile.set(0);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                _profile.setTopLeft(Vector(0, 0));
+                int r = _profile.right();
+                _width.setTopLeft(_profile.bottomLeft() + vSpace);
+                r = max(r, _width.right());
+                _bleeding.setTopLeft(_width.bottomLeft() + vSpace);
+                r = max(r, _bleeding.right());
+                setSize(Vector(r, _bleeding.bottom()));
+            }
             CGA2NTSCWindow* _host;
+            CaptionedDropDownList _profile;
+            KnobSlider _width;
+            CheckBox _bleeding;
         };
-        FilterGroup _filterGroup;
-        struct ScanlinesGroup : public GroupBoxWindow
+        ScanlinesGroup _scanlines;
+        struct ScalingGroup : public GroupBox
         {
-            ScanlineProfileCombo _scanlineProfile;
-            ScanlineWidthSliderWindow _scanlineWidth;
-            ScanlineBleedingCheckBox _scanlineBleeding;
+            ScalingGroup(CGA2NTSCWindow* host) : _host(host)
+            {
+                setText("Scaling");
+                _zoom.setValueSet(
+                    [&](double value) { _host->zoomSet(value); });
+                _zoom.setText("Zoom: ");
+                _zoom.setRange(1, 10);
+                _zoom.setLogarithmic(true);
+                add(&_zoom);
+                _aspectRatio.setValueSet(
+                    [&](double value) { _host->aspectRatioSet(value); });
+                _aspectRatio.setText("Aspect Ratio: ");
+                _aspectRatio.setRange(0.5, 2);
+                _aspectRatio.setLogarithmic(true);
+                add(&_aspectRatio);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                _zoom.setTopLeft(Vector(0, 0));
+                int r = _zoom.right();
+                _aspectRatio.setTopLeft(_zoom.bottomLeft() + vSpace);
+                r = max(r, _aspectRatio.right());
+                setSize(Vector(r, _aspectRatio.bottom()));
+            }
             CGA2NTSCWindow* _host;
+            KnobSlider _zoom;
+            KnobSlider _aspectRatio;
         };
-        ScanlinesGroup _scanlinesGroup;
-        struct ScalingGroup : public GroupBoxWindow
-        {
-            ZoomSliderWindow _zoom;
-            AspectRatioSliderWindow _aspectRatio;
-            CGA2NTSCWindow* _host;
-        };
-        ScalingGroup _scalingGroup;
+        ScalingGroup _scaling;
         CGA2NTSCWindow* _host;
     };
-    MonitorGroup _monitorGroup;
-    struct VideoCardGroup : public GroupBoxWindow
+    MonitorGroup _monitor;
+    struct VideoCardGroup : public GroupBox
     {
-        VideoCardGroup(CGA2NTSCWindow* host) : _host(host)
+        VideoCardGroup(CGA2NTSCWindow* host)
+          : _host(host), _registers(host), _matching(host)
         {
-            add(&_registersGroup);
-            add(&_matchingGroup);
+            setText("Video card");
+            add(&_registers);
+            add(&_matching);
         }
-        struct RegistersGroup : public GroupBoxWindow
+        void layout()
         {
-            ModeCombo _mode;
-            BWCheckBox _bwCheckBox;
-            BlinkCheckBox _blinkCheckBox;
-            PaletteCombo _palette;
-            BackgroundCombo _background;
-            ScanlinesPerRowCombo _scanlinesPerRow;
-            ScanlinesRepeatCombo _scanlinesRepeat;
-            PhaseCheckBox _phaseCheckBox;
-            InterlaceCombo _interlaceCombo;
-            CGA2NTSCWindow* _host;
-        };
-        RegistersGroup _registersGroup;
-        struct MatchingGroup : public GroupBoxWindow
+            Vector vSpace = _host->vSpace();
+            _registers.setTopLeft(Vector(0, 0));
+            int r = _registers.right();
+            _matching.setTopLeft(_registers.bottomLeft() + vSpace);
+            r = max(r, _matching.right());
+            setSize(Vector(r, _matching.bottom()));
+        }
+        struct RegistersGroup : public GroupBox
         {
-            MatchModeButton _matchMode;
-            DiffusionHorizontalSliderWindow _diffusionHorizontal;
-            DiffusionVerticalSliderWindow _diffusionVertical;
-            DiffusionTemporalSliderWindow _diffusionTemporal;
-            QualitySliderWindow _quality;
-            CharacterSetCombo _characterSetCombo;
+            RegistersGroup(CGA2NTSCWindow* host) : _host(host)
+            {
+                setText("Registers");
+                _mode.setChanged([&](int value) { _host->modeSet(value); });
+                _mode.setText("Mode: ");
+                add(&_mode);
+                _bw.setClicked(
+                    [&](bool value) { _host->bwSet(value); });
+                _bw.setText("+BW");
+                add(&_bw);
+                _blink.setClicked(
+                    [&](bool value) { _host->blinkSet(value); });
+                _blink.setText("+BLINK");
+                add(&_blink);
+                _palette.setChanged(
+                    [&](int value) { _host->paletteSet(value); });
+                _palette.setText("Palette: ");
+                add(&_palette);
+                _background.setChanged(
+                    [&](int value) { _host->backgroundSet(value); });
+                _background.setText("Background: ");
+                add(&_background);
+                _scanlinesPerRow.setChanged(
+                    [&](int value) { _host->scanlinesPerRowSet(value); });
+                _scanlinesPerRow.setText("Scanlines per row: ");
+                add(&_scanlinesPerRow);
+                _scanlinesRepeat.setChanged(
+                    [&](int value) { _host->scanlinesRepeatSet(value); });
+                _scanlinesRepeat.setText("Scanlines repeat: ");
+                add(&_scanlinesRepeat);
+                _phase.setClicked(
+                    [&](bool value) { _host->phaseSet(value); });
+                _phase.setText("Phase 0");
+                add(&_phase);
+                _interlace.setChanged(
+                    [&](int value) { _host->interlaceSet(value); });
+                _interlace.setText("Interlace: ");
+                add(&_interlace);
+            }
+            void create()
+            {
+                GroupBox::create();
+                _mode.add("low-resolution text");
+                _mode.add("high-resolution text");
+                _mode.add("1bpp graphics");
+                _mode.add("2bpp graphics");
+                _mode.add("low-res text with 1bpp");
+                _mode.add("high-res text with 1bpp");
+                _mode.add("high-res 1bpp graphics");
+                _mode.add("high-res 2bpp graphics");
+                _mode.add("Auto -HRES");
+                _mode.add("Auto +HRES");
+                _mode.set(2);
+                _palette.add("2/4/6");
+                _palette.add("10/12/14");
+                _palette.add("3/5/7");
+                _palette.add("11/13/15");
+                _palette.set(3);
+                for (int i = 0; i < 16; ++i)
+                    _background.add(decimal(i));
+                _background.add("Auto");
+                _background.set(15);
+                for (int i = 1; i <= 32; ++i) {
+                    _scanlinesPerRow.add(decimal(i));
+                    _scanlinesRepeat.add(decimal(i));
+                }
+                _scanlinesPerRow.set(1);
+                _scanlinesRepeat.set(0);
+                _interlace.add("None");
+                _interlace.add("Flicker");
+                _interlace.add("Sync");
+                _interlace.add("Sync and video");
+                _interlace.add("Even");
+                _interlace.add("Odd");
+                _interlace.add("Video");
+                _interlace.add("Video and flicker");
+                _interlace.add("Sync flicker");
+                _interlace.add("Sync video and flicker");
+                _interlace.add("Even flicker");
+                _interlace.add("Odd flicker");
+                _interlace.add("Sync even");
+                _interlace.add("Sync odd");
+                _interlace.add("Sync even flicker");
+                _interlace.add("Sync odd flicker");
+                _interlace.add("Sync and video swapped");
+                _interlace.add("Sync video and flicker swapped");
+                _interlace.set(0);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                Vector hSpace = _host->hSpace();
+                _mode.setTopLeft(Vector(0, 0));
+                _bw.setTopLeft(_mode.topRight() + hSpace);
+                _blink.setTopLeft(_bw.topRight() + hSpace);
+                int r = _blink.right();
+                _palette.setTopLeft(_mode.bottomLeft() + vSpace);
+                _background.setTopLeft(_palette.topRight() + hSpace);
+                r = max(r, _background.right());
+                _scanlinesPerRow.setTopLeft(_palette.bottomLeft() + vSpace);
+                _scanlinesRepeat.setTopLeft(
+                    _scanlinesPerRow.topRight() + hSpace);
+                r = max(r, _scanlinesRepeat.right());
+                _phase.setTopLeft(_scanlinesPerRow.bottomLeft() + vSpace);
+                _interlace.setTopLeft(_phase.topRight() + hSpace);
+                setSize(Vector(r, _interlace.bottom()));
+            }
             CGA2NTSCWindow* _host;
+            CaptionedDropDownList _mode;
+            CheckBox _bw;
+            CheckBox _blink;
+            CaptionedDropDownList _palette;
+            CaptionedDropDownList _background;
+            CaptionedDropDownList _scanlinesPerRow;
+            CaptionedDropDownList _scanlinesRepeat;
+            CheckBox _phase;
+            CaptionedDropDownList _interlace;
         };
-        MatchingGroup _matchingGroup;
+        RegistersGroup _registers;
+        struct MatchingGroup : public GroupBox
+        {
+            MatchingGroup(CGA2NTSCWindow* host) : _host(host)
+            {
+                setText("Matching");
+                _matchMode.setClicked(
+                    [&](bool value) { _host->matchModeSet(value); });
+                _matchMode.setText("Match");
+                add(&_matchMode);
+                _diffusionHorizontal.setValueSet(
+                    [&](double value) {
+                        _host->diffusionHorizontalSet(value); });
+                _diffusionHorizontal.setText("Diffusion: Horizontal: ");
+                _diffusionHorizontal.setRange(0, 1);
+                add(&_diffusionHorizontal);
+                _diffusionVertical.setValueSet(
+                    [&](double value) { _host->diffusionVerticalSet(value); });
+                _diffusionVertical.setText("Vertical: ");
+                _diffusionVertical.setRange(0, 1);
+                add(&_diffusionVertical);
+                _diffusionTemporal.setValueSet(
+                    [&](double value) { _host->diffusionTemporalSet(value); });
+                _diffusionTemporal.setText("Temporal: ");
+                _diffusionTemporal.setRange(0, 1);
+                add(&_diffusionTemporal);
+                _quality.setValueSet(
+                    [&](double value) { _host->qualitySet(value); });
+                _quality.setText("Quality: ");
+                _quality.setRange(0, 1);
+                add(&_quality);
+                _characterSet.setChanged(
+                    [&](int value) { _host->characterSetSet(value); });
+                _characterSet.setText("Character set: ");
+                add(&_characterSet);
+            }
+            void create()
+            {
+                GroupBox::create();
+                _characterSet.add("0xdd");
+                _characterSet.add("0x13/0x55");
+                _characterSet.add("1K");
+                _characterSet.add("all");
+                _characterSet.add("0xb1");
+                _characterSet.add("0xb0/0xb1");
+                _characterSet.add("ISAV");
+                _characterSet.set(3);
+                _characterSet.layout();
+            }
+            CGA2NTSCWindow* _host;
+            ToggleButton _matchMode;
+            KnobSlider _diffusionHorizontal;
+            KnobSlider _diffusionVertical;
+            KnobSlider _diffusionTemporal;
+            KnobSlider _quality;
+            CaptionedDropDownList _characterSet;
+        };
+        MatchingGroup _matching;
         CGA2NTSCWindow* _host;
     };
-    VideoCardGroup _videoCardGroup;
+    VideoCardGroup _videoCard;
 
     CGAMatcher* _matcher;
     CGAShower* _shower;

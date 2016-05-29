@@ -691,7 +691,7 @@ typedef FieldNumberSliderWindowT<void> FieldNumberSliderWindow;
 class VCRDecodeWindow : public RootWindow
 {
 public:
-    void setWindows(Windows* windows)
+    VCRDecodeWindow()
     {
         _output.setCaptureWindow(this);
 
@@ -724,8 +724,6 @@ public:
         add(&_fieldNumberCaption);
         add(&_fieldNumber);
         add(&_fieldNumberText);
-
-        RootWindow::setWindows(windows);
     }
     void create()
     {

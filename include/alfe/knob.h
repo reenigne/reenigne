@@ -5,78 +5,70 @@
 
 const COLORREF chromaKey = RGB(0xff, 0x0, 0xff);
 
-template<class T> class KnobSlider
+class KnobSlider : public ContainerWindow
 {
 public:
     KnobSlider()
-      : _knob(this), _popup(this), _edit(this), _sliding(false),
-        _useChromaKey(false), _config(0), _size(180, 24), _captionWidth(100)
-    { }
-    virtual void create()
+      : _sliding(false), _useChromaKey(false), _config(0), _knobDiameter(24),
+        _popupLength(301), _captionWidth(100), _logarithmic(false)
     {
-        _caption.size();
+        add(&_caption);
+        add(&_knob);
+        add(&_edit);
+        add(&_popup);
         _lightGrey = getSysColor(COLOR_BTNFACE, 0xc0c0c0);
         _darkGrey = getSysColor(COLOR_GRAYTEXT, 0x7f7f7f);
         _black = getSysColor(COLOR_WINDOWTEXT, 0x000000);
     }
     void setText(String text) { _caption.setText(text); }
-    void setHost(T* host)
-    {
-        _host = host;
-        host->add(&_caption);
-        host->add(&_knob);
-        host->add(&_edit);
-        host->add(&_popup);
-    }
     void setCaptionWidth(int width) { _captionWidth = width; }
-    void autoSize()
+    void layout()
     {
-        _caption.autoSize();
-        int newCaptionWidth = _caption.size().x;
-        if (newCaptionWidth < 0 || newCaptionWidth >= 0x4000)
-            newCaptionWidth = 100;
-        _size.x += newCaptionWidth - _captionWidth;
-        _captionWidth = newCaptionWidth;
-    }
-    void setTopLeft(Vector tl)
-    {
-        _caption.autoSize();
-        _caption.setPosition(tl + Vector(0, (_size.y - _caption.size().y)/2));
-        _knob.setSize(Vector(_size.y, _size.y));
-        _knob.setPosition(Vector(_caption.left() + _captionWidth, tl.y));
+        _knob.setSize(Vector(_knobDiameter, _knobDiameter));
+        int height = max(_caption.size().y, max(_knobDiameter,
+            _edit.size().y));
+        _caption.setTopLeft(Vector(0, (height - _caption.size().y)/2));
+        _knob.setTopLeft(Vector(_caption.left(), (height - _knobDiameter)/2));
+        _edit.setTopLeft(Vector(_knob.right() + _knobDiameter/2,
+            (height - _edit.size().y)/2));
 
-        TEXTMETRIC metric;
-        GetTextMetrics(_edit.getDC(), &metric);
-        int height = metric.tmHeight;
+        //TEXTMETRIC metric;
+        //GetTextMetrics(_edit.getDC(), &metric);
+        //int height = metric.tmHeight;
 
-        int editL = _knob.right() + _size.y/2;
-        _edit.setSize(Vector(_size.x + tl.x - editL, height));
+        //int editL = _knob.right() + _size.y/2;
+        //_edit.setSize(Vector(_size.x + tl.x - editL, height));
 
-        RECT editRect;
-        BOOL r = GetWindowRect(_edit.hWnd(), &editRect);
-        if (r == 0) {
-            editRect.top = 0;
-            editRect.bottom = editRect.top + height;
-        }
+        //RECT editRect;
+        //BOOL r = GetWindowRect(_edit.hWnd(), &editRect);
+        //if (r == 0) {
+        //    editRect.top = 0;
+        //    editRect.bottom = editRect.top + height;
+        //}
 
-        int editT = _knob.top() +
-            (_size.y - (editRect.bottom - editRect.top))/2;
-        _edit.setPosition(Vector(editL, editT));
-
-        setValue(_value);
+        //setValue(_value);
     }
     void setRange(double low, double high)
     {
         _min = low;
         _max = high;
     }
-    virtual void valueSet(double value) = 0;
+    virtual void valueSet(double value) { _valueSet(value); }
+    void setValueSet(std::function<void(double)> valueSet)
+    {
+        _valueSet = valueSet;
+    }
     void setValue(double value)
     {
         setValueFromEdit(value);
-        int dps =
-            max(0, static_cast<int>(1 - log((_max - _min)/_size.x)/log(10)));
-        if (_size.x < 0)
+        int dps;
+        if (_logarithmic)
+            dps = max(0, static_cast<int>(1 - log(_popupLength)/log(10)));
+        else {
+            dps = max(0,
+                static_cast<int>(1 - log((_max - _min)/_popupLength)/log(10)));
+        }
+        if (_popupLength < 0)
             dps = 1;
         _edit.setText(format("%.*f", dps, value));
     }
@@ -86,25 +78,29 @@ public:
         valueSet(value);
         _knob.draw();
     }
-    void changeValue(double amount)
-    {
-        setValue(clamp(_min, _value + (_max - _min)*amount, _max));
-    }
     double getValue() const { return _value; }
     void setConfig(ConfigFile* config) { _config = config; }
-    Vector size() const { return _size; }
-    int left() const { return _caption.left(); }
-    int top() const { return _knob.top(); }
-    int right() const { return _edit.right(); }
-    int bottom() const { return _knob.bottom(); }
-    Vector topLeft() const { return Vector(left(), top()); }
-    Vector bottomLeft() const { return Vector(left(), bottom()); }
-    Vector topRight() const { return Vector(right(), top()); }
-    Vector bottomRight() const { return Vector(right(), bottom()); }
+    virtual double positionFromValue(double value)
+    {
+        return _logarithmic ? log(value) : value;
+    }
+    virtual double valueFromPosition(double position)
+    {
+        return _logarithmic ? exp(position) : position;
+    }
+    void setLogarithmic(bool logarithmic) { _logarithmic = logarithmic; }
 
-protected:
-    T* _host;
 private:
+    double position() { return positionFromValue(_value); }
+    double minPosition() { return positionFromValue(_min); }
+    double maxPosition() { return positionFromValue(_max); }
+    void changeValue(double amount)
+    {
+        setValue(valueFromPosition(clamp(minPosition(),
+            position() + (maxPosition() - minPosition())*amount,
+            maxPosition())));
+    }
+
     static DWORD getSysColor(int nIndex, DWORD def)
     {
         // The values returned from GetSysColor have the red channel in the
@@ -122,7 +118,7 @@ private:
         if (buttonDown) {
             if (!_sliding) {
                 _dragStart = position;
-                _valueStart = _value;
+                _positionStart = positionFromValue(_value);
                 _popup.show(SW_SHOW);
             }
             else
@@ -136,18 +132,17 @@ private:
     class KnobWindow : public BitmapWindow
     {
     public:
-        KnobWindow(KnobSlider* host) : _host(host), _created(false) { }
         void draw2()
         {
-            if (!_created)
+            if (_hWnd == NULL)
                 return;
             Vector s = size();
             Vector2<double> c = Vector2Cast<double>(s)/2.0;
-            _bitmap.fill(_host->_lightGrey);
-            fillCircle(_bitmap, _host->_darkGrey, Vector2Cast<float>(c),
+            _bitmap.fill(host()->_lightGrey);
+            fillCircle(_bitmap, host()->_darkGrey, Vector2Cast<float>(c),
                 static_cast<float>(s.x/2.0));
-            double a = clamp(0.0, (_host->_value - _host->_min)/
-                (_host->_max - _host->_min), 1.0)*3/4;
+            double a = clamp(0.0, (host()->position() - host()->minPosition())/
+                (host()->maxPosition() - host()->minPosition()), 1.0)*3/4;
             Rotor2<double> r(-a);
             Vector2<double> o = Vector2<double>(-1, 1)*r*s.x/sqrt(8) + c;
             Vector2<double> w = Vector2<double>(1, 1)*r;
@@ -156,7 +151,7 @@ private:
             points[1] = Vector2Cast<float>(c + w);
             points[2] = Vector2Cast<float>(o - w);
             points[3] = Vector2Cast<float>(o + w);
-            fillParallelogram(_bitmap, &points[0], _host->_black);
+            fillParallelogram(_bitmap, &points[0], host()->_black);
         }
         bool mouseInput(Vector position, int buttons)
         {
@@ -167,46 +162,34 @@ private:
             point.x = position.x;
             point.y = position.y;
             IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
-            _host->knobEvent(Vector(point.x, point.y), lButton);
+            host()->knobEvent(Vector(point.x, point.y), lButton);
             return lButton;  // Capture when button is down
         }
-        void create()
-        {
-            _host->create();
-            BitmapWindow::create();
-            _created = true;
-            draw();
-        }
     private:
-        KnobSlider* _host;
-        bool _created;
+        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
     };
 
     class PopupWindow : public WindowsWindow
     {
     public:
-        PopupWindow(KnobSlider* host)
-          : _host(host), _delta(0, -1), _hdcScreen(NULL),
+        PopupWindow()
+          : _delta(0, -1), _hdcScreen(NULL),
             _hdcSrc(CreateCompatibleDC(_hdcScreen))
         {
+            setStyle(WS_POPUP);
+            setExtendedStyle(WS_EX_LAYERED);
             _hbmBackBuffer =
                 GDIObject(CreateCompatibleBitmap(_hdcScreen, 100, 100));
             _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
         }
-        void setWindows(Windows* windows)
-        {
-            WindowsWindow::setWindows(windows);
-            setStyle(WS_POPUP);
-            setExtendedStyle(WS_EX_LAYERED);
-        }
         void update(Vector position)
         {
-            int length = _host->_size.x;
-            double valueLow = _host->_min;
-            double valueHigh = _host->_max;
-            double valueStart = _host->_valueStart;
+            int length = host()->_popupLength;
+            double valueLow = host()->minPosition();
+            double valueHigh = host()->maxPosition();
+            double valueStart = host()->_positionStart;
             double valueDelta = valueHigh - valueLow;
-            Vector dragStart = _host->_dragStart;
+            Vector dragStart = host()->_dragStart;
             double value;
             Vector2<double> a;
             Vector2<double> delta = Vector2Cast<double>(position - dragStart);
@@ -225,12 +208,12 @@ private:
                 a = delta/(value - valueStart);
             }
             value = clamp(valueLow, value, valueHigh);
-            _host->setValue(value);
+            host()->setValue(host()->valueFromPosition(value));
             auto b = Vector2Cast<double>(dragStart) - a*valueStart;
             Vector2<double> low = a*valueLow + b;
             Vector2<double> high = a*valueHigh + b;
 
-            double endPadding = _host->_size.y/4;
+            double endPadding = host()->size().y/4;
             Vector2<double> x = (high-low)*endPadding/length;
             Vector2<double> y = 2.0*Vector2<double>(x.y, -x.x);
             Vector2<float> corners[4];
@@ -264,14 +247,14 @@ private:
             low -= topLeft;
             high -= topLeft;
             // Transparent
-            if (_host->_useChromaKey)
+            if (host()->_useChromaKey)
                 _bitmap.fill(0xff000000 | chromaKey);
             else
                 _bitmap.fill(0);
 
             // Background
-            fillParallelogram(_bitmap, &corners[0], _host->_lightGrey,
-                !_host->_useChromaKey);
+            fillParallelogram(_bitmap, &corners[0], host()->_lightGrey,
+                !host()->_useChromaKey);
 
             // Track
             x = (high-low)*2/length;
@@ -280,7 +263,7 @@ private:
             corners[1] = Vector2Cast<float>(low + y);
             corners[2] = Vector2Cast<float>(high - y);
             corners[3] = Vector2Cast<float>(high + y);
-            fillParallelogram(_bitmap, &corners[0], _host->_darkGrey);
+            fillParallelogram(_bitmap, &corners[0], host()->_darkGrey);
 
             // Handle
             x = (high-low)*endPadding/(length*2);
@@ -291,10 +274,10 @@ private:
             corners[1] = Vector2Cast<float>(p - x + y);
             corners[2] = Vector2Cast<float>(p + x - y);
             corners[3] = Vector2Cast<float>(p + x + y);
-            fillParallelogram(_bitmap, &corners[0], _host->_black);
+            fillParallelogram(_bitmap, &corners[0], host()->_black);
 
             sizeSet(s);
-            if (_host->_useChromaKey) {
+            if (host()->_useChromaKey) {
                 MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
                 invalidate();
                 updateWindow();
@@ -319,7 +302,7 @@ private:
             BOOL r = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
                 &ptSrc, 0, &blend, ULW_ALPHA);
             if (r == 0) {
-                _host->_useChromaKey = true;
+                host()->_useChromaKey = true;
                 SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
                     LWA_COLORKEY);
                 update(position);
@@ -341,7 +324,7 @@ private:
         }
         virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
-            if (uMsg == WM_PAINT && _host->_useChromaKey) {
+            if (uMsg == WM_PAINT && host()->_useChromaKey) {
                 PaintHandle p(this);
                 setDIBits(p, p.topLeft(), p.bottomRight());
                 return 0;
@@ -350,6 +333,7 @@ private:
         }
 
     private:
+        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
         void setDIBits(HDC hdc, Vector ptl, Vector pbr)
         {
             Vector br = size();
@@ -375,7 +359,6 @@ private:
                 DIB_RGB_COLORS));
         }
 
-        KnobSlider* _host;
         WindowDeviceContext _hdcScreen;
         OwnedDeviceContext _hdcSrc;
         GDIObject _hbmBackBuffer;
@@ -388,41 +371,39 @@ private:
     class EditControl : public EditWindow
     {
     public:
-        EditControl(KnobSlider* host) : _host(host) { }
-        void setWindows(Windows* windows)
+        EditControl()
         {
-            EditWindow::setWindows(windows);
             setExtendedStyle(WS_EX_CLIENTEDGE);
             setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | WS_TABSTOP);
         }
         void changed()
         {
             String t = getText();
-            double v = _host->_config->evaluate<double>(t, _host->_value);
-            _host->setValueFromEdit(v);
+            double v = host()->_config->evaluate<double>(t, host()->_value);
+            host()->setValueFromEdit(v);
         }
         virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             if (uMsg == WM_KEYDOWN) {
                 switch (wParam) {
                     case VK_UP:
-                        _host->changeValue(0.01);
+                        host()->changeValue(0.01);
                         return 0;
                     case VK_DOWN:
-                        _host->changeValue(-0.01);
+                        host()->changeValue(-0.01);
                         return 0;
                     case VK_PRIOR:
-                        _host->changeValue(0.1);
+                        host()->changeValue(0.1);
                         return 0;
                     case VK_NEXT:
-                        _host->changeValue(-0.1);
+                        host()->changeValue(-0.1);
                         return 0;
                 }
             }
             return EditWindow::handleMessage(uMsg, wParam, lParam);
         }
     private:
-        KnobSlider* _host;
+        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
     };
 
     TextWindow _caption;
@@ -434,14 +415,17 @@ private:
     double _min;
     double _max;
     Vector _dragStart;
-    double _valueStart;
-    Vector _size;
+    double _positionStart;
+    int _knobDiameter;
+    int _popupLength;
     int _captionWidth;
     bool _useChromaKey;
     DWORD _lightGrey;
     DWORD _darkGrey;
     DWORD _black;
     ConfigFile* _config;
+    bool _logarithmic;
+    std::function<void(double)> _valueSet;
 
     friend class KnobWindow;
     friend class PopupWindow;
