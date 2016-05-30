@@ -171,7 +171,7 @@ public:
     }
     void create()
     {
-        setSize(Vector(640, 480));
+        setInnerSize(Vector(640, 480));
 
         _particles.allocate(65536);
         int i;
@@ -270,7 +270,7 @@ public:
     void create()
     {
         setText("CGA Gamut");
-        setSize(Vector(640, 480));
+        setInnerSize(Vector(640, 480));
         add(&_bitmap);
         RootWindow::create();
     }

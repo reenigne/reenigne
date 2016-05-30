@@ -10,7 +10,7 @@ class KnobSlider : public ContainerWindow
 public:
     KnobSlider()
       : _sliding(false), _useChromaKey(false), _config(0), _knobDiameter(24),
-        _popupLength(301), _captionWidth(100), _logarithmic(false)
+        _popupLength(301), _captionWidth(112), _logarithmic(false)
     {
         add(&_caption);
         add(&_knob);
@@ -24,29 +24,26 @@ public:
     void setCaptionWidth(int width) { _captionWidth = width; }
     void layout()
     {
-        _knob.setSize(Vector(_knobDiameter, _knobDiameter));
-        int height = max(_caption.size().y, max(_knobDiameter,
-            _edit.size().y));
-        _caption.setTopLeft(Vector(0, (height - _caption.size().y)/2));
-        _knob.setTopLeft(Vector(_caption.left(), (height - _knobDiameter)/2));
+        _knob.setInnerSize(Vector(_knobDiameter, _knobDiameter));
+        int height = max(_caption.outerSize().y, max(_knobDiameter,
+            _edit.outerSize().y));
+        _caption.setTopLeft(Vector(0, (height - _caption.outerSize().y)/2));
+        _knob.setTopLeft(Vector(
+            max(_captionWidth, _caption.right() + _knobDiameter/2),
+            (height - _knobDiameter)/2));
         _edit.setTopLeft(Vector(_knob.right() + _knobDiameter/2,
-            (height - _edit.size().y)/2));
-
-        //TEXTMETRIC metric;
-        //GetTextMetrics(_edit.getDC(), &metric);
-        //int height = metric.tmHeight;
-
-        //int editL = _knob.right() + _size.y/2;
-        //_edit.setSize(Vector(_size.x + tl.x - editL, height));
-
-        //RECT editRect;
-        //BOOL r = GetWindowRect(_edit.hWnd(), &editRect);
-        //if (r == 0) {
-        //    editRect.top = 0;
-        //    editRect.bottom = editRect.top + height;
-        //}
-
-        //setValue(_value);
+            (height - _edit.outerSize().y)/2));
+        setInnerSize(Vector(_edit.right(), height));
+    }
+    void setTopLeft(Vector topLeft)
+    {
+        ContainerWindow::setTopLeft(topLeft);
+        repositionChildren();
+    }
+    void create()
+    {
+        ContainerWindow::create();
+        setValue(_value);
     }
     void setRange(double low, double high)
     {
@@ -136,7 +133,7 @@ private:
         {
             if (_hWnd == NULL)
                 return;
-            Vector s = size();
+            Vector s = outerSize();
             Vector2<double> c = Vector2Cast<double>(s)/2.0;
             _bitmap.fill(host()->_lightGrey);
             fillCircle(_bitmap, host()->_darkGrey, Vector2Cast<float>(c),
@@ -213,7 +210,7 @@ private:
             Vector2<double> low = a*valueLow + b;
             Vector2<double> high = a*valueHigh + b;
 
-            double endPadding = host()->size().y/4;
+            double endPadding = host()->outerSize().y/4;
             Vector2<double> x = (high-low)*endPadding/length;
             Vector2<double> y = 2.0*Vector2<double>(x.y, -x.x);
             Vector2<float> corners[4];
@@ -276,7 +273,7 @@ private:
             corners[3] = Vector2Cast<float>(p + x + y);
             fillParallelogram(_bitmap, &corners[0], host()->_black);
 
-            sizeSet(s);
+            innerSizeSet(s);
             if (host()->_useChromaKey) {
                 MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
                 invalidate();
@@ -336,12 +333,12 @@ private:
         KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
         void setDIBits(HDC hdc, Vector ptl, Vector pbr)
         {
-            Vector br = size();
+            Vector br = outerSize();
             pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
             Vector ps = pbr - ptl;
             if (ps.x <= 0 || ps.y <= 0 || !_bitmap.valid())
                 return;
-            Vector s = size();
+            Vector s = outerSize();
             _bmi.bmiHeader.biWidth = _bitmap.stride() / sizeof(DWORD);
             _bmi.bmiHeader.biHeight = -s.y;
             IF_ZERO_THROW(SetDIBitsToDevice(

@@ -270,7 +270,7 @@ class CalibrateBitmapWindow : public BitmapWindow
 public:
     void create()
     {
-        setSize(Vector(1536, 1024));
+        setInnerSize(Vector(1536, 1024));
 
         BitmapFileFormat<SRGB> png = PNGFileFormat();
         _top1 = png.load(File("q:\\Pictures\\reenigne\\top1.png", true));

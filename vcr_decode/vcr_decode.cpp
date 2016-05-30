@@ -509,7 +509,7 @@ public:
     }
     void create()
     {
-        setSize(Vector(960, 720));
+        setInnerSize(Vector(960, 720));
 
         _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
         _vbiCapPipe.write<int>(1);
@@ -748,7 +748,7 @@ public:
         _fieldNumber.setHost(this);
 
         setText("VCR decode");
-        setSize(Vector(1321, 760 + 23));
+        setInnerSize(Vector(1321, 760 + 23));
         RootWindow::create();
 
         _brightness.setValue(-26);
@@ -761,59 +761,59 @@ public:
         _deinterlacing.setValue(0);
         _fieldNumber.setValue(0);
     }
-    void sizeSet(Vector size)
+    void innerSizeSet(Vector size)
     {
         _output.setPosition(Vector(20, 20));
         int w = _output.right() + 20;
 
         Vector vSpace(0, 15);
 
-        _brightness.setSize(Vector(301, 24));
+        _brightness.setInnerSize(Vector(301, 24));
         _brightness.setPosition(Vector(w, 20));
         _brightnessCaption.setPosition(_brightness.bottomLeft() + vSpace);
         _brightnessText.setPosition(_brightnessCaption.topRight());
 
-        _saturation.setSize(Vector(301, 24));
+        _saturation.setInnerSize(Vector(301, 24));
         _saturation.setPosition(_brightnessCaption.bottomLeft() + 2*vSpace);
         _saturationCaption.setPosition(_saturation.bottomLeft() + vSpace);
         _saturationText.setPosition(_saturationCaption.topRight());
 
-        _contrast.setSize(Vector(301, 24));
+        _contrast.setInnerSize(Vector(301, 24));
         _contrast.setPosition(_saturationCaption.bottomLeft() + 2*vSpace);
         _contrastCaption.setPosition(_contrast.bottomLeft() + vSpace);
         _contrastText.setPosition(_contrastCaption.topRight());
 
-        _hue.setSize(Vector(301, 24));
+        _hue.setInnerSize(Vector(301, 24));
         _hue.setPosition(_contrastCaption.bottomLeft() + 2*vSpace);
         _hueCaption.setPosition(_hue.bottomLeft() + vSpace);
         _hueText.setPosition(_hueCaption.topRight());
 
-        _lumaCutoff.setSize(Vector(301, 24));
+        _lumaCutoff.setInnerSize(Vector(301, 24));
         _lumaCutoff.setPosition(_hueCaption.bottomLeft() + 2*vSpace);
         _lumaCutoffCaption.setPosition(_lumaCutoff.bottomLeft() + vSpace);
         _lumaCutoffText.setPosition(_lumaCutoffCaption.topRight());
 
-        _lumaHeterodyneFrequency.setSize(Vector(301, 24));
+        _lumaHeterodyneFrequency.setInnerSize(Vector(301, 24));
         _lumaHeterodyneFrequency.setPosition(_lumaCutoffCaption.bottomLeft() + 2*vSpace);
         _lumaHeterodyneFrequencyCaption.setPosition(_lumaHeterodyneFrequency.bottomLeft() + vSpace);
         _lumaHeterodyneFrequencyText.setPosition(_lumaHeterodyneFrequencyCaption.topRight());
 
-        _chromaCutoff.setSize(Vector(301, 24));
+        _chromaCutoff.setInnerSize(Vector(301, 24));
         _chromaCutoff.setPosition(_lumaHeterodyneFrequencyCaption.bottomLeft() + 2*vSpace);
         _chromaCutoffCaption.setPosition(_chromaCutoff.bottomLeft() + vSpace);
         _chromaCutoffText.setPosition(_chromaCutoffCaption.topRight());
 
-        _deinterlacing.setSize(Vector(301, 24));
+        _deinterlacing.setInnerSize(Vector(301, 24));
         _deinterlacing.setPosition(_chromaCutoffCaption.bottomLeft() + 2*vSpace);
         _deinterlacingCaption.setPosition(_deinterlacing.bottomLeft() + vSpace);
         _deinterlacingText.setPosition(_deinterlacingCaption.topRight());
 
-        _fieldNumber.setSize(Vector(301, 24));
+        _fieldNumber.setInnerSize(Vector(301, 24));
         _fieldNumber.setPosition(_deinterlacingCaption.bottomLeft() + 2*vSpace);
         _fieldNumberCaption.setPosition(_fieldNumber.bottomLeft() + vSpace);
         _fieldNumberText.setPosition(_fieldNumberCaption.topRight());
 
-        RootWindow::sizeSet(size);
+        RootWindow::innerSizeSet(size);
     }
     void setBrightness(double brightness)
     {

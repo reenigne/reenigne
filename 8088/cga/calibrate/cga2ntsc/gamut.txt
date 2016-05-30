@@ -96,7 +96,7 @@ public:
         _matrix[0] = 1; _matrix[1] = 0; _matrix[2] = 0;
         _matrix[3] = 0; _matrix[4] = 1; _matrix[5] = 0;
         _matrix[6] = 0; _matrix[7] = 0; _matrix[8] = 1;
-        setSize(Vector(640, 480));
+        setInnerSize(Vector(640, 480));
     }
     void create()
     {
@@ -304,7 +304,7 @@ public:
         //_animated.setDrawWindow(&_gamut);
         //_gamut.setAnimated(&_animated);
 
-        //setSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
+        //setInnerSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
 
         //_updating = false;
         //update();

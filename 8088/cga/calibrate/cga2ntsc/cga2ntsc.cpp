@@ -804,6 +804,7 @@ public:
     }
 
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
+    void layout() { setInnerSize(requiredSize()); }
 private:
     void allocateBitmap()
     {
@@ -918,17 +919,18 @@ public:
             _matcher->getDiffusionTemporal());
         _videoCard._matching._quality.setValue(_matcher->getQuality());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
+        setInnerSize(Vector(0, 0));
         RootWindow::create();
     }
-    void sizeSet(Vector size)
+    void innerSizeSet(Vector size)
     {
         if (size.x <= 0 || size.y <= 0)
             return;
-        RootWindow::sizeSet(size);
-        int owx = max(_videoCard.size().x,
-            size.x - (_monitor.size().x + 3*pad().x));
-        int owy = max(0, size.y - (_videoCard.size().y + 3*pad().y));
-        _outputWindow.setSize(Vector(owx, owy));
+        RootWindow::innerSizeSet(size);
+        int owx = max(_videoCard.outerSize().x,
+            size.x - (_monitor.outerSize().x + 3*pad().x));
+        int owy = max(0, size.y - (_videoCard.outerSize().y + 3*pad().y));
+        _outputWindow.setInnerSize(Vector(owx, owy));
         layout();
     }
     void layout()
@@ -939,7 +941,8 @@ public:
         _videoCard.setTopLeft(_outputWindow.bottomLeft() + Vector(0, pad.y));
         r = max(r, _videoCard.right());
         _monitor.setTopLeft(_outputWindow.topRight() + Vector(pad.x, 0));
-        setSize(pad + Vector(_monitor.right(), _videoCard.bottom()));
+        setInnerSize(pad + Vector(_monitor.right(),
+            max(_videoCard.bottom(), _monitor.bottom())));
     }
     void keyboardCharacter(int character)
     {
@@ -1123,7 +1126,10 @@ public:
 private:
     Vector vSpace() { return Vector(0, 15); }
     Vector hSpace() { return Vector(15, 0); }
+    Vector groupTL() { return Vector(15, 20); }
+    Vector groupBR() { return Vector(15, 15); }
     Vector pad() { return Vector(20, 20); }
+    Vector groupVSpace() { return Vector(0, 10); }
 
     class OutputWindow : public BitmapWindow
     {
@@ -1131,16 +1137,16 @@ private:
         void create()
         {
             BitmapWindow::create();
-            _bitmap = Bitmap<DWORD>(size());
+            _bitmap = Bitmap<DWORD>(outerSize());
             setNextBitmap(_bitmap);
         }
         void draw(Bitmap<DWORD> bitmap)
         {
-            if (size().x < 0 || size().x >= 0x4000 || size().y < 0 ||
-                size().y >= 0x4000)
+            if (outerSize().x < 0 || outerSize().x >= 0x4000 ||
+                outerSize().y < 0 || outerSize().y >= 0x4000)
                 return;
             if (!_bitmap.valid())
-                _bitmap = Bitmap<DWORD>(size());
+                _bitmap = Bitmap<DWORD>(outerSize());
             // Just copy from the top left corner for now.
             Vector zero(0, 0);
             Vector size(min(bitmap.size().x, _bitmap.size().x),
@@ -1173,34 +1179,31 @@ private:
             _connector.setChanged(
                 [&](int value) { _host->connectorSet(value); });
             _connector.setText("Connector: ");
+            _connector.add("RGBI");
+            _connector.add("Composite (old)");
+            _connector.add("Composite (new)");
+            _connector.set(1);
             add(&_connector);
             add(&_colour);
             add(&_filter);
             add(&_scanlines);
             add(&_scaling);
         }
-        void create()
-        {
-            GroupBox::create();
-            _connector.add("RGBI");
-            _connector.add("Composite (old)");
-            _connector.add("Composite (new)");
-            _connector.set(1);
-        }
         void layout()
         {
             Vector vSpace = _host->vSpace();
-            _connector.setTopLeft(Vector(0, 0));
+            _connector.setTopLeft(_host->groupTL());
             int r = _connector.right();
-            _colour.setTopLeft(_connector.bottomLeft() + vSpace);
+            _colour.setTopLeft(_connector.bottomLeft() + _host->groupVSpace());
             r = max(r, _colour.right());
-            _filter.setTopLeft(_colour.bottomLeft() + vSpace);
+            _filter.setTopLeft(_colour.bottomLeft() + _host->groupVSpace());
             r = max(r, _filter.right());
-            _scanlines.setTopLeft(_filter.bottomLeft() + vSpace);
+            _scanlines.setTopLeft(_filter.bottomLeft() + _host->groupVSpace());
             r = max(r, _scanlines.right());
-            _scaling.setTopLeft(_scanlines.bottomLeft() + vSpace);
+            _scaling.setTopLeft(
+                _scanlines.bottomLeft() + _host->groupVSpace());
             r = max(r, _scaling.right());
-            setSize(Vector(r, _scaling.bottom()));
+            setInnerSize(Vector(r, _scaling.bottom()) + _host->groupBR());
         }
         CaptionedDropDownList _connector;
         struct ColourGroup : public GroupBox
@@ -1231,7 +1234,7 @@ private:
             void layout()
             {
                 Vector vSpace = _host->vSpace();
-                _brightness.setTopLeft(Vector(0, 0));
+                _brightness.setTopLeft(_host->groupTL());
                 int r = _brightness.right();
                 _saturation.setTopLeft(_brightness.bottomLeft() + vSpace);
                 r = max(r, _saturation.right());
@@ -1239,7 +1242,7 @@ private:
                 r = max(r, _contrast.right());
                 _hue.setTopLeft(_contrast.bottomLeft() + vSpace);
                 r = max(r, _hue.right());
-                setSize(Vector(r, _hue.bottom()));
+                setInnerSize(Vector(r, _hue.bottom()) + _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             KnobSlider _brightness;
@@ -1266,39 +1269,34 @@ private:
                 _combFilterVertical.setChanged(
                     [&](int value) { _host->combFilterVerticalSet(value); });
                 _combFilterVertical.setText("Comb filter vertical: ");
+                _combFilterVertical.add("none");
+                _combFilterVertical.add("(1, 1)");
+                _combFilterVertical.add("(1, 2, 1)");
                 add(&_combFilterVertical);
                 _combFilterTemporal.setChanged(
                     [&](int value) { _host->combFilterTemporalSet(value); });
                 _combFilterTemporal.setText("Comb filter temporal: ");
-                add(&_combFilterTemporal);
-            }
-            void create()
-            {
-                GroupBox::create();
-                _combFilterVertical.add("none");
-                _combFilterVertical.add("(1, 1)");
-                _combFilterVertical.add("(1, 2, 1)");
-                _combFilterVertical.set(0);
                 _combFilterTemporal.add("none");
                 _combFilterTemporal.add("(1, 1)");
                 _combFilterTemporal.add("(1, 2, 1)");
-                _combFilterTemporal.set(0);
+                add(&_combFilterTemporal);
             }
             void layout()
             {
                 Vector vSpace = _host->vSpace();
-                _chromaBandwidth.setTopLeft(Vector(0, 0));
+                _chromaBandwidth.setTopLeft(_host->groupTL());
                 int r = _chromaBandwidth.right();
                 _lumaBandwidth.setTopLeft(
                     _chromaBandwidth.bottomLeft() + vSpace);
                 r = max(r, _lumaBandwidth.right());
                 _combFilterVertical.setTopLeft(
-                    _chromaBandwidth.bottomLeft() + vSpace);
+                    _lumaBandwidth.bottomLeft() + vSpace);
                 r = max(r, _combFilterVertical.right());
                 _combFilterTemporal.setTopLeft(
                     _combFilterVertical.bottomLeft() + vSpace);
                 r = max(r, _combFilterTemporal.right());
-                setSize(Vector(r, _combFilterTemporal.bottom()));
+                setInnerSize(Vector(r, _combFilterTemporal.bottom()) +
+                    _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             KnobSlider _chromaBandwidth;
@@ -1315,6 +1313,10 @@ private:
                 _profile.setChanged(
                     [&](int value) { _host->scanlineProfileSet(value); });
                 _profile.setText("Profile: ");
+                _profile.add("rectangular");
+                _profile.add("triangle");
+                _profile.add("semicircle");
+                _profile.add("gaussian");
                 add(&_profile);
                 _width.setValueSet(
                     [&](double value) { _host->scanlineWidthSet(value); });
@@ -1326,25 +1328,16 @@ private:
                 _bleeding.setText("Bleeding");
                 add(&_bleeding);
             }
-            void create()
-            {
-                GroupBox::create();
-                _profile.add("rectangular");
-                _profile.add("triangle");
-                _profile.add("semicircle");
-                _profile.add("gaussian");
-                _profile.set(0);
-            }
             void layout()
             {
                 Vector vSpace = _host->vSpace();
-                _profile.setTopLeft(Vector(0, 0));
+                _profile.setTopLeft(_host->groupTL());
                 int r = _profile.right();
                 _width.setTopLeft(_profile.bottomLeft() + vSpace);
                 r = max(r, _width.right());
                 _bleeding.setTopLeft(_width.bottomLeft() + vSpace);
                 r = max(r, _bleeding.right());
-                setSize(Vector(r, _bleeding.bottom()));
+                setInnerSize(Vector(r, _bleeding.bottom()) + _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             CaptionedDropDownList _profile;
@@ -1373,11 +1366,12 @@ private:
             void layout()
             {
                 Vector vSpace = _host->vSpace();
-                _zoom.setTopLeft(Vector(0, 0));
+                _zoom.setTopLeft(_host->groupTL());
                 int r = _zoom.right();
                 _aspectRatio.setTopLeft(_zoom.bottomLeft() + vSpace);
                 r = max(r, _aspectRatio.right());
-                setSize(Vector(r, _aspectRatio.bottom()));
+                setInnerSize(Vector(r, _aspectRatio.bottom()) +
+                    _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             KnobSlider _zoom;
@@ -1399,11 +1393,12 @@ private:
         void layout()
         {
             Vector vSpace = _host->vSpace();
-            _registers.setTopLeft(Vector(0, 0));
+            _registers.setTopLeft(_host->groupTL());
             int r = _registers.right();
-            _matching.setTopLeft(_registers.bottomLeft() + vSpace);
+            _matching.setTopLeft(
+                _registers.bottomLeft() + _host->groupVSpace());
             r = max(r, _matching.right());
-            setSize(Vector(r, _matching.bottom()));
+            setInnerSize(Vector(r, _matching.bottom()) + _host->groupBR());
         }
         struct RegistersGroup : public GroupBox
         {
@@ -1412,6 +1407,17 @@ private:
                 setText("Registers");
                 _mode.setChanged([&](int value) { _host->modeSet(value); });
                 _mode.setText("Mode: ");
+                _mode.add("low-resolution text");
+                _mode.add("high-resolution text");
+                _mode.add("1bpp graphics");
+                _mode.add("2bpp graphics");
+                _mode.add("low-res text with 1bpp");
+                _mode.add("high-res text with 1bpp");
+                _mode.add("high-res 1bpp graphics");
+                _mode.add("high-res 2bpp graphics");
+                _mode.add("Auto -HRES");
+                _mode.add("Auto +HRES");
+                _mode.set(2);
                 add(&_mode);
                 _bw.setClicked(
                     [&](bool value) { _host->bwSet(value); });
@@ -1424,14 +1430,28 @@ private:
                 _palette.setChanged(
                     [&](int value) { _host->paletteSet(value); });
                 _palette.setText("Palette: ");
+                _palette.add("2/4/6");
+                _palette.add("10/12/14");
+                _palette.add("3/5/7");
+                _palette.add("11/13/15");
+                _palette.set(3);
                 add(&_palette);
                 _background.setChanged(
                     [&](int value) { _host->backgroundSet(value); });
                 _background.setText("Background: ");
+                for (int i = 0; i < 16; ++i)
+                    _background.add(decimal(i));
+                _background.add("Auto");
+                _background.set(15);
                 add(&_background);
                 _scanlinesPerRow.setChanged(
                     [&](int value) { _host->scanlinesPerRowSet(value); });
                 _scanlinesPerRow.setText("Scanlines per row: ");
+                for (int i = 1; i <= 32; ++i) {
+                    _scanlinesPerRow.add(decimal(i));
+                    _scanlinesRepeat.add(decimal(i));
+                }
+                _scanlinesPerRow.set(1);
                 add(&_scanlinesPerRow);
                 _scanlinesRepeat.setChanged(
                     [&](int value) { _host->scanlinesRepeatSet(value); });
@@ -1444,37 +1464,6 @@ private:
                 _interlace.setChanged(
                     [&](int value) { _host->interlaceSet(value); });
                 _interlace.setText("Interlace: ");
-                add(&_interlace);
-            }
-            void create()
-            {
-                GroupBox::create();
-                _mode.add("low-resolution text");
-                _mode.add("high-resolution text");
-                _mode.add("1bpp graphics");
-                _mode.add("2bpp graphics");
-                _mode.add("low-res text with 1bpp");
-                _mode.add("high-res text with 1bpp");
-                _mode.add("high-res 1bpp graphics");
-                _mode.add("high-res 2bpp graphics");
-                _mode.add("Auto -HRES");
-                _mode.add("Auto +HRES");
-                _mode.set(2);
-                _palette.add("2/4/6");
-                _palette.add("10/12/14");
-                _palette.add("3/5/7");
-                _palette.add("11/13/15");
-                _palette.set(3);
-                for (int i = 0; i < 16; ++i)
-                    _background.add(decimal(i));
-                _background.add("Auto");
-                _background.set(15);
-                for (int i = 1; i <= 32; ++i) {
-                    _scanlinesPerRow.add(decimal(i));
-                    _scanlinesRepeat.add(decimal(i));
-                }
-                _scanlinesPerRow.set(1);
-                _scanlinesRepeat.set(0);
                 _interlace.add("None");
                 _interlace.add("Flicker");
                 _interlace.add("Sync");
@@ -1493,13 +1482,13 @@ private:
                 _interlace.add("Sync odd flicker");
                 _interlace.add("Sync and video swapped");
                 _interlace.add("Sync video and flicker swapped");
-                _interlace.set(0);
+                add(&_interlace);
             }
             void layout()
             {
                 Vector vSpace = _host->vSpace();
                 Vector hSpace = _host->hSpace();
-                _mode.setTopLeft(Vector(0, 0));
+                _mode.setTopLeft(_host->groupTL());
                 _bw.setTopLeft(_mode.topRight() + hSpace);
                 _blink.setTopLeft(_bw.topRight() + hSpace);
                 int r = _blink.right();
@@ -1512,7 +1501,8 @@ private:
                 r = max(r, _scanlinesRepeat.right());
                 _phase.setTopLeft(_scanlinesPerRow.bottomLeft() + vSpace);
                 _interlace.setTopLeft(_phase.topRight() + hSpace);
-                setSize(Vector(r, _interlace.bottom()));
+                setInnerSize(Vector(r, _interlace.bottom()) +
+                    _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             CaptionedDropDownList _mode;
@@ -1545,11 +1535,13 @@ private:
                     [&](double value) { _host->diffusionVerticalSet(value); });
                 _diffusionVertical.setText("Vertical: ");
                 _diffusionVertical.setRange(0, 1);
+                _diffusionVertical.setCaptionWidth(0);
                 add(&_diffusionVertical);
                 _diffusionTemporal.setValueSet(
                     [&](double value) { _host->diffusionTemporalSet(value); });
                 _diffusionTemporal.setText("Temporal: ");
                 _diffusionTemporal.setRange(0, 1);
+                _diffusionTemporal.setCaptionWidth(0);
                 add(&_diffusionTemporal);
                 _quality.setValueSet(
                     [&](double value) { _host->qualitySet(value); });
@@ -1559,11 +1551,6 @@ private:
                 _characterSet.setChanged(
                     [&](int value) { _host->characterSetSet(value); });
                 _characterSet.setText("Character set: ");
-                add(&_characterSet);
-            }
-            void create()
-            {
-                GroupBox::create();
                 _characterSet.add("0xdd");
                 _characterSet.add("0x13/0x55");
                 _characterSet.add("1K");
@@ -1572,7 +1559,26 @@ private:
                 _characterSet.add("0xb0/0xb1");
                 _characterSet.add("ISAV");
                 _characterSet.set(3);
-                _characterSet.layout();
+                add(&_characterSet);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                Vector hSpace = _host->hSpace();
+                _matchMode.setTopLeft(_host->groupTL());
+                int r = _matchMode.right();
+                _diffusionHorizontal.setTopLeft(
+                    _matchMode.bottomLeft() + vSpace);
+                _diffusionVertical.setTopLeft(
+                    _diffusionHorizontal.topRight() + hSpace);
+                _diffusionTemporal.setTopLeft(
+                    _diffusionVertical.topRight() + hSpace);
+                r = max(r, _diffusionTemporal.right());
+                _quality.setTopLeft(
+                    _diffusionHorizontal.bottomLeft() + vSpace);
+                _characterSet.setTopLeft(_quality.bottomLeft() + vSpace);
+                setInnerSize(Vector(r, _characterSet.bottom()) +
+                    _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             ToggleButton _matchMode;

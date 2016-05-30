@@ -47,7 +47,7 @@ public:
     }
     void create()
     {
-        setSize(Vector(960, 720));
+        setInnerSize(Vector(960, 720));
 
         _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
         _vbiCapPipe.write<int>(1);
@@ -241,7 +241,7 @@ public:
         _sharpness.setHost(this);
 
         setText("NTSC capture and decode");
-        setSize(Vector(1321, 760 + 23));
+        setInnerSize(Vector(1321, 760 + 23));
         RootWindow::create();
         _animated.start();
 
@@ -251,39 +251,39 @@ public:
         _hue.setValue(0);
         _sharpness.setValue(8);
     }
-    void sizeSet(Vector size)
+    void innerSizeSet(Vector size)
     {
         _output.setPosition(Vector(20, 20));
         int w = _output.right() + 20;
 
         Vector vSpace(0, 15);
 
-        _brightness.setSize(Vector(301, 24));
+        _brightness.setInnerSize(Vector(301, 24));
         _brightness.setPosition(Vector(w, 20));
         _brightnessCaption.setPosition(_brightness.bottomLeft() + vSpace);
         _brightnessText.setPosition(_brightnessCaption.topRight());
 
-        _saturation.setSize(Vector(301, 24));
+        _saturation.setInnerSize(Vector(301, 24));
         _saturation.setPosition(_brightnessCaption.bottomLeft() + 2*vSpace);
         _saturationCaption.setPosition(_saturation.bottomLeft() + vSpace);
         _saturationText.setPosition(_saturationCaption.topRight());
 
-        _contrast.setSize(Vector(301, 24));
+        _contrast.setInnerSize(Vector(301, 24));
         _contrast.setPosition(_saturationCaption.bottomLeft() + 2*vSpace);
         _contrastCaption.setPosition(_contrast.bottomLeft() + vSpace);
         _contrastText.setPosition(_contrastCaption.topRight());
 
-        _hue.setSize(Vector(301, 24));
+        _hue.setInnerSize(Vector(301, 24));
         _hue.setPosition(_contrastCaption.bottomLeft() + 2*vSpace);
         _hueCaption.setPosition(_hue.bottomLeft() + vSpace);
         _hueText.setPosition(_hueCaption.topRight());
 
-        _sharpness.setSize(Vector(301, 24));
+        _sharpness.setInnerSize(Vector(301, 24));
         _sharpness.setPosition(_hueCaption.bottomLeft() + 2*vSpace);
         _sharpnessCaption.setPosition(_sharpness.bottomLeft() + vSpace);
         _sharpnessText.setPosition(_sharpnessCaption.topRight());
 
-        RootWindow::sizeSet(size);
+        RootWindow::innerSizeSet(size);
     }
     void setBrightness(double brightness)
     {

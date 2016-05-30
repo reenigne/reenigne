@@ -368,7 +368,7 @@ public:
 
     void create()
     {
-        setSize(Vector(1536, 1024));
+        setInnerSize(Vector(1536, 1024));
 
         double brightness = -0.124;
         double contrast = 1.052;
@@ -969,7 +969,7 @@ public:
     void create()
     {
         setText("CGA Calibration");
-        setSize(Vector(1536, 1024));
+        setInnerSize(Vector(1536, 1024));
         _bitmap.setPosition(Vector(0, 0));
         RootWindow::create();
         _animated.start();

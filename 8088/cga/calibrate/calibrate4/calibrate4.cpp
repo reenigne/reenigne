@@ -124,7 +124,7 @@ public:
 
     void create()
     {
-        setSize(Vector(1536, 1024));
+        setInnerSize(Vector(1536, 1024));
 
         double brightness = -0.124;
         double contrast = 1.052;

@@ -44,7 +44,7 @@ Edge needs to know which other edges refer to it
 Maybe we need two edge constrains:
   One that can be overridden by the mouse and one which can't.[*]
 
-Instead of rewriting constraint code in each window's setSize(), have minimum & maximum size constraints
+Instead of rewriting constraint code in each window's setInnerSize(), have minimum & maximum size constraints
 
 What do we do about unsatisfyable constraints (e.g. min > max)?
   Undefined
@@ -77,7 +77,7 @@ Final position is a function of requested position and computed position
 If a window's constraints are not satisfied, it can switch to an alternate set of edge equations, which are then re-solved, fixing the mouse position, so the window can't get smaller than the
  minimum size.
    How are such rules specified?
-     In setSize(), check constraints. If not met:
+     In setInnerSize(), check constraints. If not met:
        Save old edges
        Set fixed edges
        Recompute

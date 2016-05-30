@@ -84,9 +84,6 @@ class ContainerWindow;
 template<class T> class WindowT;
 typedef WindowT<void> Window;
 
-// Currently we are not really using the functionality of a Window that is not
-// a WindowsWindow, but we may do so in the future.
-
 template<class T> class WindowT
   : public LinkedListMember<WindowT<T>>
 {
@@ -97,11 +94,53 @@ public:
     virtual void layout() { }
     void setParent(ContainerWindow* window) { _parent = window; }
     ContainerWindow* parent() const { return _parent; }
-    void setSize(Vector size) { _size = size; }
-    void sizeSet(Vector size) { _size = size; }
-    void positionSet(Vector topLeft) { _topLeft = topLeft; }
-    virtual Vector size() const { return _size; }
-    virtual void resize() { }
+
+    // We call these functions to notify derived classes about events
+    virtual void innerSizeSet(Vector size) { }
+    virtual void positionSet(Vector topLeft) { }
+    // Derived classes override these to implement windows with frames
+    virtual Vector outerSize() const { return _innerSize; }
+    virtual Vector outerTopLeft() const { return Vector(0, 0); }
+    virtual void setInnerSize(Vector size)
+    {
+        if (size == _innerSize)
+            return;
+        _innerSize = size;
+        innerSizeSet(size);
+    }
+    Vector innerSize() const { return _innerSize; }
+    Vector origin() const { return _topLeft; }
+    // These all return outer edges/corners in the parent coordinate system,
+    // useful for laying out.
+    int left() const { return _topLeft.x + outerTopLeft().x; }
+    int top() const { return _topLeft.y + outerTopLeft().y; }
+    int right() const { return _topLeft.x + outerTopLeft().x + outerSize().x; }
+    int bottom() const
+    {
+        return _topLeft.y + outerTopLeft().y + outerSize().y;
+    }
+    Vector topLeft() const { return _topLeft + outerTopLeft(); }
+    Vector topRight() const { return topLeft() + Vector(outerSize().x, 0); }
+    Vector bottomRight() const { return topLeft() + outerSize(); }
+    Vector bottomLeft() const { return topLeft() + Vector(0, outerSize().y); }
+    virtual void setTopLeft(Vector tl)
+    {
+        _topLeft = tl - outerTopLeft();
+        positionSet(_topLeft);
+    }
+    void setTopRight(Vector topRight)
+    {
+        setTopLeft(topRight - Vector(outerSize().x, 0));
+    }
+    void setBottomLeft(Vector bottomLeft)
+    {
+        setTopLeft(bottomLeft - Vector(0, outerSize().y));
+    }
+    void setBottomRight(Vector bottomRight)
+    {
+        setTopLeft(bottomRight - outerSize());
+    }
+
     virtual void doneResize() { }
     virtual void keyboardCharacter(int character) { }
     virtual bool keyboardEvent(int key, bool up) { return false; }
@@ -125,30 +164,12 @@ public:
     // WM_PAINT starvation can result.
     virtual void draw() { }
 
-    int top() const { return _topLeft.y; }
-    int bottom() const { return _topLeft.y + size().y; }
-    int left() const { return _topLeft.x; }
-    int right() const { return _topLeft.x + size().x; }
-    Vector topLeft() const { return _topLeft; }
-    Vector topRight() const { return _topLeft + Vector(size().x, 0); }
-    Vector bottomRight() const { return _topLeft + size(); }
-    Vector bottomLeft() const { return _topLeft + Vector(0, size().y); }
-    void setTopLeft(Vector topLeft) { _topLeft = topLeft; }
-    void setTopRight(Vector topRight)
-    {
-        _topLeft = topRight - Vector(size().x, 0);
-    }
-    void setBottomLeft(Vector bottomLeft)
-    {
-        _topLeft = bottomLeft - Vector(0, size().y);
-    }
-    void setBottomRight(Vector bottomRight)
-    {
-        _topLeft = bottomRight - size();
-    }
 private:
     ContainerWindow* _parent;
-    Vector _size;
+    Vector _innerSize;
+
+    // _topLeft is the position within the parent window of the origin
+    // (top-left of inner/client rectangle) of this window.
     Vector _topLeft;
 };
 
@@ -202,7 +223,7 @@ public:
     //{
     //    Window* window = _container.getNext();
     //    while (window != 0) {
-    //        window->draw(bitmap.subBitmap(window->topLeft(), window->size()));
+    //        window->draw(bitmap.subBitmap(window->topLeft(), window->outerSize()));
     //        window = _container.getNext(window);
     //    }
     //}
@@ -243,7 +264,14 @@ public:
         return false;
     }
     void releaseCapture() { _capture = 0; }
-
+    void repositionChildren()
+    {
+        Window* window = _container.getNext();
+        while (window != 0) {
+            window->setTopLeft(window->topLeft());
+            window = _container.getNext(window);
+        }
+    }
 protected:
     LinkedList<Window> _container;
     Window* _focus;
@@ -254,7 +282,7 @@ private:
     {
         Window* window = _container.getNext();
         while (window != 0) {
-            if ((p - window->topLeft()).inside(window->size()))
+            if ((p - window->topLeft()).inside(window->outerSize()))
                 return window;
             window = _container.getNext(window);
         }
@@ -343,18 +371,27 @@ public:
     WindowsWindow()
       : _hWnd(NULL), _resizing(false), _origWndProc(0), _className(0),
         _style(WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN), _extendedStyle(0),
-        _menu(NULL), _windowsParent(0)
+        _menu(NULL), _windowsParent(0), _outerSize(0, 0), _outerTopLeft(0, 0)
     {
         _dc.setDC(NULL);
-        sizeSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
-        positionSet(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
+        ContainerWindow::setInnerSize(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
+        ContainerWindow::setTopLeft(Vector(CW_USEDEFAULT, CW_USEDEFAULT));
     }
     void setWindows(Windows* windows) { _windows = windows; }
+    Vector clientToScreen(Vector client)
+    {
+        POINT p;
+        p.x = client.x;
+        p.y = client.y;
+        IF_ZERO_THROW(ClientToScreen(_hWnd, &p));
+        return Vector(p.x, p.y);
+    }
     virtual void create()
     {
         reset();
-        Vector s = adjustRect(size());
+        Vector s = adjustRect(innerSize());
         Vector position = topLeft();
+        Vector o(0, 0);
 
         Window* p = parent();
         while (p != 0) {
@@ -365,12 +402,22 @@ public:
                 break;
             }
             else
-                position += p->topLeft();
+                o += p->origin();
             p = p->parent();
         }
         HWND hWndParent = NULL;
         if (_windowsParent != 0)
             hWndParent = _windowsParent->hWnd();
+
+        position += o;
+        if (topLeft().x == CW_USEDEFAULT)
+            position.x = CW_USEDEFAULT;
+        if (topLeft().y == CW_USEDEFAULT)
+            position.y = CW_USEDEFAULT;
+        if (innerSize().x == CW_USEDEFAULT)
+            s.x = CW_USEDEFAULT;
+        if (innerSize().y == CW_USEDEFAULT)
+            s.y = CW_USEDEFAULT;
 
         NullTerminatedWideString caption(_text);
 
@@ -415,16 +462,28 @@ public:
         HDC hdc = GetDC(_hWnd);
         IF_NULL_THROW(hdc);
         _dc.setDC(hdc);
-        RECT rect;
-        IF_ZERO_THROW(GetClientRect(_hWnd, &rect));
-        sizeSet(Vector(rect.right - rect.left, rect.bottom - rect.top));
-        positionSet(Vector(rect.left, rect.top));
-        ContainerWindow::create();
+        RECT clientRect;
+        IF_ZERO_THROW(GetClientRect(_hWnd, &clientRect));
+        RECT windowRect;
+        IF_ZERO_THROW(GetWindowRect(_hWnd, &windowRect));
+        Vector origin = clientToScreen(Vector(0, 0));
+        Vector stl(windowRect.left, windowRect.top);
+        _outerTopLeft = stl - origin;
+        _outerSize = Vector(windowRect.right, windowRect.bottom) - stl;
+        Vector pOrigin(0, 0);
+        if (_windowsParent != 0)
+            pOrigin = _windowsParent->clientToScreen(Vector(0, 0));
+
+        ContainerWindow::setInnerSize(Vector(
+            clientRect.right - clientRect.left,
+            clientRect.bottom - clientRect.top));
+        ContainerWindow::setTopLeft(origin - (pOrigin + o));
 
         SendMessage(_hWnd, WM_SETFONT, reinterpret_cast<WPARAM>(font()),
             static_cast<LPARAM>(FALSE));
-
         SelectObject(_dc, font());
+
+        ContainerWindow::create();
     }
 
     ~WindowsWindow() { reset(); }
@@ -447,42 +506,35 @@ public:
         return String(&buf[0]);
     }
 
-    void setSize(Vector size)
+    void setInnerSize(Vector size)
     {
+        _outerSize = adjustRect(size);
         if (_hWnd != NULL) {
-            size = adjustRect(size);
             IF_ZERO_THROW(SetWindowPos(
                 _hWnd,                                // hWnd
                 NULL,                                 // hWndInsertAfter
                 0,                                    // X
                 0,                                    // Y
-                size.x,                               // cx
-                size.y,                               // cy
+                _outerSize.x,                         // cx
+                _outerSize.y,                         // cy
                 SWP_NOZORDER | SWP_NOMOVE |
                 SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOREDRAW));  // uFlags
-            // sizeSet() will be called via WM_SIZE, but we want to make sure
-            // our _topLeft is set correctly now so it can be used for layout
-            // before the message loop next runs.
-            ContainerWindow::sizeSet(size);
+            // ContainerWindow::setInnerSize() will be called via WM_SIZE, but
+            // we want to make sure our size is set correctly now so it can be
+            // used for layout before the message loop next runs.
         }
-        else
-            sizeSet(size);
-    }
-    virtual void sizeSet(Vector size)
-    {
-        ContainerWindow::sizeSet(size);
+        ContainerWindow::setInnerSize(size);
     }
 
     void setTopLeft(Vector position)
     {
         if (_hWnd != NULL) {
-            Vector tl = position;
+            Vector tl = position + _outerTopLeft;
             Window* p = parent();
             while (p != 0 && p != static_cast<Window*>(_windowsParent)) {
-                tl += p->topLeft();
+                tl += p->origin();
                 p = p->parent();
             }
-
             IF_ZERO_THROW(SetWindowPos(
                 _hWnd,                                // hWnd
                 NULL,                                 // hWndInsertAfter
@@ -492,17 +544,11 @@ public:
                 0,                                    // cy
                 SWP_NOZORDER | SWP_NOSIZE |
                 SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOREDRAW));  // uFlags
-            // sizeSet() will be called via WM_SIZE, but we want to make sure
-            // our _topLeft is set correctly now so it can be used for layout
-            // before the message loop next runs.
-            ContainerWindow::positionSet(position);
+            // ContainerWindow::setTopLeft() will be called via WM_MOVE, but we
+            // want to make sure our position is set correctly now so it can be
+            // used for layout before the message loop next runs.
         }
-        else
-            positionSet(position);
-    }
-    virtual void positionSet(Vector position)
-    {
-        ContainerWindow::positionSet(position);
+        ContainerWindow::setTopLeft(position);
     }
     HWND hWnd() const { return _hWnd; }
     HDC getDC() { return _dc; }
@@ -531,9 +577,11 @@ public:
     }
     void redrawWindow(UINT flags)
     {
-        redrawWindow(Vector(0, 0), size(), flags);
+        redrawWindow(Vector(0, 0), outerSize(), flags);
     }
     void invalidate() { redrawWindow(RDW_INVALIDATE | RDW_FRAME); }
+    Vector outerSize() const { return _outerSize; }
+    Vector outerTopLeft() const { return _outerTopLeft; }
 private:
     Vector adjustRect(Vector size)
     {
@@ -577,13 +625,16 @@ protected:
         switch (uMsg) {
             case WM_SIZE:
                 {
-                    sizeSet(vectorFromLParam(lParam));
-                    if (!size().zeroArea()) {
-                        resize();
-                        invalidate();
+                    Vector s = vectorFromLParam(lParam);
+                    if (!s.zeroArea()) {
+                        ContainerWindow::setInnerSize(s);
                         _resizing = true;
                     }
                 }
+                break;
+            case WM_MOVE:
+                ContainerWindow::setTopLeft(
+                    vectorFromLParam(lParam) + _outerTopLeft);
                 break;
             case WM_EXITSIZEMOVE:
                 if (_resizing)
@@ -669,6 +720,8 @@ protected:
     DeviceContext _dc;
     String _text;
     DWORD _style;
+    Vector _outerSize;
+    Vector _outerTopLeft;
 private:
     bool _resizing;
     Windows* _windows;
@@ -867,7 +920,7 @@ public:
         NullTerminatedWideString w(_text);
         IF_ZERO_THROW(GetTextExtentPoint32(_dc, w, _text.length(), &s));
         Vector size(s.cx + 20, s.cy + 10);
-        setSize(size);
+        setInnerSize(size);
         setCheckState(_checked);
     }
     bool checked() { return _checked; }
@@ -929,11 +982,12 @@ public:
 class GroupBox : public Button
 {
 public:
-    void create()
+    GroupBox()
     {
         setStyle(BS_GROUPBOX | BS_TEXT | WS_CHILD | WS_VISIBLE);
-        Button::create();
     }
+    // The code in Button::create() isn't appropriate for GroupBox
+    void create() { WindowsWindow::create(); }
     LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (uMsg == WM_PAINT) {
@@ -972,7 +1026,7 @@ public:
             SIZE s;
             NullTerminatedWideString w(_text);
             IF_ZERO_THROW(GetTextExtentPoint32(_dc, w, _text.length(), &s));
-            setSize(Vector(s.cx + 10, s.cy));
+            setInnerSize(Vector(s.cx, s.cy));
         }
     }
 };
@@ -986,6 +1040,12 @@ public:
         setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL);
     }
     virtual void changed() { }
+    void layout()
+    {
+        TEXTMETRIC metric;
+        GetTextMetrics(getDC(), &metric);
+        setInnerSize(Vector(44, metric.tmHeight));
+    }
     bool command(WORD code)
     {
         if (code == EN_CHANGE) {
@@ -1055,7 +1115,7 @@ public:
     }
     void setPositionAndSize(Vector position, Vector size)
     {
-        _slider.setSize(size);
+        _slider.setInnerSize(size);
         _slider.setTopLeft(position);
         _caption.setTopLeft(_slider.bottomLeft() + Vector(0, 15));
         _text.setTopLeft(_caption.topRight());
@@ -1103,7 +1163,7 @@ private:
 class DropDownList : public WindowsWindow
 {
 public:
-    DropDownList()
+    DropDownList() : _value(0)
     {
         setClassName(WC_COMBOBOX);
         setStyle(WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL |
@@ -1114,54 +1174,51 @@ public:
     void create()
     {
         WindowsWindow::create();
-        _width = 0;
+        for (auto s : _entries) {
+            NullTerminatedWideString ns(s);
+            int r = static_cast<int>(SendMessage(_hWnd, CB_ADDSTRING, 0,
+                reinterpret_cast<LPARAM>(ns.operator WCHAR *())));
+            IF_FALSE_THROW(r != CB_ERR && r != CB_ERRSPACE);
+        }
+        set(_value);
     }
     void set(int value)
     {
-        SendMessage(_hWnd, CB_SETCURSEL, value, 0);
+        if (_hWnd != NULL)
+            IF_FALSE_THROW(ComboBox_SetCurSel(_hWnd, value) != CB_ERR);
+        _value = value;
     }
-    void changed()
-    {
-        changed(static_cast<int>(SendMessage(_hWnd, CB_GETCURSEL, 0, 0)));
-    }
-    void close() { ComboBox_ShowDropdown(_hWnd, FALSE); }
-    void add(String s)
-    {
-        NullTerminatedWideString ns(s);
-        int r = static_cast<int>(SendMessage(_hWnd, CB_ADDSTRING, 0,
-            reinterpret_cast<LPARAM>(ns.operator WCHAR *())));
-        SIZE size;
-        NullTerminatedWideString w(s);
-        IF_ZERO_THROW(GetTextExtentPoint32(_dc, w, s.length(), &size));
-        _width = max(_width, static_cast<int>(size.cx + 10));
-    }
+    void add(String s) { _entries.add(s); }
     void layout()
     {
+        int width = 0;
+        for (auto s : _entries) {
+            NullTerminatedWideString ns(s);
+            SIZE size;
+            IF_ZERO_THROW(GetTextExtentPoint32(_dc, ns, s.length(), &size));
+            width = max(width, static_cast<int>(size.cx));
+        }
         COMBOBOXINFO info = { sizeof(COMBOBOXINFO) };
         IF_ZERO_THROW(GetComboBoxInfo(_hWnd, &info));
-        setSize(
-            Vector(_width + info.rcButton.right - info.rcButton.left, 200));
-    }
-    Vector size() const
-    {
-        if (_hWnd == NULL)
-            return Vector(0, 0);
-        COMBOBOXINFO info = { sizeof(COMBOBOXINFO) };
-        IF_ZERO_THROW(GetComboBoxInfo(_hWnd, &info));
+        setInnerSize(Vector(10 + width +
+            info.rcButton.right - info.rcButton.left, 200));
         RECT rect;
         IF_ZERO_THROW(GetClientRect(info.hwndCombo, &rect));
-        return Vector(rect.right - rect.left, rect.bottom - rect.top);
+        _outerSize = Vector(rect.right - rect.left, rect.bottom - rect.top);
     }
     bool command(WORD code)
     {
         if (code == CBN_SELCHANGE) {
-            changed();
+            int v = ComboBox_GetCurSel(_hWnd);
+            IF_FALSE_THROW(v != CB_ERR);
+            changed(v);
             return true;
         }
         return false;
     }
 private:
-    int _width;
+    List<String> _entries;
+    int _value;
     std::function<void(int)> _changed;
 };
 
@@ -1178,8 +1235,8 @@ public:
     void set(int value) { _list.set(value); }
     void layout()
     {
-        int captionHeight = _caption.size().y;
-        int listHeight = _list.size().y;
+        int captionHeight = _caption.outerSize().y;
+        int listHeight = _list.outerSize().y;
         int captionY = 0;
         int listY = 0;
         if (captionHeight > listHeight)
@@ -1187,12 +1244,18 @@ public:
         else
             captionY = (listHeight - captionHeight)/2;
         _caption.setTopLeft(Vector(0, captionY));
-        _list.setTopLeft(Vector(_caption.right(), listY));
-        setSize(Vector(_list.right(), max(_caption.bottom(), _list.bottom())));
+        _list.setTopLeft(Vector(_caption.right() + 10, listY));
+        setInnerSize(
+            Vector(_list.right(), max(_caption.bottom(), _list.bottom())));
     }
     void setChanged(std::function<void(int)> changed)
     {
         _list.setChanged(changed);
+    }
+    void setTopLeft(Vector topLeft)
+    {
+        ContainerWindow::setTopLeft(topLeft);
+        repositionChildren();
     }
 private:
     TextWindow _caption;
@@ -1256,7 +1319,7 @@ public:
     // different thread.
     void draw()
     {
-        Vector s = size();
+        Vector s = innerSize();
         if (_bitmap.size().x < s.x || _bitmap.size().y < s.y) {
             _bitmap = Bitmap<DWORD>(Vector(max(_bitmap.size().x, s.x),
                 max(_bitmap.size().y, s.y)));
@@ -1265,9 +1328,10 @@ public:
         invalidate();
     }
 
-    void resize()
+    void innerSizeSet(Vector size)
     {
-        draw();
+        if (!size.zeroArea())
+            draw();
     }
 
     virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
