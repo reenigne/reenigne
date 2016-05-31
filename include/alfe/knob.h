@@ -57,17 +57,16 @@ public:
     }
     void setValue(double value)
     {
-        setValueFromEdit(value);
-        int dps;
+        double dp;
         if (_logarithmic)
-            dps = max(0, static_cast<int>(1 - log(_popupLength)/log(10)));
-        else {
-            dps = max(0,
-                static_cast<int>(1 - log((_max - _min)/_popupLength)/log(10)));
-        }
+            dp = log(value/_popupLength)/log(10);
+        else
+            dp = log((_max - _min)/_popupLength)/log(10);
+        int dps = max(0, static_cast<int>(1 - dp));
         if (_popupLength < 0)
             dps = 1;
         _edit.setText(format("%.*f", dps, value));
+        setValueFromEdit(value);
     }
     void setValueFromEdit(double value)
     {
@@ -174,7 +173,7 @@ private:
             _hdcSrc(CreateCompatibleDC(_hdcScreen))
         {
             setStyle(WS_POPUP);
-            setExtendedStyle(WS_EX_LAYERED);
+            setExtendedStyle(WS_EX_LAYERED | WS_EX_TOPMOST);
             _hbmBackBuffer =
                 GDIObject(CreateCompatibleBitmap(_hdcScreen, 100, 100));
             _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
@@ -273,7 +272,7 @@ private:
             corners[3] = Vector2Cast<float>(p + x + y);
             fillParallelogram(_bitmap, &corners[0], host()->_black);
 
-            innerSizeSet(s);
+            setInnerSize(s);
             if (host()->_useChromaKey) {
                 MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
                 invalidate();
@@ -333,12 +332,11 @@ private:
         KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
         void setDIBits(HDC hdc, Vector ptl, Vector pbr)
         {
-            Vector br = outerSize();
-            pbr = Vector(min(pbr.x, br.x), min(pbr.y, br.y));
+            Vector s = innerSize();
+            pbr = Vector(min(pbr.x, s.x), min(pbr.y, s.y));
             Vector ps = pbr - ptl;
             if (ps.x <= 0 || ps.y <= 0 || !_bitmap.valid())
                 return;
-            Vector s = outerSize();
             _bmi.bmiHeader.biWidth = _bitmap.stride() / sizeof(DWORD);
             _bmi.bmiHeader.biHeight = -s.y;
             IF_ZERO_THROW(SetDIBitsToDevice(

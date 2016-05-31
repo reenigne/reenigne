@@ -803,8 +803,13 @@ public:
         restart();
     }
 
+    Vector requiredSize()
+    {
+        double y = _zoom*_ntsc.size().y;
+        double x = _zoom*(_ntsc.size().x - 6)*_aspectRatio/2;
+        return Vector(static_cast<int>(x), static_cast<int>(y));
+    }
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
-    void layout() { setInnerSize(requiredSize()); }
 private:
     void allocateBitmap()
     {
@@ -817,12 +822,6 @@ private:
         if (size.x > _bitmap.size().x || size.y > _bitmap.size().y)
             _bitmap = Bitmap<DWORD>(size);
         restart();
-    }
-    Vector requiredSize()
-    {
-        double y = _zoom*_ntsc.size().y;
-        double x = _zoom*(_ntsc.size().x - 6)*_aspectRatio/2;
-        return Vector(static_cast<int>(x), static_cast<int>(y));
     }
 
     Bitmap<DWORD> _bitmap;
@@ -920,6 +919,7 @@ public:
         _videoCard._matching._quality.setValue(_matcher->getQuality());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
         setInnerSize(Vector(0, 0));
+        _outputWindow.setInnerSize(_output->requiredSize());
         RootWindow::create();
     }
     void innerSizeSet(Vector size)
@@ -932,6 +932,7 @@ public:
         int owy = max(0, size.y - (_videoCard.outerSize().y + 3*pad().y));
         _outputWindow.setInnerSize(Vector(owx, owy));
         layout();
+        invalidate();
     }
     void layout()
     {
@@ -1134,39 +1135,21 @@ private:
     class OutputWindow : public BitmapWindow
     {
     public:
-        void create()
-        {
-            BitmapWindow::create();
-            _bitmap = Bitmap<DWORD>(outerSize());
-            setNextBitmap(_bitmap);
-        }
         void draw(Bitmap<DWORD> bitmap)
         {
-            if (outerSize().x < 0 || outerSize().x >= 0x4000 ||
-                outerSize().y < 0 || outerSize().y >= 0x4000)
-                return;
-            if (!_bitmap.valid())
-                _bitmap = Bitmap<DWORD>(outerSize());
+            _b = bitmap;
+            BitmapWindow::draw();
+        }
+        void draw2()
+        {
             // Just copy from the top left corner for now.
             Vector zero(0, 0);
-            Vector size(min(bitmap.size().x, _bitmap.size().x),
-                min(bitmap.size().y, _bitmap.size().y));
-            bitmap.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
-            _bitmap = setNextBitmap(_bitmap);
-            invalidate();
-            postMessage(WM_USER + 1);
+            Vector size(min(_b.size().x, innerSize().x),
+                min(_b.size().y, innerSize().y));
+            _b.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
         }
-        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-        {
-            if (uMsg == WM_USER + 1) {
-                updateWindow();
-                return 0;
-            }
-            return BitmapWindow::handleMessage(uMsg, wParam, lParam);
-        }
-
     private:
-        Bitmap<DWORD> _bitmap;
+        Bitmap<DWORD> _b;
     };
     OutputWindow _outputWindow;
     struct MonitorGroup : public GroupBox

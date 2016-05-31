@@ -1840,22 +1840,17 @@ private:
             printf("createGrid() called on non-block\n");
 
 
-            IncompleteLeaf* leaf = _list.getNext();
             bool found = false;
-            while (leaf != 0) {
-                if (leaf == newLeaf)
+            for (auto& leaf : _list) {
+                if (&leaf == newLeaf)
                     found = true;
-                leaf = _list.getNext(leaf);
             }
             if (!found) {
                 printf("leaf 0x%08x not in queue!\n",newLeaf);
                 printf("Leaves in queue\n");
-                IncompleteLeaf* leaf = _list.getNext();
                 bool found = false;
-                while (leaf != 0) {
-                    printf("  0x%08x\n",leaf);
-                    leaf = _list.getNext(leaf);
-                }
+                for (auto& leaf : _list)
+                    printf("  0x%08x\n", &leaf);
             }
 
             if (_grid->_gridType._blockType != gridBlockType)

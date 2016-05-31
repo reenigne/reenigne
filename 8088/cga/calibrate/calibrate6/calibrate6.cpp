@@ -465,7 +465,7 @@ public:
 
         // Copy the _output bitmap to the Image
         Vector zero(0, 0);
-        Vector sz = size();
+        Vector sz = innerSize();
         if (sz.x > 1536)
             sz.x = 1536;
         if (sz.y > 1024)

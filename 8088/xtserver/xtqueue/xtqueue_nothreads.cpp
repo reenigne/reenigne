@@ -628,19 +628,15 @@ public:
                 {
                     // We have something to do. Tell all the threads their
                     // position in the queue.
-                    QueueItem* i = _queue.getNext();
                     int p = 0;
-                    while (i != 0) {
-                        i->notifyQueuePosition(p);
-                        bool aborted = i->aborted();
-                        QueueItem* nextItem = _queue.getNext(i);
-                        if (aborted) {
-                            i->remove();
+                    for (auto& i : _queue) {
+                        i.notifyQueuePosition(p);
+                        if (i.aborted()) {
+                            i.remove();
                             --_queuedItems;
-                            delete i;
+                            delete &i;
                         }
                         ++p;
-                        i = nextItem;
                     }
                     _item = _queue.getNext();
                     if (_item != 0) {
@@ -837,17 +833,14 @@ private:
                         _killed = true;
                     else {
                         --n;
-                        QueueItem* i = _queue.getNext();
-                        while (i != 0) {
-                            QueueItem* nextItem = _queue.getNext(i);
+                        for (auto& i : _queue) {
                             if (n == 0) {
                                 --_queuedItems;
-                                i->remove();
-                                i->kill();
+                                i.remove();
+                                i.kill();
                                 break;
                             }
                             --n;
-                            i = nextItem;
                         }
                     }
                     delete item;
@@ -871,17 +864,14 @@ private:
                         item->cancel();
                     }
                     else {
-                        QueueItem* i = _queue.getNext();
-                        while (i != 0) {
-                            QueueItem* nextItem = _queue.getNext(i);
-                            if (i->secret() == item->secret()) {
+                        for (auto& i : _queue) {
+                            if (i.secret() == item->secret()) {
                                 --_queuedItems;
-                                i->remove();
-                                i->cancel();
+                                i.remove();
+                                i.cancel();
                                 item->cancel();
                                 return;
                             }
-                            i = nextItem;
                         }
                         item->write("Could not find item to cancel.");
                     }

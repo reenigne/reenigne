@@ -332,9 +332,9 @@ public:
     //{
     //    _updating = true;
     //    _whiteText.setText(format("White level: %f", _white));
-    //    _whiteText.size();
+    //    _whiteText.layout();
     //    _blackText.setText(format("Black level: %f", _black));
-    //    _blackText.size();
+    //    _blackText.layout();
         //_blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
         //_whiteText.setPosition(_blackText.bottomLeft());
         //_mostSaturatedText.setPosition(_whiteText.bottomLeft());
@@ -342,9 +342,9 @@ public:
 
     //    _mostSaturatedText.setText(
     //        format("Most saturated: %f", _maxSaturation));
-    //    _mostSaturatedText.size();
+    //    _mostSaturatedText.layout();
     //    _clippedColoursText.setText(format("%i colours clipped", _clips));
-    //    _clippedColoursText.size();
+    //    _clippedColoursText.layout();
     //    _outputWindow.draw();
     //    _outputWindow.invalidate();
     //    _gamut.invalidate();

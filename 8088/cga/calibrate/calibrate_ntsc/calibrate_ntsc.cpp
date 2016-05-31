@@ -370,7 +370,7 @@ public:
                 }
 
         Vector zero(0, 0);
-        Vector sz = size();
+        Vector sz = innerSize();
         if (sz.x > 1536)
             sz.x = 1536;
         if (sz.y > 1024)
@@ -578,6 +578,8 @@ class CalibrateWindow : public RootWindow
 public:
     void create()
     {
+        setInnerSize(1536, 1024);
+        setText("CGA Calibration");
         add(&_bitmap);
         RootWindow::create();
     }
@@ -586,8 +588,6 @@ public:
         if (character == VK_ESCAPE)
             _bitmap.remove();
     }
-    String initialCaption() const { return "CGA Calibration"; }
-    Vector initialSize() const { return Vector(1536, 1024); }
 private:
     CalibrateBitmapWindow _bitmap;
 };

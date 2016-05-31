@@ -11,7 +11,11 @@
 #include <vector>
 #include <functional>
 
-class WindowsWindow;
+template<class T> class WindowsWindowT;
+typedef WindowsWindowT<void> WindowsWindow;
+
+template<class T> class PaintHandleT;
+typedef PaintHandleT<void> PaintHandle;
 
 class GDIObject : public ConstHandle
 {
@@ -179,21 +183,16 @@ public:
     ContainerWindow() : _focus(0), _capture(0) { }
     void create()
     {
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->setParent(this);
-            window->create();
-            window = _container.getNext(window);
+        for (auto& window : _container) {
+            window.setParent(this);
+            window.create();
         }
         Window::create();
     }
     void remove()
     {
-        Window* window = _container.getNext();
-        while (window != 0) {
-            window->remove();
-            window = _container.getNext(window);
-        }
+        for (auto& window : _container)
+            window.remove();
         Window::remove();
     }
     void add(Window* window)
@@ -221,11 +220,8 @@ public:
     }
     //void draw(Bitmap<DWORD> bitmap)
     //{
-    //    Window* window = _container.getNext();
-    //    while (window != 0) {
-    //        window->draw(bitmap.subBitmap(window->topLeft(), window->outerSize()));
-    //        window = _container.getNext(window);
-    //    }
+    //    for (auto& window : _container)
+    //        window.draw(bitmap.subBitmap(window.topLeft(), window.outerSize()));
     //}
     void keyboardCharacter(int character)
     {
@@ -280,11 +276,9 @@ protected:
 private:
     Window* windowForPosition(Vector p)
     {
-        Window* window = _container.getNext();
-        while (window != 0) {
-            if ((p - window->topLeft()).inside(window->outerSize()))
-                return window;
-            window = _container.getNext(window);
+        for (auto& window : _container) {
+            if ((p - window.topLeft()).inside(window.outerSize()))
+                return &window;
         }
         return 0;
     }
@@ -364,11 +358,11 @@ public:
     operator HPEN() { return static_cast<HPEN>(_object); }
 };
 
-class WindowsWindow : public ContainerWindow
+template<class T> class WindowsWindowT : public ContainerWindow
 {
     friend class WindowsT<void>;
 public:
-    WindowsWindow()
+    WindowsWindowT()
       : _hWnd(NULL), _resizing(false), _origWndProc(0), _className(0),
         _style(WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN), _extendedStyle(0),
         _menu(NULL), _windowsParent(0), _outerSize(0, 0), _outerTopLeft(0, 0)
@@ -385,6 +379,12 @@ public:
         p.y = client.y;
         IF_ZERO_THROW(ClientToScreen(_hWnd, &p));
         return Vector(p.x, p.y);
+    }
+    virtual HWND hWndParent()
+    {
+        if (_windowsParent != 0)
+            return _windowsParent->hWnd();
+        return NULL;
     }
     virtual void create()
     {
@@ -405,9 +405,6 @@ public:
                 o += p->origin();
             p = p->parent();
         }
-        HWND hWndParent = NULL;
-        if (_windowsParent != 0)
-            hWndParent = _windowsParent->hWnd();
 
         position += o;
         if (topLeft().x == CW_USEDEFAULT)
@@ -426,8 +423,11 @@ public:
             menu = reinterpret_cast<HMENU>(this);
 
         LPCWSTR className = _className;
+        // We don't really need to register our own window class - we can use
+        // one of the built-in classes. Some demoscene sizecoded demos use
+        // "edit"for example (but that sets the cursor to the I-beam).
         if (className == 0)
-            className = WC_EDIT;
+            className = WC_STATIC;
 
         HINSTANCE hInstance = GetModuleHandle(NULL);
         IF_ZERO_THROW(hInstance);
@@ -440,7 +440,7 @@ public:
             position.y,
             s.x,
             s.y,
-            hWndParent,
+            hWndParent(),
             menu,
             hInstance,
             this);
@@ -486,7 +486,7 @@ public:
         ContainerWindow::create();
     }
 
-    ~WindowsWindow() { reset(); }
+    ~WindowsWindowT() { reset(); }
 
     void show(int nShowCmd) { ShowWindow(_hWnd, nShowCmd); }
 
@@ -509,19 +509,22 @@ public:
     void setInnerSize(Vector size)
     {
         _outerSize = adjustRect(size);
-        if (_hWnd != NULL) {
-            IF_ZERO_THROW(SetWindowPos(
-                _hWnd,                                // hWnd
-                NULL,                                 // hWndInsertAfter
-                0,                                    // X
-                0,                                    // Y
-                _outerSize.x,                         // cx
-                _outerSize.y,                         // cy
-                SWP_NOZORDER | SWP_NOMOVE |
-                SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOREDRAW));  // uFlags
-            // ContainerWindow::setInnerSize() will be called via WM_SIZE, but
-            // we want to make sure our size is set correctly now so it can be
-            // used for layout before the message loop next runs.
+        if (!_resizing) {
+            if (_hWnd != NULL) {
+                IF_ZERO_THROW(SetWindowPos(
+                    _hWnd,                                // hWnd
+                    NULL,                                 // hWndInsertAfter
+                    0,                                    // X
+                    0,                                    // Y
+                    _outerSize.x,                         // cx
+                    _outerSize.y,                         // cy
+                    SWP_NOZORDER | SWP_NOMOVE |
+                    SWP_NOACTIVATE | SWP_NOREPOSITION |
+                    SWP_NOREDRAW));                       // uFlags
+                // ContainerWindow::setInnerSize() will be called via WM_SIZE,
+                // but we want to make sure our size is set correctly now so it
+                // can be used for layout before the message loop next runs.
+            }
         }
         ContainerWindow::setInnerSize(size);
     }
@@ -623,15 +626,29 @@ protected:
     {
         int w = static_cast<int>(wParam);
         switch (uMsg) {
-            case WM_SIZE:
+            case WM_SIZING:
                 {
-                    Vector s = vectorFromLParam(lParam);
-                    if (!s.zeroArea()) {
-                        ContainerWindow::setInnerSize(s);
-                        _resizing = true;
-                    }
+                    _resizing = true;
+                    RECT* r = reinterpret_cast<RECT*>(lParam);
+                    Vector requestedSize(r->right - r->left,
+                        r->bottom - r->top);
+                    ContainerWindow::setInnerSize(
+                        requestedSize + innerSize() - outerSize());
+                    Vector adjustedSize = outerSize();
+                    if (wParam == WMSZ_TOPLEFT || wParam == WMSZ_LEFT ||
+                        wParam == WMSZ_BOTTOMLEFT)
+                        r->left = r->right - adjustedSize.x;
+                    if (wParam == WMSZ_TOPLEFT || wParam == WMSZ_TOP ||
+                        wParam == WMSZ_TOPRIGHT)
+                        r->top = r->bottom - adjustedSize.y;
+                    if (wParam == WMSZ_TOPRIGHT || wParam == WMSZ_RIGHT ||
+                        wParam == WMSZ_BOTTOMRIGHT)
+                        r->right = r->left + adjustedSize.x;
+                    if (wParam == WMSZ_BOTTOMLEFT || wParam == WMSZ_BOTTOM ||
+                        wParam == WMSZ_BOTTOMRIGHT)
+                        r->bottom = r->top + adjustedSize.y;
                 }
-                break;
+                return TRUE;
             case WM_MOVE:
                 ContainerWindow::setTopLeft(
                     vectorFromLParam(lParam) + _outerTopLeft);
@@ -691,6 +708,25 @@ protected:
                 break;
         }
         return originalHandleMessage(uMsg, wParam, lParam);
+    }
+    void erase(bool invalidateChildren = false)
+    {
+        PaintHandle paintHandle(this);
+        if (paintHandle.zeroArea())
+            return;
+        if (!paintHandle.erase())
+            return;
+        HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
+        SelectedObject bo(&paintHandle, hBrush);
+        Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
+        SelectedObject po(&paintHandle, pen);
+        Vector tl = paintHandle.topLeft();
+        Vector br = paintHandle.bottomRight();
+        Rectangle(paintHandle, tl.x, tl.y, br.x, br.y);
+        if (invalidateChildren) {
+            redrawWindow(tl, br - tl,
+                RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+        }
     }
     LRESULT originalHandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
@@ -765,15 +801,15 @@ private:
     }
 };
 
-class PaintHandle : public DeviceContext
+template<class T> class PaintHandleT : public DeviceContext
 {
 public:
-    PaintHandle(const WindowsWindow* window) : _window(window)
+    PaintHandleT(const WindowsWindow* window) : _window(window)
     {
         IF_NULL_THROW(BeginPaint(_window->hWnd(), &_ps));
         _hdc = _ps.hdc;
     }
-    ~PaintHandle() { EndPaint(_window->hWnd(), &_ps); }
+    ~PaintHandleT() { EndPaint(_window->hWnd(), &_ps); }
     Vector topLeft() const
     {
         return Vector(_ps.rcPaint.left, _ps.rcPaint.top);
@@ -795,18 +831,7 @@ public:
     LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (uMsg == WM_PAINT) {
-            PaintHandle paintHandle(this);
-            if (paintHandle.zeroArea())
-                return 0;
-            if (!paintHandle.erase())
-                return 0;
-            HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
-            SelectedObject bo(&paintHandle, hBrush);
-            Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
-            SelectedObject po(&paintHandle, pen);
-            Vector tl = paintHandle.topLeft();
-            Vector br = paintHandle.bottomRight();
-            Rectangle(paintHandle, tl.x, tl.y, br.x, br.y);
+            erase();
             return 0;
         }
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
@@ -990,22 +1015,8 @@ public:
     void create() { WindowsWindow::create(); }
     LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
-        if (uMsg == WM_PAINT) {
-            PaintHandle paintHandle(this);
-            if (paintHandle.zeroArea())
-                return 0;
-            if (paintHandle.erase()) {
-                HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
-                SelectedObject bo(&paintHandle, hBrush);
-                Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
-                SelectedObject po(&paintHandle, pen);
-                Vector tl = paintHandle.topLeft();
-                Vector br = paintHandle.bottomRight();
-                Rectangle(paintHandle, tl.x, tl.y, br.x, br.y);
-                redrawWindow(tl, br - tl,
-                    RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
-            }
-        }
+        if (uMsg == WM_PAINT)
+            erase(true);
         if (uMsg == WM_ERASEBKGND)
             return 0;
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);

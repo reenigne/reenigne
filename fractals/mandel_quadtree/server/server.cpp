@@ -596,21 +596,15 @@ public:
         }
 
         // Delete all the sockets.
-        while (true) {
-            AcceptSocket* socket = _reserveSockets.getNext();
-            if (socket == 0)
-                break;
-            socket->remove();
-            delete socket;
+        for (auto& socket : _reserveSockets) {
+            socket.remove();
+            delete &socket;
         }
 
         // Delete all the boxes.
-        while (true) {
-            Box* box = _emptyBoxes.getNext();
-            if (box == 0)
-                break;
-            box->remove();
-            free(box);
+        for (auto& box : _emptyBoxes) {
+            box.remove();
+            free(&box);
         }
     }
 
@@ -657,11 +651,8 @@ public:
         // threads.
         if (_uniteratedCount < _threadCount) {
             // Give each client a chance to give us another box.
-            AcceptSocket* socket = _activeSockets.getNext();
-            while (socket != 0) {
-                socket->initiateReceive();
-                socket = _activeSockets.getNext(socket);
-            }
+            for (auto& socket : _activeSockets)
+                socket.initiateReceive();
         }
         return box;
     }
