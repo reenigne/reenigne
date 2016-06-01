@@ -851,6 +851,7 @@ public:
         add(&_outputWindow);
         add(&_monitor);
         add(&_videoCard);
+        add(&_knobSliders);
     }
     void create()
     {
@@ -1193,22 +1194,27 @@ private:
         {
             ColourGroup(CGA2NTSCWindow* host) : _host(host)
             {
+                KnobSliders* sliders = &host->_knobSliders;
                 setText("Colour");
+                _brightness.setSliders(sliders);
                 _brightness.setValueSet(
                     [&](double value) { _host->brightnessSet(value); });
                 _brightness.setText("Brightness: ");
                 _brightness.setRange(-2, 2);
                 add(&_brightness);
+                _saturation.setSliders(sliders);
                 _saturation.setValueSet(
                     [&](double value) { _host->saturationSet(value); });
                 _saturation.setText("Saturation: ");
                 _saturation.setRange(0, 4);
                 add(&_saturation);
+                _contrast.setSliders(sliders);
                 _contrast.setValueSet(
                     [&](double value) { _host->contrastSet(value); });
                 _contrast.setText("Contrast: ");
                 _contrast.setRange(0, 4);
                 add(&_contrast);
+                _hue.setSliders(sliders);
                 _hue.setValueSet([&](double value) { _host->hueSet(value); });
                 _hue.setText("Hue: ");
                 _hue.setRange(-180, 180);
@@ -1238,12 +1244,15 @@ private:
         {
             FilterGroup(CGA2NTSCWindow* host) : _host(host)
             {
+                KnobSliders* sliders = &host->_knobSliders;
                 setText("Filter");
+                _chromaBandwidth.setSliders(sliders);
                 _chromaBandwidth.setValueSet(
                     [&](double value) { _host->chromaBandwidthSet(value); });
                 _chromaBandwidth.setText("Chroma bandwidth: ");
                 _chromaBandwidth.setRange(0, 2);
                 add(&_chromaBandwidth);
+                _lumaBandwidth.setSliders(sliders);
                 _lumaBandwidth.setValueSet(
                     [&](double value) { _host->lumaBandwidthSet(value); });
                 _lumaBandwidth.setText("Luma bandwidth: ");
@@ -1301,6 +1310,7 @@ private:
                 _profile.add("semicircle");
                 _profile.add("gaussian");
                 add(&_profile);
+                _width.setSliders(&_host->_knobSliders);
                 _width.setValueSet(
                     [&](double value) { _host->scanlineWidthSet(value); });
                 _width.setText("Width: ");
@@ -1332,13 +1342,16 @@ private:
         {
             ScalingGroup(CGA2NTSCWindow* host) : _host(host)
             {
+                KnobSliders* sliders = &host->_knobSliders;
                 setText("Scaling");
+                _zoom.setSliders(sliders);
                 _zoom.setValueSet(
                     [&](double value) { _host->zoomSet(value); });
                 _zoom.setText("Zoom: ");
                 _zoom.setRange(1, 10);
                 _zoom.setLogarithmic(true);
                 add(&_zoom);
+                _aspectRatio.setSliders(sliders);
                 _aspectRatio.setValueSet(
                     [&](double value) { _host->aspectRatioSet(value); });
                 _aspectRatio.setText("Aspect Ratio: ");
@@ -1503,29 +1516,34 @@ private:
         {
             MatchingGroup(CGA2NTSCWindow* host) : _host(host)
             {
+                KnobSliders* sliders = &host->_knobSliders;
                 setText("Matching");
                 _matchMode.setClicked(
                     [&](bool value) { _host->matchModeSet(value); });
                 _matchMode.setText("Match");
                 add(&_matchMode);
+                _diffusionHorizontal.setSliders(sliders);
                 _diffusionHorizontal.setValueSet(
                     [&](double value) {
                         _host->diffusionHorizontalSet(value); });
                 _diffusionHorizontal.setText("Diffusion: Horizontal: ");
                 _diffusionHorizontal.setRange(0, 1);
                 add(&_diffusionHorizontal);
+                _diffusionVertical.setSliders(sliders);
                 _diffusionVertical.setValueSet(
                     [&](double value) { _host->diffusionVerticalSet(value); });
                 _diffusionVertical.setText("Vertical: ");
                 _diffusionVertical.setRange(0, 1);
                 _diffusionVertical.setCaptionWidth(0);
                 add(&_diffusionVertical);
+                _diffusionTemporal.setSliders(sliders);
                 _diffusionTemporal.setValueSet(
                     [&](double value) { _host->diffusionTemporalSet(value); });
                 _diffusionTemporal.setText("Temporal: ");
                 _diffusionTemporal.setRange(0, 1);
                 _diffusionTemporal.setCaptionWidth(0);
                 add(&_diffusionTemporal);
+                _quality.setSliders(sliders);
                 _quality.setValueSet(
                     [&](double value) { _host->qualitySet(value); });
                 _quality.setText("Quality: ");
@@ -1575,6 +1593,7 @@ private:
         CGA2NTSCWindow* _host;
     };
     VideoCardGroup _videoCard;
+    KnobSliders _knobSliders;
 
     CGAMatcher* _matcher;
     CGAShower* _shower;

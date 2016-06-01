@@ -5,194 +5,87 @@
 
 const COLORREF chromaKey = RGB(0xff, 0x0, 0xff);
 
-class KnobSlider : public ContainerWindow
+template<class T> class KnobSliderT;
+typedef KnobSliderT<void> KnobSlider;
+
+template<class T> class KnobSlidersT;
+typedef KnobSlidersT<void> KnobSliders;
+
+template<class T> class KnobSlidersT : public WindowsWindow
 {
 public:
-    KnobSlider()
-      : _sliding(false), _useChromaKey(false), _config(0), _knobDiameter(24),
-        _popupLength(301), _captionWidth(112), _logarithmic(false)
+    KnobSlidersT()
+      : _delta(0, -1), _hdcScreen(NULL),
+        _hdcSrc(CreateCompatibleDC(_hdcScreen)), _renderTask(this),
+        _useChromaKey(false), _sliding(false)
     {
-        add(&_caption);
-        add(&_knob);
-        add(&_edit);
-        add(&_popup);
-        _lightGrey = getSysColor(COLOR_BTNFACE, 0xc0c0c0);
-        _darkGrey = getSysColor(COLOR_GRAYTEXT, 0x7f7f7f);
-        _black = getSysColor(COLOR_WINDOWTEXT, 0x000000);
+        setStyle(WS_POPUP);
+        setExtendedStyle(WS_EX_LAYERED);
+        _hbmBackBuffer =
+            GDIObject(CreateCompatibleBitmap(_hdcScreen, 100, 100));
+        _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
     }
-    void setText(String text) { _caption.setText(text); }
-    void setCaptionWidth(int width) { _captionWidth = width; }
-    void layout()
-    {
-        _knob.setInnerSize(Vector(_knobDiameter, _knobDiameter));
-        int height = max(_caption.outerSize().y, max(_knobDiameter,
-            _edit.outerSize().y));
-        _caption.setTopLeft(Vector(0, (height - _caption.outerSize().y)/2));
-        _knob.setTopLeft(Vector(
-            max(_captionWidth, _caption.right() + _knobDiameter/2),
-            (height - _knobDiameter)/2));
-        _edit.setTopLeft(Vector(_knob.right() + _knobDiameter/2,
-            (height - _edit.outerSize().y)/2));
-        setInnerSize(Vector(_edit.right(), height));
-    }
-    void setTopLeft(Vector topLeft)
-    {
-        ContainerWindow::setTopLeft(topLeft);
-        repositionChildren();
-    }
+protected:
     void create()
     {
-        ContainerWindow::create();
-        setValue(_value);
+        ZeroMemory(&_bmi, sizeof(BITMAPINFO));
+        _bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        _bmi.bmiHeader.biPlanes = 1;
+        _bmi.bmiHeader.biBitCount = 32;
+        _bmi.bmiHeader.biCompression = BI_RGB;
+        _bmi.bmiHeader.biSizeImage = 0;
+        _bmi.bmiHeader.biXPelsPerMeter = 0;
+        _bmi.bmiHeader.biYPelsPerMeter = 0;
+        _bmi.bmiHeader.biClrUsed = 0;
+        _bmi.bmiHeader.biClrImportant = 0;
+        WindowsWindow::create();
     }
-    void setRange(double low, double high)
+    virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
-        _min = low;
-        _max = high;
-    }
-    virtual void valueSet(double value) { _valueSet(value); }
-    void setValueSet(std::function<void(double)> valueSet)
-    {
-        _valueSet = valueSet;
-    }
-    void setValue(double value)
-    {
-        double dp;
-        if (_logarithmic)
-            dp = log(value/_popupLength)/log(10);
-        else
-            dp = log((_max - _min)/_popupLength)/log(10);
-        int dps = max(0, static_cast<int>(1 - dp));
-        if (_popupLength < 0)
-            dps = 1;
-        _edit.setText(format("%.*f", dps, value));
-        setValueFromEdit(value);
-    }
-    void setValueFromEdit(double value)
-    {
-        _value = value;
-        valueSet(value);
-        _knob.draw();
-    }
-    double getValue() const { return _value; }
-    void setConfig(ConfigFile* config) { _config = config; }
-    virtual double positionFromValue(double value)
-    {
-        return _logarithmic ? log(value) : value;
-    }
-    virtual double valueFromPosition(double position)
-    {
-        return _logarithmic ? exp(position) : position;
-    }
-    void setLogarithmic(bool logarithmic) { _logarithmic = logarithmic; }
-
-private:
-    double position() { return positionFromValue(_value); }
-    double minPosition() { return positionFromValue(_min); }
-    double maxPosition() { return positionFromValue(_max); }
-    void changeValue(double amount)
-    {
-        setValue(valueFromPosition(clamp(minPosition(),
-            position() + (maxPosition() - minPosition())*amount,
-            maxPosition())));
-    }
-
-    static DWORD getSysColor(int nIndex, DWORD def)
-    {
-        // The values returned from GetSysColor have the red channel in the
-        // low 8 bits, not the blue channel as with our Bitmap objects.
-        DWORD c = GetSysColor(nIndex);
-        if (c != 0) {
-            return 0xff000000 | (GetRValue(c) << 16) | (GetGValue(c) << 8) |
-                GetBValue(c);
+        if (uMsg == WM_PAINT) {
+            Lock lock(&_mutex);
+            if (_useChromaKey) {
+                PaintHandle p(this);
+                setDIBits(p, p.topLeft(), p.bottomRight());
+                return 0;
+            }
         }
-        return 0xff000000 | def;
+        return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
-
-    void knobEvent(Vector position, bool buttonDown)
+private:
+    void knobEvent(KnobSlider* slider, Vector drag, bool buttonDown)
     {
+        _slider = slider;
         if (buttonDown) {
             if (!_sliding) {
-                _dragStart = position;
-                _positionStart = positionFromValue(_value);
-                _popup.show(SW_SHOW);
+                _dragStart = drag;
+                _positionStart = slider->position();
+                update(drag);
+                show(SW_SHOW);
             }
             else
-                _popup.update(position);
+                update(drag);
         }
         if (!buttonDown && _sliding)
-            _popup.show(SW_HIDE);
+            show(SW_HIDE);
         _sliding = buttonDown;
     }
-
-    class KnobWindow : public BitmapWindow
+    void drawKnob(KnobSlider* slider)
     {
-    public:
-        void draw2()
-        {
-            if (_hWnd == NULL)
-                return;
-            Vector s = outerSize();
-            Vector2<double> c = Vector2Cast<double>(s)/2.0;
-            _bitmap.fill(host()->_lightGrey);
-            fillCircle(_bitmap, host()->_darkGrey, Vector2Cast<float>(c),
-                static_cast<float>(s.x/2.0));
-            double a = clamp(0.0, (host()->position() - host()->minPosition())/
-                (host()->maxPosition() - host()->minPosition()), 1.0)*3/4;
-            Rotor2<double> r(-a);
-            Vector2<double> o = Vector2<double>(-1, 1)*r*s.x/sqrt(8) + c;
-            Vector2<double> w = Vector2<double>(1, 1)*r;
-            Vector2<float> points[4];
-            points[0] = Vector2Cast<float>(c - w);
-            points[1] = Vector2Cast<float>(c + w);
-            points[2] = Vector2Cast<float>(o - w);
-            points[3] = Vector2Cast<float>(o + w);
-            fillParallelogram(_bitmap, &points[0], host()->_black);
-        }
-        bool mouseInput(Vector position, int buttons)
-        {
-            if (_hWnd == 0)
-                return false;
-            bool lButton = (buttons & MK_LBUTTON) != 0;
-            POINT point;
-            point.x = position.x;
-            point.y = position.y;
-            IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
-            host()->knobEvent(Vector(point.x, point.y), lButton);
-            return lButton;  // Capture when button is down
-        }
-    private:
-        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
-    };
-
-    class PopupWindow : public WindowsWindow
+        _slider = slider;
+        _renderTask.restart();
+        _renderTask.join();
+    }
+    void update(Vector drag)
     {
-    public:
-        PopupWindow()
-          : _delta(0, -1), _hdcScreen(NULL),
-            _hdcSrc(CreateCompatibleDC(_hdcScreen))
         {
-            setStyle(WS_POPUP);
-            setExtendedStyle(WS_EX_LAYERED | WS_EX_TOPMOST);
-            _hbmBackBuffer =
-                GDIObject(CreateCompatibleBitmap(_hdcScreen, 100, 100));
-            _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
-        }
-        void update(Vector position)
-        {
-            int length = host()->_popupLength;
-            double valueLow = host()->minPosition();
-            double valueHigh = host()->maxPosition();
-            double valueStart = host()->_positionStart;
-            double valueDelta = valueHigh - valueLow;
-            Vector dragStart = host()->_dragStart;
-            double value;
-            Vector2<double> a;
-            Vector2<double> delta = Vector2Cast<double>(position - dragStart);
+            Lock lock(&_mutex);
+            int length = _slider->_popupLength;
+            Vector2<double> delta = Vector2Cast<double>(drag - _dragStart);
             double distance = sqrt(delta.modulus2());
             if (distance < 40) {
-                value = valueStart + dot(delta, _delta)*valueDelta/length;
-                a = _delta*length/valueDelta;
+                _position = _positionStart + dot(delta, _delta)/length;
+                _a = _delta*length;
             }
             else {
                 _delta = delta/sqrt(delta.modulus2());
@@ -200,19 +93,30 @@ private:
                     distance = -distance;
                     _delta = -_delta;
                 }
-                value = valueStart + distance*valueDelta/length;
-                a = delta/(value - valueStart);
+                _position = _positionStart + distance/length;
+                _a = delta/(_position - _positionStart);
             }
-            value = clamp(valueLow, value, valueHigh);
-            host()->setValue(host()->valueFromPosition(value));
-            auto b = Vector2Cast<double>(dragStart) - a*valueStart;
-            Vector2<double> low = a*valueLow + b;
-            Vector2<double> high = a*valueHigh + b;
+            _position = clamp(0.0, _position, 1.0);
+            _slider->setPosition(_position);
+        }
 
-            double endPadding = host()->outerSize().y/4;
-            Vector2<double> x = (high-low)*endPadding/length;
+        _renderTask.restart();
+    }
+    void render()
+    {
+        Vector2<float> corners[4];
+        Vector2<double> low;
+        Vector2<double> high;
+        if (_sliding) {
+            Lock lock(&_mutex);
+            int length = _slider->_popupLength;
+
+            low = Vector2Cast<double>(_dragStart) - _a*_positionStart;
+            high = _a + low;
+
+            double endPadding = _slider->outerSize().y/4;
+            Vector2<double> x = (high - low)*endPadding/length;
             Vector2<double> y = 2.0*Vector2<double>(x.y, -x.x);
-            Vector2<float> corners[4];
             corners[0] = Vector2Cast<float>(low - x - y);
             corners[1] = Vector2Cast<float>(low - x + y);
             corners[2] = Vector2Cast<float>(high + x - y);
@@ -228,204 +132,161 @@ private:
                 bottomRight.y = max(bottomRight.y, c.y + 1);
             }
 
-            Vector s = bottomRight - topLeft;
-            if (s.x > _bitmap.size().x || s.y > _bitmap.size().y) {
-                _bitmap = Bitmap<DWORD>(Vector(max(s.x, _bitmap.size().x),
-                    max(s.y, _bitmap.size().y)));
+            _s = bottomRight - topLeft;
+            if (_s.x > _bitmap.size().x || _s.y > _bitmap.size().y) {
+                _bitmap = Bitmap<DWORD>(Vector(max(_s.x, _bitmap.size().x),
+                    max(_s.y, _bitmap.size().y)));
                 _hbmOld = SelectedObject();
                 _hbmBackBuffer = GDIObject(CreateCompatibleBitmap(_hdcScreen,
                     _bitmap.size().x, _bitmap.size().y));
                 _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
             }
+        }
+        else
+            _position = _slider->position();
 
-            for (int i = 0; i < 4; ++i)
-                corners[i] -= Vector2Cast<float>(topLeft);
-            low -= topLeft;
-            high -= topLeft;
-            // Transparent
-            if (host()->_useChromaKey)
-                _bitmap.fill(0xff000000 | chromaKey);
-            else
-                _bitmap.fill(0);
+        KnobSlider::KnobWindow* knob = &_slider->_knob;
+        Vector s = knob->innerSize();
+        Vector2<double> c = Vector2Cast<double>(s)/2.0;
+        Bitmap<DWORD> b = knob->bitmap();
+        b.fill(_slider->_lightGrey);
+        fillCircle(b, _slider->_darkGrey, Vector2Cast<float>(c),
+            static_cast<float>(s.x/2.0));
+        Rotor2<double> r(-clamp(0.0, _position, 1.0)*3/4);
+        Vector2<double> o = Vector2<double>(-1, 1)*r*s.x/sqrt(8) + c;
+        Vector2<double> w = Vector2<double>(1, 1)*r;
+        Vector2<float> points[4];
+        points[0] = Vector2Cast<float>(c - w);
+        points[1] = Vector2Cast<float>(c + w);
+        points[2] = Vector2Cast<float>(o - w);
+        points[3] = Vector2Cast<float>(o + w);
+        fillParallelogram(b, &points[0], _slider->_black);
+        knob->invalidate();
 
-            // Background
-            fillParallelogram(_bitmap, &corners[0], host()->_lightGrey,
-                !host()->_useChromaKey);
+        if (!_sliding)
+            return;
 
-            // Track
-            x = (high-low)*2/length;
-            y = Vector2<double>(x.y, -x.x);
-            corners[0] = Vector2Cast<float>(low - y);
-            corners[1] = Vector2Cast<float>(low + y);
-            corners[2] = Vector2Cast<float>(high - y);
-            corners[3] = Vector2Cast<float>(high + y);
-            fillParallelogram(_bitmap, &corners[0], host()->_darkGrey);
+        setInnerSize(_s);
+        for (int i = 0; i < 4; ++i)
+            corners[i] -= Vector2Cast<float>(_topLeft);
+        low -= _topLeft;
+        high -= _topLeft;
+        int length = _slider->_popupLength;
+        // Transparent
+        if (_useChromaKey)
+            _bitmap.fill(0xff000000 | chromaKey);
+        else
+            _bitmap.fill(0);
 
-            // Handle
-            x = (high-low)*endPadding/(length*2);
-            y = 2.0*Vector2<double>(x.y, -x.x);
-            Vector2<double> p = low +
-                (value - valueLow)*(high - low)/(valueHigh - valueLow);
-            corners[0] = Vector2Cast<float>(p - x - y);
-            corners[1] = Vector2Cast<float>(p - x + y);
-            corners[2] = Vector2Cast<float>(p + x - y);
-            corners[3] = Vector2Cast<float>(p + x + y);
-            fillParallelogram(_bitmap, &corners[0], host()->_black);
+        // Background
+        fillParallelogram(_bitmap, &corners[0], _slider->_lightGrey,
+            !_useChromaKey);
 
-            setInnerSize(s);
-            if (host()->_useChromaKey) {
-                MoveWindow(_hWnd, topLeft.x, topLeft.y, s.x, s.y, FALSE);
-                invalidate();
-                updateWindow();
-                return;
+        // Track
+        Vector2<double> x = (high - low)*2/length;
+        Vector2<double> y = Vector2<double>(x.y, -x.x);
+        corners[0] = Vector2Cast<float>(low - y);
+        corners[1] = Vector2Cast<float>(low + y);
+        corners[2] = Vector2Cast<float>(high - y);
+        corners[3] = Vector2Cast<float>(high + y);
+        fillParallelogram(_bitmap, &corners[0], _slider->_darkGrey);
+
+        // Handle
+        double endPadding = _slider->outerSize().y/4;
+        x = (high - low)*endPadding/(length*2);
+        y = 2.0*Vector2<double>(x.y, -x.x);
+        Vector2<double> p = low + _position*(high - low);
+        corners[0] = Vector2Cast<float>(p - x - y);
+        corners[1] = Vector2Cast<float>(p - x + y);
+        corners[2] = Vector2Cast<float>(p + x - y);
+        corners[3] = Vector2Cast<float>(p + x + y);
+        fillParallelogram(_bitmap, &corners[0], _slider->_black);
+
+        if (_useChromaKey) {
+            MoveWindow(_hWnd, _topLeft.x, _topLeft.y, _s.x, _s.y, FALSE);
+            invalidate();
+            return;
+        }
+
+        setDIBits(_hdcSrc, Vector(0, 0), _s);
+        POINT ptSrc;
+        ptSrc.x = 0;
+        ptSrc.y = 0;
+        SIZE size;
+        size.cx = _s.x;
+        size.cy = _s.y;
+        POINT ptDst;
+        ptDst.x = _topLeft.x;
+        ptDst.y = _topLeft.y;
+        BLENDFUNCTION blend;
+        blend.BlendOp = AC_SRC_OVER;
+        blend.BlendFlags = 0;
+        blend.SourceConstantAlpha = 255;
+        blend.AlphaFormat = AC_SRC_ALPHA;
+        BOOL result = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
+            &ptSrc, 0, &blend, ULW_ALPHA);
+        if (result == 0) {
+            {
+                Lock lock(&_mutex);
+                _useChromaKey = true;
             }
-
-            setDIBits(_hdcSrc, Vector(0, 0), s);
-            POINT ptSrc;
-            ptSrc.x = 0;
-            ptSrc.y = 0;
-            SIZE size;
-            size.cx = s.x;
-            size.cy = s.y;
-            POINT ptDst;
-            ptDst.x = topLeft.x;
-            ptDst.y = topLeft.y;
-            BLENDFUNCTION blend;
-            blend.BlendOp = AC_SRC_OVER;
-            blend.BlendFlags = 0;
-            blend.SourceConstantAlpha = 255;
-            blend.AlphaFormat = AC_SRC_ALPHA;
-            BOOL r = UpdateLayeredWindow(_hWnd, NULL, &ptDst, &size, _hdcSrc,
-                &ptSrc, 0, &blend, ULW_ALPHA);
-            if (r == 0) {
-                host()->_useChromaKey = true;
-                SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
-                    LWA_COLORKEY);
-                update(position);
-            }
+            SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
+                LWA_COLORKEY);
+            _renderTask.restart();
         }
-        void create()
-        {
-            ZeroMemory(&_bmi, sizeof(BITMAPINFO));
-            _bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-            _bmi.bmiHeader.biPlanes = 1;
-            _bmi.bmiHeader.biBitCount = 32;
-            _bmi.bmiHeader.biCompression = BI_RGB;
-            _bmi.bmiHeader.biSizeImage = 0;
-            _bmi.bmiHeader.biXPelsPerMeter = 0;
-            _bmi.bmiHeader.biYPelsPerMeter = 0;
-            _bmi.bmiHeader.biClrUsed = 0;
-            _bmi.bmiHeader.biClrImportant = 0;
-            WindowsWindow::create();
-        }
-        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-        {
-            if (uMsg == WM_PAINT && host()->_useChromaKey) {
-                PaintHandle p(this);
-                setDIBits(p, p.topLeft(), p.bottomRight());
-                return 0;
-            }
-            return WindowsWindow::handleMessage(uMsg, wParam, lParam);
-        }
-
-    private:
-        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
-        void setDIBits(HDC hdc, Vector ptl, Vector pbr)
-        {
-            Vector s = innerSize();
-            pbr = Vector(min(pbr.x, s.x), min(pbr.y, s.y));
-            Vector ps = pbr - ptl;
-            if (ps.x <= 0 || ps.y <= 0 || !_bitmap.valid())
-                return;
-            _bmi.bmiHeader.biWidth = _bitmap.stride() / sizeof(DWORD);
-            _bmi.bmiHeader.biHeight = -s.y;
-            IF_ZERO_THROW(SetDIBitsToDevice(
-                hdc,
-                ptl.x,
-                ptl.y,
-                ps.x,
-                ps.y,
-                ptl.x,
-                s.y - pbr.y,
-                0,
-                s.y,
-                _bitmap.data(),
-                &_bmi,
-                DIB_RGB_COLORS));
-        }
-
-        WindowDeviceContext _hdcScreen;
-        OwnedDeviceContext _hdcSrc;
-        GDIObject _hbmBackBuffer;
-        SelectedObject _hbmOld;
-        Bitmap<DWORD> _bitmap;
-        BITMAPINFO _bmi;
-        Vector2<double> _delta;
-    };
-
-    class EditControl : public EditWindow
+    }
+    class RenderTask : public ThreadTask
     {
     public:
-        EditControl()
-        {
-            setExtendedStyle(WS_EX_CLIENTEDGE);
-            setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | WS_TABSTOP);
-        }
-        void changed()
-        {
-            String t = getText();
-            double v = host()->_config->evaluate<double>(t, host()->_value);
-            host()->setValueFromEdit(v);
-        }
-        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
-        {
-            if (uMsg == WM_KEYDOWN) {
-                switch (wParam) {
-                    case VK_UP:
-                        host()->changeValue(0.01);
-                        return 0;
-                    case VK_DOWN:
-                        host()->changeValue(-0.01);
-                        return 0;
-                    case VK_PRIOR:
-                        host()->changeValue(0.1);
-                        return 0;
-                    case VK_NEXT:
-                        host()->changeValue(-0.1);
-                        return 0;
-                }
-            }
-            return EditWindow::handleMessage(uMsg, wParam, lParam);
-        }
+        RenderTask(KnobSliders* window) : _window(window) { }
+        void run() { _window->render(); }
     private:
-        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
+        KnobSliders* _window;
     };
+    void setDIBits(HDC hdc, Vector ptl, Vector pbr)
+    {
+        Vector s = innerSize();
+        pbr = Vector(min(pbr.x, s.x), min(pbr.y, s.y));
+        Vector ps = pbr - ptl;
+        if (ps.x <= 0 || ps.y <= 0 || !_bitmap.valid())
+            return;
+        _bmi.bmiHeader.biWidth = _bitmap.stride() / sizeof(DWORD);
+        _bmi.bmiHeader.biHeight = -s.y;
+        IF_ZERO_THROW(SetDIBitsToDevice(
+            hdc,
+            ptl.x,
+            ptl.y,
+            ps.x,
+            ps.y,
+            ptl.x,
+            s.y - pbr.y,
+            0,
+            s.y,
+            _bitmap.data(),
+            &_bmi,
+            DIB_RGB_COLORS));
+    }
 
-    TextWindow _caption;
-    KnobWindow _knob;
-    EditControl _edit;
-    PopupWindow _popup;
-    bool _sliding;
-    double _value;
-    double _min;
-    double _max;
+    WindowDeviceContext _hdcScreen;
+    OwnedDeviceContext _hdcSrc;
+    GDIObject _hbmBackBuffer;
+    SelectedObject _hbmOld;
+    Bitmap<DWORD> _bitmap;
+    BITMAPINFO _bmi;
+    Vector2<double> _delta;
+    RenderTask _renderTask;
+    Vector _topLeft;
+    double _position;
+    Vector _s;
+    Mutex _mutex;
+    bool _useChromaKey;
     Vector _dragStart;
     double _positionStart;
-    int _knobDiameter;
-    int _popupLength;
-    int _captionWidth;
-    bool _useChromaKey;
-    DWORD _lightGrey;
-    DWORD _darkGrey;
-    DWORD _black;
-    ConfigFile* _config;
-    bool _logarithmic;
-    std::function<void(double)> _valueSet;
+    KnobSlider* _slider;
+    bool _sliding;
+    Vector2<double> _a;
 
-    friend class KnobWindow;
-    friend class PopupWindow;
-    friend class EditWindow;
-
+    template<class T> friend class KnobSliderT;
 
     static bool insideParallelogram(Vector2<float> p, Vector2<float>* points)
     {
@@ -664,6 +525,212 @@ private:
             plot(&bitmap[Vector2Cast<int>(tl)], colour, area);
         return area;
     }
+};
+
+template<class T> class KnobSliderT : public ContainerWindow
+{
+public:
+    KnobSliderT()
+      : _config(0), _knobDiameter(24), _popupLength(301), _captionWidth(112),
+        _logarithmic(false), _settingEdit(false)
+    {
+        add(&_caption);
+        add(&_knob);
+        add(&_edit);
+        _lightGrey = getSysColor(COLOR_BTNFACE, 0xc0c0c0);
+        _darkGrey = getSysColor(COLOR_GRAYTEXT, 0x7f7f7f);
+        _black = getSysColor(COLOR_WINDOWTEXT, 0x000000);
+    }
+    void setSliders(KnobSliders* sliders) { _sliders = sliders; }
+    void setText(String text) { _caption.setText(text); }
+    void setCaptionWidth(int width) { _captionWidth = width; }
+    void layout()
+    {
+        _knob.setInnerSize(Vector(_knobDiameter, _knobDiameter));
+        int height = max(_caption.outerSize().y, max(_knobDiameter,
+            _edit.outerSize().y));
+        _caption.setTopLeft(Vector(0, (height - _caption.outerSize().y)/2));
+        _knob.setTopLeft(Vector(
+            max(_captionWidth, _caption.right() + _knobDiameter/2),
+            (height - _knobDiameter)/2));
+        _edit.setTopLeft(Vector(_knob.right() + _knobDiameter/2,
+            (height - _edit.outerSize().y)/2));
+        setInnerSize(Vector(_edit.right(), height));
+    }
+    void setTopLeft(Vector topLeft)
+    {
+        ContainerWindow::setTopLeft(topLeft);
+        repositionChildren();
+    }
+    void create()
+    {
+        ContainerWindow::create();
+        setValue(_value);
+    }
+    void setRange(double low, double high)
+    {
+        _min = low;
+        _max = high;
+    }
+    virtual void valueSet(double value) { _valueSet(value); }
+    void setValueSet(std::function<void(double)> valueSet)
+    {
+        _valueSet = valueSet;
+    }
+    void setValue(double value)
+    {
+        setValueInternal(value, true);
+    }
+    double getValue() const { return _value; }
+    void setConfig(ConfigFile* config) { _config = config; }
+    virtual double positionFromValue(double value)
+    {
+        return _logarithmic ? log(value) : value;
+    }
+    virtual double valueFromPosition(double position)
+    {
+        return _logarithmic ? exp(position) : position;
+    }
+    void setLogarithmic(bool logarithmic) { _logarithmic = logarithmic; }
+
+private:
+    void setValueInternal(double value, bool drawKnob)
+    {
+        double dp;
+        if (_logarithmic)
+            dp = log(value/_popupLength)/log(10);
+        else
+            dp = log((_max - _min)/_popupLength)/log(10);
+        int dps = max(0, static_cast<int>(1 - dp));
+        if (_popupLength < 0)
+            dps = 1;
+        _settingEdit = true;
+        _edit.setText(format("%.*f", dps, value));
+        _settingEdit = false;
+        setValueFromEdit(value, drawKnob);
+    }
+    void setValueFromEdit(double value, bool drawKnob = true)
+    {
+        _value = value;
+        valueSet(value);
+        if (drawKnob)
+            _knob.draw();
+    }
+    double position()
+    {
+        double m = positionFromValue(_min);
+        return (positionFromValue(_value) - m)/(positionFromValue(_max) - m);
+    }
+    void setPosition(double p)
+    {
+        double m = positionFromValue(_min);
+        setValueInternal(
+            valueFromPosition(p*(positionFromValue(_max) - m) + m), false);
+    }
+    void changeValue(double amount)
+    {
+        setPosition(clamp(0.0, position() + amount, 1.0));
+    }
+
+    static DWORD getSysColor(int nIndex, DWORD def)
+    {
+        // The values returned from GetSysColor have the red channel in the
+        // low 8 bits, not the blue channel as with our Bitmap objects.
+        DWORD c = GetSysColor(nIndex);
+        if (c != 0) {
+            return 0xff000000 | (GetRValue(c) << 16) | (GetGValue(c) << 8) |
+                GetBValue(c);
+        }
+        return 0xff000000 | def;
+    }
+
+    class KnobWindow : public BitmapWindow
+    {
+    public:
+        void draw2()
+        {
+            if (_hWnd == NULL)
+                return;
+            host()->_sliders->drawKnob(host());
+        }
+        bool mouseInput(Vector position, int buttons)
+        {
+            if (_hWnd == 0)
+                return false;
+            bool lButton = (buttons & MK_LBUTTON) != 0;
+            POINT point;
+            point.x = position.x;
+            point.y = position.y;
+            IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
+            host()->_sliders->knobEvent(host(), Vector(point.x, point.y),
+                lButton);
+            return lButton;  // Capture when button is down
+        }
+    private:
+        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
+    };
+
+    class EditControl : public EditWindow
+    {
+    public:
+        EditControl()
+        {
+            setExtendedStyle(WS_EX_CLIENTEDGE);
+            setStyle(WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | WS_TABSTOP);
+        }
+        void changed()
+        {
+            if (host()->_settingEdit)
+                return;
+            String t = getText();
+            double v = host()->_config->evaluate<double>(t, host()->_value);
+            host()->setValueFromEdit(v);
+        }
+        virtual LRESULT handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+            if (uMsg == WM_KEYDOWN) {
+                switch (wParam) {
+                    case VK_UP:
+                        host()->changeValue(0.01);
+                        return 0;
+                    case VK_DOWN:
+                        host()->changeValue(-0.01);
+                        return 0;
+                    case VK_PRIOR:
+                        host()->changeValue(0.1);
+                        return 0;
+                    case VK_NEXT:
+                        host()->changeValue(-0.1);
+                        return 0;
+                }
+            }
+            return EditWindow::handleMessage(uMsg, wParam, lParam);
+        }
+    private:
+        KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
+    };
+
+    TextWindow _caption;
+    KnobWindow _knob;
+    EditControl _edit;
+    KnobSliders* _sliders;
+    double _value;
+    double _min;
+    double _max;
+    int _knobDiameter;
+    int _popupLength;
+    int _captionWidth;
+    DWORD _lightGrey;
+    DWORD _darkGrey;
+    DWORD _black;
+    ConfigFile* _config;
+    bool _logarithmic;
+    bool _settingEdit;
+    std::function<void(double)> _valueSet;
+
+    friend class KnobWindow;
+    template<class T> friend class KnobSlidersT;
+    friend class EditWindow;
 };
 
 #endif // INCLUDED_KNOB_H

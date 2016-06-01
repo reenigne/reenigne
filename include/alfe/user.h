@@ -520,7 +520,7 @@ public:
                     _outerSize.y,                         // cy
                     SWP_NOZORDER | SWP_NOMOVE |
                     SWP_NOACTIVATE | SWP_NOREPOSITION |
-                    SWP_NOREDRAW));                       // uFlags
+                    SWP_NOREDRAW | SWP_ASYNCWINDOWPOS));  // uFlags
                 // ContainerWindow::setInnerSize() will be called via WM_SIZE,
                 // but we want to make sure our size is set correctly now so it
                 // can be used for layout before the message loop next runs.
@@ -546,7 +546,8 @@ public:
                 0,                                    // cx
                 0,                                    // cy
                 SWP_NOZORDER | SWP_NOSIZE |
-                SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOREDRAW));  // uFlags
+                SWP_NOACTIVATE | SWP_NOREPOSITION |
+                SWP_NOREDRAW | SWP_ASYNCWINDOWPOS));  // uFlags
             // ContainerWindow::setTopLeft() will be called via WM_MOVE, but we
             // want to make sure our position is set correctly now so it can be
             // used for layout before the message loop next runs.
@@ -1407,6 +1408,7 @@ public:
     int stride() const { return _bitmap.stride(); }
     const Byte* data() const { return _bitmap.data(); }
     Byte* data() { return _bitmap.data(); }
+    Bitmap<DWORD> bitmap() { return _bitmap; }
 protected:
     Bitmap<DWORD> _bitmap;
 
