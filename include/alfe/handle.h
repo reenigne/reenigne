@@ -3,6 +3,10 @@
 #ifndef INCLUDED_HANDLE_H
 #define INCLUDED_HANDLE_H
 
+// Base classes for reference-counted objects. Unlike std::shared_ptr, these
+// are not thread-safe, so you must do your own locking if you want to copy
+// and destruct handles from separate threads.
+
 class ConstHandle
 {
 public:

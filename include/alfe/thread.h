@@ -207,7 +207,7 @@ private:
     friend class ThreadPool;
 };
 
-class ThreadPool
+class ThreadPool : Uncopyable
 {
 public:
     ThreadPool(int threads = 0)

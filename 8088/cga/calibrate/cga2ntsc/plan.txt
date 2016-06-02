@@ -900,3 +900,10 @@ e has type LValue<Bitmap> and value (ConfigFile*, "inputPicture")
         _quality.setHost(this);
         add2(&_characterSetCombo);
 
+
+
+Resources about UI layout and dialog units:
+https://msdn.microsoft.com/en-us/library/dn742486.aspx
+https://msdn.microsoft.com/en-us/library/ms645502.aspx
+https://msdn.microsoft.com/en-us/library/dd145132.aspx
+

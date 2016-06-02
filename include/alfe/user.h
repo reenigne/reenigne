@@ -425,9 +425,10 @@ public:
         LPCWSTR className = _className;
         // We don't really need to register our own window class - we can use
         // one of the built-in classes. Some demoscene sizecoded demos use
-        // "edit"for example (but that sets the cursor to the I-beam).
+        // "Edit" for example (but that sets the cursor to the I-beam). And
+        // WC_STATIC doesn't work with SetLayeredWindowAttributes.
         if (className == 0)
-            className = WC_STATIC;
+            className = L"MDIClient";
 
         HINSTANCE hInstance = GetModuleHandle(NULL);
         IF_ZERO_THROW(hInstance);
@@ -717,9 +718,9 @@ protected:
             return;
         if (!paintHandle.erase())
             return;
-        HBRUSH hBrush = GetSysColorBrush(COLOR_MENU);
+        HBRUSH hBrush = GetSysColorBrush(COLOR_BTNFACE);
         SelectedObject bo(&paintHandle, hBrush);
-        Pen pen(PS_SOLID, 1, GetSysColor(COLOR_MENU));
+        Pen pen(PS_SOLID, 1, GetSysColor(COLOR_BTNFACE));
         SelectedObject po(&paintHandle, pen);
         Vector tl = paintHandle.topLeft();
         Vector br = paintHandle.bottomRight();
@@ -835,6 +836,8 @@ public:
             erase();
             return 0;
         }
+        if (uMsg == WM_ERASEBKGND)
+            return 0;
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 };

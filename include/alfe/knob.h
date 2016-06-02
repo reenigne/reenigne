@@ -46,7 +46,7 @@ protected:
             Lock lock(&_mutex);
             if (_useChromaKey) {
                 PaintHandle p(this);
-                setDIBits(p, p.topLeft(), p.bottomRight());
+                setDIBits(p, p.topLeft(), p.bottomRight(), _s);
                 return 0;
             }
         }
@@ -60,8 +60,8 @@ private:
             if (!_sliding) {
                 _dragStart = drag;
                 _positionStart = slider->position();
-                update(drag);
                 show(SW_SHOW);
+                update(drag);
             }
             else
                 update(drag);
@@ -83,8 +83,9 @@ private:
             int length = _slider->_popupLength;
             Vector2<double> delta = Vector2Cast<double>(drag - _dragStart);
             double distance = sqrt(delta.modulus2());
+            double position;
             if (distance < 40) {
-                _position = _positionStart + dot(delta, _delta)/length;
+                position = _positionStart + dot(delta, _delta)/length;
                 _a = _delta*length;
             }
             else {
@@ -93,11 +94,10 @@ private:
                     distance = -distance;
                     _delta = -_delta;
                 }
-                _position = _positionStart + distance/length;
-                _a = delta/(_position - _positionStart);
+                position = _positionStart + distance/length;
+                _a = delta/(position - _positionStart);
             }
-            _position = clamp(0.0, _position, 1.0);
-            _slider->setPosition(_position);
+            _slider->setPosition(clamp(0.0, position, 1.0));
         }
 
         _renderTask.restart();
@@ -107,53 +107,59 @@ private:
         Vector2<float> corners[4];
         Vector2<double> low;
         Vector2<double> high;
-        if (_sliding) {
+        Vector topLeft;
+        int length;
+        double position;
+        bool sliding;
+        {
             Lock lock(&_mutex);
-            int length = _slider->_popupLength;
+            position = _slider->position();
+            sliding = _sliding;
+            if (sliding) {
+                length = _slider->_popupLength;
 
-            low = Vector2Cast<double>(_dragStart) - _a*_positionStart;
-            high = _a + low;
+                low = Vector2Cast<double>(_dragStart) - _a*_positionStart;
+                high = _a + low;
 
-            double endPadding = _slider->outerSize().y/4;
-            Vector2<double> x = (high - low)*endPadding/length;
-            Vector2<double> y = 2.0*Vector2<double>(x.y, -x.x);
-            corners[0] = Vector2Cast<float>(low - x - y);
-            corners[1] = Vector2Cast<float>(low - x + y);
-            corners[2] = Vector2Cast<float>(high + x - y);
-            corners[3] = Vector2Cast<float>(high + x + y);
+                double endPadding = _slider->outerSize().y/4;
+                Vector2<double> x = (high - low)*endPadding/length;
+                Vector2<double> y = 2.0*Vector2<double>(x.y, -x.x);
+                corners[0] = Vector2Cast<float>(low - x - y);
+                corners[1] = Vector2Cast<float>(low - x + y);
+                corners[2] = Vector2Cast<float>(high + x - y);
+                corners[3] = Vector2Cast<float>(high + x + y);
 
-            Vector topLeft = Vector2Cast<int>(corners[0]);
-            Vector bottomRight = topLeft + Vector(1, 1);
-            for (int i = 1; i < 4; ++i) {
-                Vector c = Vector2Cast<int>(corners[i]);
-                topLeft.x = min(topLeft.x, c.x);
-                topLeft.y = min(topLeft.y, c.y);
-                bottomRight.x = max(bottomRight.x, c.x + 1);
-                bottomRight.y = max(bottomRight.y, c.y + 1);
-            }
+                topLeft = Vector2Cast<int>(corners[0]);
+                Vector bottomRight = topLeft + Vector(1, 1);
+                for (int i = 1; i < 4; ++i) {
+                    Vector c = Vector2Cast<int>(corners[i]);
+                    topLeft.x = min(topLeft.x, c.x);
+                    topLeft.y = min(topLeft.y, c.y);
+                    bottomRight.x = max(bottomRight.x, c.x + 1);
+                    bottomRight.y = max(bottomRight.y, c.y + 1);
+                }
 
-            _s = bottomRight - topLeft;
-            if (_s.x > _bitmap.size().x || _s.y > _bitmap.size().y) {
-                _bitmap = Bitmap<DWORD>(Vector(max(_s.x, _bitmap.size().x),
-                    max(_s.y, _bitmap.size().y)));
-                _hbmOld = SelectedObject();
-                _hbmBackBuffer = GDIObject(CreateCompatibleBitmap(_hdcScreen,
-                    _bitmap.size().x, _bitmap.size().y));
-                _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
+                _s = bottomRight - topLeft;
+                if (_s.x > _bitmap.size().x || _s.y > _bitmap.size().y) {
+                    _bitmap = Bitmap<DWORD>(Vector(max(_s.x, _bitmap.size().x),
+                        max(_s.y, _bitmap.size().y)));
+                    _hbmOld = SelectedObject();
+                    _hbmBackBuffer = GDIObject(CreateCompatibleBitmap(
+                        _hdcScreen, _bitmap.size().x, _bitmap.size().y));
+                    _hbmOld = SelectedObject(&_hdcSrc, _hbmBackBuffer);
+                }
             }
         }
-        else
-            _position = _slider->position();
 
         KnobSlider::KnobWindow* knob = &_slider->_knob;
-        Vector s = knob->innerSize();
-        Vector2<double> c = Vector2Cast<double>(s)/2.0;
+        Vector ks = knob->innerSize();
+        Vector2<double> c = Vector2Cast<double>(ks)/2.0;
         Bitmap<DWORD> b = knob->bitmap();
         b.fill(_slider->_lightGrey);
         fillCircle(b, _slider->_darkGrey, Vector2Cast<float>(c),
-            static_cast<float>(s.x/2.0));
-        Rotor2<double> r(-clamp(0.0, _position, 1.0)*3/4);
-        Vector2<double> o = Vector2<double>(-1, 1)*r*s.x/sqrt(8) + c;
+            static_cast<float>(ks.x/2.0));
+        Rotor2<double> r(-clamp(0.0, position, 1.0)*3/4);
+        Vector2<double> o = Vector2<double>(-1, 1)*r*ks.x/sqrt(8) + c;
         Vector2<double> w = Vector2<double>(1, 1)*r;
         Vector2<float> points[4];
         points[0] = Vector2Cast<float>(c - w);
@@ -163,15 +169,13 @@ private:
         fillParallelogram(b, &points[0], _slider->_black);
         knob->invalidate();
 
-        if (!_sliding)
+        if (!sliding)
             return;
 
-        setInnerSize(_s);
         for (int i = 0; i < 4; ++i)
-            corners[i] -= Vector2Cast<float>(_topLeft);
-        low -= _topLeft;
-        high -= _topLeft;
-        int length = _slider->_popupLength;
+            corners[i] -= Vector2Cast<float>(topLeft);
+        low -= topLeft;
+        high -= topLeft;
         // Transparent
         if (_useChromaKey)
             _bitmap.fill(0xff000000 | chromaKey);
@@ -195,20 +199,21 @@ private:
         double endPadding = _slider->outerSize().y/4;
         x = (high - low)*endPadding/(length*2);
         y = 2.0*Vector2<double>(x.y, -x.x);
-        Vector2<double> p = low + _position*(high - low);
+        Vector2<double> p = low + position*(high - low);
         corners[0] = Vector2Cast<float>(p - x - y);
         corners[1] = Vector2Cast<float>(p - x + y);
         corners[2] = Vector2Cast<float>(p + x - y);
         corners[3] = Vector2Cast<float>(p + x + y);
         fillParallelogram(_bitmap, &corners[0], _slider->_black);
 
+        setInnerSize(_s);
         if (_useChromaKey) {
-            MoveWindow(_hWnd, _topLeft.x, _topLeft.y, _s.x, _s.y, FALSE);
+            setTopLeft(topLeft);
             invalidate();
             return;
         }
 
-        setDIBits(_hdcSrc, Vector(0, 0), _s);
+        setDIBits(_hdcSrc, Vector(0, 0), _s, _s);
         POINT ptSrc;
         ptSrc.x = 0;
         ptSrc.y = 0;
@@ -216,8 +221,8 @@ private:
         size.cx = _s.x;
         size.cy = _s.y;
         POINT ptDst;
-        ptDst.x = _topLeft.x;
-        ptDst.y = _topLeft.y;
+        ptDst.x = topLeft.x;
+        ptDst.y = topLeft.y;
         BLENDFUNCTION blend;
         blend.BlendOp = AC_SRC_OVER;
         blend.BlendFlags = 0;
@@ -230,8 +235,8 @@ private:
                 Lock lock(&_mutex);
                 _useChromaKey = true;
             }
-            SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
-                LWA_COLORKEY);
+            IF_ZERO_THROW(SetLayeredWindowAttributes(_hWnd, chromaKey, 255,
+                LWA_COLORKEY));
             _renderTask.restart();
         }
     }
@@ -243,9 +248,8 @@ private:
     private:
         KnobSliders* _window;
     };
-    void setDIBits(HDC hdc, Vector ptl, Vector pbr)
+    void setDIBits(HDC hdc, Vector ptl, Vector pbr, Vector s)
     {
-        Vector s = innerSize();
         pbr = Vector(min(pbr.x, s.x), min(pbr.y, s.y));
         Vector ps = pbr - ptl;
         if (ps.x <= 0 || ps.y <= 0 || !_bitmap.valid())
@@ -275,8 +279,6 @@ private:
     BITMAPINFO _bmi;
     Vector2<double> _delta;
     RenderTask _renderTask;
-    Vector _topLeft;
-    double _position;
     Vector _s;
     Mutex _mutex;
     bool _useChromaKey;

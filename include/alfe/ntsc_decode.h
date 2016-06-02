@@ -522,38 +522,24 @@ public:
         _frequency.ensure(outputFrequencyLength);
         if (inputTimeLength != _inputTimeLength) {
             _inputTime.ensure(inputTimeLength);
-            //printf("Planning forward %i\n",inputTimeLength);
             _forward = FFTWPlanDFTR2C1D<float>(inputTimeLength, _inputTime,
                 _frequency, _rigor);
             _inputTimeLength = inputTimeLength;
-            //_forward.print();
-            //printf("Benchmarking\n");
-            //Timer t;
-            //for (int i = 0; i < 100000; ++i)
-            //    _forward.execute();
-            //t.output(String(""));
         }
         if (outputTimeLength != _outputTimeLength) {
             _iTime.ensure(outputTimeLength);
             _qTime.ensure(outputTimeLength);
-            //printf("Planning backward %i\n",outputTimeLength);
             _yTime.ensure(outputTimeLength);
             _backward = FFTWPlanDFTC2R1D<float>(outputTimeLength, _frequency,
                 _yTime, _rigor);
             _outputTimeLength = outputTimeLength;
-            //_backward.print();
-            //printf("Benchmarking\n");
-            //Timer t;
-            //for (int i = 0; i < 100000; ++i)
-            //    _backward.execute();
-            //t.output(String(""));
         }
 
         // Pad and transform Y
         for (int t = 0; t < inputLength; ++t)
             _inputTime[t + padding] = ntsc[t];
         padInput(padding, inputLength);
-        _forward.execute();
+        _forward.execute(_inputTime, _frequency);
 
         // Filter Y
         int chromaLow = clamp(0,
@@ -591,7 +577,7 @@ public:
             _inputTime[t + padding + 3] = static_cast<float>(ntsc[t + 3]);
         }
         padInput(padding, inputLength);
-        _forward.execute();
+        _forward.execute(_inputTime, _frequency);
 
         // Filter I
         int chromaCutoff = clamp(0,
@@ -610,7 +596,7 @@ public:
             _inputTime[t + padding + 3] = 0;
         }
         padInput(padding, inputLength);
-        _forward.execute();
+        _forward.execute(_inputTime, _frequency);
 
         // Filter Q
         for (int f = chromaCutoff; f < outputFrequencyLength; ++f)

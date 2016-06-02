@@ -67,7 +67,7 @@ public:
                 for (x = 0; x < 2; ++x) {
                     Byte b = input >> (x * 8);
                     for (int xx = 0; xx < 4; ++xx)
-                        r += static_cast<UInt64>(pal[(b >> (6 - x * 2)) & 3] * 0x11) << (x*32 + xx*8);
+                        r += static_cast<UInt64>(pal[(b >> (6 - xx * 2)) & 3] * 0x11) << (x*32 + xx*8);
                 }
                 break;
             case 3:
@@ -79,7 +79,7 @@ public:
                 for (x = 0; x < 4; ++x) {
                     Byte b = input >> (x * 8);
                     for (int xx = 0; xx < 4; ++xx)
-                        r += static_cast<UInt64>(pal[(b >> (6 - x * 2)) & 3] * 0x11) << (x*32 + xx*8);
+                        r += static_cast<UInt64>(pal[(b >> (6 - xx * 2)) & 3]) << (x*16 + xx*4);
                 }
                 break;
             case 0x10:

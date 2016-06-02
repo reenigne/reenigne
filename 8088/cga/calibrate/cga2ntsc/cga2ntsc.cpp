@@ -8,6 +8,7 @@
 #include "alfe/timer.h"
 #include "alfe/ntsc_decode.h"
 #include "alfe/knob.h"
+#include "alfe/scanlines.h"
 
 template<class T> class CGA2NTSCWindowT;
 typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
@@ -310,7 +311,6 @@ public:
         _error.fill(0);
         _errorRow = _error.data();
         _testError = Bitmap<int>(_block + Vector(4, 1));
-        //_window->resetColours();
         _config = _startConfig;
         _testConfig = (_startConfig + 1 != _endConfig);
         _configScore = 0x7fffffffffffffffUL;
@@ -386,8 +386,6 @@ public:
                     for (int xx = 0; xx < _block.x; ++xx) {
                         seq = (seq >> 4) | ((*rgbiPixel) << 28);
                         ++rgbiPixel;
-                        //_window->addColour(static_cast<UInt64>(seq) |
-                        //    (static_cast<UInt64>(xx & 3) << 32));
                     }
                 }
 
@@ -414,8 +412,8 @@ public:
                         lineScore += weight*d*d;
                         int error = weight*d;
                         errorPixel[xx + 4] += (error*_diffusionHorizontal)/256;
-                        reinterpret_cast<int*>(errorRow2 + _error.stride())[x + xx]
-                            += (error*_diffusionVertical/256);
+                        reinterpret_cast<int*>(errorRow2 + _error.stride())[
+                            x + xx] += (error*_diffusionVertical/256);
                     }
                     inputRow2 += _ntscInput.stride();
                     errorRow2 += _error.stride();
@@ -707,9 +705,10 @@ public:
         }
         const Byte* ntscRow = ntsc.data();
         Byte* outputRow = bitmap.data();
+        Vector size = requiredSize();
         for (int yy = 0; yy < ntsc.size().y; ++yy) {
             _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(outputRow),
-                ntsc.size().x - 6, bitmap.size().x);
+                ntsc.size().x - 6, size.x);
             memcpy(outputRow + bitmap.stride(), outputRow,
                 bitmap.size().x*sizeof(DWORD));
             outputRow += bitmap.stride()*2;
@@ -734,22 +733,26 @@ public:
     }
     int getConnector() { return _composite.getNewCGA() ? 2 : 1; }
     void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
-    void setScanlineWidth(double width) { _scanlineWidth = width; restart(); }
-    double getScanlineWidth() { return _scanlineWidth; }
     void setScanlineProfile(int profile)
     {
-        _scanlineProfile = profile;
+        _renderer.setProfile(profile);
         restart();
     }
-    int getScanlineProfile() { return _scanlineProfile; }
-    void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
-    double getZoom() { return _zoom; }
+    int getScanlineProfile() { return _renderer.getProfile(); }
+    void setScanlineWidth(double width)
+    {
+        _renderer.setWidth(static_cast<float>(width));
+        restart();
+    }
+    double getScanlineWidth() { return _renderer.getWidth(); }
     void setScanlineBleeding(bool bleeding)
     {
-        _scanlineBleeding = bleeding;
+        _renderer.setBleeding(bleeding);
         restart();
     }
-    bool getScanlineBleeding() { return _scanlineBleeding; }
+    bool getScanlineBleeding() { return _renderer.getBleeding(); }
+    void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
+    double getZoom() { return _zoom; }
     void setAspectRatio(double ratio)
     {
         _aspectRatio = ratio;
@@ -829,6 +832,7 @@ private:
     Bitmap<Byte> _ntsc;
     CGAComposite _composite;
     ResamplingNTSCDecoder _decoder;
+    ScanlineRenderer _renderer;
     double _scanlineWidth;
     int _scanlineProfile;
     double _zoom;
@@ -1808,11 +1812,13 @@ public:
         FFTWWisdom<float> wisdom(
             File(configFile.get<String>("fftWisdom"), config.parent()));
 
+        CGAOutput output;
+        _output = &output;
         _matcher.setProgram(this);
         _window.setConfig(&configFile);
         _window.setMatcher(&_matcher);
         _window.setShower(&_shower);
-        _window.setOutput(&_output);
+        _window.setOutput(&output);
         _window.setProgram(this);
 
         _matcher.setDiffusionHorizontal(
@@ -1832,30 +1838,30 @@ public:
             File(configFile.get<String>("cgaROM"), config.parent()));
 
         double brightness = configFile.get<double>("brightness");
-        _output.setBrightness(brightness);
+        output.setBrightness(brightness);
         _matcher.setBrightness(brightness);
         double saturation = configFile.get<double>("saturation");
-        _output.setSaturation(saturation);
+        output.setSaturation(saturation);
         _matcher.setSaturation(saturation);
         double hue = configFile.get<double>("hue");
-        _output.setHue(hue);
+        output.setHue(hue);
         _matcher.setHue(hue);
         double contrast = configFile.get<double>("contrast");
-        _output.setContrast(contrast);
+        output.setContrast(contrast);
         _matcher.setContrast(contrast);
-        _output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
-        _output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
+        output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
+        output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
         int connector = configFile.get<int>("connector");
-        _output.setConnector(connector);
+        output.setConnector(connector);
         _matcher.setNewCGA(connector == 2);
-        _output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
-        _output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
-        _output.setZoom(configFile.get<double>("zoom"));
-        _output.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
-        _output.setAspectRatio(configFile.get<double>("aspectRatio"));
-        _output.setCombFilterVertical(
+        output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
+        output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
+        output.setZoom(configFile.get<double>("zoom"));
+        output.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
+        output.setAspectRatio(configFile.get<double>("aspectRatio"));
+        output.setCombFilterVertical(
             configFile.get<int>("combFilterVertical"));
-        _output.setCombFilterTemporal(
+        output.setCombFilterTemporal(
             configFile.get<int>("combFilterTemporal"));
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
@@ -1922,15 +1928,15 @@ public:
 
         bool interactive = configFile.get<bool>("interactive");
         if (interactive) {
-            _output.setWindow(&_window);
+            output.setWindow(&_window);
             WindowProgram::run();
         }
 
         if (!_matchMode)
             _matcher.cancel();
         _matcher.join();
-        _output.reCreateNTSC();
-        _output.join();
+        output.reCreateNTSC();
+        output.join();
 
         if (!interactive)
             timer.output("Elapsed time");
@@ -1943,7 +1949,7 @@ public:
         if (i != -1)
             inputFileName = inputFileName.subString(0, i);
 
-        _output.save(inputFileName + "_out.png");
+        output.save(inputFileName + "_out.png");
         _matcher.save(inputFileName + "_out.dat");
         _matcher.saveRGBI(inputFileName + "_out.rgbi");
         _matcher.savePalettes(inputFileName + "_out.palettes");
@@ -1953,9 +1959,9 @@ public:
     {
         _matchMode = matchMode;
         if (!matchMode)
-            _output.setRGBI(_shower.getOutput());
+            _output->setRGBI(_shower.getOutput());
         else
-            _output.setRGBI(_matcher.getOutput());
+            _output->setRGBI(_matcher.getOutput());
     }
     void updateOutput()
     {
@@ -1980,7 +1986,7 @@ public:
 private:
     CGAMatcher _matcher;
     CGAShower _shower;
-    CGAOutput _output;
+    CGAOutput* _output;
     bool _matchMode;
     bool _updateNeeded;
 };
