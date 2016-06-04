@@ -293,6 +293,15 @@
       <Item Name="[Handle]">(Handle::Body*)this,nd</Item>
     </Expand>
   </Type>
+  <Type Name="FFTWArray&lt;*&gt;::Body">
+    <DisplayString>FFTWArray {_n,d}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>_n</Size>
+        <ValuePointer>($T1*)_data</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
   <Type Name="List&lt;*&gt;::Body">
     <DisplayString>{_count,d}</DisplayString>
     <Expand>

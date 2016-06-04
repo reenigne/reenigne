@@ -838,6 +838,14 @@ public:
         }
         if (uMsg == WM_ERASEBKGND)
             return 0;
+        if (uMsg == WM_SIZE) {
+            Vector s = vectorFromLParam(lParam);
+            if (s != innerSize()) {
+                ContainerWindow::setInnerSize(s);
+                redrawWindow(RDW_INVALIDATE | RDW_ALLCHILDREN);
+            }
+            return 0;
+        }
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 };

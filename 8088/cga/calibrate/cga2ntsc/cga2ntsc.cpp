@@ -697,22 +697,36 @@ public:
     void run()
     {
         Bitmap<Byte> ntsc;
+        Bitmap<DWORD> decoded;
         Bitmap<DWORD> bitmap;
         {
             Lock lock(&_mutex);
             ntsc = _ntsc;
             bitmap = _bitmap;
+            decoded = _decoded;
         }
         const Byte* ntscRow = ntsc.data();
-        Byte* outputRow = bitmap.data();
+        Byte* decodedRow = decoded.data();
         Vector size = requiredSize();
-        for (int yy = 0; yy < ntsc.size().y; ++yy) {
-            _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(outputRow),
+        if (ntsc.size().x <= 0 || ntsc.size().y <= 0 || size.x <= 0 ||
+            size.y <= 0)
+            return;
+        for (int y = 0; y < ntsc.size().y; ++y) {
+            _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(decodedRow),
                 ntsc.size().x - 6, size.x);
-            memcpy(outputRow + bitmap.stride(), outputRow,
-                bitmap.size().x*sizeof(DWORD));
-            outputRow += bitmap.stride()*2;
+            decodedRow += decoded.stride();
             ntscRow += ntsc.stride();
+        }
+
+        decodedRow = decoded.data();
+        Byte* outputRow = bitmap.data();
+        _renderer.setOffset(0);
+        _renderer.init(ntsc.size().y, size.y);
+        for (int x = 0; x < decoded.size().x; ++x) {
+            _renderer.renderColumn(decodedRow, decoded.stride(), outputRow,
+                bitmap.stride());
+            decodedRow += sizeof(DWORD);
+            outputRow += sizeof(DWORD);
         }
         if (_window != 0)
             _window->draw(bitmap);
@@ -824,12 +838,15 @@ private:
         Vector size = requiredSize();
         if (size.x > _bitmap.size().x || size.y > _bitmap.size().y)
             _bitmap = Bitmap<DWORD>(size);
+        if (size.x > _decoded.size().x)
+            _decoded = Bitmap<DWORD>(Vector(size.x, _ntsc.size().y));
         restart();
     }
 
     Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _ntsc;
+    Bitmap<DWORD> _decoded;
     CGAComposite _composite;
     ResamplingNTSCDecoder _decoder;
     ScanlineRenderer _renderer;
@@ -1309,9 +1326,9 @@ private:
                 _profile.setChanged(
                     [&](int value) { _host->scanlineProfileSet(value); });
                 _profile.setText("Profile: ");
-                _profile.add("rectangular");
+                _profile.add("rectangle");
                 _profile.add("triangle");
-                _profile.add("semicircle");
+                _profile.add("circle");
                 _profile.add("gaussian");
                 add(&_profile);
                 _width.setSliders(&_host->_knobSliders);

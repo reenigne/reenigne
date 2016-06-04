@@ -36,43 +36,51 @@ public:
         _inputLength = inputLength;
         _outputLength = outputLength;
 
-        float sigma = _width*outputTimeLength/inputTimeLength;
+        _profileFrequency.ensure(outputFrequencyLength);
+        float sigma = _width/inputTimeLength;
+        float scale = 1.0f/inputTimeLength;
+        float pi = static_cast<float>(tau/2);
         switch (_profile) {
             case 0:
                 // Rectangular
                 {
-                    float scale = sigma/M_PI;
-                    for (int i = 0; i < outputFrequencyLength; ++i) {
-                        float f = M_PI*i/sigma;
-                        _profileFrequency[i] = scale*sin(f)/i;
+                    scale *= 1/(sigma*pi);
+                    for (int i = 1; i < outputFrequencyLength; ++i) {
+                        float f = pi*i*sigma;
+                        _profileFrequency[i] = sin(f)/i;
                     }
+                    _profileFrequency[0] = pi*sigma;
                 }
                 break;
             case 1:
                 // Triangle
                 {
-                    for (int i = 0; i < outputFrequencyLength; ++i) {
-                        float f = M_PI*i/sigma;
+                    for (int i = 1; i < outputFrequencyLength; ++i) {
+                        float f = pi*i*sigma;
                         float s = sin(f)/f;
                         _profileFrequency[i] = s*s;
                     }
+                    _profileFrequency[0] = 1;
                 }
                 break;
             case 2:
                 // Semicircle
                 {
-                    FFTWRealArray<float> profileTime(outputFrequencyLength);
-                    _profileFrequency.ensure(outputTimeLength);
+                    float w = _width*outputTimeLength/inputTimeLength;
+                    float r2 = w*w;
+                    scale *= 2/(pi*r2);
+                    FFTWRealArray<float> profileTime(outputTimeLength);
+                    _profileFrequency.ensure(outputFrequencyLength);
                     FFTWPlanDFTR2C1D<float> transform(outputTimeLength,
                         profileTime, _profileFrequency, _rigor);
                     for (int i = 0; i < outputTimeLength; ++i) {
                         int y = i;
                         if (i > outputTimeLength/2)
-                            y = i - outputTimeLength;
-                        if (y > sigma)
+                            y = outputTimeLength - i;
+                        if (y > w)
                             profileTime[i] = 0;
                         else
-                            profileTime[i] = sqrt(sigma*sigma - y*y);
+                            profileTime[i] = sqrt(r2 - y*y);
                     }
                     transform.execute();
                 }
@@ -80,28 +88,42 @@ public:
             case 3:
                 // Gaussian
                 {
-                    float a = 1/(2*sigma*sigma);
-                    float scale = sqrt(M_PI/a) / (sigma*sqrt(2*M_PI));
-                    a = -M_PI*M_PI/(a * outputTimeLength * outputTimeLength);
+                    float a = -pi*pi*2*sigma*sigma;
                     for (int i = 0; i < outputFrequencyLength; ++i)
-                        _profileFrequency[i] = scale*exp(a*i*i);
+                        _profileFrequency[i] = exp(a*i*i);
                 }
                 break;
         }
-        for (int i = 0; i < outputFrequencyLength; ++i)
-            _profileFrequency[i] *= unit(i*_offset/outputFrequencyLength);
+        if (_width == 0)
+            scale = 0;
+        for (int i = 0; i < outputFrequencyLength; ++i) {
+            _profileFrequency[i] *=
+                scale*unit(i*_offset/outputFrequencyLength);
+        }
+
+        _oPad = static_cast<int>(
+            static_cast<float>(padding)*outputLength/inputLength);
     }
 
-    void renderColumn(const DWORD* input, int inputStride, DWORD* output,
+    void renderColumn(const Byte* input, int inputStride, Byte* output,
         int outputStride)
     {
         int inputFrequencyLength = _inputTimeLength/2 + 1;
         int outputFrequencyLength = _outputTimeLength/2 + 1;
+
+        Byte* outputColumn = output;
+        for (int i = 0; i < _outputLength; ++i) {
+            *reinterpret_cast<DWORD*>(outputColumn) = 0;
+            outputColumn += outputStride;
+        }
         for (int channel = 0; channel < 3; ++channel) {
             int shift = channel * 8;
+            const Byte* inputColumn = input;
             for (int i = 0; i < _inputLength; ++i) {
-                _inputTime[i + padding] =
-                    pow(((input[i] >> shift) & 0xff)/255.0f, 2.2f);
+                _inputTime[i + padding] = pow((
+                    (*reinterpret_cast<const DWORD*>(inputColumn) >> shift) &
+                    0xff)/255.0f, 2.2f);
+                inputColumn += inputStride;
             }
             for (int i = 0; i < padding; ++i) {
                 _inputTime[i] = _inputTime[padding];
@@ -123,9 +145,27 @@ public:
             for (int i = 0; i < outputFrequencyLength; ++i)
                 _frequency[i] *= _profileFrequency[i];
             _backward.execute();
+            if (_bleeding) {
+                float bleed = 0;
+                for (int i = 0; i < _outputTimeLength; ++i) {
+                    float o = _outputTime[i] + bleed;
+                    bleed = 0;
+                    if (o < 0) {
+                        bleed = o;
+                        o = 0;
+                    }
+                    if (o > 1) {
+                        bleed = o - 1;
+                        o = 1;
+                    }
+                    _outputTime[i] = o;
+                }
+            }
+            outputColumn = output;
             for (int i = 0; i < _outputLength; ++i) {
-                output[i] = (output[i] & ~(0xff << shift)) | (byteClamp(
-                    pow(_outputTime[i + padding], 1/2.2f)*255.0f) << shift);
+                *reinterpret_cast<DWORD*>(outputColumn) |= byteClamp(
+                    pow(_outputTime[i + _oPad], 1/2.2f)*255.0f) << shift;
+                outputColumn += outputStride;
             }
         }
     }
@@ -147,6 +187,7 @@ private:
     int _inputLength;
     int _outputLength;
     int _inputTimeLength;
+    int _oPad;
     FFTWRealArray<float> _inputTime;
     FFTWPlanDFTR2C1D<float> _forward;
     FFTWComplexArray<float> _frequency;
