@@ -584,6 +584,10 @@ public:
     {
         redrawWindow(Vector(0, 0), outerSize(), flags);
     }
+    void enableWindow(bool enabled)
+    {
+        EnableWindow(_hWnd, enabled ? TRUE : FALSE);
+    }
     void invalidate() { redrawWindow(RDW_INVALIDATE | RDW_FRAME); }
     Vector outerSize() const { return _outerSize; }
     Vector outerTopLeft() const { return _outerTopLeft; }
@@ -1279,6 +1283,11 @@ public:
     {
         ContainerWindow::setTopLeft(topLeft);
         repositionChildren();
+    }
+    void enableWindow(bool enabled)
+    {
+        _caption.enableWindow(enabled);
+        _list.enableWindow(enabled);
     }
 private:
     TextWindow _caption;

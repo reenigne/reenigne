@@ -112,6 +112,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\rational.h" />
     <ClInclude Include="..\..\..\..\include\alfe\rational_functions.h" />
     <ClInclude Include="..\..\..\..\include\alfe\reference.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\resample.h" />
     <ClInclude Include="..\..\..\..\include\alfe\rotors.h" />
     <ClInclude Include="..\..\..\..\include\alfe\scanlines.h" />
     <ClInclude Include="..\..\..\..\include\alfe\set.h" />

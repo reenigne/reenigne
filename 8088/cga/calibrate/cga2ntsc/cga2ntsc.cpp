@@ -9,6 +9,7 @@
 #include "alfe/ntsc_decode.h"
 #include "alfe/knob.h"
 #include "alfe/scanlines.h"
+#include "alfe/resample.h"
 
 template<class T> class CGA2NTSCWindowT;
 typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
@@ -1138,6 +1139,10 @@ public:
     {
         _output->setConnector(connector);
         _matcher->setNewCGA(connector == 2);
+        bool composite = (connector != 0);
+        _monitor._colour._saturation.enableWindow(composite);
+        _monitor._colour._hue.enableWindow(composite);
+        _monitor._filter.enableWindow(composite);
         beginConvert();
     }
 

@@ -128,6 +128,9 @@
     <ClInclude Include="..\..\..\..\include\alfe\scanlines.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\alfe\resample.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\..\include\alfe.natvis" />

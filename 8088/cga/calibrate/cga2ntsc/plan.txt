@@ -907,3 +907,34 @@ https://msdn.microsoft.com/en-us/library/dn742486.aspx
 https://msdn.microsoft.com/en-us/library/ms645502.aspx
 https://msdn.microsoft.com/en-us/library/dd145132.aspx
 
+
+
+FIR filters and SIMD:
+  Composite data
+                          Comb filtering (or just duplicate)
+                          Demodulate chroma
+                          Filter chroma and luma
+  14MHz sRGB
+                          Linearize
+  14MHz linear
+                          Horizontal and vertical filtering
+  linear output
+                          Bleed
+  clipped linear output
+                          Delinearize
+  sRGB output
+
+Figure out set of functions we want to build for desired features and performance
+  Decoding filter
+    16 bits
+    1 bit for overflow
+    do comb filter separately
+    Pre-broadcast filter kernels
+    Saturate. Results 0 and 255 indicate clipping
+    No resampling
+  Horizontal filter
+    Resampling
+
+  Vertical filter
+    Work on entire scanlines at once in order to help cache
+

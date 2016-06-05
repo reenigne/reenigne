@@ -594,7 +594,12 @@ public:
         return _logarithmic ? exp(position) : position;
     }
     void setLogarithmic(bool logarithmic) { _logarithmic = logarithmic; }
-
+    void enableWindow(bool enabled)
+    {
+        _caption.enableWindow(enabled);
+        _knob.enableWindow(enabled);
+        _edit.enableWindow(enabled);
+    }
 private:
     void setValueInternal(double value, bool drawKnob)
     {
