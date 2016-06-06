@@ -128,7 +128,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\scanlines.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\resample.h">
+    <ClInclude Include="..\..\..\..\include\alfe\image_filter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
