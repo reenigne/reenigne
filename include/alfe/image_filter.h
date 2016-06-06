@@ -1,7 +1,7 @@
 #include "alfe/main.h"
 
-#ifndef INCLUDED_RESAMPLE_H
-#define INCLUDED_RESAMPLE_H
+#ifndef INCLUDED_IMAGE_FILTER_H
+#define INCLUDED_IMAGE_FILTER_H
 
 #include <memory>
 #include <intrin.h>
@@ -264,4 +264,4 @@ class ImageFilterVertical
     int _outputStride;
 };
 
-#endif // INCLUDED_RESAMPLE_H
+#endif // INCLUDED_IMAGE_FILTER_H
