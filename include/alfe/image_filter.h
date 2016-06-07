@@ -40,75 +40,127 @@ class ImageFilter16
 {
     void execute()
     {
+        Byte* input = _input;
+        Byte* outputRow = _output;
+        int* kernelSizes = &_kernelSizes[0];
         if (useSSE2()) {
-            Byte* inputRow = reinterpret_cast<Byte*>(_input);
-            __m128i* outputRow = reinterpret_cast<__m128i*>(_output);
             __m128i* kernel = reinterpret_cast<__m128i*>(_kernelBuffer.data());
-            int* offsets = &_offsets[0];
             for (int y = 0; y < _height; ++y) {
+                __m128i* output = reinterpret_cast<__m128i*>(outputRow);
+                int* offsets = &_offsets[0];
                 for (int x = 0; x < _width; ++x) {
                     __m128i total = _mm_set1_epi16(0);
-                    float* input =
-                        reinterpret_cast<float*>(inputRow + offsets[x]);
-                    for (int k = 0; k < _kernelSize; ++k) {
+                    int kernelSize = kernelSizes[x];
+                    for (int k = 0; k < kernelSize; ++k) {
                         // We need to use an unaligned load here because we
                         // need it to be possible for any input position to
                         // affect any output position. We could do this by
                         // duplicating each input position eight times, but
                         // this would probably be slower than the unaligned
                         // loads.
-                        total = _mm_add_epi16(total, _mm_mullo_epi16(
-                            _mm_castps_si128(_mm_loadu_ps(input + k)),
-                            *kernel));
+                        total = _mm_add_epi16(total, _mm_mullo_epi16(*kernel,
+                            _mm_castps_si128(_mm_loadu_ps(
+                            reinterpret_cast<float*>(input + *offsets)))));
                         ++kernel;
+                        ++offsets;
                     }
-                    outputRow[x] = total;
+                    output[x] = total;
                 }
-                inputRow += _inputStride;
+                input += _inputStride;
                 outputRow += _outputStride;
             }
         }
         else {
-            UInt16* inputRow = reinterpret_cast<UInt16*>(_input);
-            UInt16* outputRow = reinterpret_cast<UInt16*>(_output);
             UInt16* kernel = reinterpret_cast<UInt16*>(_kernelBuffer.data());
-            int* offsets = &_offsets[0];
             for (int y = 0; y < _height; ++y) {
+                UInt16* output = reinterpret_cast<UInt16*>(outputRow);
+                int* offsets = &_offsets[0];
                 for (int x = 0; x < _width; ++x) {
                     UInt16 total = 0;
-                    UInt16* input = inputRow + offsets[x];
-                    for (int k = 0; k < _kernelSize; ++k) {
-                        total += input[k] * *kernel;
+                    int kernelSize = kernelSizes[x];
+                    for (int k = 0; k < kernelSize; ++k) {
+                        total += *reinterpret_cast<UInt16*>(input + *offsets) *
+                            *kernel;
                         ++kernel;
+                        ++offsets;
                     }
-                    outputRow[x] = total;
+                    output[x] = total;
                 }
-                inputRow += _inputStride;
+                input += _inputStride;
                 outputRow += _outputStride;
             }
         }
     }
-    void generate(int width, int height, Byte* input, int inputStride,
-        Byte* output, int outputStride, int kernelWidth,
-        std::function<float(float)> kernel)
+    // outputSize.x is in positions (a position is a pixel/channel combination)
+    // kernelWidth is in input positions: range is (-kernelWidth, kernelWidth)
+    // kernelFunction's arguments are inputPosition, outputPosition.
+    // kernelFunction's results should sum to 1 for each outputPosition.
+    // In inputLeft we return the leftmost inputPosition that will be accessed.
+    // In inputRight we return the rightmost inputPosition that will be
+    // accessed plus one.
+    // zoom is number of output positions per input position
+    // offset is inputPosition of outputPosition 0.
+    void generate(Vector outputSize, float kernelWidth,
+        std::function<float(int, int)> kernelFunction, int* inputLeft,
+        int* inputRight, float zoom, float offset)
     {
-        _height = height;
-        _width = width;
+        int pixelAlign = (useSSE2() ? 8 : 1);
+        _height = outputSize.y;
+        _width = (outputSize.x + pixelAlign - 1)/pixelAlign;
+        _kernelSizes.ensure(_width);
+        int kWidth = static_cast<int>(kernelWidth*2 + 1);
+        _kernelBuffer.ensure(kWidth*pixelAlign*_width*sizeof(UInt16));
+        _offsets.ensure(kWidth*_width*sizeof(int));
+        _kernelSizes.ensure(_width);
+        if (useSSE2()) {
+        }
+        else {
+            UInt16* kernel = reinterpret_cast<UInt16*>(_kernelBuffer.data());
+            float scale = 32767.0f/255.0f;
+            for (int x = 0; x < _width; ++x) {
+                //int offset = x - kWidth;
+                //_offsets[x] = offset;
+                float inputPosition = offset + x/zoom;
+                int minK = kWidth;
+                int maxK = -1;
+                for (int k = 0; k < kWidth; ++k) {
+                    int v =
+                        static_cast<int>(kernelFunction(offset + k, x)*scale);
+                    if (v != 0) {
+                        maxK = max(maxK, k);
+                        minK = min(minK, k);
+                    }
+                    if (maxK >= 0) {
+                        *kernel = v;
+                        ++kernel;
+                    }
+                }
+            }
+
+        }
+    }
+    // Strides are measured in bytes.
+    void setBuffers(Byte* input, int inputStride, Byte* output,
+        int outputStride)
+    {
+        _input = input;
+        _inputStride = inputStride;
+        _output = output;
+        _outputStride = outputStride;
     }
 
     // Buffers
     AlignedBuffer _kernelBuffer;
     Array<int> _offsets;
+    Array<int> _kernelSizes;
 
     // Correctly-aligned pointers
-    Byte* _kernel;
     Byte* _input;
     Byte* _output;
 
     // Parameters
     int _width;
     int _height;
-    int _kernelSize;
     int _inputStride;
     int _outputStride;
 };
@@ -119,16 +171,15 @@ class ImageFilterHorizontal
 {
     void execute()
     {
+        Byte* input = _input;
+        Byte* outputRow = _output;
         if (useSSE2()) {
-            Byte* inputRow = reinterpret_cast<Byte*>(_input);
-            __m128* outputRow = reinterpret_cast<__m128*>(_output);
             __m128* kernel = reinterpret_cast<__m128*>(_kernelBuffer.data());
-            int* offsets = &_offsets[0];
             for (int y = 0; y < _height; ++y) {
+                __m128* output = reinterpret_cast<__m128*>(outputRow);
+                int* offsets = &_offsets[0];
                 for (int x = 0; x < _width; ++x) {
                     __m128 total = _mm_set1_ps(0.0f);
-                    float* input =
-                        reinterpret_cast<float*>(inputRow + offsets[x]);
                     for (int k = 0; k < _kernelSize; ++k) {
                         // We need to use an unaligned load here because we
                         // need it to be possible for any input position to
@@ -136,33 +187,34 @@ class ImageFilterHorizontal
                         // duplicating each input position eight times, but
                         // this would probably be slower than the unaligned
                         // loads.
-                        total = _mm_add_ps(total, _mm_mul_ps(
-                            _mm_loadu_ps(input + k), *kernel));
+                        total = _mm_add_ps(total, _mm_mul_ps(*kernel,
+                            _mm_loadu_ps(reinterpret_cast<float*>(input +
+                                *offsets))));
                         ++kernel;
+                        ++offsets;
                     }
-                    outputRow[x] = total;
+                    output[x] = total;
                 }
-                inputRow += _inputStride;
+                input += _inputStride;
                 outputRow += _outputStride;
             }
         }
         else {
-            float* inputRow = reinterpret_cast<float*>(_input);
-            float* outputRow = reinterpret_cast<float*>(_output);
             float* kernel = reinterpret_cast<float*>(_kernelBuffer.data());
-            int* offsets = &_offsets[0];
             for (int y = 0; y < _height; ++y) {
+                float* output = reinterpret_cast<float*>(outputRow);
+                int* offsets = &_offsets[0];
                 for (int x = 0; x < _width; ++x) {
                     float total = 0;
-                    float* input =
-                        reinterpret_cast<float*>(inputRow + offsets[x]);
                     for (int k = 0; k < _kernelSize; ++k) {
-                        total += input[k] * *kernel;
+                        total += *reinterpret_cast<float*>(input + *offsets) *
+                            *kernel;
                         ++kernel;
+                        ++offsets;
                     }
-                    outputRow[x] = total;
+                    output[x] = total;
                 }
-                inputRow += _inputStride;
+                input += _inputStride;
                 outputRow += _outputStride;
             }
         }
@@ -198,40 +250,38 @@ class ImageFilterVertical
 {
     void execute()
     {
+        Byte* inputStart = _input;
+        Byte* outputRow = _output;
+        Byte* kernel = _kernelBuffer.data();
+        int* offsets = &_offsets[0];
         if (useSSE2()) {
-            __m128* inputStart = reinterpret_cast<__m128*>(_input);
-            __m128* outputRow = reinterpret_cast<__m128*>(_output);
-            __m128* kernel = reinterpret_cast<__m128*>(_kernel);
-            int* offsets = &_offsets[0];
             for (int y = 0; y < _height; ++y) {
-                __m128* input = inputStart + offsets[y];
+                Byte* input = inputStart + offsets[y];
                 for (int x = 0; x < _width; ++x) {
                     __m128 total = _mm_set1_ps(0.0f);
                     for (int k = 0; k < _kernelSize; ++k) {
-                        total =
-                            _mm_add_ps(total, _mm_mul_ps(*input, kernel[k]));
+                        total = _mm_add_ps(total, _mm_mul_ps(
+                            reinterpret_cast<__m128*>(kernel)[k],
+                            *reinterpret_cast<__m128*>(input)));
                         input += _inputStride;
                     }
-                    outputRow[x] = total;
+                    reinterpret_cast<__m128*>(outputRow)[x] = total;
                 }
                 outputRow += _outputStride;
                 kernel += _kernelStride;
             }
         }
         else {
-            float* inputStart = reinterpret_cast<float*>(_input);
-            float* outputRow = reinterpret_cast<float*>(_output);
-            float* kernel = reinterpret_cast<float*>(_kernel);
-            int* offsets = &_offsets[0];
             for (int y = 0; y < _height; ++y) {
-                float* input = inputStart + offsets[y];
+                Byte* input = inputStart + offsets[y];
                 for (int x = 0; x < _width; ++x) {
                     float total = 0;
                     for (int k = 0; k < _kernelSize; ++k) {
-                        total += *input * kernel[k];
+                        total += reinterpret_cast<float*>(kernel)[k] *
+                            *reinterpret_cast<float*>(input);
                         input += _inputStride;
                     }
-                    outputRow[x] = total;
+                    reinterpret_cast<float*>(outputRow)[x] = total;
                 }
                 outputRow += _outputStride;
                 kernel += _kernelStride;

@@ -53,9 +53,11 @@ protected:
         return WindowsWindow::handleMessage(uMsg, wParam, lParam);
     }
 private:
-    void knobEvent(KnobSlider* slider, Vector drag, bool buttonDown)
+    bool knobEvent(KnobSlider* slider, Vector drag, bool buttonDown)
     {
         _slider = slider;
+        if (!slider->_enabled)
+            buttonDown = false;
         if (buttonDown) {
             if (!_sliding) {
                 _dragStart = drag;
@@ -69,6 +71,7 @@ private:
         if (!buttonDown && _sliding)
             show(SW_HIDE);
         _sliding = buttonDown;
+        return buttonDown;  // Capture when button is down
     }
     void drawKnob(KnobSlider* slider)
     {
@@ -156,8 +159,9 @@ private:
         Vector2<double> c = Vector2Cast<double>(ks)/2.0;
         Bitmap<DWORD> b = knob->bitmap();
         b.fill(_slider->_lightGrey);
-        fillCircle(b, _slider->_darkGrey, Vector2Cast<float>(c),
-            static_cast<float>(ks.x/2.0));
+        fillCircle(b,
+            _slider->_enabled ? _slider->_darkGrey : _slider->_disabledGrey,
+            Vector2Cast<float>(c), static_cast<float>(ks.x/2.0));
         Rotor2<double> r(-clamp(0.0, position, 1.0)*3/4);
         Vector2<double> o = Vector2<double>(-1, 1)*r*ks.x/sqrt(8) + c;
         Vector2<double> w = Vector2<double>(1, 1)*r;
@@ -166,7 +170,8 @@ private:
         points[1] = Vector2Cast<float>(c + w);
         points[2] = Vector2Cast<float>(o - w);
         points[3] = Vector2Cast<float>(o + w);
-        fillParallelogram(b, &points[0], _slider->_black);
+        fillParallelogram(b, &points[0],
+            _slider->_enabled ? _slider->_black : _slider->_darkGrey);
         knob->invalidate();
 
         if (!sliding)
@@ -534,13 +539,16 @@ template<class T> class KnobSliderT : public ContainerWindow
 public:
     KnobSliderT()
       : _config(0), _knobDiameter(24), _popupLength(301), _captionWidth(112),
-        _logarithmic(false), _settingEdit(false)
+        _logarithmic(false), _settingEdit(false), _enabled(true)
     {
         add(&_caption);
         add(&_knob);
         add(&_edit);
         _lightGrey = getSysColor(COLOR_BTNFACE, 0xc0c0c0);
         _darkGrey = getSysColor(COLOR_GRAYTEXT, 0x7f7f7f);
+        _disabledGrey = (((_lightGrey & 0xff) + (_darkGrey & 0xff))/2) |
+            (((_lightGrey & 0xff00) + (_darkGrey & 0xff00))/2) |
+            (((_lightGrey & 0xff0000) + (_darkGrey & 0xff0000))/2);
         _black = getSysColor(COLOR_WINDOWTEXT, 0x000000);
     }
     void setSliders(KnobSliders* sliders) { _sliders = sliders; }
@@ -596,9 +604,11 @@ public:
     void setLogarithmic(bool logarithmic) { _logarithmic = logarithmic; }
     void enableWindow(bool enabled)
     {
-        _caption.enableWindow(enabled);
-        _knob.enableWindow(enabled);
-        _edit.enableWindow(enabled);
+        if (enabled != _enabled) {
+            _enabled = enabled;
+            _knob.draw();
+        }
+        ContainerWindow::enableWindow(enabled);
     }
 private:
     void setValueInternal(double value, bool drawKnob)
@@ -669,9 +679,8 @@ private:
             point.x = position.x;
             point.y = position.y;
             IF_ZERO_THROW(ClientToScreen(_hWnd, &point));
-            host()->_sliders->knobEvent(host(), Vector(point.x, point.y),
-                lButton);
-            return lButton;  // Capture when button is down
+            return host()->_sliders->knobEvent(host(),
+                Vector(point.x, point.y), lButton);
         }
     private:
         KnobSlider* host() { return static_cast<KnobSlider*>(parent()); }
@@ -727,6 +736,7 @@ private:
     int _knobDiameter;
     int _popupLength;
     int _captionWidth;
+    DWORD _disabledGrey;
     DWORD _lightGrey;
     DWORD _darkGrey;
     DWORD _black;
@@ -734,6 +744,7 @@ private:
     bool _logarithmic;
     bool _settingEdit;
     std::function<void(double)> _valueSet;
+    bool _enabled;
 
     friend class KnobWindow;
     template<class T> friend class KnobSlidersT;

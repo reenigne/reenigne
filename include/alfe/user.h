@@ -268,6 +268,11 @@ public:
             window = _container.getNext(window);
         }
     }
+    virtual void enableWindow(bool enabled)
+    {
+        for (auto& window : _container)
+            dynamic_cast<ContainerWindow*>(&window)->enableWindow(enabled);
+    }
 protected:
     LinkedList<Window> _container;
     Window* _focus;
@@ -587,6 +592,7 @@ public:
     void enableWindow(bool enabled)
     {
         EnableWindow(_hWnd, enabled ? TRUE : FALSE);
+        ContainerWindow::enableWindow(enabled);
     }
     void invalidate() { redrawWindow(RDW_INVALIDATE | RDW_FRAME); }
     Vector outerSize() const { return _outerSize; }
@@ -1283,11 +1289,6 @@ public:
     {
         ContainerWindow::setTopLeft(topLeft);
         repositionChildren();
-    }
-    void enableWindow(bool enabled)
-    {
-        _caption.enableWindow(enabled);
-        _list.enableWindow(enabled);
     }
 private:
     TextWindow _caption;

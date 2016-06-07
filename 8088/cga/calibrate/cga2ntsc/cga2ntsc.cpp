@@ -9,7 +9,7 @@
 #include "alfe/ntsc_decode.h"
 #include "alfe/knob.h"
 #include "alfe/scanlines.h"
-#include "alfe/resample.h"
+#include "alfe/image_filter.h"
 
 template<class T> class CGA2NTSCWindowT;
 typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
@@ -944,6 +944,7 @@ public:
         setInnerSize(Vector(0, 0));
         _outputWindow.setInnerSize(_output->requiredSize());
         RootWindow::create();
+        updateApplicableControls();
     }
     void innerSizeSet(Vector size)
     {
@@ -996,6 +997,22 @@ public:
     void draw(Bitmap<DWORD> bitmap) { _outputWindow.draw(bitmap); }
     void beginConvert() { _program->beginConvert(); }
 
+    void updateApplicableControls()
+    {
+        bool matchMode = _program->getMatchMode();
+        int mode = _matcher->getMode();
+        int scanlinesPerRow = _matcher->getScanlinesPerRow();
+        _videoCard._registers._blink.enableWindow((mode & 2) == 0);
+        _videoCard._registers._palette.enableWindow((mode & 0x12) == 2);
+        _videoCard._registers._phase.enableWindow((mode & 1) == 1);
+        _videoCard._matching._quality.enableWindow(matchMode &&
+            (((mode & 3) != 2 || scanlinesPerRow > 2)));
+        _videoCard._matching._characterSet.enableWindow(matchMode &&
+            (mode & 2) == 0);
+        _videoCard._matching._diffusionHorizontal.enableWindow(matchMode);
+        _videoCard._matching._diffusionVertical.enableWindow(matchMode);
+        _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
+    }
     void modeSet(int value)
     {
         static const int modes[8] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3};
@@ -1003,6 +1020,7 @@ public:
             (_videoCard._registers._bw.checked() ? 4 : 0) |
             (_videoCard._registers._blink.checked() ? 0x20 : 0);
         _matcher->setMode(mode);
+        updateApplicableControls();
         beginConvert();
     }
     void backgroundSet(int value)
@@ -1028,6 +1046,7 @@ public:
     void scanlinesPerRowSet(int value)
     {
         _matcher->setScanlinesPerRow(value + 1);
+        updateApplicableControls();
         beginConvert();
     }
     void scanlinesRepeatSet(int value)
@@ -1099,6 +1118,7 @@ public:
     void matchModeSet(bool value)
     {
         _program->setMatchMode(value);
+        updateApplicableControls();
         beginConvert();
         reCreateNTSC();
     }
