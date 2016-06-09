@@ -19,6 +19,7 @@ bool useSSE2()
 class AlignedBuffer
 {
 public:
+    AlignedBuffer() { }
     AlignedBuffer(int x, int y = 1) { ensure(x, y); }
     void ensure(int x, int y = 1)
     {
@@ -41,6 +42,7 @@ private:
 // Filters and resamples an image horizontally using 16-bit integer arithmetic.
 class ImageFilter16
 {
+public:
     void execute()
     {
         Byte* input = _input;
@@ -109,8 +111,8 @@ class ImageFilter16
     // zoom is number of output pixels per input pixel
     // offset is input position of output pixel 0.
     void generate(Vector outputSize, int inputChannels,
-        float* inputChannelPositions, int outputChannels,
-        float* outputChannelPositions, float kernelRadius,
+        const float* inputChannelPositions, int outputChannels,
+        const float* outputChannelPositions, float kernelRadius,
         std::function<float(float, int, int)> kernelFunction, int* inputLeft,
         int* inputRight, float zoom, float offset)
     {
@@ -217,6 +219,7 @@ class ImageFilter16
         _output = output;
     }
 
+private:
     // Buffers
     AlignedBuffer _kernelBuffer;
     Array<int> _offsets;
@@ -236,6 +239,7 @@ class ImageFilter16
 // floating-point arithmetic.
 class ImageFilterHorizontal
 {
+public:
     void execute()
     {
         Byte* input = _input;
@@ -304,8 +308,8 @@ class ImageFilterHorizontal
     // zoom is number of output pixels per input pixel
     // offset is input position of output pixel 0.
     void generate(Vector outputSize, int inputChannels,
-        float* inputChannelPositions, int outputChannels,
-        float* outputChannelPositions, float kernelRadius,
+        const float* inputChannelPositions, int outputChannels,
+        const float* outputChannelPositions, float kernelRadius,
         std::function<float(float, int, int)> kernelFunction, int* inputLeft,
         int* inputRight, float zoom, float offset)
     {
@@ -409,6 +413,7 @@ class ImageFilterHorizontal
         _output = output;
     }
 
+private:
     // Buffers
     AlignedBuffer _kernelBuffer;
     Array<int> _offsets;
@@ -428,6 +433,7 @@ class ImageFilterHorizontal
 // floating-point arithmetic.
 class ImageFilterVertical
 {
+public:
     void execute()
     {
         Byte* inputStart = _input;
@@ -540,6 +546,7 @@ class ImageFilterVertical
             _offsets[y] = _offsetCounts[y]*_inputBuffer.stride();
     }
 
+private:
     // Buffers
     AlignedBuffer _kernelBuffer;
     Array<int> _offsetCounts;

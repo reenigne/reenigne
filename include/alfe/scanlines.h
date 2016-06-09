@@ -6,6 +6,8 @@
 #ifndef INCLUDED_SCANLINES_H
 #define INCLUDED_SCANLINES_H
 
+#include "alfe/image_filter.h"
+
 class ScanlineRenderer
 {
     static const int padding = 32;
@@ -195,6 +197,139 @@ private:
     FFTWPlanDFTC2R1D<float> _backward;
     int _outputTimeLength;
     FFTWRealArray<float> _outputTime;
+};
+
+class FIRScanlineRenderer
+{
+public:
+    void init()
+    {
+        float kernelRadiusVertical = 16;
+        int inputTop;
+        int inputBottom;
+        std::function<float(float)> verticalKernel;
+
+        switch (_profile) {
+            case 0:
+                // Rectangle
+                verticalKernel = [&](float distance)
+                {
+                    return 0.0f;
+                };
+
+                //{
+                //    scale *= 1/(sigma*pi);
+                //    for (int i = 1; i < outputFrequencyLength; ++i) {
+                //        float f = pi*i*sigma;
+                //        _profileFrequency[i] = sin(f)/i;
+                //    }
+                //    _profileFrequency[0] = pi*sigma;
+                //}
+                break;
+            case 1:
+                // Triangle
+                verticalKernel = [&](float distance)
+                {
+                    return 0.0f;
+                };
+
+                //{
+                //    for (int i = 1; i < outputFrequencyLength; ++i) {
+                //        float f = pi*i*sigma;
+                //        float s = sin(f)/f;
+                //        _profileFrequency[i] = s*s;
+                //    }
+                //    _profileFrequency[0] = 1;
+                //}
+                break;
+            case 2:
+                // Circle
+                verticalKernel = [&](float distance)
+                {
+                    return 0.0f;
+                };
+
+                //{
+                //    float w = _width*outputTimeLength/inputTimeLength;
+                //    float r2 = w*w;
+                //    scale *= 2/(pi*r2);
+                //    FFTWRealArray<float> profileTime(outputTimeLength);
+                //    _profileFrequency.ensure(outputFrequencyLength);
+                //    FFTWPlanDFTR2C1D<float> transform(outputTimeLength,
+                //        profileTime, _profileFrequency, _rigor);
+                //    for (int i = 0; i < outputTimeLength; ++i) {
+                //        int y = i;
+                //        if (i > outputTimeLength/2)
+                //            y = outputTimeLength - i;
+                //        if (y > w)
+                //            profileTime[i] = 0;
+                //        else
+                //            profileTime[i] = sqrt(r2 - y*y);
+                //    }
+                //    transform.execute();
+                //}
+                break;
+            case 3:
+                // Gaussian
+                {
+                    float a = -1/(2*_width*_width);
+                    float b = 1/(sqrt(tau)*_width);
+                    verticalKernel = [&](float distance)
+                    {
+                        return b*exp(a*distance*distance);
+                    };
+                }
+                break;
+        }
+
+        _vertical.generate(_size, kernelRadiusVertical, verticalKernel,
+            &inputTop, &inputBottom, _zoom.y, _offset.y);
+
+        static const float inputChannelPositions[3] = {0, 0, 0};
+        static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
+
+        float kernelRadiusHorizontal = 16;
+        int inputLeft;
+        int inputRight;
+        float bandLimit = 1;
+        if (_zoom.x < 1)
+            bandLimit = _zoom.x;
+        _horizontal.generate(Vector(_size.x, inputBottom - inputTop), 3,
+            inputChannelPositions, 3, outputChannelPositions,
+            kernelRadiusHorizontal,
+            [&](float distance, int inputChannel, int outputChannel)
+            {
+                if (inputChannel != outputChannel)
+                    return 0.0f;
+                return sinc(distance*bandLimit);
+            },
+            &inputLeft, &inputRight, _zoom.x, _offset.x);
+    }
+    void render()
+    {
+        _horizontal.execute();
+        _vertical.execute();
+    }
+    int getProfile() { return _profile; }
+    void setProfile(int profile) { _profile = profile; }
+    float getWidth() { return _width; }
+    void setWidth(float width) { _width = width; }
+    bool getBleeding() { return _bleeding; }
+    void setBleeding(bool bleeding) { _bleeding = bleeding; }
+    void setZoom(Vector2<float> zoom) { _zoom = zoom; }
+    void setOffset(Vector2<float> offset) { _offset = offset; }
+    void setOutputSize(Vector size) { _size = size; }
+
+private:
+    int _profile;
+    float _width;
+    bool _bleeding;
+    Vector2<float> _offset;
+    Vector2<float> _zoom;
+    Vector _size;
+
+    ImageFilterHorizontal _horizontal;
+    ImageFilterVertical _vertical;
 };
 
 #endif // INCLUDED_SCANLINES_H

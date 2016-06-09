@@ -6,6 +6,8 @@
 #ifndef INCLUDED_NTSC_DECODE_H
 #define INCLUDED_NTSC_DECODE_H
 
+#include "alfe/image_filter.h"
+
 float sinc(float z)
 {
     if (z == 0.0f)
@@ -491,8 +493,8 @@ private:
     double _brightness2;
 };
 
-// Similar to NTSCDecoder except it can resample the output to arbitrary
-// widths.
+// Similar to NTSCDecoder except that the luma and chroma bandwidths can be
+// changed.
 class ResamplingNTSCDecoder
 {
 public:
@@ -507,6 +509,36 @@ public:
             _contrast*2/iq.modulus();
         _contrast2 = _contrast;
         _brightness2 = _brightness*256.0f;
+    }
+
+    void init()
+    {
+        static const float inputChannelPositions[8] =
+            {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
+        static const float outputChannelPositions[3] = {0, 0, 0};
+        int inputLeft;
+        int inputRight;
+
+        Vector outputSize;
+        float kernelRadius = 16;
+        float offset;
+
+        _filter.generate(outputSize, 8, inputChannelPositions, 3,
+            outputChannelPositions, kernelRadius,
+            [&](float distance, int inputChannel, int outputChannel)
+            {
+                float result;
+                if ((inputChannel & 1) == 0) {
+                    // Luma
+
+                }
+                else {
+                    // Chroma
+                }
+
+                return result;
+            },
+            &inputLeft, &inputRight, 1, offset);
     }
 
     void decodeLine(const Byte* ntsc, DWORD* srgb, int inputLength,
@@ -621,8 +653,15 @@ public:
                     -0.0275f*r +0.9350f*g +0.0670f*b,
                     -0.0272f*r -0.0401f*g +1.1677f*b);
             }
-            *srgb = (byteClamp(c.x) << 16) | (byteClamp(c.y) << 8) |
-                byteClamp(c.z);
+            if (_showClipping) {
+                *srgb = (invertClip(byteClamp(c.x)) << 16) |
+                    (invertClip(byteClamp(c.y)) << 8) |
+                    invertClip(byteClamp(c.z));
+            }
+            else {
+                *srgb = (byteClamp(c.x) << 16) | (byteClamp(c.y) << 8) |
+                    byteClamp(c.z);
+            }
             ++srgb;
         }
     }
@@ -649,6 +688,8 @@ public:
     {
         _brightness = static_cast<float>(brightness);
     }
+    bool getShowClipping() { return _showClipping; }
+    void setShowClipping(bool showClipping) { _showClipping = showClipping; }
     double getChromaBandwidth() { return _chromaBandwidth; }
     void setChromaBandwidth(double chromaBandwidth)
     {
@@ -669,12 +710,21 @@ private:
                 _inputTime[padding + (inputLength - 4) + (t & 3)];
         }
     }
+    static Byte invertClip(Byte v)
+    {
+        if (v == 0)
+            return 0xff;
+        if (v == 0xff)
+            return 0;
+        return v;
+    }
 
     bool _ntscPrimaries;
     float _hue;
     float _saturation;
     float _contrast;
     float _brightness;
+    bool _showClipping;
     float _chromaBandwidth;
     float _lumaBandwidth;
 
@@ -693,6 +743,8 @@ private:
     int _outputTimeLength;
 
     int _rigor;
+
+    ImageFilter16 _filter;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

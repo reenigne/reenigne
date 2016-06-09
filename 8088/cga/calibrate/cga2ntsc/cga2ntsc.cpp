@@ -774,18 +774,8 @@ public:
         allocateBitmap();
     }
     double getAspectRatio() { return _aspectRatio; }
-    void setCombFilterVertical(int value)
-    {
-        _combFilterVertical = value;
-        restart();
-    }
-    int getCombFilterVertical() { return _combFilterVertical; }
-    void setCombFilterTemporal(int value)
-    {
-        _combFilterTemporal = value;
-        restart();
-    }
-    int getCombFilterTemporal() { return _combFilterTemporal; }
+    void setCombFilter(int value) { _combFilter = value; restart(); }
+    int getCombFilter() { return _combFilter; }
     ResamplingNTSCDecoder* getDecoder() { return &_decoder; }
 
     double getHue() { return _decoder.getHue(); }
@@ -806,6 +796,12 @@ public:
     void setBrightness(double brightness)
     {
         _decoder.setBrightness(brightness);
+        restart();
+    }
+    bool getShowClipping() { return _decoder.getShowClipping(); }
+    void setShowClipping(bool showClipping)
+    {
+        _decoder.setShowClipping(showClipping);
         restart();
     }
     double getChromaBandwidth() { return _decoder.getChromaBandwidth(); }
@@ -856,8 +852,7 @@ private:
     double _zoom;
     bool _scanlineBleeding;
     double _aspectRatio;
-    int _combFilterVertical;
-    int _combFilterTemporal;
+    int _combFilter;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
 };
@@ -882,13 +877,12 @@ public:
         _monitor._colour._saturation.setValue(_output->getSaturation());
         _monitor._colour._contrast.setValue(_output->getContrast());
         _monitor._colour._hue.setValue(_output->getHue());
+        _monitor._colour._showClipping.setCheckState(
+            _output->getShowClipping());
         _monitor._filter._chromaBandwidth.setValue(
             _output->getChromaBandwidth());
         _monitor._filter._lumaBandwidth.setValue(_output->getLumaBandwidth());
-        _monitor._filter._combFilterVertical.set(
-            _output->getCombFilterVertical());
-        _monitor._filter._combFilterTemporal.set(
-            _output->getCombFilterTemporal());
+        _monitor._filter._combFilter.set(_output->getCombFilter());
         _monitor._scanlines._profile.set(_output->getScanlineProfile());
         _monitor._scanlines._width.setValue(_output->getScanlineWidth());
         _monitor._scanlines._bleeding.setCheckState(
@@ -1082,14 +1076,7 @@ public:
         _output->setScanlineBleeding(value);
     }
     void aspectRatioSet(double value) { _output->setAspectRatio(value); }
-    void combFilterVerticalSet(int value)
-    {
-        _output->setCombFilterVertical(value);
-    }
-    void combFilterTemporalSet(int value)
-    {
-        _output->setCombFilterTemporal(value);
-    }
+    void combFilterSet(int value) { _output->setCombFilter(value); }
     void bwSet(bool value)
     {
         _matcher->setMode((_matcher->getMode() & ~4) | (value ? 4 : 0));
@@ -1146,6 +1133,11 @@ public:
         _output->setHue(hue);
         _matcher->setHue(hue);
         beginConvert();
+    }
+    void showClippingSet(bool showClipping)
+    {
+        _output->setShowClipping(showClipping);
+        _output->restart();
     }
     void chromaBandwidthSet(double chromaBandwidth)
     {
@@ -1265,6 +1257,10 @@ private:
                 _hue.setText("Hue: ");
                 _hue.setRange(-180, 180);
                 add(&_hue);
+                _showClipping.setClicked(
+                    [&](bool value) { _host->showClippingSet(value); });
+                _showClipping.setText("Show clipping");
+                add(&_showClipping);
             }
             void layout()
             {
@@ -1277,13 +1273,17 @@ private:
                 r = max(r, _contrast.right());
                 _hue.setTopLeft(_contrast.bottomLeft() + vSpace);
                 r = max(r, _hue.right());
-                setInnerSize(Vector(r, _hue.bottom()) + _host->groupBR());
+                _showClipping.setTopLeft(_hue.bottomLeft() + vSpace);
+                r = max(r, _showClipping.right());
+                setInnerSize(
+                    Vector(r, _showClipping.bottom()) + _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             KnobSlider _brightness;
             KnobSlider _saturation;
             KnobSlider _contrast;
             KnobSlider _hue;
+            CheckBox _showClipping;
         };
         ColourGroup _colour;
         struct FilterGroup : public GroupBox
@@ -1304,20 +1304,15 @@ private:
                 _lumaBandwidth.setText("Luma bandwidth: ");
                 _lumaBandwidth.setRange(0, 2);
                 add(&_lumaBandwidth);
-                _combFilterVertical.setChanged(
-                    [&](int value) { _host->combFilterVerticalSet(value); });
-                _combFilterVertical.setText("Comb filter vertical: ");
-                _combFilterVertical.add("none");
-                _combFilterVertical.add("(1, 1)");
-                _combFilterVertical.add("(1, 2, 1)");
-                add(&_combFilterVertical);
-                _combFilterTemporal.setChanged(
-                    [&](int value) { _host->combFilterTemporalSet(value); });
-                _combFilterTemporal.setText("Comb filter temporal: ");
-                _combFilterTemporal.add("none");
-                _combFilterTemporal.add("(1, 1)");
-                _combFilterTemporal.add("(1, 2, 1)");
-                add(&_combFilterTemporal);
+                _combFilter.setChanged(
+                    [&](int value) { _host->combFilterSet(value); });
+                _combFilter.setText("Comb filter: ");
+                _combFilter.add("none");
+                _combFilter.add("1 line");
+                _combFilter.add("2 line");
+                _combFilter.add("1 frame");
+                _combFilter.add("2 frame");
+                add(&_combFilter);
             }
             void layout()
             {
@@ -1327,20 +1322,16 @@ private:
                 _lumaBandwidth.setTopLeft(
                     _chromaBandwidth.bottomLeft() + vSpace);
                 r = max(r, _lumaBandwidth.right());
-                _combFilterVertical.setTopLeft(
+                _combFilter.setTopLeft(
                     _lumaBandwidth.bottomLeft() + vSpace);
-                r = max(r, _combFilterVertical.right());
-                _combFilterTemporal.setTopLeft(
-                    _combFilterVertical.bottomLeft() + vSpace);
-                r = max(r, _combFilterTemporal.right());
-                setInnerSize(Vector(r, _combFilterTemporal.bottom()) +
-                    _host->groupBR());
+                r = max(r, _combFilter.right());
+                setInnerSize(
+                    Vector(r, _combFilter.bottom()) + _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             KnobSlider _chromaBandwidth;
             KnobSlider _lumaBandwidth;
-            CaptionedDropDownList _combFilterVertical;
-            CaptionedDropDownList _combFilterTemporal;
+            CaptionedDropDownList _combFilter;
         };
         FilterGroup _filter;
         struct ScanlinesGroup : public GroupBox
@@ -1793,6 +1784,7 @@ public:
         configFile.addDefaultOption("brightness", 0.0);
         configFile.addDefaultOption("saturation", 1.0);
         configFile.addDefaultOption("hue", 0.0);
+        configFile.addDefaultOption("showClipping", false);
         configFile.addDefaultOption("chromaBandwidth", 1.0);
         configFile.addDefaultOption("lumaBandwidth", 1.0);
         configFile.addDefaultOption("horizontalDiffusion", 0.5);
@@ -1809,8 +1801,7 @@ public:
         configFile.addDefaultOption("zoom", 2.0);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
-        configFile.addDefaultOption("combFilterVertical", 0);
-        configFile.addDefaultOption("combFilterTemporal", 0);
+        configFile.addDefaultOption("combFilter", 0);
         configFile.addDefaultOption("fftWisdom", String("wisdom"));
         configFile.addDefaultOption("doubleWidth", false);
         configFile.addDefaultOption("doubleHeight", false);
@@ -1891,6 +1882,7 @@ public:
         double contrast = configFile.get<double>("contrast");
         output.setContrast(contrast);
         _matcher.setContrast(contrast);
+        output.setShowClipping(configFile.get<bool>("showClipping"));
         output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
         output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
         int connector = configFile.get<int>("connector");
@@ -1901,10 +1893,7 @@ public:
         output.setZoom(configFile.get<double>("zoom"));
         output.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
-        output.setCombFilterVertical(
-            configFile.get<int>("combFilterVertical"));
-        output.setCombFilterTemporal(
-            configFile.get<int>("combFilterTemporal"));
+        output.setCombFilter(configFile.get<int>("combFilter"));
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
         Bitmap<SRGB> input2 = input;
