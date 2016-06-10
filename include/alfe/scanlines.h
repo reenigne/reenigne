@@ -199,6 +199,21 @@ private:
     FFTWRealArray<float> _outputTime;
 };
 
+float sinint(float x)
+{
+    float i = 3;
+    float r = x;
+    float x2 = -x*x;
+    float t = x;
+    static const float eps = 1.0f/(1 << 16);
+    do {
+        t *= x2/(i*(i - 1));
+        r += t/i;
+        i += 2;
+    } while (t > eps);
+    return r;
+}
+
 class FIRScanlineRenderer
 {
 public:
@@ -208,14 +223,24 @@ public:
         int inputTop;
         int inputBottom;
         std::function<float(float)> verticalKernel;
+        Vector2<float> bandLimit(1, 1);
+        if (_zoom.x < 1)
+            bandLimit.x = _zoom.x;
+        if (_zoom.y < 1)
+            bandLimit.y = _zoom.y;
 
         switch (_profile) {
             case 0:
                 // Rectangle
-                verticalKernel = [&](float distance)
                 {
-                    return 0.0f;
-                };
+                    float a = tau*_width/2;
+                    float b = bandLimit.x*a;
+                    float c = bandLimit.x*tau;
+                    verticalKernel = [&](float d)
+                    {
+                        return a*(sinint(b + c*d) + sinint(b - c*d));
+                    };
+                }
 
                 //{
                 //    scale *= 1/(sigma*pi);
@@ -291,9 +316,6 @@ public:
         float kernelRadiusHorizontal = 16;
         int inputLeft;
         int inputRight;
-        float bandLimit = 1;
-        if (_zoom.x < 1)
-            bandLimit = _zoom.x;
         _horizontal.generate(Vector(_size.x, inputBottom - inputTop), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
@@ -301,7 +323,7 @@ public:
             {
                 if (inputChannel != outputChannel)
                     return 0.0f;
-                return sinc(distance*bandLimit);
+                return sinc(distance*bandLimit.y);
             },
             &inputLeft, &inputRight, _zoom.x, _offset.x);
     }

@@ -732,6 +732,83 @@ public:
         if (_window != 0)
             _window->draw(bitmap);
     }
+    void init()
+    {
+        _scaler.init();
+        _decoder.init();
+    }
+    void run2()
+    {
+        if (_connector == 0) {
+            // Convert from RGBI to 9.7 fixed-point sRGB
+            UInt16 levels[4];
+            for (int i = 0; i < 4; ++i) {
+                levels[i] = static_cast<int>(clamp(0.0,
+                    (getBrightness() + 85*i*getContrast())*128, 32767.0));
+            }
+            static const int palette[3*16] = {
+                0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
+                2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
+                1, 1, 1,  1, 1, 3,  1, 3, 1,  1, 3, 3,
+                3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
+            static const UInt16 srgbPalette[3*16];
+            for (int i = 0; i < 3*16; ++i)
+                srgbPalette[i] = levels[palette[i]];
+            const Byte* rgbiRow = _rgbi.data();
+            Byte* srgbRow = _srgb.data();
+            for (int y = 0; y < _rgbi.size().y; ++y) {
+                const Byte* rgbi = rgbiRow;
+                UInt16* srgb = reinterpret_cast<UInt16*>(srgbRow);
+                for (int x = 0; x < _rgbi.size().x; ++x) {
+                    Byte v = *rgbi;
+                    ++rgbi;
+                    UInt16* p = &palette[3*v];
+                    srgb[0] = p[0];
+                    srgb[1] = p[1];
+                    srgb[2] = p[2];
+                }
+                rgbiRow += _rgbi.stride();
+                srgbRow += _srgb.stride();
+            }
+        }
+        else {
+            // Convert from RGBI to composite
+            const Byte* rgbiRow = _rgbi.data();
+            Byte* ntscRow = _ntsc.data();
+            for (int y = 0; y < _ntsc.size().y; ++y) {
+                const Byte* rgbi = rgbiRow;
+                Byte* ntsc = ntscRow;
+                for (int x = 0; x < _ntsc.size().x; ++x) {
+                    *ntsc =
+                        _composite.simulateCGA(*rgbi, rgbi[1], (x + 1) & 3);
+                    ++rgbi;
+                    ++ntsc;
+                }
+                rgbiRow += _rgbi.stride();
+                ntscRow += _ntsc.stride();
+            }
+            // Apply comb filter and expand to 8 channels of 16 bits per
+            // channel.
+            ntscRow = _ntsc.data();
+            UInt16* combedRow = _combed.data();
+            for (int y = 0; y < _combedSize.y; ++y) {
+                const Byte* ntsc = ntscRow;
+                UInt16* combed = combedRow;
+                for (int x = 0; x < _combedSize.x; ++x) {
+                    switch ()
+                }
+                ntscRow += _ntsc.stride();
+                combedRow += _combed.stride();
+            }
+
+            // Decode 128 bit composite to 9.7 fixed-point sRGB
+            _decoder.decode();
+        }
+        // Shift, clip, show clipping and linearization
+        _scaler.render();
+        // Delinearization and float-to-byte conversion
+    }
+
     void save(String outputFileName)
     {
         _bitmap.subBitmap(Vector(0, 0), requiredSize()).
@@ -743,10 +820,11 @@ public:
 
     void setConnector(int connector)
     {
+        _connector = connector;
         _composite.setNewCGA(connector == 2);
         reCreateNTSC();
     }
-    int getConnector() { return _composite.getNewCGA() ? 2 : 1; }
+    int getConnector() { return _connector; }
     void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
     void setScanlineProfile(int profile)
     {
@@ -853,8 +931,16 @@ private:
     bool _scanlineBleeding;
     double _aspectRatio;
     int _combFilter;
+    int _connector;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
+
+    FIRScanlineRenderer _scaler;
+    Vector _combedSize;
+    AlignedBuffer _combed;
+    AlignedBuffer _srgb;
+    AlignedBuffer _unscaled;
+    AlignedBuffer _scaled;
 };
 
 typedef CGAOutputT<void> CGAOutput;

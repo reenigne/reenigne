@@ -25,8 +25,7 @@ float lanczos(float z)
 
 template<class T> Byte checkClamp(T x)
 {
-    int y = static_cast<int>(x);
-    return clamp(0, y, 255);
+    return byteClamp(x);
 //    return x;
 }
 
@@ -519,26 +518,55 @@ public:
         int inputLeft;
         int inputRight;
 
-        Vector outputSize;
+        Vector outputSize;  // TODO
         float kernelRadius = 16;
-        float offset;
+        float offset;  // TODO
 
         _filter.generate(outputSize, 8, inputChannelPositions, 3,
             outputChannelPositions, kernelRadius,
             [&](float distance, int inputChannel, int outputChannel)
             {
                 float result;
+                float y = 0;
+                Complex<float> iq = 0;
+                float chromaLow = (4 - _chromaBandwidth) / 16;
+                float chromaHigh = (4 + _chromaBandwidth) / 16;
                 if ((inputChannel & 1) == 0) {
                     // Luma
-
+                    float lumaHigh = _lumaBandwidth / 4;
+                    if (lumaHigh < chromaHigh)
+                        y = sinc(distance*chromaLow);
+                    else {
+                        y = sinc(distance*lumaHigh) - sinc(distance*chromaHigh)
+                            + sinc(distance*chromaLow);
+                    }
                 }
                 else {
                     // Chroma
+                    switch (inputChannel & 6) {
+                        case 0: iq.y = 1; break;
+                        case 2: iq.x = -1; break;
+                        case 4: iq.y = -1; break;
+                        case 6: iq.x = 1; break;
+                    }
+                    iq *= sinc(distance*chromaHigh) - sinc(distance*chromaLow);
                 }
-
-                return result;
+                y = y*_contrast2 + _brightness2;
+                iq *= _iqAdjust;
+                switch (outputChannel) {
+                    case 0: return y + 0.9563f*iq.x + 0.6210f*iq.y;
+                    case 1: return y - 0.2721f*iq.x - 0.6474f*iq.y;
+                    case 2: return y - 1.1069f*iq.x + 1.7046f*iq.y;
+                }
+                assert(false);
+                return 0.0f;
             },
             &inputLeft, &inputRight, 1, offset);
+        // TODO: deal with inputLeft and inputRight
+    }
+    void decode()
+    {
+        _filter.execute();
     }
 
     void decodeLine(const Byte* ntsc, DWORD* srgb, int inputLength,
