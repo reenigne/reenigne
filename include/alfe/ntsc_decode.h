@@ -526,7 +526,6 @@ public:
             outputChannelPositions, kernelRadius,
             [&](float distance, int inputChannel, int outputChannel)
             {
-                float result;
                 float y = 0;
                 Complex<float> iq = 0;
                 float chromaLow = (4 - _chromaBandwidth) / 16;

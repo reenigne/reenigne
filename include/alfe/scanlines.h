@@ -220,8 +220,6 @@ public:
     void init()
     {
         float kernelRadiusVertical = 16;
-        int inputTop;
-        int inputBottom;
         std::function<float(float)> verticalKernel;
         Vector2<float> bandLimit(1, 1);
         if (_zoom.x < 1)
@@ -233,23 +231,14 @@ public:
             case 0:
                 // Rectangle
                 {
-                    float a = tau*_width/2;
+                    float a = static_cast<float>(tau)*_width/2;
                     float b = bandLimit.x*a;
-                    float c = bandLimit.x*tau;
+                    float c = bandLimit.x*static_cast<float>(tau);
                     verticalKernel = [&](float d)
                     {
                         return a*(sinint(b + c*d) + sinint(b - c*d));
                     };
                 }
-
-                //{
-                //    scale *= 1/(sigma*pi);
-                //    for (int i = 1; i < outputFrequencyLength; ++i) {
-                //        float f = pi*i*sigma;
-                //        _profileFrequency[i] = sin(f)/i;
-                //    }
-                //    _profileFrequency[0] = pi*sigma;
-                //}
                 break;
             case 1:
                 // Triangle
@@ -257,15 +246,6 @@ public:
                 {
                     return 0.0f;
                 };
-
-                //{
-                //    for (int i = 1; i < outputFrequencyLength; ++i) {
-                //        float f = pi*i*sigma;
-                //        float s = sin(f)/f;
-                //        _profileFrequency[i] = s*s;
-                //    }
-                //    _profileFrequency[0] = 1;
-                //}
                 break;
             case 2:
                 // Circle
@@ -273,32 +253,12 @@ public:
                 {
                     return 0.0f;
                 };
-
-                //{
-                //    float w = _width*outputTimeLength/inputTimeLength;
-                //    float r2 = w*w;
-                //    scale *= 2/(pi*r2);
-                //    FFTWRealArray<float> profileTime(outputTimeLength);
-                //    _profileFrequency.ensure(outputFrequencyLength);
-                //    FFTWPlanDFTR2C1D<float> transform(outputTimeLength,
-                //        profileTime, _profileFrequency, _rigor);
-                //    for (int i = 0; i < outputTimeLength; ++i) {
-                //        int y = i;
-                //        if (i > outputTimeLength/2)
-                //            y = outputTimeLength - i;
-                //        if (y > w)
-                //            profileTime[i] = 0;
-                //        else
-                //            profileTime[i] = sqrt(r2 - y*y);
-                //    }
-                //    transform.execute();
-                //}
                 break;
             case 3:
                 // Gaussian
                 {
                     float a = -1/(2*_width*_width);
-                    float b = 1/(sqrt(tau)*_width);
+                    float b = 1/(sqrt(static_cast<float>(tau))*_width);
                     verticalKernel = [&](float distance)
                     {
                         return b*exp(a*distance*distance);
@@ -307,16 +267,19 @@ public:
                 break;
         }
 
+        _output.ensure(_size.x*sizeof(float), _size.y);
+
         _vertical.generate(_size, kernelRadiusVertical, verticalKernel,
-            &inputTop, &inputBottom, _zoom.y, _offset.y);
+            &_inputTL.y, &_inputBR.y, _zoom.y, _offset.y);
+
+        int inputHeight = _inputBR.y - _inputTL.y;
+        _intermediate.ensure(_size.x*sizeof(float), inputHeight);
 
         static const float inputChannelPositions[3] = {0, 0, 0};
         static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
 
         float kernelRadiusHorizontal = 16;
-        int inputLeft;
-        int inputRight;
-        _horizontal.generate(Vector(_size.x, inputBottom - inputTop), 3,
+        _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
             [&](float distance, int inputChannel, int outputChannel)
@@ -325,30 +288,183 @@ public:
                     return 0.0f;
                 return sinc(distance*bandLimit.y);
             },
-            &inputLeft, &inputRight, _zoom.x, _offset.x);
+            &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
+
+        _input.ensure((_inputBR.x - _inputTL.x)*sizeof(float), inputHeight);
     }
     void render()
     {
         _horizontal.execute();
         _vertical.execute();
+        int s = _output.stride();
+        Vector size = _size;
+        size.x *= 3;
+        if (_bleeding == 1) {
+            Byte* outputColumn = _output.data();
+            for (int x = 0; x < size.x; ++x) {
+                Byte* output = outputColumn;
+                float bleed = 0;
+                for (int y = 0; y < size.y; ++y) {
+                    float o = bleed + *reinterpret_cast<float*>(output);
+                    bleed = 0;
+                    if (o < 0) {
+                        bleed = o;
+                        o = 0;
+                    }
+                    if (o > 1) {
+                        bleed = o - 1;
+                        o = 1;
+                    }
+                    *reinterpret_cast<float*>(output) = o;
+                    output += s;
+                }
+                outputColumn += sizeof(float);
+            }
+            return;
+        }
+        if (_bleeding == 2) {
+            Byte* outputColumn = _output.data();
+            for (int x = 0; x < size.x; ++x) {
+                Byte* output = outputColumn;
+                float bleed = 0;
+                for (int y = 0; y < size.y; ++y) {
+                    float o = *reinterpret_cast<float*>(output);
+                    if (o < 0) {
+                        Byte* output1 = output + s;
+                        int y1;
+                        float t = -o;
+                        for (y1 = y + 1; y1 < size.y; ++y1) {
+                            float o1 = *reinterpret_cast<float*>(output1);
+                            if (o1 > 0)
+                                break;
+                            t -= o1;
+                            output1 += s;
+                        }
+                        float bleed = t/2;
+                        Byte* output2 = output - s;
+                        for (int y2 = y - 1; y2 >= 0; --y2) {
+                            float* p = reinterpret_cast<float*>(output2);
+                            float o2 = *p;
+                            if (o2 > 0) {
+                                if (bleed > o2) {
+                                    bleed -= o2;
+                                    *p = 0;
+                                }
+                                else {
+                                    *p = o2 - bleed;
+                                    break;
+                                }
+                            }
+                            output2 -= s;
+                        }
+                        bleed = t/2;
+                        output2 = output1;
+                        for (int y2 = y1; y2 < size.y; ++y2) {
+                            float* p = reinterpret_cast<float*>(output2);
+                            float o2 = *p;
+                            if (o2 > 0) {
+                                if (bleed > o2) {
+                                    bleed -= o2;
+                                    *p = 0;
+                                }
+                                else {
+                                    *p = o2 - bleed;
+                                    break;
+                                }
+                            }
+                            output2 += s;
+                        }
+                        // We need to restart at y1 here rather than y2 because
+                        // there might be some more <0 values between y1 and
+                        // y2.
+                        y = y1;
+                        output = output1;
+                        continue;
+                    }
+                    if (o > 1) {
+                        Byte* output1 = output + s;
+                        int y1;
+                        float t = o - 1;
+                        for (y1 = y + 1; y1 < size.y; ++y1) {
+                            float o1 = *reinterpret_cast<float*>(output1);
+                            if (o1 < 1)
+                                break;
+                            t += o1 - 1;
+                            output1 += s;
+                        }
+                        float bleed = t/2;
+                        Byte* output2 = output - s;
+                        for (int y2 = y - 1; y2 >= 0; --y2) {
+                            float* p = reinterpret_cast<float*>(output2);
+                            float o2 = *p;
+                            if (o2 < 1) {
+                                if (bleed + o2 > 1) {
+                                    bleed -= 1 - o2;
+                                    *p = 1;
+                                }
+                                else {
+                                    *p = o2 + bleed;
+                                    break;
+                                }
+                            }
+                            output2 -= s;
+                        }
+                        bleed = t/2;
+                        output2 = output1;
+                        for (int y2 = y2; y2 < size.y; ++y2) {
+                            float* p = reinterpret_cast<float*>(output2);
+                            float o2 = *p;
+                            if (o2 < 1) {
+                                if (bleed + o2 > 1) {
+                                    bleed -= 1 - o2;
+                                    *p = 1;
+                                }
+                                else {
+                                    *p = o2 + bleed;
+                                    break;
+                                }
+                            }
+                            output2 += s;
+                        }
+                        // We need to restart at y1 here rather than y2 because
+                        // there might be some more >1 values between y1 and
+                        // y2.
+                        y = y1;
+                        output = output1;
+                        continue;
+                    }
+                    output += s;
+                }
+                outputColumn += sizeof(float);
+            }
+        }
     }
     int getProfile() { return _profile; }
     void setProfile(int profile) { _profile = profile; }
     float getWidth() { return _width; }
     void setWidth(float width) { _width = width; }
-    bool getBleeding() { return _bleeding; }
-    void setBleeding(bool bleeding) { _bleeding = bleeding; }
+    int getBleeding() { return _bleeding; }
+    void setBleeding(int bleeding) { _bleeding = bleeding; }
     void setZoom(Vector2<float> zoom) { _zoom = zoom; }
     void setOffset(Vector2<float> offset) { _offset = offset; }
     void setOutputSize(Vector size) { _size = size; }
+    Vector inputTL() { return _inputTL; }
+    Vector inputBR() { return _inputBR; }
+    AlignedBuffer input() { return _input; }
+    AlignedBuffer output() { return _output; }
 
 private:
     int _profile;
     float _width;
-    bool _bleeding;
+    int _bleeding;
     Vector2<float> _offset;
     Vector2<float> _zoom;
     Vector _size;
+    AlignedBuffer _input;
+    AlignedBuffer _intermediate;
+    AlignedBuffer _output;
+    Vector _inputTL;
+    Vector _inputBR;
 
     ImageFilterHorizontal _horizontal;
     ImageFilterVertical _vertical;

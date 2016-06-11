@@ -734,6 +734,7 @@ public:
     }
     void init()
     {
+        _scaler.setOutputSize(_window->outputSize());
         _scaler.init();
         _decoder.init();
     }
@@ -789,24 +790,105 @@ public:
             }
             // Apply comb filter and expand to 8 channels of 16 bits per
             // channel.
-            ntscRow = _ntsc.data();
+            const Byte* ntscRow1a = _ntsc.data();
+            const Byte* ntscRow2;
+            const Byte* ntscRow1b;
+            switch (_combFilter) {
+                case 0:
+                    // No comb filter
+                    ntscRow2 = ntscRow1a;
+                    ntscRow1b = ntscRow1a;
+                    break;
+                case 1:
+                    // 1 line. Standard NTSC comb filters will have a delay of
+                    // 227.5 color carrier cycles (1 standard scanline) but a
+                    // CGA scanline is 228 color carrier cycles, so instead of
+                    // sharpening vertical detail a comb filter applied to CGA
+                    // will sharpen 1-ldot-per-scanline diagonals.
+                    ntscRow1b = _ntscRow1a;
+                    ntscRow2 = ntscRow1a + _ntsc.stride() - 2;
+                    break;
+                case 2:
+                    // 2 line.
+                    ntscRow2 = ntscRow1a + _ntsc.stride() - 2;
+                    ntscRow1b = ntscRow2 + _ntsc.stride() - 2;
+                    break;
+                case 3:
+                    // 1 frame. For now assume all frames are the same. I'm
+                    // assuming that on a real monitor this will work by
+                    // counting 525 scanlines (not 525*227.5 color carrier
+                    // cycles) and do the same thing here. For a CGA signal
+                    // this will not improve sharpness horizontally or
+                    // vertically - it will just amount to a vertical blur.
+                    ntscRow1b = _ntscRow1a;
+                    ntscRow2 = ntscRow1a + _ntsc.stride();
+                    break;
+                case 4:
+                    // 2 frame.
+                    ntscRow2 = _ntscRow1a + _ntsc.stride();
+                    ntscRow1b = _ntscRo2 + _ntsc.stride();
+                    break;
+            }
             UInt16* combedRow = _combed.data();
             for (int y = 0; y < _combedSize.y; ++y) {
-                const Byte* ntsc = ntscRow;
+                const Byte* ntsc1a = ntscRow1a;
+                const Byte* ntsc2 = ntscRow2;
+                const Byte* ntsc1b = ntscRow1b;
                 UInt16* combed = combedRow;
                 for (int x = 0; x < _combedSize.x; ++x) {
-                    switch ()
+                    UInt16 v = *ntsc1a + (*ntsc2 << 1) + *ntsc1b + 2;
+                    *combed = v >> 2;
+                    ++ntsc1a;
+                    ++ntsc2;
+                    ++ntsc1b;
+                    ++combed;
                 }
-                ntscRow += _ntsc.stride();
+                ntscRow1a += _ntsc.stride();
+                ntscRow2 += _ntsc.stride();
+                ntscRow1b += _ntsc.stride();
                 combedRow += _combed.stride();
             }
-
             // Decode 128 bit composite to 9.7 fixed-point sRGB
             _decoder.decode();
         }
         // Shift, clip, show clipping and linearization
+        float linear[256];
+        for (int i = 0; i < 256; ++i)
+            linear[i] = pow(i/255.0f, 2.2f);
+        if (_showClipping) {
+            linear[0] = 1.0f;
+            linear[255] = 0.0f;
+        }
+        const Byte* srgbRow = _srgb.data();
+        Byte* unscaledRow = _unscaled.data();
+        for (int y = 0; y < _unscaled.size().y; ++y) {
+            const SInt16* srgb = reinterpret_cast<const SInt16*>(srgbRow);
+            float* unscaled = reinterpret_cast<float*>(unscaledRow);
+            for (int x = 0; x < _unscaled.size().x*3; ++x) {
+                *unscaled = linear[byteClamp(*srgb >> 7)];
+                ++srgb;
+                ++unscaled;
+            }
+            srgbRow += _srgb.stride();
+            unscaled += _unscaled.stride();
+        }
+        // Scale to desired size and apply scanline filter
         _scaler.render();
         // Delinearization and float-to-byte conversion
+        const Byte* scaledRow = _scaled.data();
+        Byte* outputRow = _bitmap.data();
+        for (int y = 0; y < _bitmap.size().y; ++y) {
+            const float* scaled = reinterpret_cast<const float*>(scaledRow);
+            DWORD* output = reinterpret_cast<DWORD*>(outputRow);
+            for (int x = 0; x < _bitmap.size().x; ++x) {
+                *output = (delinearize(scaled[0]) << 16) |
+                    (delinearize(scaled[1]) << 8) | delinearize(scaled[2]);
+                ++output;
+                scaled += 3;
+            }
+            scaledRow += _scaled.stride();
+            outputRow += _bitmap.stride();
+        }
     }
 
     void save(String outputFileName)
@@ -838,12 +920,13 @@ public:
         restart();
     }
     double getScanlineWidth() { return _renderer.getWidth(); }
-    void setScanlineBleeding(bool bleeding)
+    void setScanlineBleeding(int bleeding)
     {
-        _renderer.setBleeding(bleeding);
+        _renderer.setBleeding(bleeding != 0);
+        _scaler.setBleeding(bleeding);
         restart();
     }
-    bool getScanlineBleeding() { return _renderer.getBleeding(); }
+    int getScanlineBleeding() { return _scaler.getBleeding(); }
     void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
     double getZoom() { return _zoom; }
     void setAspectRatio(double ratio)
@@ -876,9 +959,10 @@ public:
         _decoder.setBrightness(brightness);
         restart();
     }
-    bool getShowClipping() { return _decoder.getShowClipping(); }
+    bool getShowClipping() { return _showClipping; }
     void setShowClipping(bool showClipping)
     {
+        _showClipping = showClipping;
         _decoder.setShowClipping(showClipping);
         restart();
     }
@@ -917,6 +1001,12 @@ private:
             _decoded = Bitmap<DWORD>(Vector(size.x, _ntsc.size().y));
         restart();
     }
+    static Byte delinearize(float l)
+    {
+        if (l <= 0)
+            return 0;
+        return min(static_cast<int>(pow(l, 1/2.2)*255.0f + 0.5f), 255);
+    }
 
     Bitmap<DWORD> _bitmap;
     Bitmap<Byte> _rgbi;
@@ -925,13 +1015,11 @@ private:
     CGAComposite _composite;
     ResamplingNTSCDecoder _decoder;
     ScanlineRenderer _renderer;
-    double _scanlineWidth;
-    int _scanlineProfile;
     double _zoom;
-    bool _scanlineBleeding;
     double _aspectRatio;
     int _combFilter;
     int _connector;
+    bool _showClipping;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
 
@@ -971,8 +1059,7 @@ public:
         _monitor._filter._combFilter.set(_output->getCombFilter());
         _monitor._scanlines._profile.set(_output->getScanlineProfile());
         _monitor._scanlines._width.setValue(_output->getScanlineWidth());
-        _monitor._scanlines._bleeding.setCheckState(
-            _output->getScanlineBleeding());
+        _monitor._scanlines._bleeding.set(_output->getScanlineBleeding());
         _monitor._scaling._zoom.setValue(_output->getZoom());
         _monitor._scaling._aspectRatio.setValue(_output->getAspectRatio());
         int mode = _matcher->getMode();
@@ -1157,7 +1244,7 @@ public:
     void scanlineWidthSet(double value) { _output->setScanlineWidth(value); }
     void scanlineProfileSet(int value) { _output->setScanlineProfile(value); }
     void zoomSet(double value) { _output->setZoom(value); }
-    void scanlineBleedingSet(bool value)
+    void scanlineBleedingSet(int value)
     {
         _output->setScanlineBleeding(value);
     }
@@ -1248,6 +1335,8 @@ public:
     {
         _output->reCreateNTSC();
     }
+
+    Vector outputSize() { return _outputWindow.innerSize(); }
 
 private:
     Vector vSpace() { return Vector(0, 15); }
@@ -1439,9 +1528,12 @@ private:
                 _width.setText("Width: ");
                 _width.setRange(0, 1);
                 add(&_width);
-                _bleeding.setClicked(
-                    [&](bool value) { _host->scanlineBleedingSet(value); });
-                _bleeding.setText("Bleeding");
+                _bleeding.setChanged(
+                    [&](int value) { _host->scanlineBleedingSet(value); });
+                _bleeding.setText("Bleeding: ");
+                _bleeding.add("none");
+                _bleeding.add("down");
+                _bleeding.add("symmetrical");
                 add(&_bleeding);
             }
             void layout()
@@ -1458,7 +1550,7 @@ private:
             CGA2NTSCWindow* _host;
             CaptionedDropDownList _profile;
             KnobSlider _width;
-            CheckBox _bleeding;
+            CaptionedDropDownList _bleeding;
         };
         ScanlinesGroup _scanlines;
         struct ScalingGroup : public GroupBox
@@ -1883,7 +1975,7 @@ public:
         configFile.addDefaultOption("aspectRatio", 5.0/6.0);
         configFile.addDefaultOption("scanlineWidth", 0.5);
         configFile.addDefaultOption("scanlineProfile", 0);
-        configFile.addDefaultOption("scanlineBleeding", false);
+        configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("zoom", 2.0);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
@@ -1977,7 +2069,7 @@ public:
         output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
         output.setZoom(configFile.get<double>("zoom"));
-        output.setScanlineBleeding(configFile.get<bool>("scanlineBleeding"));
+        output.setScanlineBleeding(configFile.get<int>("scanlineBleeding"));
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
         output.setCombFilter(configFile.get<int>("combFilter"));
 

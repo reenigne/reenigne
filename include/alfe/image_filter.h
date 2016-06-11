@@ -21,6 +21,7 @@ class AlignedBuffer
 public:
     AlignedBuffer() { }
     AlignedBuffer(int x, int y = 1) { ensure(x, y); }
+    // Ensure we have y suitably-aligned rows of x bytes each
     void ensure(int x, int y = 1)
     {
         int alignment = useSSE2() ? 16 : 4;
