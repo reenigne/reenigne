@@ -515,14 +515,8 @@ public:
         static const float inputChannelPositions[8] =
             {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
         static const float outputChannelPositions[3] = {0, 0, 0};
-        int inputLeft;
-        int inputRight;
-
-        Vector outputSize;  // TODO
         float kernelRadius = 16;
-        float offset;  // TODO
-
-        _filter.generate(outputSize, 8, inputChannelPositions, 3,
+        _filter.generate(_outputSize, 8, inputChannelPositions, 3,
             outputChannelPositions, kernelRadius,
             [&](float distance, int inputChannel, int outputChannel)
             {
@@ -560,8 +554,7 @@ public:
                 assert(false);
                 return 0.0f;
             },
-            &inputLeft, &inputRight, 1, offset);
-        // TODO: deal with inputLeft and inputRight
+            &_inputLeft, &_inputRight, 1, 0);
     }
     void decode()
     {
@@ -727,6 +720,7 @@ public:
     {
         _lumaBandwidth = static_cast<float>(lumaBandwidth);
     }
+    void setOutputSize(Vector size) { _outputSize = size; }
 
 private:
     void padInput(int padding, int inputLength)
@@ -772,6 +766,11 @@ private:
     int _rigor;
 
     ImageFilter16 _filter;
+    Vector _outputSize;
+    int _inputLeft;
+    int _inputRight;
+    AlignedBuffer _input;
+    AlignedBuffer _output;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

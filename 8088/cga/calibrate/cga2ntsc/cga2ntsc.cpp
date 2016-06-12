@@ -658,7 +658,7 @@ typedef CGAMatcherT<void> CGAMatcher;
 template<class T> class CGAOutputT : public ThreadTask
 {
 public:
-    CGAOutputT() : _window(0), _zoom(0), _aspectRatio(1) { }
+    CGAOutputT() : _window(0), _zoom(0), _aspectRatio(1), _inputTL(0, 0) { }
     void setRGBI(Bitmap<Byte> rgbi)
     {
         _rgbi = rgbi;
@@ -732,14 +732,23 @@ public:
         if (_window != 0)
             _window->draw(bitmap);
     }
-    void init()
-    {
-        _scaler.setOutputSize(_window->outputSize());
-        _scaler.init();
-        _decoder.init();
-    }
     void run2()
     {
+        _scaler.setOutputSize(_window->outputSize());
+        _scaler.setOffset(_inputTL);
+        _scaler.init();
+        _unscaled = _scaler.input();
+        _scaled = _scaler.output();
+        Vector tl = _scaler.inputTL();
+        Vector br = _scaler.inputBR();
+        _decoder.setOutputSize(br - tl);
+        _decoder.init();
+        int l = _decoder.inputLeft();
+        int r = _decoder.inputRight();
+        Vector rgbiSize(r - l, br.y - tl.y);
+        Vector activeTL(l + tl.x, tl.y);
+        // TODO: Create RGBI bitmap of size rgbiSize
+        // TODO: Fill it from CGA data
         if (_connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
             UInt16 levels[4];
@@ -927,10 +936,32 @@ public:
         restart();
     }
     int getScanlineBleeding() { return _scaler.getBleeding(); }
-    void setZoom(double zoom) { _zoom = zoom; allocateBitmap(); }
+    void setZoom(double zoom)
+    {
+        Vector mousePosition = _window->outputMousePosition();
+        Vector size = _window->outputSize();
+        Vector2<float> position = Vector2Cast<float>(size)/2.0f;
+        if (_dragging || (mousePosition.inside(size) &&
+            (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
+            (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
+            position = Vector2Cast<float>(mousePosition);
+        _inputTL += position*static_cast<float>(_zoom - zoom)*
+            Vector2<float>(static_cast<float>(_aspectRatio), 1);
+        _zoom = zoom;
+        allocateBitmap();
+    }
     double getZoom() { return _zoom; }
     void setAspectRatio(double ratio)
     {
+        Vector mousePosition = _window->outputMousePosition();
+        Vector size = _window->outputSize();
+        Vector2<float> position = Vector2Cast<float>(size)/2.0f;
+        if (_dragging || (mousePosition.inside(size) &&
+            (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
+            (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
+            position = Vector2Cast<float>(mousePosition);
+        _inputTL += position*static_cast<float>(_zoom)*
+            Vector2<float>(static_cast<float>(_aspectRatio - ratio), 1.0f);
         _aspectRatio = ratio;
         allocateBitmap();
     }
@@ -986,6 +1017,22 @@ public:
         return Vector(static_cast<int>(x), static_cast<int>(y));
     }
     void setWindow(CGA2NTSCWindow* window) { _window = window; }
+    void mouseInput(Vector position, bool button)
+    {
+        _mousePosition = position;
+        if (button) {
+            if (!_dragging) {
+                _dragStart = position;
+                _dragStartInputPosition = _inputTL +
+                    Vector2Cast<float>(position)*static_cast<float>(_zoom)*
+                    Vector2<float>(static_cast<float>(_aspectRatio), 1);
+            }
+            _inputTL = _dragStartInputPosition -
+                Vector2Cast<float>(position)*static_cast<float>(_zoom)*
+                Vector2<float>(static_cast<float>(_aspectRatio), 1);
+        }
+       _dragging = button;
+    }
 private:
     void allocateBitmap()
     {
@@ -1022,6 +1069,7 @@ private:
     bool _showClipping;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
+    Vector2<float> _inputTL;
 
     FIRScanlineRenderer _scaler;
     Vector _combedSize;
@@ -1029,6 +1077,11 @@ private:
     AlignedBuffer _srgb;
     AlignedBuffer _unscaled;
     AlignedBuffer _scaled;
+
+    bool _dragging;
+    Vector _dragStart;
+    Vector2<float> _dragStartInputPosition;
+    Vector _mousePosition;
 };
 
 typedef CGAOutputT<void> CGAOutput;
@@ -1036,7 +1089,7 @@ typedef CGAOutputT<void> CGAOutput;
 template<class T> class CGA2NTSCWindowT : public RootWindow
 {
 public:
-    CGA2NTSCWindowT() : _monitor(this), _videoCard(this)
+    CGA2NTSCWindowT() : _outputWindow(this), _monitor(this), _videoCard(this)
     {
         setText("CGA to NTSC");
         add(&_outputWindow);
@@ -1337,7 +1390,13 @@ public:
     }
 
     Vector outputSize() { return _outputWindow.innerSize(); }
-
+    Vector outputMousePosition()
+    {
+        POINT point;
+        IF_ZERO_THROW(GetCursorPos(&point));
+        return Vector(point.x, point.y) -
+            _outputWindow.clientToScreen(Vector(0, 0));
+    }
 private:
     Vector vSpace() { return Vector(0, 15); }
     Vector hSpace() { return Vector(15, 0); }
@@ -1349,6 +1408,7 @@ private:
     class OutputWindow : public BitmapWindow
     {
     public:
+        OutputWindow(CGA2NTSCWindow* host) : _host(host), _dragging(false) { }
         void draw(Bitmap<DWORD> bitmap)
         {
             _b = bitmap;
@@ -1362,7 +1422,18 @@ private:
                 min(_b.size().y, innerSize().y));
             _b.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
         }
+        bool mouseInput(Vector position, int buttons, int wheel)
+        {
+            bool lButton = (buttons & MK_LBUTTON) != 0;
+            _host->_output->mouseInput(position, lButton);
+            if (wheel != 0)
+                _host->_monitor._scaling._zoom.changeValue(wheel/1200.0f);
+            return lButton;
+        }
+
     private:
+        CGA2NTSCWindow* _host;
+        bool _dragging;
         Bitmap<DWORD> _b;
     };
     OutputWindow _outputWindow;
@@ -1817,6 +1888,8 @@ private:
     int _paletteSelected;
     int _backgroundSelected;
     ConfigFile* _config;
+
+    friend class OutputWindow;
 };
 
 class BitmapValue : public Structure

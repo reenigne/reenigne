@@ -151,7 +151,10 @@ public:
     //virtual void draw(Bitmap<DWORD> bitmap) { }
 
     // mouseInput() should return true if the mouse should be captured
-    virtual bool mouseInput(Vector position, int buttons) { return false; }
+    virtual bool mouseInput(Vector position, int buttons, int wheel)
+    {
+        return false;
+    }
     virtual void releaseCapture() { }
     void remove()
     {
@@ -234,11 +237,12 @@ public:
             return _focus->keyboardEvent(key, up);
         return false;
     }
-    bool mouseInput(Vector position, int buttons)
+    bool mouseInput(Vector position, int buttons, int wheel)
     {
         // If the mouse is captured, send the input to the capturing window
         if (_capture != 0) {
-            _capture->mouseInput(position - _capture->topLeft(), buttons);
+            _capture->mouseInput(position - _capture->topLeft(), buttons,
+                wheel);
             if (buttons == 0)
                 releaseCapture();
             return false;
@@ -246,8 +250,8 @@ public:
         // Otherwise, send the input the window under the mouse
         Window* window = windowForPosition(position);
         if (window != 0) {
-            bool capture =
-                window->mouseInput(position - window->topLeft(), buttons);
+            bool capture = window->mouseInput(position - window->topLeft(),
+                buttons, wheel);
             if ((buttons & ~_buttons) != 0) {
                 // A button is newly pressed - put focus on this child window
                 _focus = window;
@@ -677,8 +681,21 @@ protected:
             case WM_MBUTTONDOWN:
             case WM_MBUTTONUP:
             case WM_MOUSEMOVE:
-                if (mouseInput(vectorFromLParam(lParam), w))
-                    SetCapture(_hWnd);
+            case WM_MOUSEWHEEL:
+                {
+                    int buttons;
+                    int wheel;
+                    if (uMsg == WM_MOUSEWHEEL) {
+                        buttons = GET_KEYSTATE_WPARAM(wParam);
+                        wheel = GET_WHEEL_DELTA_WPARAM(wParam);
+                    }
+                    else {
+                        buttons = w;
+                        wheel = 0;
+                    }
+                    if (mouseInput(vectorFromLParam(lParam), buttons, wheel))
+                        SetCapture(_hWnd);
+                }
                 break;
             case WM_CHAR:
                 keyboardCharacter(w);

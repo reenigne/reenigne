@@ -610,6 +610,10 @@ public:
         }
         ContainerWindow::enableWindow(enabled);
     }
+    void changeValue(double amount)
+    {
+        setPosition(clamp(0.0, position() + amount, 1.0));
+    }
 private:
     void setValueInternal(double value, bool drawKnob)
     {
@@ -644,10 +648,6 @@ private:
         setValueInternal(
             valueFromPosition(p*(positionFromValue(_max) - m) + m), false);
     }
-    void changeValue(double amount)
-    {
-        setPosition(clamp(0.0, position() + amount, 1.0));
-    }
 
     static DWORD getSysColor(int nIndex, DWORD def)
     {
@@ -670,7 +670,7 @@ private:
                 return;
             host()->_sliders->drawKnob(host());
         }
-        bool mouseInput(Vector position, int buttons)
+        bool mouseInput(Vector position, int buttons, int wheel)
         {
             if (_hWnd == 0)
                 return false;
