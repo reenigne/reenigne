@@ -89,6 +89,11 @@ public:
         allocate(size.x*size.y);
         _topLeft = reinterpret_cast<Byte*>(&Array<Pixel>::operator[](0));
     }
+    void ensure(Vector s)
+    {
+        if (size().x < s.x || size().y < s.y)
+            *this = Bitmap(Vector(max(size().x, s.x), max(size().y, s.y)));
+    }
 
     // Convert from one pixel format to another.
     template<class TargetPixel, class Converter> void convert(

@@ -1369,11 +1369,7 @@ public:
     // different thread.
     void draw()
     {
-        Vector s = innerSize();
-        if (_bitmap.size().x < s.x || _bitmap.size().y < s.y) {
-            _bitmap = Bitmap<DWORD>(Vector(max(_bitmap.size().x, s.x),
-                max(_bitmap.size().y, s.y)));
-        }
+        _bitmap.ensure(innerSize());
         draw2();
         invalidate();
     }
