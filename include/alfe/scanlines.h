@@ -411,7 +411,7 @@ public:
                         }
                         bleed = t/2;
                         output2 = output1;
-                        for (int y2 = y2; y2 < size.y; ++y2) {
+                        for (int y2 = y1; y2 < size.y; ++y2) {
                             float* p = reinterpret_cast<float*>(output2);
                             float o2 = *p;
                             if (o2 < 1) {

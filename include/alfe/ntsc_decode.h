@@ -512,6 +512,8 @@ public:
 
     void init()
     {
+        _input.ensure(_outputSize.x*sizeof(UInt16), _outputSize.y);
+
         static const float inputChannelPositions[8] =
             {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
         static const float outputChannelPositions[3] = {0, 0, 0};
@@ -555,6 +557,9 @@ public:
                 return 0.0f;
             },
             &_inputLeft, &_inputRight, 1, 0);
+
+        _output.ensure((_inputRight - _inputLeft)*sizeof(UInt16),
+            _outputSize.y);
     }
     void decode()
     {
@@ -721,6 +726,10 @@ public:
         _lumaBandwidth = static_cast<float>(lumaBandwidth);
     }
     void setOutputSize(Vector size) { _outputSize = size; }
+    AlignedBuffer input() { return _input; }
+    AlignedBuffer output() { return _output; }
+    int inputLeft() { return _inputLeft; }
+    int inputRight() { return _inputRight; }
 
 private:
     void padInput(int padding, int inputLength)

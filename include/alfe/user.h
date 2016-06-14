@@ -1436,6 +1436,7 @@ public:
         Lock lock(&_mutex);
         _nextBitmap = nextBitmap;
         postMessage(WM_USER);
+        invalidate();
         return _lastBitmap;
     }
 

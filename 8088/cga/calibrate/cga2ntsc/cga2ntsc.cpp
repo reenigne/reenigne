@@ -664,81 +664,54 @@ public:
     { }
     void setRGBI(Bitmap<Byte> rgbi)
     {
-        _rgbi = rgbi;
         {
             Lock lock(&_mutex);
-            _ntsc = Bitmap<Byte>(_rgbi.size() - Vector(1, 0));
-            allocateBitmap2();
-        }
-        reCreateNTSC();
-    }
-    void reCreateNTSC()
-    {
-        _composite.initChroma();
-        Byte burst[4];
-        for (int i = 0; i < 4; ++i)
-            burst[i] = _composite.simulateCGA(6, 6, i);
-        _decoder.calculateBurst(burst);
-        // Convert to raw NTSC
-        const Byte* rgbiRow = _rgbi.data();
-        Byte* ntscRow = _ntsc.data();
-        Vector size = _rgbi.size() - Vector(14, 0);
-        for (int y = 0; y < size.y; ++y) {
-            const Byte* rgbiPixel = rgbiRow;
-            Byte* ntscPixel = ntscRow;
-            for (int x = 0; x < size.x + 13; ++x) {
-                int left = *rgbiPixel;
-                ++rgbiPixel;
-                int right = *rgbiPixel;
-                *ntscPixel = _composite.simulateCGA(left, right, (x + 1) & 3);
-                ++ntscPixel;
-            }
-            rgbiRow += _rgbi.stride();
-            ntscRow += _ntsc.stride();
+            _rgbi = rgbi;
         }
         restart();
     }
     void run()
     {
-        Bitmap<Byte> ntsc;
-        Bitmap<DWORD> decoded;
-        Bitmap<DWORD> bitmap;
+        Bitmap<Byte> rgbi;
+        int connector;
+        Vector outputSize;
+        int combFilter;
+        bool showClipping;
         {
             Lock lock(&_mutex);
-            ntsc = _ntsc;
-            bitmap = _bitmap;
-            decoded = _decoded;
-        }
-        const Byte* ntscRow = ntsc.data();
-        Byte* decodedRow = decoded.data();
-        Vector size = requiredSize();
-        if (ntsc.size().x <= 0 || ntsc.size().y <= 0 || size.x <= 0 ||
-            size.y <= 0)
-            return;
-        for (int y = 0; y < ntsc.size().y; ++y) {
-            _decoder.decodeLine(ntscRow, reinterpret_cast<DWORD*>(decodedRow),
-                ntsc.size().x - 6, size.x);
-            decodedRow += decoded.stride();
-            ntscRow += ntsc.stride();
+            rgbi = _rgbi;
+            connector = _connector;
+            if (_window == 0)
+                return;
+            outputSize = _window->outputSize();
+            combFilter = _combFilter;
+            showClipping = _showClipping;
+            _composite.setBW(_bw);
+            _decoder.setHue(_hue);
+            _decoder.setSaturation(_saturation);
+            _decoder.setContrast(_contrast);
+            _decoder.setBrightness(_brightness);
+            _decoder.setChromaBandwidth(_chromaBandwidth);
+            _decoder.setLumaBandwidth(_lumaBandwidth);
+            _scaler.setProfile(_scanlineProfile);
+            _scaler.setWidth(static_cast<float>(_scanlineWidth));
+            _scaler.setBleeding(_scanlineBleeding);
+            _scaler.setOffset(_inputTL);
+            _scaler.setZoom(Vector2<float>(
+                static_cast<float>(_zoom*_aspectRatio),
+                static_cast<float>(_zoom)));
         }
 
-        decodedRow = decoded.data();
-        Byte* outputRow = bitmap.data();
-        _renderer.setOffset(0);
-        _renderer.init(ntsc.size().y, size.y);
-        for (int x = 0; x < decoded.size().x; ++x) {
-            _renderer.renderColumn(decodedRow, decoded.stride(), outputRow,
-                bitmap.stride());
-            decodedRow += sizeof(DWORD);
-            outputRow += sizeof(DWORD);
-        }
-        if (_window != 0)
-            _window->draw(bitmap);
-    }
-    void run2()
-    {
-        _scaler.setOutputSize(_window->outputSize());
-        _scaler.setOffset(_inputTL);
+        _composite.setNewCGA(connector == 2);
+        _scaler.setOutputSize(outputSize);
+
+        _composite.initChroma();
+        Byte burst[4];
+        for (int i = 0; i < 4; ++i)
+            burst[i] = _composite.simulateCGA(6, 6, i);
+        _decoder.calculateBurst(burst);
+
+        _bitmap.ensure(outputSize);
         _scaler.init();
         _unscaled = _scaler.input();
         _scaled = _scaler.output();
@@ -747,21 +720,24 @@ public:
         _unscaledSize = br - tl;
         Vector rgbiSize;
         Vector activeTL;
+        Vector ntscSize;
         int phase = 0;
-        if (_connector == 0) {
+        if (connector == 0) {
             activeTL = tl;
             rgbiSize = _unscaledSize;
         }
         else {
             _decoder.setOutputSize(_unscaledSize);
             _decoder.init();
+            _combed = _decoder.input();
+            _srgb = _decoder.output();
             int l = _decoder.inputLeft();
             int r = _decoder.inputRight();
             activeTL = Vector(l + tl.x, tl.y);
             _combedSize = Vector(r - l, _unscaledSize.y);
-            Vector ntscSize = _combedSize;
+            ntscSize = _combedSize;
             Vector combTL(0, 0);
-            switch (_combFilter) {
+            switch (combFilter) {
                 case 1: combTL = Vector(2, 1); break;
                 case 2: combTL = Vector(4, 2); break;
                 case 3: combTL = Vector(0, 1); break;
@@ -780,23 +756,23 @@ public:
             memset(rgbi2Row, border, rgbiSize.x);
             rgbi2Row += _rgbi2.stride();
         }
-        Vector activeBR(min(activeTL.x + _rgbi.size().x, rgbiSize.x),
-            min(activeTL.y + _rgbi.size().y, rgbiSize.y));
-        const Byte* rgbiRow = _rgbi.data();
+        Vector activeBR(min(activeTL.x + rgbi.size().x, rgbiSize.x),
+            min(activeTL.y + rgbi.size().y, rgbiSize.y));
+        const Byte* rgbiRow = rgbi.data();
         int nLeft = max(0, activeTL.x);
         int nRight = max(0, rgbiSize.x - activeBR.x);
         for (; y < activeBR.y; ++y) {
             memset(rgbi2Row, border, nLeft);
             memcpy(rgbi2Row + nLeft, rgbiRow, activeBR.x - nLeft);
-            memset(rgbi2Row + activeRight, border, nRight);
-            rgbiRow += _rgbi.stride();
+            memset(rgbi2Row + activeBR.x, border, nRight);
+            rgbiRow += rgbi.stride();
             rgbi2Row += _rgbi2.stride();
         }
         for (; y < rgbiSize.y; ++y) {
             memset(rgbi2Row, border, rgbiSize.x);
             rgbi2Row += _rgbi2.stride();
         }
-        if (_connector == 0) {
+        if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
             UInt16 levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -808,18 +784,19 @@ public:
                 2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
                 1, 1, 1,  1, 1, 3,  1, 3, 1,  1, 3, 3,
                 3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
-            static const UInt16 srgbPalette[3*16];
+            UInt16 srgbPalette[3*16];
             for (int i = 0; i < 3*16; ++i)
                 srgbPalette[i] = levels[palette[i]];
+            _srgb.ensure(rgbiSize.x*sizeof(UInt16), rgbiSize.y);
             const Byte* rgbiRow = _rgbi2.data();
             Byte* srgbRow = _srgb.data();
-            for (int y = 0; y < _rgbi2.size().y; ++y) {
+            for (int y = 0; y < rgbiSize.y; ++y) {
                 const Byte* rgbi = rgbiRow;
                 UInt16* srgb = reinterpret_cast<UInt16*>(srgbRow);
-                for (int x = 0; x < _rgbi2.size().x; ++x) {
+                for (int x = 0; x < rgbiSize.x; ++x) {
                     Byte v = *rgbi;
                     ++rgbi;
-                    UInt16* p = &palette[3*v];
+                    UInt16* p = &srgbPalette[3*v];
                     srgb[0] = p[0];
                     srgb[1] = p[1];
                     srgb[2] = p[2];
@@ -832,10 +809,10 @@ public:
             // Convert from RGBI to composite
             const Byte* rgbiRow = _rgbi2.data();
             Byte* ntscRow = _ntsc.data();
-            for (int y = 0; y < _ntsc.size().y; ++y) {
+            for (int y = 0; y < ntscSize.y; ++y) {
                 const Byte* rgbi = rgbiRow;
                 Byte* ntsc = ntscRow;
-                for (int x = 0; x < _ntsc.size().x; ++x) {
+                for (int x = 0; x < ntscSize.x; ++x) {
                     *ntsc = _composite.simulateCGA(*rgbi, rgbi[1],
                         (x + phase) & 3);
                     ++rgbi;
@@ -846,15 +823,15 @@ public:
             }
             // Apply comb filter and expand to 8 channels of 16 bits per
             // channel.
-            const Byte* ntscRow = _ntsc.data();
-            UInt16* combedRow = _combed.data();
+            ntscRow = _ntsc.data();
+            Byte* combedRow = _combed.data();
             int lineOffset = _ntsc.stride();
-            switch (_combFilter) {
+            switch (combFilter) {
                 case 0:
                     // No comb filter
                     for (int y = 0; y < _combedSize.y; ++y) {
                         const Byte* ntsc = ntscRow;
-                        UInt16* combed = combedRow;
+                        UInt16* combed = reinterpret_cast<UInt16*>(combedRow);
                         for (int x = 0; x < _combedSize.x; ++x) {
                             combed[0] = *ntsc;
                             combed[1] = *ntsc;
@@ -873,7 +850,7 @@ public:
                     // will sharpen 1-ldot-per-scanline diagonals.
                     for (int y = 0; y < _combedSize.y; ++y) {
                         const Byte* ntsc = ntscRow;
-                        SInt16* combed = combedRow;
+                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
                         for (int x = 0; x < _combedSize.x; ++x) {
                             combed[0] = (ntsc[2] + ntsc[lineOffset] + 1) >> 1;
                             combed[1] = (ntsc[2] - ntsc[lineOffset] + 1) >> 1;
@@ -888,9 +865,9 @@ public:
                     // 2 line.
                     for (int y = 0; y < _combedSize.y; ++y) {
                         const Byte* ntsc = ntscRow;
-                        SInt16* combed = combedRow;
+                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
                         for (int x = 0; x < _combedSize.x; ++x) {
-                            SInt16 a = *ntsc[4] + ntsc[lineOffset << 1] + 2;
+                            SInt16 a = ntsc[4] + ntsc[lineOffset << 1] + 2;
                             SInt16 b = ntsc[lineOffset + 2] << 1;
                             combed[0] = (a + b) >> 2;
                             combed[1] = (a - b) >> 2;
@@ -910,7 +887,7 @@ public:
                     // vertically - it will just amount to a vertical blur.
                     for (int y = 0; y < _combedSize.y; ++y) {
                         const Byte* ntsc = ntscRow;
-                        SInt16* combed = combedRow;
+                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
                         for (int x = 0; x < _combedSize.x; ++x) {
                             combed[0] = (*ntsc + ntsc[lineOffset] + 1) >> 1;
                             combed[1] = (*ntsc - ntsc[lineOffset] + 1) >> 1;
@@ -925,7 +902,7 @@ public:
                     // 2 frame.
                     for (int y = 0; y < _combedSize.y; ++y) {
                         const Byte* ntsc = ntscRow;
-                        SInt16* combed = combedRow;
+                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
                         for (int x = 0; x < _combedSize.x; ++x) {
                             SInt16 a = *ntsc + ntsc[lineOffset << 1] + 2;
                             SInt16 b = ntsc[lineOffset] << 1;
@@ -946,16 +923,16 @@ public:
         float linear[256];
         for (int i = 0; i < 256; ++i)
             linear[i] = pow(i/255.0f, 2.2f);
-        if (_showClipping) {
+        if (showClipping) {
             linear[0] = 1.0f;
             linear[255] = 0.0f;
         }
         const Byte* srgbRow = _srgb.data();
         Byte* unscaledRow = _unscaled.data();
-        for (int y = 0; y < _unscaled.size().y; ++y) {
+        for (int y = 0; y < _unscaledSize.y; ++y) {
             const SInt16* srgb = reinterpret_cast<const SInt16*>(srgbRow);
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
-            for (int x = 0; x < _unscaled.size().x*3; ++x) {
+            for (int x = 0; x < _unscaledSize.x*3; ++x) {
                 *unscaled = linear[byteClamp(*srgb >> 7)];
                 ++srgb;
                 ++unscaled;
@@ -968,10 +945,10 @@ public:
         // Delinearization and float-to-byte conversion
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
-        for (int y = 0; y < _bitmap.size().y; ++y) {
+        for (int y = 0; y < outputSize.y; ++y) {
             const float* scaled = reinterpret_cast<const float*>(scaledRow);
             DWORD* output = reinterpret_cast<DWORD*>(outputRow);
-            for (int x = 0; x < _bitmap.size().x; ++x) {
+            for (int x = 0; x < outputSize.x; ++x) {
                 *output = (delinearize(scaled[0]) << 16) |
                     (delinearize(scaled[1]) << 8) | delinearize(scaled[2]);
                 ++output;
@@ -979,6 +956,12 @@ public:
             }
             scaledRow += _scaled.stride();
             outputRow += _bitmap.stride();
+        }
+        _bitmap = _window->setNextBitmap(_bitmap);
+
+        {
+            Lock lock(&_mutex);
+            rgbi = Bitmap<Byte>();
         }
     }
 
@@ -993,104 +976,162 @@ public:
 
     void setConnector(int connector)
     {
-        _connector = connector;
-        _composite.setNewCGA(connector == 2);
-        reCreateNTSC();
+        {
+            Lock lock(&_mutex);
+            _connector = connector;
+        }
+        restart();
     }
     int getConnector() { return _connector; }
-    void setBW(bool bw) { _composite.setBW(bw); reCreateNTSC(); }
+    void setBW(bool bw)
+    {
+        {
+            Lock lock(&_mutex);
+            _bw = bw;
+        }
+        restart();
+    }
     void setScanlineProfile(int profile)
     {
-        _renderer.setProfile(profile);
+        {
+            Lock lock(&_mutex);
+            _scanlineProfile = profile;
+        }
         restart();
     }
-    int getScanlineProfile() { return _renderer.getProfile(); }
+    int getScanlineProfile() { return _scanlineProfile; }
     void setScanlineWidth(double width)
     {
-        _renderer.setWidth(static_cast<float>(width));
+        {
+            Lock lock(&_mutex);
+            _scanlineWidth = width;
+        }
         restart();
     }
-    double getScanlineWidth() { return _renderer.getWidth(); }
+    double getScanlineWidth() { return _scanlineWidth; }
     void setScanlineBleeding(int bleeding)
     {
-        _renderer.setBleeding(bleeding != 0);
-        _scaler.setBleeding(bleeding);
+        {
+            Lock lock(&_mutex);
+            _scanlineBleeding = bleeding;
+        }
         restart();
     }
     int getScanlineBleeding() { return _scaler.getBleeding(); }
     void setZoom(double zoom)
     {
-        Vector mousePosition = _window->outputMousePosition();
-        Vector size = _window->outputSize();
-        Vector2<float> position = Vector2Cast<float>(size)/2.0f;
-        if (_dragging || (mousePosition.inside(size) &&
-            (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
-            (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
-            position = Vector2Cast<float>(mousePosition);
-        _inputTL += position*static_cast<float>(_zoom - zoom)*
-            Vector2<float>(static_cast<float>(_aspectRatio), 1);
-        _zoom = zoom;
-        allocateBitmap();
+        {
+            Lock lock(&_mutex);
+            if (_window != 0 && _window->hWnd() != 0) {
+                Vector mousePosition = _window->outputMousePosition();
+                Vector size = _window->outputSize();
+                Vector2<float> position = Vector2Cast<float>(size)/2.0f;
+                if (_dragging || (mousePosition.inside(size) &&
+                    (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
+                    (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
+                    position = Vector2Cast<float>(mousePosition);
+                _inputTL += position*static_cast<float>(_zoom - zoom)*
+                    Vector2<float>(static_cast<float>(_aspectRatio), 1);
+            }
+            _zoom = zoom;
+        }
+        restart();
     }
     double getZoom() { return _zoom; }
     void setAspectRatio(double ratio)
     {
-        Vector mousePosition = _window->outputMousePosition();
-        Vector size = _window->outputSize();
-        Vector2<float> position = Vector2Cast<float>(size)/2.0f;
-        if (_dragging || (mousePosition.inside(size) &&
-            (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
-            (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
-            position = Vector2Cast<float>(mousePosition);
-        _inputTL += position*static_cast<float>(_zoom)*
-            Vector2<float>(static_cast<float>(_aspectRatio - ratio), 1.0f);
-        _aspectRatio = ratio;
-        allocateBitmap();
+        {
+            Lock lock(&_mutex);
+            if (_window != 0 && _window->hWnd() != 0) {
+                Vector mousePosition = _window->outputMousePosition();
+                Vector size = _window->outputSize();
+                Vector2<float> position = Vector2Cast<float>(size)/2.0f;
+                if (_dragging || (mousePosition.inside(size) &&
+                    (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
+                    (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
+                    position = Vector2Cast<float>(mousePosition);
+                _inputTL += position*static_cast<float>(_zoom)*
+                    Vector2<float>(static_cast<float>(_aspectRatio - ratio),
+                        1.0f);
+            }
+            _aspectRatio = ratio;
+        }
+        restart();
     }
     double getAspectRatio() { return _aspectRatio; }
-    void setCombFilter(int value) { _combFilter = value; restart(); }
+    void setCombFilter(int combFilter)
+    {
+        {
+            Lock lock(&_mutex);
+            _combFilter = combFilter;
+        }
+        restart();
+    }
     int getCombFilter() { return _combFilter; }
-    ResamplingNTSCDecoder* getDecoder() { return &_decoder; }
 
-    double getHue() { return _decoder.getHue(); }
-    void setHue(double hue) { _decoder.setHue(hue); restart(); }
-    double getSaturation() { return _decoder.getSaturation(); }
+    void setHue(double hue)
+    {
+        {
+            Lock lock(&_mutex);
+            _hue = hue;
+        }
+        restart();
+    }
+    double getHue() { return _hue; }
     void setSaturation(double saturation)
     {
-        _decoder.setSaturation(saturation);
+        {
+            Lock lock(&_mutex);
+            _saturation = saturation;
+        }
         restart();
     }
-    double getContrast() { return _decoder.getContrast(); }
+    double getSaturation() { return _saturation; }
     void setContrast(double contrast)
     {
-        _decoder.setContrast(contrast);
+        {
+            Lock lock(&_mutex);
+            _contrast = contrast;
+        }
         restart();
     }
-    double getBrightness() { return _decoder.getBrightness(); }
+    double getContrast() { return _contrast; }
     void setBrightness(double brightness)
     {
-        _decoder.setBrightness(brightness);
+        {
+            Lock lock(&_mutex);
+            _brightness = brightness;
+        }
+        restart();
+    }
+    double getBrightness() { return _brightness; }
+    void setShowClipping(bool showClipping)
+    {
+        {
+            Lock lock(&_mutex);
+            _showClipping = showClipping;
+        }
         restart();
     }
     bool getShowClipping() { return _showClipping; }
-    void setShowClipping(bool showClipping)
-    {
-        _showClipping = showClipping;
-        _decoder.setShowClipping(showClipping);
-        restart();
-    }
-    double getChromaBandwidth() { return _decoder.getChromaBandwidth(); }
     void setChromaBandwidth(double chromaBandwidth)
     {
-        _decoder.setChromaBandwidth(chromaBandwidth);
+        {
+            Lock lock(&_mutex);
+            _chromaBandwidth = chromaBandwidth;
+        }
         restart();
     }
-    double getLumaBandwidth() { return _decoder.getLumaBandwidth(); }
+    double getChromaBandwidth() { return _chromaBandwidth; }
     void setLumaBandwidth(double lumaBandwidth)
     {
-        _decoder.setLumaBandwidth(lumaBandwidth);
+        {
+            Lock lock(&_mutex);
+            _lumaBandwidth = lumaBandwidth;
+        }
         restart();
     }
+    double getLumaBandwidth() { return _lumaBandwidth; }
 
     Vector requiredSize()
     {
@@ -1116,20 +1157,6 @@ public:
        _dragging = button;
     }
 private:
-    void allocateBitmap()
-    {
-        Lock lock(&_mutex);
-        allocateBitmap2();
-    }
-    void allocateBitmap2()
-    {
-        Vector size = requiredSize();
-        if (size.x > _bitmap.size().x || size.y > _bitmap.size().y)
-            _bitmap = Bitmap<DWORD>(size);
-        if (size.x > _decoded.size().x)
-            _decoded = Bitmap<DWORD>(Vector(size.x, _ntsc.size().y));
-        restart();
-    }
     static Byte delinearize(float l)
     {
         if (l <= 0)
@@ -1139,21 +1166,31 @@ private:
 
     Program* _program;
 
-    Bitmap<DWORD> _bitmap;
-    Bitmap<Byte> _rgbi;
-    Bitmap<Byte> _ntsc;
-    Bitmap<DWORD> _decoded;
-    CGAComposite _composite;
-    ResamplingNTSCDecoder _decoder;
-    ScanlineRenderer _renderer;
+    int _connector;
+    bool _bw;
+    int _scanlineProfile;
+    double _scanlineWidth;
+    int _scanlineBleeding;
     double _zoom;
     double _aspectRatio;
+    Vector2<float> _inputTL;
+    double _hue;
+    double _saturation;
+    double _contrast;
+    double _brightness;
+    double _chromaBandwidth;
+    double _lumaBandwidth;
     int _combFilter;
-    int _connector;
     bool _showClipping;
+
+    Bitmap<DWORD> _bitmap;
+    Bitmap<Byte> _rgbi;
+    Bitmap<Byte> _rgbi2;
+    Bitmap<Byte> _ntsc;
+    CGAComposite _composite;
+    ResamplingNTSCDecoder _decoder;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
-    Vector2<float> _inputTL;
 
     FIRScanlineRenderer _scaler;
     Vector _combedSize;
@@ -1299,7 +1336,10 @@ public:
     void setShower(CGAShower* shower) { _shower = shower; }
     void setOutput(CGAOutput* output) { _output = output; }
     void setProgram(Program* program) { _program = program; }
-    void draw(Bitmap<DWORD> bitmap) { _outputWindow.draw(bitmap); }
+    Bitmap<DWORD> setNextBitmap(Bitmap<DWORD> bitmap)
+    {
+        return _outputWindow.setNextBitmap(bitmap);
+    }
     void beginConvert() { _program->beginConvert(); }
 
     void updateApplicableControls()
@@ -1418,7 +1458,7 @@ public:
         _program->setMatchMode(value);
         updateApplicableControls();
         beginConvert();
-        reCreateNTSC();
+        _output->restart();
     }
 
     void brightnessSet(double brightness)
@@ -1469,11 +1509,6 @@ public:
         beginConvert();
     }
 
-    void reCreateNTSC()
-    {
-        _output->reCreateNTSC();
-    }
-
     Vector outputSize() { return _outputWindow.innerSize(); }
     Vector outputMousePosition()
     {
@@ -1493,20 +1528,7 @@ private:
     class OutputWindow : public BitmapWindow
     {
     public:
-        OutputWindow(CGA2NTSCWindow* host) : _host(host), _dragging(false) { }
-        void draw(Bitmap<DWORD> bitmap)
-        {
-            _b = bitmap;
-            BitmapWindow::draw();
-        }
-        void draw2()
-        {
-            // Just copy from the top left corner for now.
-            Vector zero(0, 0);
-            Vector size(min(_b.size().x, innerSize().x),
-                min(_b.size().y, innerSize().y));
-            _b.subBitmap(zero, size).copyTo(_bitmap.subBitmap(zero, size));
-        }
+        OutputWindow(CGA2NTSCWindow* host) : _host(host) { }
         bool mouseInput(Vector position, int buttons, int wheel)
         {
             bool lButton = (buttons & MK_LBUTTON) != 0;
@@ -1518,8 +1540,6 @@ private:
 
     private:
         CGA2NTSCWindow* _host;
-        bool _dragging;
-        Bitmap<DWORD> _b;
     };
     OutputWindow _outputWindow;
     struct MonitorGroup : public GroupBox
@@ -2302,7 +2322,7 @@ public:
         if (!_matchMode)
             _matcher.cancel();
         _matcher.join();
-        output.reCreateNTSC();
+        output.restart();
         output.join();
 
         if (!interactive)
@@ -2339,7 +2359,7 @@ public:
     {
         if (_updateNeeded) {
             _updateNeeded = false;
-            _window.reCreateNTSC();
+            _output->restart();
         }
         return false;
     }
