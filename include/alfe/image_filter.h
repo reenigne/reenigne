@@ -125,9 +125,10 @@ public:
         int kWidth =
             (static_cast<int>(kernelRadius*2 + 1) + channelsPerUnit - 1)/
             channelsPerUnit;
-        _kernelBuffer.ensure(kWidth*channelsPerUnit*_width*sizeof(UInt16));
+        _kernelBuffer.ensure(
+            kWidth*channelsPerUnit*_width*channelsPerUnit*sizeof(UInt16));
         UInt16* kernel = reinterpret_cast<UInt16*>(_kernelBuffer.data());
-        _offsets.ensure(kWidth*_width*sizeof(int));
+        _offsets.ensure(kWidth*_width*channelsPerUnit*sizeof(int));
         _kernelSizes.ensure(_width);
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
@@ -322,9 +323,10 @@ public:
         int kWidth =
             (static_cast<int>(kernelRadius*2 + 1) + channelsPerUnit - 1)/
             channelsPerUnit;
-        _kernelBuffer.ensure(kWidth*channelsPerUnit*_width*sizeof(float));
+        _kernelBuffer.ensure(
+            kWidth*channelsPerUnit*_width*channelsPerUnit*sizeof(float));
         float* kernel = reinterpret_cast<float*>(_kernelBuffer.data());
-        _offsets.ensure(kWidth*_width*sizeof(int));
+        _offsets.ensure(kWidth*_width*channelsPerUnit*sizeof(int));
         _kernelSizes.ensure(_width);
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
@@ -501,9 +503,9 @@ public:
         int kWidth = static_cast<int>(kernelRadius*2 + 1);
         _kernelBuffer.ensure(kWidth*channelsPerUnit*_height*sizeof(float));
         float* kernel = reinterpret_cast<float*>(_kernelBuffer.data());
-        _offsetCounts.ensure(kWidth*_width*sizeof(int));
-        _offsets.ensure(kWidth*_width*sizeof(int));
-        _kernelSizes.ensure(_width);
+        _offsetCounts.ensure(_height);
+        _offsets.ensure(_height);
+        _kernelSizes.ensure(_height);
         int* offsets = &_offsetCounts[0];
         int* sizes = &_kernelSizes[0];
 

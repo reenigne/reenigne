@@ -660,13 +660,17 @@ template<class T> class CGAOutputT : public ThreadTask
 public:
     CGAOutputT(Program* program)
       : _program(program), _window(0), _zoom(0), _aspectRatio(1),
-        _inputTL(0, 0)
+        _inputTL(0, 0), _outputSize(0, 0), _active(false)
     { }
     void setRGBI(Bitmap<Byte> rgbi)
     {
         {
             Lock lock(&_mutex);
             _rgbi = rgbi;
+            if (!_active) {
+                _inputTL = static_cast<float>(_overscan)*
+                    Vector2Cast<float>(_rgbi.size());
+            }
         }
         restart();
     }
@@ -679,13 +683,13 @@ public:
         bool showClipping;
         {
             Lock lock(&_mutex);
+            if (!_active)
+                return;
             rgbi = _rgbi;
             connector = _connector;
-            if (_window == 0)
-                return;
-            outputSize = _window->outputSize();
             combFilter = _combFilter;
             showClipping = _showClipping;
+            outputSize = _outputSize;
             _composite.setBW(_bw);
             _decoder.setHue(_hue);
             _decoder.setSaturation(_saturation);
@@ -787,7 +791,7 @@ public:
             UInt16 srgbPalette[3*16];
             for (int i = 0; i < 3*16; ++i)
                 srgbPalette[i] = levels[palette[i]];
-            _srgb.ensure(rgbiSize.x*sizeof(UInt16), rgbiSize.y);
+            _srgb.ensure(rgbiSize.x*3*sizeof(UInt16), rgbiSize.y);
             const Byte* rgbiRow = _rgbi2.data();
             Byte* srgbRow = _srgb.data();
             for (int y = 0; y < rgbiSize.y; ++y) {
@@ -967,6 +971,15 @@ public:
 
     void save(String outputFileName)
     {
+        {
+            Lock lock(&_mutex);
+            _active = true;
+            _inputTL =
+                static_cast<float>(_overscan)*Vector2Cast<float>(_rgbi.size());
+        }
+        setOutputSize(requiredSize());
+        join();
+
         _bitmap.subBitmap(Vector(0, 0), requiredSize()).
             save(PNGFileFormat<DWORD>(), File(outputFileName, true));
 
@@ -1017,7 +1030,7 @@ public:
         }
         restart();
     }
-    int getScanlineBleeding() { return _scaler.getBleeding(); }
+    int getScanlineBleeding() { return _scanlineBleeding; }
     void setZoom(double zoom)
     {
         {
@@ -1059,6 +1072,22 @@ public:
         restart();
     }
     double getAspectRatio() { return _aspectRatio; }
+    void setOverscan(double overscan)
+    {
+        {
+            Lock lock(&_mutex);
+            _overscan = overscan;
+        }
+        restart();
+    }
+    void setOutputSize(Vector outputSize)
+    {
+        {
+            Lock lock(&_mutex);
+            _outputSize = outputSize;
+        }
+        restart();
+    }
     void setCombFilter(int combFilter)
     {
         {
@@ -1135,11 +1164,20 @@ public:
 
     Vector requiredSize()
     {
-        double y = _zoom*_ntsc.size().y;
-        double x = _zoom*(_ntsc.size().x - 6)*_aspectRatio/2;
-        return Vector(static_cast<int>(x), static_cast<int>(y));
+        double o = 1 + 2*_overscan;
+        double y = _zoom*_rgbi.size().y*o;
+        double x = _zoom*_rgbi.size().x*o*_aspectRatio/2;
+        return Vector(static_cast<int>(x + 0.5), static_cast<int>(y + 0.5));
     }
-    void setWindow(CGA2NTSCWindow* window) { _window = window; }
+    void setWindow(CGA2NTSCWindow* window)
+    {
+        _window = window;
+        {
+            Lock lock(&_mutex);
+            //_active = true;
+        }
+        restart();
+    }
     void mouseInput(Vector position, bool button)
     {
         _mousePosition = position;
@@ -1165,6 +1203,7 @@ private:
     }
 
     Program* _program;
+    bool _active;
 
     int _connector;
     bool _bw;
@@ -1173,6 +1212,8 @@ private:
     int _scanlineBleeding;
     double _zoom;
     double _aspectRatio;
+    double _overscan;
+    Vector _outputSize;
     Vector2<float> _inputTL;
     double _hue;
     double _saturation;
@@ -1537,7 +1578,7 @@ private:
                 _host->_monitor._scaling._zoom.changeValue(wheel/1200.0f);
             return lButton;
         }
-
+        void innerSizeSet(Vector size) { _host->_output->setOutputSize(size); }
     private:
         CGA2NTSCWindow* _host;
     };
@@ -2155,6 +2196,7 @@ public:
         configFile.addDefaultOption("scanlineProfile", 0);
         configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("zoom", 2.0);
+        configFile.addDefaultOption("overscan", 0.1);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
         configFile.addDefaultOption("combFilter", 0);
@@ -2249,6 +2291,7 @@ public:
         output.setZoom(configFile.get<double>("zoom"));
         output.setScanlineBleeding(configFile.get<int>("scanlineBleeding"));
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
+        output.setOverscan(configFile.get<double>("overscan"));
         output.setCombFilter(configFile.get<int>("combFilter"));
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
@@ -2322,11 +2365,6 @@ public:
         if (!_matchMode)
             _matcher.cancel();
         _matcher.join();
-        output.restart();
-        output.join();
-
-        if (!interactive)
-            timer.output("Elapsed time");
 
         String inputFileName = bitmapValue.name();
         int i;
@@ -2340,6 +2378,9 @@ public:
         _matcher.save(inputFileName + "_out.dat");
         _matcher.saveRGBI(inputFileName + "_out.rgbi");
         _matcher.savePalettes(inputFileName + "_out.palettes");
+
+        if (!interactive)
+            timer.output("Elapsed time");
     }
     bool getMatchMode() { return _matchMode; }
     void setMatchMode(bool matchMode)
