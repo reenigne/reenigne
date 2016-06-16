@@ -267,13 +267,15 @@ public:
                 break;
         }
 
-        _output.ensure(_size.x*sizeof(float), _size.y);
+        _output.ensure(_size.x*3*sizeof(float), _size.y);
 
-        _vertical.generate(_size, kernelRadiusVertical, verticalKernel,
+        _vertical.generate(_size, 3, kernelRadiusVertical, verticalKernel,
             &_inputTL.y, &_inputBR.y, _zoom.y, _offset.y);
 
         int inputHeight = _inputBR.y - _inputTL.y;
-        _intermediate.ensure(_size.x*sizeof(float), inputHeight);
+        _intermediate.ensure(_size.x*3*sizeof(float), inputHeight);
+
+        _vertical.setBuffers(_intermediate, _output);
 
         static const float inputChannelPositions[3] = {0, 0, 0};
         static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
@@ -290,7 +292,9 @@ public:
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
 
-        _input.ensure((_inputBR.x - _inputTL.x)*sizeof(float), inputHeight);
+        _input.ensure((_inputBR.x - _inputTL.x)*3*sizeof(float), inputHeight);
+
+        _horizontal.setBuffers(_input, _intermediate);
     }
     void render()
     {

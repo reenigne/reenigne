@@ -132,6 +132,8 @@ public:
     }
     void run()
     {
+        return;
+
         _composite.initChroma();
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
@@ -668,7 +670,7 @@ public:
             Lock lock(&_mutex);
             _rgbi = rgbi;
             if (!_active) {
-                _inputTL = static_cast<float>(_overscan)*
+                _inputTL = -static_cast<float>(_overscan)*
                     Vector2Cast<float>(_rgbi.size());
             }
         }
@@ -683,7 +685,7 @@ public:
         bool showClipping;
         {
             Lock lock(&_mutex);
-            if (!_active)
+            if (!_active || _outputSize.zeroArea())
                 return;
             rgbi = _rgbi;
             connector = _connector;
@@ -961,6 +963,7 @@ public:
             scaledRow += _scaled.stride();
             outputRow += _bitmap.stride();
         }
+        _lastBitmap = _bitmap;
         _bitmap = _window->setNextBitmap(_bitmap);
 
         {
@@ -974,17 +977,18 @@ public:
         {
             Lock lock(&_mutex);
             _active = true;
-            _inputTL =
-                static_cast<float>(_overscan)*Vector2Cast<float>(_rgbi.size());
+            _inputTL = -static_cast<float>(_overscan)*
+                Vector2Cast<float>(_rgbi.size());
         }
         setOutputSize(requiredSize());
         join();
 
-        _bitmap.subBitmap(Vector(0, 0), requiredSize()).
-            save(PNGFileFormat<DWORD>(), File(outputFileName, true));
+        _lastBitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
 
-        FileStream s = File(outputFileName + ".ntsc", true).openWrite();
-        s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
+        if (_connector != 0) {
+            FileStream s = File(outputFileName + ".ntsc", true).openWrite();
+            s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
+        }
     }
 
     void setConnector(int connector)
@@ -1037,14 +1041,15 @@ public:
             Lock lock(&_mutex);
             if (_window != 0 && _window->hWnd() != 0) {
                 Vector mousePosition = _window->outputMousePosition();
-                Vector size = _window->outputSize();
+                Vector size = _outputSize;
                 Vector2<float> position = Vector2Cast<float>(size)/2.0f;
                 if (_dragging || (mousePosition.inside(size) &&
                     (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
                     (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
                     position = Vector2Cast<float>(mousePosition);
-                _inputTL += position*static_cast<float>(_zoom - zoom)*
-                    Vector2<float>(static_cast<float>(_aspectRatio), 1);
+                _inputTL += position*static_cast<float>(zoom - _zoom)/(
+                    Vector2<float>(static_cast<float>(_aspectRatio)/2.0f, 1.0f)
+                    *static_cast<float>(_zoom*zoom));
             }
             _zoom = zoom;
         }
@@ -1057,15 +1062,14 @@ public:
             Lock lock(&_mutex);
             if (_window != 0 && _window->hWnd() != 0) {
                 Vector mousePosition = _window->outputMousePosition();
-                Vector size = _window->outputSize();
+                Vector size = _outputSize;
                 Vector2<float> position = Vector2Cast<float>(size)/2.0f;
                 if (_dragging || (mousePosition.inside(size) &&
                     (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0 &&
                     (GetAsyncKeyState(VK_RBUTTON) & 0x8000) == 0))
                     position = Vector2Cast<float>(mousePosition);
-                _inputTL += position*static_cast<float>(_zoom)*
-                    Vector2<float>(static_cast<float>(_aspectRatio - ratio),
-                        1.0f);
+                _inputTL.x += position.x*2.0f*static_cast<float>(
+                    (ratio - _aspectRatio)/(_zoom*ratio*_aspectRatio));
             }
             _aspectRatio = ratio;
         }
@@ -1174,7 +1178,7 @@ public:
         _window = window;
         {
             Lock lock(&_mutex);
-            //_active = true;
+            _active = true;
         }
         restart();
     }
@@ -1184,13 +1188,10 @@ public:
         if (button) {
             if (!_dragging) {
                 _dragStart = position;
-                _dragStartInputPosition = _inputTL +
-                    Vector2Cast<float>(position)*static_cast<float>(_zoom)*
-                    Vector2<float>(static_cast<float>(_aspectRatio), 1);
+                _dragStartInputPosition = inputForOutput(position);
             }
-            _inputTL = _dragStartInputPosition -
-                Vector2Cast<float>(position)*static_cast<float>(_zoom)*
-                Vector2<float>(static_cast<float>(_aspectRatio), 1);
+            _inputTL =
+                _dragStartInputPosition - Vector2Cast<float>(position)/scale();
         }
        _dragging = button;
     }
@@ -1199,7 +1200,21 @@ private:
     {
         if (l <= 0)
             return 0;
-        return min(static_cast<int>(pow(l, 1/2.2)*255.0f + 0.5f), 255);
+        return min(static_cast<int>(pow(l, 1/2.2f)*255.0f + 0.5f), 255);
+    }
+    // Output pixels per input pixel
+    Vector2<float> scale()
+    {
+        return Vector2<float>(static_cast<float>(_aspectRatio)/2.0f, 1.0f)*
+            static_cast<float>(_zoom);
+    }
+    Vector2<float> inputForOutput(Vector output)
+    {
+        return _inputTL + Vector2Cast<float>(output)/scale();
+    }
+    Vector outputForInput(Vector2<float> input)
+    {
+        return Vector2Cast<int>((input - _inputTL)*scale());
     }
 
     Program* _program;
@@ -1225,6 +1240,7 @@ private:
     bool _showClipping;
 
     Bitmap<DWORD> _bitmap;
+    Bitmap<DWORD> _lastBitmap;
     Bitmap<Byte> _rgbi;
     Bitmap<Byte> _rgbi2;
     Bitmap<Byte> _ntsc;
@@ -1550,7 +1566,6 @@ public:
         beginConvert();
     }
 
-    Vector outputSize() { return _outputWindow.innerSize(); }
     Vector outputMousePosition()
     {
         POINT point;

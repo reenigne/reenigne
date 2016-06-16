@@ -512,7 +512,7 @@ public:
 
     void init()
     {
-        _input.ensure(_outputSize.x*sizeof(UInt16), _outputSize.y);
+        _output.ensure(_outputSize.x*3*sizeof(UInt16), _outputSize.y);
 
         static const float inputChannelPositions[8] =
             {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
@@ -558,8 +558,10 @@ public:
             },
             &_inputLeft, &_inputRight, 1, 0);
 
-        _output.ensure((_inputRight - _inputLeft)*sizeof(UInt16),
+        _input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16),
             _outputSize.y);
+
+        _filter.setBuffers(_input, _output);
     }
     void decode()
     {
