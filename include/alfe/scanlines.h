@@ -337,16 +337,15 @@ public:
                         Byte* output1 = output + s;
                         int y1;
                         float t = -o;
-                        for (y1 = y + 1; y1 < size.y; ++y1) {
+                        for (y1 = y + 1; y1 < size.y; ++y1, output1 += s) {
                             float o1 = *reinterpret_cast<float*>(output1);
                             if (o1 > 0)
                                 break;
                             t -= o1;
-                            output1 += s;
                         }
                         float bleed = t/2;
                         Byte* output2 = output - s;
-                        for (int y2 = y - 1; y2 >= 0; --y2) {
+                        for (int y2 = y - 1; y2 >= 0; --y2, output2 -= s) {
                             float* p = reinterpret_cast<float*>(output2);
                             float o2 = *p;
                             if (o2 > 0) {
@@ -359,11 +358,10 @@ public:
                                     break;
                                 }
                             }
-                            output2 -= s;
                         }
                         bleed = t/2;
                         output2 = output1;
-                        for (int y2 = y1; y2 < size.y; ++y2) {
+                        for (int y2 = y1; y2 < size.y; ++y2, output2 += s) {
                             float* p = reinterpret_cast<float*>(output2);
                             float o2 = *p;
                             if (o2 > 0) {
@@ -376,12 +374,11 @@ public:
                                     break;
                                 }
                             }
-                            output2 += s;
                         }
                         // We need to restart at y1 here rather than y2 because
                         // there might be some more <0 values between y1 and
                         // y2.
-                        y = y1;
+                        y = y1 - 1;
                         output = output1;
                         continue;
                     }
@@ -389,16 +386,15 @@ public:
                         Byte* output1 = output + s;
                         int y1;
                         float t = o - 1;
-                        for (y1 = y + 1; y1 < size.y; ++y1) {
+                        for (y1 = y + 1; y1 < size.y; ++y1, output1 += s) {
                             float o1 = *reinterpret_cast<float*>(output1);
                             if (o1 < 1)
                                 break;
                             t += o1 - 1;
-                            output1 += s;
                         }
                         float bleed = t/2;
                         Byte* output2 = output - s;
-                        for (int y2 = y - 1; y2 >= 0; --y2) {
+                        for (int y2 = y - 1; y2 >= 0; --y2, output2 -= s) {
                             float* p = reinterpret_cast<float*>(output2);
                             float o2 = *p;
                             if (o2 < 1) {
@@ -411,11 +407,10 @@ public:
                                     break;
                                 }
                             }
-                            output2 -= s;
                         }
                         bleed = t/2;
                         output2 = output1;
-                        for (int y2 = y1; y2 < size.y; ++y2) {
+                        for (int y2 = y1; y2 < size.y; ++y2, output2 += s) {
                             float* p = reinterpret_cast<float*>(output2);
                             float o2 = *p;
                             if (o2 < 1) {
@@ -428,12 +423,11 @@ public:
                                     break;
                                 }
                             }
-                            output2 += s;
                         }
                         // We need to restart at y1 here rather than y2 because
                         // there might be some more >1 values between y1 and
                         // y2.
-                        y = y1;
+                        y = y1 - 1;
                         output = output1;
                         continue;
                     }

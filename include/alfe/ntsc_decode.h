@@ -556,7 +556,7 @@ public:
                 assert(false);
                 return 0.0f;
             },
-            &_inputLeft, &_inputRight, 1, 0);
+            &_inputLeft, &_inputRight, 4, 0);
 
         _input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16),
             _outputSize.y);

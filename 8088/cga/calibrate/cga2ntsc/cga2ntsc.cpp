@@ -132,8 +132,6 @@ public:
     }
     void run()
     {
-        return;
-
         _composite.initChroma();
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
@@ -703,9 +701,7 @@ public:
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
             _scaler.setBleeding(_scanlineBleeding);
             _scaler.setOffset(_inputTL);
-            _scaler.setZoom(Vector2<float>(
-                static_cast<float>(_zoom*_aspectRatio),
-                static_cast<float>(_zoom)));
+            _scaler.setZoom(scale());
         }
 
         _composite.setNewCGA(connector == 2);
@@ -725,13 +721,11 @@ public:
         Vector br = _scaler.inputBR();
         _unscaledSize = br - tl;
         Vector rgbiSize;
-        Vector activeTL;
+        Vector activeTL = Vector(0, 0) - tl;
         Vector ntscSize;
         int phase = 0;
-        if (connector == 0) {
-            activeTL = tl;
+        if (connector == 0)
             rgbiSize = _unscaledSize;
-        }
         else {
             _decoder.setOutputSize(_unscaledSize);
             _decoder.init();
@@ -739,8 +733,7 @@ public:
             _srgb = _decoder.output();
             int l = _decoder.inputLeft();
             int r = _decoder.inputRight();
-            activeTL = Vector(l + tl.x, tl.y);
-            _combedSize = Vector(r - l, _unscaledSize.y);
+            _combedSize = Vector((r - l)*4, _unscaledSize.y);
             ntscSize = _combedSize;
             Vector combTL(0, 0);
             switch (combFilter) {
@@ -752,25 +745,37 @@ public:
             ntscSize += combTL;
             _ntsc.ensure(ntscSize);
             rgbiSize = ntscSize + Vector(1, 0);
-            phase = 3 - ((activeTL.x + combTL.x) & 3);
+            activeTL -= Vector(l, 0) + combTL;
+            phase = 3 - (activeTL.x & 3);
         }
         _rgbi2.ensure(rgbiSize);
         Byte border = _program->borderColour();
+        Vector activeBR = activeTL + _rgbi.size();
+        Vector rgbiTL(0, 0);
+        if (activeTL.x < 0) {
+            rgbiTL.x = -activeTL.x;
+            activeTL.x = 0;
+        }
+        if (activeTL.y < 0) {
+            rgbiTL.y = -activeTL.y;
+            activeTL.y = 0;
+        }
+        activeTL =
+            Vector(min(activeTL.x, rgbiSize.x), min(activeTL.y, rgbiSize.y));
+        activeBR = Vector(clamp(0, activeBR.x, rgbiSize.x),
+            clamp(0, activeBR.y, rgbiSize.y));
+
         Byte* rgbi2Row = _rgbi2.data();
         int y;
         for (y = 0; y < activeTL.y; ++y) {
             memset(rgbi2Row, border, rgbiSize.x);
             rgbi2Row += _rgbi2.stride();
         }
-        Vector activeBR(min(activeTL.x + rgbi.size().x, rgbiSize.x),
-            min(activeTL.y + rgbi.size().y, rgbiSize.y));
-        const Byte* rgbiRow = rgbi.data();
-        int nLeft = max(0, activeTL.x);
-        int nRight = max(0, rgbiSize.x - activeBR.x);
+        const Byte* rgbiRow = rgbi.data() + rgbiTL.x + rgbiTL.y*rgbi.stride();
         for (; y < activeBR.y; ++y) {
-            memset(rgbi2Row, border, nLeft);
-            memcpy(rgbi2Row + nLeft, rgbiRow, activeBR.x - nLeft);
-            memset(rgbi2Row + activeBR.x, border, nRight);
+            memset(rgbi2Row, border, activeTL.x);
+            memcpy(rgbi2Row + activeTL.x, rgbiRow, activeBR.x - activeTL.x);
+            memset(rgbi2Row + activeBR.x, border, rgbiSize.x - activeBR.x);
             rgbiRow += rgbi.stride();
             rgbi2Row += _rgbi2.stride();
         }
@@ -806,6 +811,7 @@ public:
                     srgb[0] = p[0];
                     srgb[1] = p[1];
                     srgb[2] = p[2];
+                    srgb += 3;
                 }
                 rgbiRow += _rgbi2.stride();
                 srgbRow += _srgb.stride();
@@ -944,7 +950,7 @@ public:
                 ++unscaled;
             }
             srgbRow += _srgb.stride();
-            unscaled += _unscaled.stride();
+            unscaledRow += _unscaled.stride();
         }
         // Scale to desired size and apply scanline filter
         _scaler.render();
@@ -1192,6 +1198,7 @@ public:
             }
             _inputTL =
                 _dragStartInputPosition - Vector2Cast<float>(position)/scale();
+            restart();
         }
        _dragging = button;
     }
@@ -1212,9 +1219,9 @@ private:
     {
         return _inputTL + Vector2Cast<float>(output)/scale();
     }
-    Vector outputForInput(Vector2<float> input)
+    Vector2<float> outputForInput(Vector2<float> input)
     {
-        return Vector2Cast<int>((input - _inputTL)*scale());
+        return (input - _inputTL)*scale();
     }
 
     Program* _program;

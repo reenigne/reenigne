@@ -119,23 +119,6 @@ public:
         std::function<float(float, int, int)> kernelFunction, int* inputLeft,
         int* inputRight, float zoom, float offset)
     {
-        int channelsPerUnit = (useSSE2() ? 8 : 1);
-        _height = outputSize.y;
-        _width = (outputSize.x*outputChannels + channelsPerUnit - 1)/
-            channelsPerUnit;
-        _kernelSizes.ensure(_width);
-        int kWidth =
-            (static_cast<int>(kernelRadius*2 + 1) + channelsPerUnit - 1)/
-            channelsPerUnit;
-        _kernelBuffer.ensure(
-            kWidth*channelsPerUnit*_width*channelsPerUnit*sizeof(UInt16));
-        UInt16* kernel = reinterpret_cast<UInt16*>(_kernelBuffer.data());
-        _offsets.ensure(kWidth*_width*channelsPerUnit);
-        _kernelSizes.ensure(_width);
-        int* offsets = &_offsets[0];
-        int* sizes = &_kernelSizes[0];
-        float scale = 128.0f;
-
         float minInputChannelPosition = std::numeric_limits<float>::max();
         float maxInputChannelPosition = -minInputChannelPosition;
         for (int c = 0; c < inputChannels; ++c) {
@@ -150,6 +133,27 @@ public:
             minOutputChannelPosition = min(minOutputChannelPosition, p);
             maxOutputChannelPosition = max(maxOutputChannelPosition, p);
         }
+
+        int channelsPerUnit = (useSSE2() ? 8 : 1);
+        _height = outputSize.y;
+        _width = (outputSize.x*outputChannels + channelsPerUnit - 1)/
+            channelsPerUnit;
+        _kernelSizes.ensure(_width);
+        int kWidth = (static_cast<int>(kernelRadius*2 + 1
+            +maxInputChannelPosition - minInputChannelPosition
+            +((channelsPerUnit - 1)/outputChannels
+            +maxOutputChannelPosition - minOutputChannelPosition
+            )/zoom)*inputChannels
+            + channelsPerUnit - 1)/channelsPerUnit;
+        _kernelBuffer.ensure(
+            kWidth*channelsPerUnit*_width*channelsPerUnit*sizeof(UInt16));
+        UInt16* kernel = reinterpret_cast<UInt16*>(_kernelBuffer.data());
+        _offsets.ensure(kWidth*_width*channelsPerUnit);
+        _kernelSizes.ensure(_width);
+        int* offsets = &_offsets[0];
+        int* sizes = &_kernelSizes[0];
+        float scale = 128.0f;
+
         int left = std::numeric_limits<int>::max();
         int right = std::numeric_limits<int>::min();
         for (int x = 0; x < _width; ++x) {
@@ -167,7 +171,7 @@ public:
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
                 inputChannels;
 
-            for (int i = leftInput; i <= rightInput; ++i) {
+            for (int i = leftInput; i <= rightInput; i += channelsPerUnit) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
@@ -189,7 +193,7 @@ public:
                     if (v != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
-                            *offsets = i;
+                            *offsets = i*sizeof(UInt16);
                             ++offsets;
                             ++kernelSize;
                         }
@@ -208,6 +212,17 @@ public:
                         ++kernel;
                     }
                     right = max(right, i);
+                }
+            }
+            if (kernelSize == 0) {
+                kernelSize = 1;
+                left = leftInput;
+                right = leftInput;
+                *offsets = leftInput;
+                ++offsets;
+                for (int c = 0; c < channelsPerUnit; ++c) {
+                    *kernel = 0;
+                    ++kernel;
                 }
             }
             sizes[x] = kernelSize;
@@ -318,22 +333,6 @@ public:
         std::function<float(float, int, int)> kernelFunction, int* inputLeft,
         int* inputRight, float zoom, float offset)
     {
-        int channelsPerUnit = (useSSE2() ? 4 : 1);
-        _height = outputSize.y;
-        _width = (outputSize.x*outputChannels + channelsPerUnit - 1)/
-            channelsPerUnit;
-        _kernelSizes.ensure(_width);
-        int kWidth =
-            (static_cast<int>(kernelRadius*2 + 1) + channelsPerUnit - 1)/
-            channelsPerUnit;
-        _kernelBuffer.ensure(
-            kWidth*channelsPerUnit*_width*channelsPerUnit*sizeof(float));
-        float* kernel = reinterpret_cast<float*>(_kernelBuffer.data());
-        _offsets.ensure(kWidth*_width*channelsPerUnit);
-        _kernelSizes.ensure(_width);
-        int* offsets = &_offsets[0];
-        int* sizes = &_kernelSizes[0];
-
         float minInputChannelPosition = std::numeric_limits<float>::max();
         float maxInputChannelPosition = -minInputChannelPosition;
         for (int c = 0; c < inputChannels; ++c) {
@@ -348,6 +347,25 @@ public:
             minOutputChannelPosition = min(minOutputChannelPosition, p);
             maxOutputChannelPosition = max(maxOutputChannelPosition, p);
         }
+        int channelsPerUnit = (useSSE2() ? 4 : 1);
+        _height = outputSize.y;
+        _width = (outputSize.x*outputChannels + channelsPerUnit - 1)/
+            channelsPerUnit;
+        _kernelSizes.ensure(_width);
+        int kWidth = (static_cast<int>(kernelRadius*2 + 1
+            +maxInputChannelPosition - minInputChannelPosition
+            +((channelsPerUnit - 1)/outputChannels
+                +maxOutputChannelPosition - minOutputChannelPosition
+                )/zoom)*inputChannels
+            + channelsPerUnit - 1)/channelsPerUnit;
+        _kernelBuffer.ensure(
+            kWidth*channelsPerUnit*_width*channelsPerUnit*sizeof(float));
+        float* kernel = reinterpret_cast<float*>(_kernelBuffer.data());
+        _offsets.ensure(kWidth*_width*channelsPerUnit);
+        _kernelSizes.ensure(_width);
+        int* offsets = &_offsets[0];
+        int* sizes = &_kernelSizes[0];
+
         int left = std::numeric_limits<int>::max();
         int right = std::numeric_limits<int>::min();
         for (int x = 0; x < _width; ++x) {
@@ -365,7 +383,7 @@ public:
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
                 inputChannels;
 
-            for (int i = leftInput; i <= rightInput; ++i) {
+            for (int i = leftInput; i <= rightInput; i += channelsPerUnit) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
@@ -385,7 +403,7 @@ public:
                     if (v != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
-                            *offsets = i;
+                            *offsets = i*sizeof(float);
                             ++offsets;
                             ++kernelSize;
                         }
@@ -404,6 +422,17 @@ public:
                         ++kernel;
                     }
                     right = max(right, i);
+                }
+            }
+            if (kernelSize == 0) {
+                kernelSize = 1;
+                left = leftInput;
+                right = leftInput;
+                *offsets = leftInput;
+                ++offsets;
+                for (int c = 0; c < channelsPerUnit; ++c) {
+                    *kernel = 0;
+                    ++kernel;
                 }
             }
             sizes[x] = kernelSize;
