@@ -520,7 +520,7 @@ public:
         float kernelRadius = 16;
         _filter.generate(_outputSize, 8, inputChannelPositions, 3,
             outputChannelPositions, kernelRadius,
-            [&](float distance, int inputChannel, int outputChannel)
+            [=](float distance, int inputChannel, int outputChannel)
             {
                 float y = 0;
                 Complex<float> iq = 0;

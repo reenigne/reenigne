@@ -201,6 +201,11 @@ private:
 
 float sinint(float x)
 {
+    if (x < -20)
+        return static_cast<float>(-tau/4.0);
+    if (x > 20)
+        return static_cast<float>(tau/4.0);
+
     float i = 3;
     float r = x;
     float x2 = -x*x;
@@ -210,7 +215,7 @@ float sinint(float x)
         t *= x2/(i*(i - 1));
         r += t/i;
         i += 2;
-    } while (t > eps);
+    } while ((t < -eps || t > eps) && !isinf(t));
     return r;
 }
 
@@ -226,30 +231,35 @@ public:
             bandLimit.x = _zoom.x;
         if (_zoom.y < 1)
             bandLimit.y = _zoom.y;
+        //if (_zoom.x > 1)
+        //    bandLimit.x = 1.0f/_zoom.x;
+        //if (_zoom.y > 1)
+        //    bandLimit.y = 1.0f/_zoom.y;
 
         switch (_profile) {
             case 0:
                 // Rectangle
                 {
-                    float a = static_cast<float>(tau)*_width/2;
-                    float b = bandLimit.x*a;
-                    float c = bandLimit.x*static_cast<float>(tau);
-                    verticalKernel = [&](float d)
+                    float a = 2.0f/(static_cast<float>(tau)*_width);
+                    float b = bandLimit.y*static_cast<float>(tau)*_width/2.0f;
+                    float c = bandLimit.y*static_cast<float>(tau);
+                    verticalKernel = [=](float d)
                     {
+                        //return (abs(d) < _width/2 ? 1 : 0);
                         return a*(sinint(b + c*d) + sinint(b - c*d));
                     };
                 }
                 break;
             case 1:
                 // Triangle
-                verticalKernel = [&](float distance)
+                verticalKernel = [=](float distance)
                 {
                     return 0.0f;
                 };
                 break;
             case 2:
                 // Circle
-                verticalKernel = [&](float distance)
+                verticalKernel = [=](float distance)
                 {
                     return 0.0f;
                 };
@@ -259,7 +269,7 @@ public:
                 {
                     float a = -1/(2*_width*_width);
                     float b = 1/(sqrt(static_cast<float>(tau))*_width);
-                    verticalKernel = [&](float distance)
+                    verticalKernel = [=](float distance)
                     {
                         return b*exp(a*distance*distance);
                     };
@@ -278,17 +288,18 @@ public:
         _vertical.setBuffers(_intermediate, _output);
 
         static const float inputChannelPositions[3] = {0, 0, 0};
-        static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
+        //static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
+        static const float outputChannelPositions[3] = {0, 0, 0};
 
         float kernelRadiusHorizontal = 16;
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
-            [&](float distance, int inputChannel, int outputChannel)
+            [=](float distance, int inputChannel, int outputChannel)
             {
                 if (inputChannel != outputChannel)
                     return 0.0f;
-                return sinc(distance*bandLimit.y);
+                return sinc(distance*bandLimit.x);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
 

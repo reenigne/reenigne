@@ -8,6 +8,8 @@
 
 bool useSSE2()
 {
+    //return false;
+
     int cpuInfo[4];
     __cpuid(cpuInfo, 0);
     if (cpuInfo[0] < 1)
@@ -26,10 +28,11 @@ public:
     {
         int alignment = useSSE2() ? 16 : 4;
         _stride = (x + alignment - 1) & ~(alignment - 1);
-        _buffer.ensure(_stride*y + alignment - 1);
-        size_t space;
+        size_t size = _stride*y;
+        size_t space = size + alignment - 1;
+        _buffer.ensure(space);
         void* b = static_cast<void*>(&_buffer[0]);
-        std::align(alignment, _buffer.count(), b, space);
+        std::align(alignment, size, b, space);
         _aligned = static_cast<Byte*>(b);
     }
     Byte* data() { return _aligned; }
@@ -171,14 +174,20 @@ public:
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
                 inputChannels;
 
-            for (int i = leftInput; i <= rightInput; i += channelsPerUnit) {
+            for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
-                    int inputChannel = ic % inputChannels;
-                    float inputPosition =
-                        static_cast<float>(ic / inputChannels) +
-                        inputChannelPositions[inputChannel];
+                    int inputChannel;
+                    if (ic < 0) {
+                        inputChannel =
+                            (ic - (inputChannels - 1)) % inputChannels;
+                    }
+                    else
+                        inputChannel = ic % inputChannels;
+                    float inputPosition = inputChannelPositions[inputChannel] +
+                        static_cast<float>(
+                        (ic - inputChannel) / inputChannels);
                     int oc = o + c;
                     int outputChannel = oc % outputChannels;
                     float centerInputPixel =
@@ -216,8 +225,8 @@ public:
             }
             if (kernelSize == 0) {
                 kernelSize = 1;
-                left = leftInput;
-                right = leftInput;
+                left = min(left, leftInput);
+                right = max(right, leftInput);
                 *offsets = leftInput;
                 ++offsets;
                 for (int c = 0; c < channelsPerUnit; ++c) {
@@ -227,10 +236,16 @@ public:
             }
             sizes[x] = kernelSize;
         }
-        *inputLeft = left/inputChannels;
-        *inputRight = right/inputChannels + 1;
+        if (left < 0)
+            *inputLeft = (left - (inputChannels - 1))/inputChannels;
+        else
+            *inputLeft = left/inputChannels;
+        if (right < 0)
+            *inputRight = (right - (inputChannels - 1))/inputChannels + 1;
+        else
+            *inputRight = right/inputChannels + 1;
 
-        _inputOffset = -left*sizeof(UInt16);
+        _inputOffset = -*inputLeft*inputChannels*sizeof(UInt16);
     }
     void setBuffers(AlignedBuffer input, AlignedBuffer output)
     {
@@ -383,14 +398,20 @@ public:
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
                 inputChannels;
 
-            for (int i = leftInput; i <= rightInput; i += channelsPerUnit) {
+            for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
-                    int inputChannel = ic % inputChannels;
-                    float inputPosition =
-                        static_cast<float>(ic / inputChannels) +
-                        inputChannelPositions[inputChannel];
+                    int inputChannel;
+                    if (ic < 0) {
+                        inputChannel =
+                            (ic - (inputChannels - 1)) % inputChannels;
+                    }
+                    else
+                        inputChannel = ic % inputChannels;
+                    float inputPosition = inputChannelPositions[inputChannel] +
+                        static_cast<float>(
+                        (ic - inputChannel) / inputChannels);
                     int oc = o + c;
                     int outputChannel = oc % outputChannels;
                     float centerInputPixel =
@@ -426,8 +447,8 @@ public:
             }
             if (kernelSize == 0) {
                 kernelSize = 1;
-                left = leftInput;
-                right = leftInput;
+                left = min(left, leftInput);
+                right = max(right, leftInput);
                 *offsets = leftInput;
                 ++offsets;
                 for (int c = 0; c < channelsPerUnit; ++c) {
@@ -437,10 +458,16 @@ public:
             }
             sizes[x] = kernelSize;
         }
-        *inputLeft = left/inputChannels;
-        *inputRight = right/inputChannels + 1;
+        if (left < 0)
+            *inputLeft = (left - (inputChannels - 1))/inputChannels;
+        else
+            *inputLeft = left/inputChannels;
+        if (right < 0)
+            *inputRight = (right - (inputChannels - 1))/inputChannels + 1;
+        else
+            *inputRight = right/inputChannels + 1;
 
-        _inputOffset = -left*sizeof(float);
+        _inputOffset = -*inputLeft*inputChannels*sizeof(float);
     }
     void setBuffers(AlignedBuffer input, AlignedBuffer output)
     {
