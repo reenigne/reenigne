@@ -522,36 +522,39 @@ public:
             outputChannelPositions, kernelRadius,
             [=](float distance, int inputChannel, int outputChannel)
             {
-                float y = 0;
-                Complex<float> iq = 0;
-                float chromaLow = (4 - _chromaBandwidth) / 16;
-                float chromaHigh = (4 + _chromaBandwidth) / 16;
                 if ((inputChannel & 1) == 0) {
                     // Luma
-                    float lumaHigh = _lumaBandwidth / 4;
-                    if (lumaHigh < chromaHigh)
-                        y = sinc(distance*chromaLow);
+                    float y;
+                    float lumaHigh = _lumaBandwidth;
+                    float chromaLow = (4 - _chromaBandwidth) / 4;
+                    float chromaHigh = (4 + _chromaBandwidth) / 4;
+                    if (lumaHigh < chromaHigh) {
+                        if (lumaHigh < chromaLow)
+                            y = lumaHigh*sinc(distance*lumaHigh);
+                        else
+                            y = chromaLow*sinc(distance*chromaLow);
+                    }
                     else {
-                        y = sinc(distance*lumaHigh) - sinc(distance*chromaHigh)
-                            + sinc(distance*chromaLow);
+                        y = lumaHigh*sinc(distance*lumaHigh)
+                            - chromaHigh*sinc(distance*chromaHigh)
+                            + chromaLow*sinc(distance*chromaLow);
                     }
+                    return y*_contrast2/4.0f;
                 }
-                else {
-                    // Chroma
-                    switch (inputChannel & 6) {
-                        case 0: iq.y = 1; break;
-                        case 2: iq.x = -1; break;
-                        case 4: iq.y = -1; break;
-                        case 6: iq.x = 1; break;
-                    }
-                    iq *= sinc(distance*chromaHigh) - sinc(distance*chromaLow);
+                // Chroma
+                Complex<float> iq = 0;
+                switch (inputChannel) {
+                    case 1: iq.y = 1; break;
+                    case 3: iq.x = -1; break;
+                    case 5: iq.y = -1; break;
+                    case 7: iq.x = 1; break;
                 }
-                y = y*_contrast2 + _brightness2;
-                iq *= _iqAdjust;
+                iq *= sinc(distance*_chromaBandwidth/4.0f);
+                iq *= _iqAdjust*_chromaBandwidth/16.0f;
                 switch (outputChannel) {
-                    case 0: return y + 0.9563f*iq.x + 0.6210f*iq.y;
-                    case 1: return y - 0.2721f*iq.x - 0.6474f*iq.y;
-                    case 2: return y - 1.1069f*iq.x + 1.7046f*iq.y;
+                    case 0: return 0.9563f*iq.x + 0.6210f*iq.y;
+                    case 1: return 0.2721f*iq.x - 0.6474f*iq.y;
+                    case 2: return 1.1069f*iq.x + 1.7046f*iq.y;
                 }
                 assert(false);
                 return 0.0f;

@@ -174,17 +174,15 @@ public:
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
                 inputChannels;
 
+            int multiple = 0;
+            if (leftInput < 0)
+                multiple = -leftInput*inputChannels;
+
             for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
-                    int inputChannel;
-                    if (ic < 0) {
-                        inputChannel =
-                            (ic - (inputChannels - 1)) % inputChannels;
-                    }
-                    else
-                        inputChannel = ic % inputChannels;
+                    int inputChannel = (ic + multiple) % inputChannels;
                     float inputPosition = inputChannelPositions[inputChannel] +
                         static_cast<float>(
                         (ic - inputChannel) / inputChannels);
@@ -398,17 +396,15 @@ public:
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
                 inputChannels;
 
+            int multiple = 0;
+            if (leftInput < 0)
+                multiple = -leftInput*inputChannels;
+
             for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
-                    int inputChannel;
-                    if (ic < 0) {
-                        inputChannel =
-                            (ic - (inputChannels - 1)) % inputChannels;
-                    }
-                    else
-                        inputChannel = ic % inputChannels;
+                    int inputChannel = (ic + multiple) % inputChannels;
                     float inputPosition = inputChannelPositions[inputChannel] +
                         static_cast<float>(
                         (ic - inputChannel) / inputChannels);

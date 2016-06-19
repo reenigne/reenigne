@@ -681,6 +681,8 @@ public:
         Vector outputSize;
         int combFilter;
         bool showClipping;
+        float brightness;
+        float contrast;
         {
             Lock lock(&_mutex);
             if (!_active || _outputSize.zeroArea())
@@ -693,7 +695,9 @@ public:
             _composite.setBW(_bw);
             _decoder.setHue(_hue);
             _decoder.setSaturation(_saturation);
+            contrast = static_cast<float>(_contrast);
             _decoder.setContrast(_contrast);
+            brightness = static_cast<float>(_brightness);
             _decoder.setBrightness(_brightness);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
@@ -723,7 +727,6 @@ public:
         Vector rgbiSize;
         Vector activeTL = Vector(0, 0) - tl;
         Vector ntscSize;
-        int phase = 0;
         if (connector == 0)
             rgbiSize = _unscaledSize;
         else {
@@ -745,8 +748,7 @@ public:
             ntscSize += combTL;
             _ntsc.ensure(ntscSize);
             rgbiSize = ntscSize + Vector(1, 0);
-            activeTL -= Vector(l, 0) + combTL;
-            phase = 3 - (activeTL.x & 3);
+            activeTL -= Vector(l*4, 0) + combTL;
         }
         _rgbi2.ensure(rgbiSize);
         Byte border = _program->borderColour();
@@ -787,8 +789,8 @@ public:
             // Convert from RGBI to 9.7 fixed-point sRGB
             UInt16 levels[4];
             for (int i = 0; i < 4; ++i) {
-                levels[i] = static_cast<int>(clamp(0.0,
-                    (getBrightness() + 85*i*getContrast())*128, 32767.0));
+                levels[i] = static_cast<int>(clamp(0.0f,
+                    (255.0f*brightness + 85*i*contrast)*128.0f, 32767.0f));
             }
             static const int palette[3*16] = {
                 0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
@@ -818,6 +820,7 @@ public:
             }
         }
         else {
+            int phase = (rgbiTL.x - activeTL.x)&3;
             // Convert from RGBI to composite
             const Byte* rgbiRow = _rgbi2.data();
             Byte* ntscRow = _ntsc.data();
@@ -931,7 +934,8 @@ public:
             // Decode 128 bit composite to 9.7 fixed-point sRGB
             _decoder.decode();
         }
-        // Shift, clip, show clipping and linearization
+        int bright = static_cast<int>(32768.0f*brightness);
+        // Shift, clip, show clipping, brightness and linearization
         float linear[256];
         for (int i = 0; i < 256; ++i)
             linear[i] = pow(i/255.0f, 2.2f);
@@ -945,7 +949,7 @@ public:
             const SInt16* srgb = reinterpret_cast<const SInt16*>(srgbRow);
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
             for (int x = 0; x < _unscaledSize.x*3; ++x) {
-                *unscaled = linear[byteClamp(*srgb >> 7)];
+                *unscaled = linear[byteClamp((*srgb + bright) >> 7)];
                 ++srgb;
                 ++unscaled;
             }
@@ -1043,6 +1047,8 @@ public:
     int getScanlineBleeding() { return _scanlineBleeding; }
     void setZoom(double zoom)
     {
+        if (zoom == 0)
+            zoom = 1.0;
         {
             Lock lock(&_mutex);
             if (_window != 0 && _window->hWnd() != 0) {
@@ -1064,6 +1070,8 @@ public:
     double getZoom() { return _zoom; }
     void setAspectRatio(double ratio)
     {
+        if (ratio == 0)
+            ratio = 1.0;
         {
             Lock lock(&_mutex);
             if (_window != 0 && _window->hWnd() != 0) {

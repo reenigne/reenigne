@@ -201,22 +201,41 @@ private:
 
 float sinint(float x)
 {
-    if (x < -20)
-        return static_cast<float>(-tau/4.0);
-    if (x > 20)
-        return static_cast<float>(tau/4.0);
-
-    float i = 3;
-    float r = x;
-    float x2 = -x*x;
-    float t = x;
-    static const float eps = 1.0f/(1 << 16);
+    float mr = 1;
+    if (x < 0) {
+        x = -x;
+        mr = -1;
+    }
+    if (x < 10) {
+        float i = 3;
+        float r = x;
+        float x2 = -x*x;
+        float t = x;
+        static const float eps = 1.0f/(1 << 16);
+        do {
+            t *= x2/(i*(i - 1));
+            r += t/i;
+            i += 2;
+        } while (t < -eps || t > eps);
+        return r * mr;
+    }
+    float cr = 1;
+    float sr = 1/x;
+    float ct = 1;
+    float st = 1/x;
+    float i = 2;
+    float x2 = -1/(x*x);
     do {
-        t *= x2/(i*(i - 1));
-        r += t/i;
+        float lct = ct;
+        ct *= x2*i*(i - 1);
+        st *= x2*i*(i + 1);
+        if (abs(ct) > abs(lct) || ct == 0)
+            break;
+        cr += ct;
+        sr += st;
         i += 2;
-    } while ((t < -eps || t > eps) && !isinf(t));
-    return r;
+    } while (true);
+    return (static_cast<float>(tau)/4.0f - (cos(x)/x)*cr - (sin(x)/x)*sr) * mr;
 }
 
 class FIRScanlineRenderer
@@ -226,23 +245,23 @@ public:
     {
         float kernelRadiusVertical = 16;
         std::function<float(float)> verticalKernel;
-        Vector2<float> bandLimit(1, 1);
+        Vector2<float> bandLimit(0.5f, 0.5f);
         if (_zoom.x < 1)
             bandLimit.x = _zoom.x;
         if (_zoom.y < 1)
             bandLimit.y = _zoom.y;
         //if (_zoom.x > 1)
-        //    bandLimit.x = 1.0f/_zoom.x;
+        //    bandLimit.x = _zoom.x;
         //if (_zoom.y > 1)
-        //    bandLimit.y = 1.0f/_zoom.y;
+        //    bandLimit.y = _zoom.y;
 
         switch (_profile) {
             case 0:
                 // Rectangle
                 {
                     float a = 2.0f/(static_cast<float>(tau)*_width);
-                    float b = bandLimit.y*static_cast<float>(tau)*_width/2.0f;
-                    float c = bandLimit.y*static_cast<float>(tau);
+                    float b = 0.5f*_zoom.y*static_cast<float>(tau)*_width/2.0f;
+                    float c = 0.5f*_zoom.y*static_cast<float>(tau);
                     verticalKernel = [=](float d)
                     {
                         //return (abs(d) < _width/2 ? 1 : 0);
@@ -254,7 +273,18 @@ public:
                 // Triangle
                 verticalKernel = [=](float distance)
                 {
-                    return 0.0f;
+                    float b = 0.5f*_zoom.y;
+                    float w = 0.5f*_width;
+                    float f = distance;
+                    float t = static_cast<float>(tau);
+                    return (
+                        +2*t*(f-w)*b*sinint(t*(f-w)*b)
+                        +2*t*(f+w)*b*sinint(t*(f+w)*b)
+                        -4*t*f*b*sinint(t*f*b)
+                        +2*cos(b*t*(f-w))
+                        +2*cos(b*t*(f+w))
+                        -4*cos(b*t*f)
+                        )/(t*t*w*w*b);
                 };
                 break;
             case 2:
@@ -299,7 +329,7 @@ public:
             {
                 if (inputChannel != outputChannel)
                     return 0.0f;
-                return sinc(distance*bandLimit.x);
+                return bandLimit.x*sinc(distance*bandLimit.x);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
 
