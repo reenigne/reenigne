@@ -31,7 +31,7 @@ public:
     {
         _input = input;
         _size = input.size();
-        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
+        _rgbi = Bitmap<Byte>(_size);
     }
     void convert()
     {
@@ -46,10 +46,6 @@ public:
             const SRGB* inputPixel =
                 reinterpret_cast<const SRGB*>(inputRow);
             Byte* rgbiPixel = rgbiRow;
-            for (int x = 0; x < 7; ++x) {
-                *rgbiPixel = background;
-                ++rgbiPixel;
-            }
             for (int x = 0; x < _size.x; ++x) {
                 SRGB s = *inputPixel;
                 ++inputPixel;
@@ -66,10 +62,6 @@ public:
                     }
                 }
                 *rgbiPixel = bestRGBI;
-                ++rgbiPixel;
-            }
-            for (int x = 0; x < 7; ++x) {
-                *rgbiPixel = background;
                 ++rgbiPixel;
             }
 
@@ -676,6 +668,7 @@ public:
     }
     void run()
     {
+        Timer timerTotal;
         Bitmap<Byte> rgbi;
         int connector;
         Vector outputSize;
@@ -718,7 +711,9 @@ public:
         _decoder.calculateBurst(burst);
 
         _bitmap.ensure(outputSize);
+        //Timer timerScalerInit;
         _scaler.init();
+        //timerScalerInit.output("scaler init");
         _unscaled = _scaler.input();
         _scaled = _scaler.output();
         Vector tl = _scaler.inputTL();
@@ -727,11 +722,14 @@ public:
         Vector rgbiSize;
         Vector activeTL = Vector(0, 0) - tl;
         Vector ntscSize;
+        int carrierAlignmentAdjust = tl.x & 3;
         if (connector == 0)
             rgbiSize = _unscaledSize;
         else {
             _decoder.setOutputSize(_unscaledSize);
+            Timer timerDecoderInit;
             _decoder.init();
+            timerDecoderInit.output("decoder init");
             _combed = _decoder.input();
             _srgb = _decoder.output();
             int l = _decoder.inputLeft();
@@ -749,6 +747,7 @@ public:
             _ntsc.ensure(ntscSize);
             rgbiSize = ntscSize + Vector(1, 0);
             activeTL -= Vector(l*4, 0) + combTL;
+            activeTL += Vector(carrierAlignmentAdjust, 0);
         }
         _rgbi2.ensure(rgbiSize);
         Byte border = _program->borderColour();
@@ -767,6 +766,7 @@ public:
         activeBR = Vector(clamp(0, activeBR.x, rgbiSize.x),
             clamp(0, activeBR.y, rgbiSize.y));
 
+        Timer timerRGBICopy;
         Byte* rgbi2Row = _rgbi2.data();
         int y;
         for (y = 0; y < activeTL.y; ++y) {
@@ -785,6 +785,7 @@ public:
             memset(rgbi2Row, border, rgbiSize.x);
             rgbi2Row += _rgbi2.stride();
         }
+        timerRGBICopy.output("rgbi copy");
         if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
             UInt16 levels[4];
@@ -801,6 +802,7 @@ public:
             for (int i = 0; i < 3*16; ++i)
                 srgbPalette[i] = levels[palette[i]];
             _srgb.ensure(rgbiSize.x*3*sizeof(UInt16), rgbiSize.y);
+            Timer timerRGBIToSRGB;
             const Byte* rgbiRow = _rgbi2.data();
             Byte* srgbRow = _srgb.data();
             for (int y = 0; y < rgbiSize.y; ++y) {
@@ -818,9 +820,10 @@ public:
                 rgbiRow += _rgbi2.stride();
                 srgbRow += _srgb.stride();
             }
+            timerRGBIToSRGB.output("rgbi to srgb");
         }
         else {
-            int phase = (rgbiTL.x - activeTL.x)&3;
+            Timer timerRGBIToComposite;
             // Convert from RGBI to composite
             const Byte* rgbiRow = _rgbi2.data();
             Byte* ntscRow = _ntsc.data();
@@ -828,16 +831,17 @@ public:
                 const Byte* rgbi = rgbiRow;
                 Byte* ntsc = ntscRow;
                 for (int x = 0; x < ntscSize.x; ++x) {
-                    *ntsc = _composite.simulateCGA(*rgbi, rgbi[1],
-                        (x + phase) & 3);
+                    *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], x & 3);
                     ++rgbi;
                     ++ntsc;
                 }
                 rgbiRow += _rgbi2.stride();
                 ntscRow += _ntsc.stride();
             }
+            timerRGBIToComposite.output("rgbi to composite");
             // Apply comb filter and expand to 8 channels of 16 bits per
             // channel.
+            Timer timerComb;
             ntscRow = _ntsc.data();
             Byte* combedRow = _combed.data();
             int lineOffset = _ntsc.stride();
@@ -931,8 +935,11 @@ public:
                     }
                     break;
             }
+            timerComb.output("comb");
             // Decode 128 bit composite to 9.7 fixed-point sRGB
+            Timer timerDecode;
             _decoder.decode();
+            timerDecode.output("decode");
         }
         int bright = static_cast<int>(32768.0f*brightness);
         // Shift, clip, show clipping, brightness and linearization
@@ -943,7 +950,8 @@ public:
             linear[0] = 1.0f;
             linear[255] = 0.0f;
         }
-        const Byte* srgbRow = _srgb.data();
+        Timer timerLinearize;
+        const Byte* srgbRow = _srgb.data() + 6*carrierAlignmentAdjust;
         Byte* unscaledRow = _unscaled.data();
         for (int y = 0; y < _unscaledSize.y; ++y) {
             const SInt16* srgb = reinterpret_cast<const SInt16*>(srgbRow);
@@ -956,9 +964,11 @@ public:
             srgbRow += _srgb.stride();
             unscaledRow += _unscaled.stride();
         }
+        timerLinearize.output("linearize");
         // Scale to desired size and apply scanline filter
         _scaler.render();
         // Delinearization and float-to-byte conversion
+        Timer timerDelinearize;
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
         for (int y = 0; y < outputSize.y; ++y) {
@@ -973,6 +983,7 @@ public:
             scaledRow += _scaled.stride();
             outputRow += _bitmap.stride();
         }
+        timerDelinearize.output("delinearize");
         _lastBitmap = _bitmap;
         _bitmap = _window->setNextBitmap(_bitmap);
 
@@ -980,6 +991,7 @@ public:
             Lock lock(&_mutex);
             rgbi = Bitmap<Byte>();
         }
+        timerTotal.output("total");
     }
 
     void save(String outputFileName)
@@ -1429,6 +1441,10 @@ public:
         _videoCard._matching._diffusionHorizontal.enableWindow(matchMode);
         _videoCard._matching._diffusionVertical.enableWindow(matchMode);
         _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
+        bool composite = (_output->getConnector() != 0);
+        _monitor._colour._saturation.enableWindow(composite);
+        _monitor._colour._hue.enableWindow(composite);
+        _monitor._filter.enableWindow(composite);
     }
     void modeSet(int value)
     {
@@ -1574,10 +1590,7 @@ public:
     {
         _output->setConnector(connector);
         _matcher->setNewCGA(connector == 2);
-        bool composite = (connector != 0);
-        _monitor._colour._saturation.enableWindow(composite);
-        _monitor._colour._hue.enableWindow(composite);
-        _monitor._filter.enableWindow(composite);
+        updateApplicableControls();
         beginConvert();
     }
 
@@ -2291,7 +2304,8 @@ public:
         _matcher.setQuality(configFile.get<double>("quality"));
         _matcher.setInterlace(configFile.get<int>("interlaceMode"));
         _matcher.setCharacterSet(configFile.get<int>("characterSet"));
-        _matcher.setMode(configFile.get<int>("mode"));
+        Byte mode = configFile.get<int>("mode");
+        _matcher.setMode(mode);
         _matcher.setPalette(configFile.get<int>("palette"));
         _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         _matcher.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
@@ -2323,6 +2337,7 @@ public:
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
         output.setOverscan(configFile.get<double>("overscan"));
         output.setCombFilter(configFile.get<int>("combFilter"));
+        output.setBW((mode & 4) != 0);
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
         Bitmap<SRGB> input2 = input;

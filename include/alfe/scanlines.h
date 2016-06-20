@@ -247,13 +247,9 @@ public:
         std::function<float(float)> verticalKernel;
         Vector2<float> bandLimit(0.5f, 0.5f);
         if (_zoom.x < 1)
-            bandLimit.x = _zoom.x;
+            bandLimit.x = 0.5f*_zoom.x;
         if (_zoom.y < 1)
-            bandLimit.y = _zoom.y;
-        //if (_zoom.x > 1)
-        //    bandLimit.x = _zoom.x;
-        //if (_zoom.y > 1)
-        //    bandLimit.y = _zoom.y;
+            bandLimit.y = 0.5f*_zoom.y;
 
         switch (_profile) {
             case 0:
@@ -264,7 +260,6 @@ public:
                     float c = 0.5f*_zoom.y*static_cast<float>(tau);
                     verticalKernel = [=](float d)
                     {
-                        //return (abs(d) < _width/2 ? 1 : 0);
                         return a*(sinint(b + c*d) + sinint(b - c*d));
                     };
                 }
@@ -309,8 +304,10 @@ public:
 
         _output.ensure(_size.x*3*sizeof(float), _size.y);
 
+        Timer timerVerticalGenerate;
         _vertical.generate(_size, 3, kernelRadiusVertical, verticalKernel,
             &_inputTL.y, &_inputBR.y, _zoom.y, _offset.y);
+        timerVerticalGenerate.output("vertical generate");
 
         int inputHeight = _inputBR.y - _inputTL.y;
         _intermediate.ensure(_size.x*3*sizeof(float), inputHeight);
@@ -318,10 +315,10 @@ public:
         _vertical.setBuffers(_intermediate, _output);
 
         static const float inputChannelPositions[3] = {0, 0, 0};
-        //static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
-        static const float outputChannelPositions[3] = {0, 0, 0};
+        static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
 
         float kernelRadiusHorizontal = 16;
+        Timer timerHorizontalGenerate;
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
@@ -332,6 +329,7 @@ public:
                 return bandLimit.x*sinc(distance*bandLimit.x);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
+        timerHorizontalGenerate.output("horizontal generate");
 
         _input.ensure((_inputBR.x - _inputTL.x)*3*sizeof(float), inputHeight);
 
@@ -339,11 +337,16 @@ public:
     }
     void render()
     {
+        Timer timerHorizontalExecute;
         _horizontal.execute();
+        timerHorizontalExecute.output("horizontal execute");
+        Timer timerVerticalExecute;
         _vertical.execute();
+        timerVerticalExecute.output("vertical execute");
         int s = _output.stride();
         Vector size = _size;
         size.x *= 3;
+        Timer timerBleeding;
         if (_bleeding == 1) {
             Byte* outputColumn = _output.data();
             for (int x = 0; x < size.x; ++x) {
@@ -477,6 +480,7 @@ public:
                 outputColumn += sizeof(float);
             }
         }
+        timerBleeding.output("bleeding");
     }
     int getProfile() { return _profile; }
     void setProfile(int profile) { _profile = profile; }

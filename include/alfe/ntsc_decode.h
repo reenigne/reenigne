@@ -553,8 +553,8 @@ public:
                 iq *= _iqAdjust*_chromaBandwidth/16.0f;
                 switch (outputChannel) {
                     case 0: return 0.9563f*iq.x + 0.6210f*iq.y;
-                    case 1: return 0.2721f*iq.x - 0.6474f*iq.y;
-                    case 2: return 1.1069f*iq.x + 1.7046f*iq.y;
+                    case 1: return -0.2721f*iq.x - 0.6474f*iq.y;
+                    case 2: return -1.1069f*iq.x + 1.7046f*iq.y;
                 }
                 assert(false);
                 return 0.0f;
