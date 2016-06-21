@@ -613,7 +613,7 @@ public:
         int lumaHigh = clamp(0,
             static_cast<int>(inputTimeLength*_lumaBandwidth/4),
             outputFrequencyLength);
-        if (lumaHigh < chromaLow) {
+        if (lumaHigh < chromaLow || !_chromaNotch) {
             for (int f = lumaHigh; f < outputFrequencyLength; ++f)
                 _frequency[f] = 0;
         }
@@ -730,6 +730,7 @@ public:
     {
         _lumaBandwidth = static_cast<float>(lumaBandwidth);
     }
+    void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
     void setOutputSize(Vector size) { _outputSize = size; }
     AlignedBuffer input() { return _input; }
     AlignedBuffer output() { return _output; }
@@ -762,6 +763,7 @@ private:
     bool _showClipping;
     float _chromaBandwidth;
     float _lumaBandwidth;
+    bool _chromaNotch;
 
     Complex<float> _iqAdjust;
     float _contrast2;
@@ -785,6 +787,166 @@ private:
     int _inputRight;
     AlignedBuffer _input;
     AlignedBuffer _output;
+};
+
+// Similar to ResamplingNTSCDecoder except that it doesn't resample.
+class FFTNTSCDecoder
+{
+public:
+    FFTNTSCDecoder(int length = 512) : _rigor(FFTW_EXHAUSTIVE), _length(length)
+    {
+        _lumaTime.ensure(length);
+        _chromaTime.ensure(length);
+        _frequency.ensure(length/2 + 1);
+        _forward =
+            FFTWPlanDFTR2C1D<float>(length, _lumaTime, _frequency, _rigor);
+        _iTime.ensure(length);
+        _qTime.ensure(length);
+        _yTime.ensure(length);
+        _backward =
+            FFTWPlanDFTC2R1D<float>(length, _frequency, _yTime, _rigor);
+    }
+    void calculateBurst(Byte* burst)
+    {
+        Complex<float> iq;
+        iq.x = static_cast<float>(burst[0] - burst[2]);
+        iq.y = static_cast<float>(burst[1] - burst[3]);
+        _iqAdjust =
+            -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
+            _contrast*2/iq.modulus()/_length;
+        _contrast2 = _contrast/_length;
+        _brightness2 = _brightness*256.0f;
+        _chromaLow = clamp(0,
+            static_cast<int>((_length*(4 - _chromaBandwidth))/16), _length);
+        _chromaHigh = clamp(0,
+            static_cast<int>((_length*(4 + _chromaBandwidth))/16), _length);
+        _lumaHigh = clamp(0,
+            static_cast<int>(_length*_lumaBandwidth/4), _length);
+        _chromaCutoff = clamp(0,
+            static_cast<int>(_length*_chromaBandwidth/16), _length);
+    }
+
+    void decodeBlock(const Byte* ntsc, DWORD* srgb)
+    {
+        // Transform Y
+        for (int t = 0; t < _length; ++t)
+            _lumaTime[t] = ntsc[t];
+        _forward.execute(_lumaTime, _frequency);
+
+        // Filter Y
+        if (_lumaHigh < _chromaLow || !_chromaNotch) {
+            for (int f = _lumaHigh; f < _length; ++f)
+                _frequency[f] = 0;
+        }
+        else {
+            if (_lumaHigh < _chromaHigh) {
+                for (int f = _chromaLow; f < _length; ++f)
+                    _frequency[f] = 0;
+            }
+            else {
+                for (int f = _chromaLow; f < _chromaHigh; ++f)
+                    _frequency[f] = 0;
+                for (int f = _lumaHigh; f < _length; ++f)
+                    _frequency[f] = 0;
+            }
+        }
+        _backward.execute(_frequency, _yTime);
+
+        // Transform I
+        for (int t = 0; t < _length; t += 4) {
+            _chromaTime[t] = 0;
+            _chromaTime[t + 1] = static_cast<float>(-ntsc[t + 1]);
+            _chromaTime[t + 2] = 0;
+            _chromaTime[t + 3] = static_cast<float>(ntsc[t + 3]);
+        }
+        _forward.execute(_chromaTime, _frequency);
+
+        // Filter I
+        for (int f = _chromaCutoff; f < _length; ++f)
+            _frequency[f] = 0;
+        _backward.execute(_frequency, _iTime);
+
+        // Transform Q
+        for (int t = 0; t < _length; t += 4) {
+            _chromaTime[t] = static_cast<float>(ntsc[t]);
+            _chromaTime[t + 1] = 0;
+            _chromaTime[t + 2] = static_cast<float>(-ntsc[t + 2]);
+            _chromaTime[t + 3] = 0;
+        }
+        _forward.execute(_chromaTime, _frequency);
+
+        // Filter Q
+        for (int f = _chromaCutoff; f < _length; ++f)
+            _frequency[f] = 0;
+        _backward.execute(_frequency, _qTime);
+
+        for (int t = 0; t < _length; ++t) {
+            float y = _yTime[t]*_contrast2 + _brightness2;
+            Complex<float> iq = Complex<float>(_iTime[t], _qTime[t])*_iqAdjust;
+            *srgb = (byteClamp(y + 0.9563f*iq.x + 0.6210f*iq.y) << 16) |
+                (byteClamp(y - 0.2721f*iq.x - 0.6474f*iq.y) << 8) |
+                byteClamp(y - 1.1069f*iq.x + 1.7046f*iq.y);
+            ++srgb;
+        }
+    }
+
+    double getHue() { return _hue; }
+    void setHue(double hue) { _hue = static_cast<float>(hue); }
+    double getSaturation() { return _saturation; }
+    void setSaturation(double saturation)
+    {
+        _saturation = static_cast<float>(saturation);
+    }
+    double getContrast() { return _contrast; }
+    void setContrast(double contrast)
+    {
+        _contrast = static_cast<float>(contrast);
+    }
+    double getBrightness() { return _brightness; }
+    void setBrightness(double brightness)
+    {
+        _brightness = static_cast<float>(brightness);
+    }
+    double getChromaBandwidth() { return _chromaBandwidth; }
+    void setChromaBandwidth(double chromaBandwidth)
+    {
+        _chromaBandwidth = static_cast<float>(chromaBandwidth);
+    }
+    double getLumaBandwidth() { return _lumaBandwidth; }
+    void setLumaBandwidth(double lumaBandwidth)
+    {
+        _lumaBandwidth = static_cast<float>(lumaBandwidth);
+    }
+    void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
+
+private:
+    float _hue;
+    float _saturation;
+    float _contrast;
+    float _brightness;
+    float _chromaBandwidth;
+    float _lumaBandwidth;
+    bool _chromaNotch;
+
+    Complex<float> _iqAdjust;
+    float _contrast2;
+    float _brightness2;
+    int _chromaLow;
+    int _chromaHigh;
+    int _lumaHigh;
+    int _chromaCutoff;
+
+    FFTWRealArray<float> _lumaTime;
+    FFTWRealArray<float> _chromaTime;
+    FFTWPlanDFTR2C1D<float> _forward;
+    FFTWComplexArray<float> _frequency;
+    FFTWPlanDFTC2R1D<float> _backward;
+    FFTWRealArray<float> _yTime;
+    FFTWRealArray<float> _iTime;
+    FFTWRealArray<float> _qTime;
+
+    int _rigor;
+    int _length;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

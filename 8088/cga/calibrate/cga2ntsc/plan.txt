@@ -938,3 +938,8 @@ Figure out set of functions we want to build for desired features and performanc
   Vertical filter
     Work on entire scanlines at once in order to help cache
 
+
+534 sections per frame
+  For each section we'll need 6 FFTs ((forward, backward)*(Y, I, Q))
+Each FFT takes 1.8364 microseconds. 6*534*1.8364 is 5883.8256 us per frame or 170Hz.
+_chromaTime forward transforms can be half-length, so 0.95508, giving 4942.57584 us per frame or 202Hz

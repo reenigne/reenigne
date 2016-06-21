@@ -660,7 +660,8 @@ public:
             Lock lock(&_mutex);
             _rgbi = rgbi;
             if (!_active) {
-                _inputTL = -static_cast<float>(_overscan)*
+                _inputTL = Vector2<float>(0, 0.25f) -
+                    static_cast<float>(_overscan)*
                     Vector2Cast<float>(_rgbi.size());
             }
         }
@@ -694,6 +695,7 @@ public:
             _decoder.setBrightness(_brightness);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
+            _decoder.setChromaNotch(combFilter == 0);
             _scaler.setProfile(_scanlineProfile);
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
             _scaler.setBleeding(_scanlineBleeding);
@@ -944,8 +946,13 @@ public:
         int bright = static_cast<int>(32768.0f*brightness);
         // Shift, clip, show clipping, brightness and linearization
         float linear[256];
-        for (int i = 0; i < 256; ++i)
-            linear[i] = pow(i/255.0f, 2.2f);
+        for (int i = 0; i < 256; ++i) {
+            float t = i/255.0f;
+            if (t <= 0.04045f)
+                linear[i] = t/12.92f;
+            else
+                linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
+        }
         if (showClipping) {
             linear[0] = 1.0f;
             linear[255] = 0.0f;
@@ -964,6 +971,18 @@ public:
             srgbRow += _srgb.stride();
             unscaledRow += _unscaled.stride();
         }
+        Byte lut[6590];
+        float multiplier = 2*255.0f*12.92f;
+        for (int i = 0; i < 6590; ++i) {
+            float l = i/multiplier;
+            float s;
+            if (l <= 0.0031308)
+                s = 12.92f*l;
+            else
+                s = 1.055f*pow(l, 1/2.4f) - 0.055f;
+            lut[i] = static_cast<int>(0.5f + 255.0f*s);
+        }
+
         timerLinearize.output("linearize");
         // Scale to desired size and apply scanline filter
         _scaler.render();
@@ -971,12 +990,40 @@ public:
         Timer timerDelinearize;
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
+        linear[255] = 1.0f;
         for (int y = 0; y < outputSize.y; ++y) {
             const float* scaled = reinterpret_cast<const float*>(scaledRow);
             DWORD* output = reinterpret_cast<DWORD*>(outputRow);
             for (int x = 0; x < outputSize.x; ++x) {
-                *output = (delinearize(scaled[0]) << 16) |
-                    (delinearize(scaled[1]) << 8) | delinearize(scaled[2]);
+                Byte r;
+                float s = scaled[0];
+                if (s < 0)
+                    r = 0;
+                else
+                    if (s < 1)
+                        r = lut[static_cast<int>(s*multiplier)];
+                    else
+                        r = 255;
+                Byte g;
+                s = scaled[1];
+                if (s < 0)
+                    g = 0;
+                else
+                    if (s < 1)
+                        g = lut[static_cast<int>(s*multiplier)];
+                    else
+                        g = 255;
+                Byte b;
+                s = scaled[2];
+                if (s < 0)
+                    b = 0;
+                else
+                    if (s < 1)
+                        b = lut[static_cast<int>(s*multiplier)];
+                    else
+                        b = 255;
+
+                *output = (r << 16) | (g << 8) | b;
                 ++output;
                 scaled += 3;
             }
@@ -999,8 +1046,8 @@ public:
         {
             Lock lock(&_mutex);
             _active = true;
-            _inputTL = -static_cast<float>(_overscan)*
-                Vector2Cast<float>(_rgbi.size());
+            _inputTL = Vector2<float>(0, 0.25f) -
+                static_cast<float>(_overscan)*Vector2Cast<float>(_rgbi.size());
         }
         setOutputSize(requiredSize());
         join();
