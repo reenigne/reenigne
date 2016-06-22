@@ -695,6 +695,7 @@ public:
             _decoder.setBrightness(_brightness);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
+            _decoder.setRollOff(_rollOff);
             _decoder.setChromaNotch(combFilter == 0);
             _scaler.setProfile(_scanlineProfile);
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
@@ -710,6 +711,7 @@ public:
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
+
         _decoder.calculateBurst(burst);
 
         _bitmap.ensure(outputSize);
@@ -725,13 +727,14 @@ public:
         Vector activeTL = Vector(0, 0) - tl;
         Vector ntscSize;
         int carrierAlignmentAdjust = tl.x & 3;
+        int decoderPadding = 32;
+        _decoder.setPadding(decoderPadding);
         if (connector == 0)
             rgbiSize = _unscaledSize;
         else {
-            _decoder.setOutputSize(_unscaledSize);
             Timer timerDecoderInit;
-            _decoder.init();
             timerDecoderInit.output("decoder init");
+
             _combed = _decoder.input();
             _srgb = _decoder.output();
             int l = _decoder.inputLeft();
@@ -940,6 +943,7 @@ public:
             timerComb.output("comb");
             // Decode 128 bit composite to 9.7 fixed-point sRGB
             Timer timerDecode;
+
             _decoder.decode();
             timerDecode.output("decode");
         }
@@ -1238,6 +1242,15 @@ public:
         restart();
     }
     double getLumaBandwidth() { return _lumaBandwidth; }
+    void setRollOff(double rollOff)
+    {
+        {
+            Lock lock(&_mutex);
+            _rollOff = rollOff;
+        }
+        restart();
+    }
+    double getRollOff() { return _rollOff; }
 
     Vector requiredSize()
     {
@@ -1310,6 +1323,7 @@ private:
     double _brightness;
     double _chromaBandwidth;
     double _lumaBandwidth;
+    double _rollOff;
     int _combFilter;
     bool _showClipping;
 
@@ -1319,7 +1333,7 @@ private:
     Bitmap<Byte> _rgbi2;
     Bitmap<Byte> _ntsc;
     CGAComposite _composite;
-    ResamplingNTSCDecoder _decoder;
+    FFTNTSCDecoder _decoder;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
 
@@ -1362,6 +1376,7 @@ public:
         _monitor._filter._chromaBandwidth.setValue(
             _output->getChromaBandwidth());
         _monitor._filter._lumaBandwidth.setValue(_output->getLumaBandwidth());
+        _monitor._filter._rollOff.setValue(_output->getRollOff());
         _monitor._filter._combFilter.set(_output->getCombFilter());
         _monitor._scanlines._profile.set(_output->getScanlineProfile());
         _monitor._scanlines._width.setValue(_output->getScanlineWidth());
@@ -1455,6 +1470,7 @@ public:
         _monitor._colour._hue.setConfig(config);
         _monitor._filter._chromaBandwidth.setConfig(config);
         _monitor._filter._lumaBandwidth.setConfig(config);
+        _monitor._filter._rollOff.setConfig(config);
         _monitor._scanlines._width.setConfig(config);
         _monitor._scaling._zoom.setConfig(config);
         _monitor._scaling._aspectRatio.setConfig(config);
@@ -1633,6 +1649,7 @@ public:
     {
         _output->setLumaBandwidth(lumaBandwidth);
     }
+    void rollOffSet(double rollOff) { _output->setRollOff(rollOff); }
     void connectorSet(int connector)
     {
         _output->setConnector(connector);
@@ -1786,6 +1803,14 @@ private:
                 _lumaBandwidth.setText("Luma bandwidth: ");
                 _lumaBandwidth.setRange(0, 2);
                 add(&_lumaBandwidth);
+
+                _rollOff.setSliders(sliders);
+                _rollOff.setValueSet(
+                    [&](double value) { _host->rollOffSet(value); });
+                _rollOff.setText("Roll-off: ");
+                _rollOff.setRange(0, 2);
+                add(&_rollOff);
+
                 _combFilter.setChanged(
                     [&](int value) { _host->combFilterSet(value); });
                 _combFilter.setText("Comb filter: ");
@@ -1807,13 +1832,15 @@ private:
                 _combFilter.setTopLeft(
                     _lumaBandwidth.bottomLeft() + vSpace);
                 r = max(r, _combFilter.right());
-                setInnerSize(
-                    Vector(r, _combFilter.bottom()) + _host->groupBR());
+                _rollOff.setTopLeft(_combFilter.bottomLeft() + vSpace);
+                r = max(r, _rollOff.right());
+                setInnerSize(Vector(r, _rollOff.bottom()) + _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             KnobSlider _chromaBandwidth;
             KnobSlider _lumaBandwidth;
             CaptionedDropDownList _combFilter;
+            KnobSlider _rollOff;
         };
         FilterGroup _filter;
         struct ScanlinesGroup : public GroupBox
@@ -2274,6 +2301,7 @@ public:
         configFile.addDefaultOption("showClipping", false);
         configFile.addDefaultOption("chromaBandwidth", 1.0);
         configFile.addDefaultOption("lumaBandwidth", 1.0);
+        configFile.addDefaultOption("rollOff", 0.0);
         configFile.addDefaultOption("horizontalDiffusion", 0.5);
         configFile.addDefaultOption("verticalDiffusion", 0.5);
         configFile.addDefaultOption("temporalDiffusion", 0.0);
@@ -2374,6 +2402,7 @@ public:
         output.setShowClipping(configFile.get<bool>("showClipping"));
         output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
         output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
+        output.setRollOff(configFile.get<double>("rollOff"));
         int connector = configFile.get<int>("connector");
         output.setConnector(connector);
         _matcher.setNewCGA(connector == 2);
