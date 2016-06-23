@@ -723,147 +723,126 @@ public:
         Vector tl = _scaler.inputTL();
         Vector br = _scaler.inputBR();
         _unscaledSize = br - tl;
-        Vector rgbiSize;
         Vector activeTL = Vector(0, 0) - tl;
-        Vector ntscSize;
         int carrierAlignmentAdjust = tl.x & 3;
         int decoderPadding = 32;
         _decoder.setPadding(decoderPadding);
+        int horizontalInactive = 272;
+        int verticalInactive = 62;
+        int totalWidth = _rgbi.size().x + horizontalInactive;
+        int srgbSize = totalWidth*(_rgbi.size().y + verticalInactive);
+        int rgbiSize;
+        int combedSize;
+        int ntscSize;
         if (connector == 0)
-            rgbiSize = _unscaledSize;
+            rgbiSize = srgbSize;
         else {
             Timer timerDecoderInit;
             timerDecoderInit.output("decoder init");
-
-            _combed = _decoder.input();
-            _srgb = _decoder.output();
-            int l = _decoder.inputLeft();
-            int r = _decoder.inputRight();
-            _combedSize = Vector((r - l)*4, _unscaledSize.y);
-            ntscSize = _combedSize;
-            Vector combTL(0, 0);
-            switch (combFilter) {
-                case 1: combTL = Vector(2, 1); break;
-                case 2: combTL = Vector(4, 2); break;
-                case 3: combTL = Vector(0, 1); break;
-                case 4: combTL = Vector(0, 2); break;
-            }
-            ntscSize += combTL;
+            combedSize = srgbSize + 2*decoderPadding;
+            _combed.ensure(combedSize*2);
+            Vector combTL = Vector(2, 1)*combFilter;
+            ntscSize = combedSize + combTL.x + combTL.y*totalWidth;
             _ntsc.ensure(ntscSize);
-            rgbiSize = ntscSize + Vector(1, 0);
-            activeTL -= Vector(l*4, 0) + combTL;
-            activeTL += Vector(carrierAlignmentAdjust, 0);
+            rgbiSize = ntscSize + 1;
         }
+        Timer timerRGBICopy;
         _rgbi2.ensure(rgbiSize);
         Byte border = _program->borderColour();
-        Vector activeBR = activeTL + _rgbi.size();
-        Vector rgbiTL(0, 0);
-        if (activeTL.x < 0) {
-            rgbiTL.x = -activeTL.x;
-            activeTL.x = 0;
-        }
-        if (activeTL.y < 0) {
-            rgbiTL.y = -activeTL.y;
-            activeTL.y = 0;
-        }
-        activeTL =
-            Vector(min(activeTL.x, rgbiSize.x), min(activeTL.y, rgbiSize.y));
-        activeBR = Vector(clamp(0, activeBR.x, rgbiSize.x),
-            clamp(0, activeBR.y, rgbiSize.y));
-
-        Timer timerRGBICopy;
-        Byte* rgbi2Row = _rgbi2.data();
-        int y;
-        for (y = 0; y < activeTL.y; ++y) {
-            memset(rgbi2Row, border, rgbiSize.x);
-            rgbi2Row += _rgbi2.stride();
-        }
-        const Byte* rgbiRow = rgbi.data() + rgbiTL.x + rgbiTL.y*rgbi.stride();
-        for (; y < activeBR.y; ++y) {
-            memset(rgbi2Row, border, activeTL.x);
-            memcpy(rgbi2Row + activeTL.x, rgbiRow, activeBR.x - activeTL.x);
-            memset(rgbi2Row + activeBR.x, border, rgbiSize.x - activeBR.x);
+        int y = 0;
+        const Byte* rgbiRow = rgbi.data();
+        Byte* rgbi2 = &_rgbi2[0];
+        int remaining = rgbiSize;
+        while (true) {
+            int copy = rgbi.size().x;
+            if (copy > remaining) {
+                memcpy(rgbi2, rgbiRow, remaining);
+                break;
+            }
+            memcpy(rgbi2, rgbiRow, copy);
+            rgbi2 += copy;
+            remaining -= copy;
             rgbiRow += rgbi.stride();
-            rgbi2Row += _rgbi2.stride();
+            ++y;
+            int clear = horizontalInactive;
+            if (y == rgbi.size().y) {
+                y = 0;
+                rgbiRow = rgbi.data();
+                clear += verticalInactive*totalWidth;
+            }
+            if (clear > remaining) {
+                memset(rgbi2, border, remaining);
+                break;
+            }
+            memset(rgbi2, border, clear);
+            rgbi2 += clear;
+            remaining -= clear;
         }
-        for (; y < rgbiSize.y; ++y) {
-            memset(rgbi2Row, border, rgbiSize.x);
-            rgbi2Row += _rgbi2.stride();
-        }
+        _srgb.ensure(srgbSize*3);
         timerRGBICopy.output("rgbi copy");
         if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
-            UInt16 levels[4];
+            Byte levels[4];
             for (int i = 0; i < 4; ++i) {
-                levels[i] = static_cast<int>(clamp(0.0f,
-                    (255.0f*brightness + 85*i*contrast)*128.0f, 32767.0f));
+                int l = static_cast<int>(255.0f*brightness + 85.0f*i*contrast);
+                if (showClipping) {
+                    if (l < 0)
+                        l = 255;
+                    else {
+                        if (l > 255)
+                            l = 0;
+                    }
+                }
+                else
+                    l = clamp(0, l, 255);
+                levels[i] = l;
             }
             static const int palette[3*16] = {
                 0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
                 2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
                 1, 1, 1,  1, 1, 3,  1, 3, 1,  1, 3, 3,
                 3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
-            UInt16 srgbPalette[3*16];
+            Byte srgbPalette[3*16];
             for (int i = 0; i < 3*16; ++i)
                 srgbPalette[i] = levels[palette[i]];
-            _srgb.ensure(rgbiSize.x*3*sizeof(UInt16), rgbiSize.y);
             Timer timerRGBIToSRGB;
-            const Byte* rgbiRow = _rgbi2.data();
-            Byte* srgbRow = _srgb.data();
-            for (int y = 0; y < rgbiSize.y; ++y) {
-                const Byte* rgbi = rgbiRow;
-                UInt16* srgb = reinterpret_cast<UInt16*>(srgbRow);
-                for (int x = 0; x < rgbiSize.x; ++x) {
-                    Byte v = *rgbi;
-                    ++rgbi;
-                    UInt16* p = &srgbPalette[3*v];
-                    srgb[0] = p[0];
-                    srgb[1] = p[1];
-                    srgb[2] = p[2];
-                    srgb += 3;
-                }
-                rgbiRow += _rgbi2.stride();
-                srgbRow += _srgb.stride();
+            const Byte* rgbi = &_rgbi2[0];
+            Byte* srgb = &_srgb[0];
+            for (int x = 0; x < rgbiSize; ++x) {
+                Byte* p = &srgbPalette[3 * *rgbi];
+                ++rgbi;
+                srgb[0] = p[0];
+                srgb[1] = p[1];
+                srgb[2] = p[2];
+                srgb += 3;
             }
             timerRGBIToSRGB.output("rgbi to srgb");
         }
         else {
             Timer timerRGBIToComposite;
             // Convert from RGBI to composite
-            const Byte* rgbiRow = _rgbi2.data();
-            Byte* ntscRow = _ntsc.data();
-            for (int y = 0; y < ntscSize.y; ++y) {
-                const Byte* rgbi = rgbiRow;
-                Byte* ntsc = ntscRow;
-                for (int x = 0; x < ntscSize.x; ++x) {
-                    *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], x & 3);
-                    ++rgbi;
-                    ++ntsc;
-                }
-                rgbiRow += _rgbi2.stride();
-                ntscRow += _ntsc.stride();
+            const Byte* rgbi = &_rgbi2[0];
+            Byte* ntsc = &_ntsc[0];
+            for (int x = 0; x < ntscSize; ++x) {
+                *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], x & 3);
+                ++rgbi;
+                ++ntsc;
             }
             timerRGBIToComposite.output("rgbi to composite");
             // Apply comb filter and expand to 8 channels of 16 bits per
             // channel.
             Timer timerComb;
-            ntscRow = _ntsc.data();
-            Byte* combedRow = _combed.data();
-            int lineOffset = _ntsc.stride();
+            ntsc = &_ntsc[0];
+            Byte* combed = &_combed[0];
+            int lineOffset = totalWidth - 2;
             switch (combFilter) {
                 case 0:
                     // No comb filter
-                    for (int y = 0; y < _combedSize.y; ++y) {
-                        const Byte* ntsc = ntscRow;
-                        UInt16* combed = reinterpret_cast<UInt16*>(combedRow);
-                        for (int x = 0; x < _combedSize.x; ++x) {
-                            combed[0] = *ntsc;
-                            combed[1] = *ntsc;
-                            ++ntsc;
-                            combed += 2;
-                        }
-                        ntscRow += _ntsc.stride();
-                        combedRow += _combed.stride();
+                    for (int x = 0; x < combedSize; ++x) {
+                        combed[0] = *ntsc;
+                        combed[1] = *ntsc;
+                        ++ntsc;
+                        combed += 2;
                     }
                     break;
                 case 1:
@@ -872,82 +851,59 @@ public:
                     // CGA scanline is 228 color carrier cycles, so instead of
                     // sharpening vertical detail a comb filter applied to CGA
                     // will sharpen 1-ldot-per-scanline diagonals.
-                    for (int y = 0; y < _combedSize.y; ++y) {
-                        const Byte* ntsc = ntscRow;
-                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
-                        for (int x = 0; x < _combedSize.x; ++x) {
-                            combed[0] = (ntsc[2] + ntsc[lineOffset] + 1) >> 1;
-                            combed[1] = (ntsc[2] - ntsc[lineOffset] + 1) >> 1;
-                            ++ntsc;
-                            combed += 2;
-                        }
-                        ntscRow += _ntsc.stride();
-                        combedRow += _combed.stride();
+                    for (int x = 0; x < combedSize; ++x) {
+                        combed[0] = (*ntsc + ntsc[lineOffset] + 1) >> 1;
+                        combed[1] = (*ntsc - ntsc[lineOffset] + 1) >> 1;
+                        ++ntsc;
+                        combed += 2;
                     }
                     break;
                 case 2:
                     // 2 line.
-                    for (int y = 0; y < _combedSize.y; ++y) {
-                        const Byte* ntsc = ntscRow;
-                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
-                        for (int x = 0; x < _combedSize.x; ++x) {
-                            SInt16 a = ntsc[4] + ntsc[lineOffset << 1] + 2;
-                            SInt16 b = ntsc[lineOffset + 2] << 1;
-                            combed[0] = (a + b) >> 2;
-                            combed[1] = (a - b) >> 2;
-                            ++ntsc;
-                            combed += 2;
-                        }
-                        ntscRow += _ntsc.stride();
-                        combedRow += _combed.stride();
-                    }
-                    break;
-                case 3:
-                    // 1 frame. For now assume all frames are the same. I'm
-                    // assuming that on a real monitor this will work by
-                    // counting 525 scanlines (not 525*227.5 color carrier
-                    // cycles) and do the same thing here. For a CGA signal
-                    // this will not improve sharpness horizontally or
-                    // vertically - it will just amount to a vertical blur.
-                    for (int y = 0; y < _combedSize.y; ++y) {
-                        const Byte* ntsc = ntscRow;
-                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
-                        for (int x = 0; x < _combedSize.x; ++x) {
-                            combed[0] = (*ntsc + ntsc[lineOffset] + 1) >> 1;
-                            combed[1] = (*ntsc - ntsc[lineOffset] + 1) >> 1;
-                            ++ntsc;
-                            combed += 2;
-                        }
-                        ntscRow += _ntsc.stride();
-                        combedRow += _combed.stride();
-                    }
-                    break;
-                case 4:
-                    // 2 frame.
-                    for (int y = 0; y < _combedSize.y; ++y) {
-                        const Byte* ntsc = ntscRow;
-                        SInt16* combed = reinterpret_cast<SInt16*>(combedRow);
-                        for (int x = 0; x < _combedSize.x; ++x) {
-                            SInt16 a = *ntsc + ntsc[lineOffset << 1] + 2;
-                            SInt16 b = ntsc[lineOffset] << 1;
-                            combed[0] = (a + b) >> 2;
-                            combed[1] = (a - b) >> 2;
-                            ++ntsc;
-                            combed += 2;
-                        }
-                        ntscRow += _ntsc.stride();
-                        combedRow += _combed.stride();
+                    for (int x = 0; x < combedSize; ++x) {
+                        int a = *ntsc + ntsc[lineOffset << 1] + 2;
+                        int b = ntsc[lineOffset] << 1;
+                        combed[0] = (a + b) >> 2;
+                        combed[1] = (a - b) >> 2;
+                        ++ntsc;
+                        combed += 2;
                     }
                     break;
             }
             timerComb.output("comb");
             // Decode 128 bit composite to 9.7 fixed-point sRGB
             Timer timerDecode;
-
-            _decoder.decode();
+            Byte* combedBlock = &_combed[0];
+            Byte* srgb = &_srgb[0];
+            int fftLength = 512;
+            int stride = fftLength - 2*decoderPadding;
+            for (int j = 0; j <= combedSize - stride; j += stride) {
+                Byte* combed = combedBlock;
+                float* yData = _decoder.yData();
+                float* iData = _decoder.iData();
+                float* qData = _decoder.qData();
+                for (int i = 0; i < fftLength; i += 4) {
+                    yData[i] = combed[0];
+                    yData[i + 1] = combed[2];
+                    yData[i + 2] = combed[4];
+                    yData[i + 3] = combed[6];
+                    iData[i] = 0;
+                    iData[i + 1] = -static_cast<float>(combed[i + 3]);
+                    iData[i + 2] = 0;
+                    iData[i + 3] = combed[i + 7];
+                    qData[i] = combed[i + 1];
+                    qData[i + 1] = 0;
+                    qData[i + 2] = -static_cast<float>(combed[i + 5]);
+                    qData[i + 3] = 0;
+                    combed += 8;
+                }
+                _decoder.decodeBlock(srgb);
+                srgb += stride*3;
+                combedBlock += stride*2;
+            }
             timerDecode.output("decode");
         }
-        int bright = static_cast<int>(32768.0f*brightness);
+        int bright = static_cast<int>(255.0f*brightness);
         // Shift, clip, show clipping, brightness and linearization
         float linear[256];
         for (int i = 0; i < 256; ++i) {
@@ -962,19 +918,47 @@ public:
             linear[255] = 0.0f;
         }
         Timer timerLinearize;
-        const Byte* srgbRow = _srgb.data() + 6*carrierAlignmentAdjust;
+        int offsetTL = tl.x + tl.y*totalWidth;
+        if (offsetTL < 0)
+            offsetTL = srgbSize - (-offsetTL)%srgbSize;
+        else
+            offsetTL = offsetTL % srgbSize;
+        const Byte* srgb = &_srgb[offsetTL*3];
         Byte* unscaledRow = _unscaled.data();
+        int scanlineChannels = _unscaledSize.x*3;
         for (int y = 0; y < _unscaledSize.y; ++y) {
-            const SInt16* srgb = reinterpret_cast<const SInt16*>(srgbRow);
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
-            for (int x = 0; x < _unscaledSize.x*3; ++x) {
-                *unscaled = linear[byteClamp((*srgb + bright) >> 7)];
-                ++srgb;
-                ++unscaled;
+            if (offsetTL + _unscaledSize.x > srgbSize) {
+                int endChannels = (srgbSize - offsetTL)*3;
+                for (int x = 0; x < endChannels; ++x) {
+                    *unscaled = linear[byteClamp(*srgb + bright)];
+                    ++srgb;
+                    ++unscaled;
+                }
+                srgb = &_srgb[0];
+                for (int x = 0; x < scanlineChannels - endChannels; ++x) {
+                    *unscaled = linear[byteClamp(*srgb + bright)];
+                    ++srgb;
+                    ++unscaled;
+                }
+                offsetTL = offsetTL + _unscaledSize.x - srgbSize;
             }
-            srgbRow += _srgb.stride();
+            else {
+                for (int x = 0; x < scanlineChannels; ++x) {
+                    *unscaled = linear[byteClamp(*srgb + bright)];
+                    ++srgb;
+                    ++unscaled;
+                }
+                offsetTL += _unscaledSize.x;
+            }
             unscaledRow += _unscaled.stride();
         }
+        timerLinearize.output("linearize");
+
+        // Scale to desired size and apply scanline filter
+        _scaler.render();
+
+        // Delinearization and float-to-byte conversion
         Byte lut[6590];
         float multiplier = 2*255.0f*12.92f;
         for (int i = 0; i < 6590; ++i) {
@@ -986,11 +970,6 @@ public:
                 s = 1.055f*pow(l, 1/2.4f) - 0.055f;
             lut[i] = static_cast<int>(0.5f + 255.0f*s);
         }
-
-        timerLinearize.output("linearize");
-        // Scale to desired size and apply scanline filter
-        _scaler.render();
-        // Delinearization and float-to-byte conversion
         Timer timerDelinearize;
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
@@ -1060,7 +1039,7 @@ public:
 
         if (_connector != 0) {
             FileStream s = File(outputFileName + ".ntsc", true).openWrite();
-            s.write(_ntsc.data(), _ntsc.stride()*_ntsc.size().y);
+            s.write(_ntsc);
         }
     }
 
@@ -1316,7 +1295,7 @@ private:
     double _aspectRatio;
     double _overscan;
     Vector _outputSize;
-    Vector2<float> _inputTL;
+    Vector2<float> _inputTL;  // input position of top-left of output
     double _hue;
     double _saturation;
     double _contrast;
@@ -1330,8 +1309,6 @@ private:
     Bitmap<DWORD> _bitmap;
     Bitmap<DWORD> _lastBitmap;
     Bitmap<Byte> _rgbi;
-    Bitmap<Byte> _rgbi2;
-    Bitmap<Byte> _ntsc;
     CGAComposite _composite;
     FFTNTSCDecoder _decoder;
     CGA2NTSCWindow* _window;
@@ -1339,8 +1316,10 @@ private:
 
     FIRScanlineRenderer _scaler;
     Vector _combedSize;
-    AlignedBuffer _combed;
-    AlignedBuffer _srgb;
+    Array<Byte> _rgbi2;
+    Array<Byte> _ntsc;
+    Array<Byte> _combed;
+    Array<Byte> _srgb;
     Vector _unscaledSize;
     AlignedBuffer _unscaled;
     AlignedBuffer _scaled;
