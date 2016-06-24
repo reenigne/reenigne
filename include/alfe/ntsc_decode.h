@@ -798,10 +798,13 @@ public:
         _iTime.ensure(length);
         _qTime.ensure(length);
         _yTime.ensure(length);
-        _frequency.ensure(length/2 + 1);
+        int fLength = length/2 + 1;
+        _frequency.ensure(fLength);
         _forward = FFTWPlanDFTR2C1D<float>(length, _yTime, _frequency, _rigor);
         _backward =
             FFTWPlanDFTC2R1D<float>(length, _frequency, _yTime, _rigor);
+        _lumaResponse.ensure(fLength);
+        _chromaResponse.ensure(fLength);
     }
     void calculateBurst(Byte* burst)
     {
@@ -813,54 +816,66 @@ public:
             _contrast*2/iq.modulus()/static_cast<float>(_length);
         _contrast2 = _contrast/_length;
         _brightness2 = _brightness*256.0f;
-        _chromaLow = clamp(0,
-            static_cast<int>((_length*(4 - _chromaBandwidth))/16), _length);
-        _chromaHigh = clamp(0,
-            static_cast<int>((_length*(4 + _chromaBandwidth))/16), _length);
-        _lumaHigh = clamp(0,
-            static_cast<int>(_length*_lumaBandwidth/4), _length);
-        _chromaCutoff = clamp(0,
-            static_cast<int>(_length*_chromaBandwidth/16), _length);
+        int fLength = _length/2 + 1;
+        int chromaLow = clamp(0,
+            static_cast<int>((_length*(4 - _chromaBandwidth))/16), fLength);
+        int chromaHigh = clamp(0,
+            static_cast<int>((_length*(4 + _chromaBandwidth))/16), fLength);
+        int lumaHigh = clamp(0,
+            static_cast<int>(_length*_lumaBandwidth/4), fLength);
+        int chromaCutoff = clamp(0,
+            static_cast<int>(_length*_chromaBandwidth/16), fLength);
+        if (lumaHigh < chromaLow || !_chromaNotch) {
+            for (int f = 0; f < lumaHigh; ++f)
+                _lumaResponse[f] = 1;
+            for (int f = lumaHigh; f < fLength; ++f)
+                _lumaResponse[f] = 0;
+        }
+        else {
+            if (lumaHigh < chromaHigh) {
+                for (int f = 0; f < chromaLow; ++f)
+                    _lumaResponse[f] = 1;
+                for (int f = chromaLow; f < fLength; ++f)
+                    _lumaResponse[f] = 0;
+            }
+            else {
+                for (int f = 0; f < chromaLow; ++f)
+                    _lumaResponse[f] = 1;
+                for (int f = chromaLow; f < chromaHigh; ++f)
+                    _lumaResponse[f] = 0;
+                for (int f = chromaHigh; f < lumaHigh; ++f)
+                    _lumaResponse[f] = 1;
+                for (int f = lumaHigh; f < fLength; ++f)
+                    _lumaResponse[f] = 0;
+            }
+        }
+        for (int f = 0; f < chromaCutoff; ++f)
+            _chromaResponse[f] = 1;
+        for (int f = chromaCutoff; f < fLength; ++f)
+            _chromaResponse[f] = 0;
     }
 
     void decodeBlock(Byte* srgb)
     {
-        // Transform Y
-        _forward.execute(_yTime, _frequency);
+        int fLength = _length/2 + 1;
 
         // Filter Y
-        if (_lumaHigh < _chromaLow || !_chromaNotch) {
-            for (int f = _lumaHigh; f < _length; ++f)
-                _frequency[f] = 0;
-        }
-        else {
-            if (_lumaHigh < _chromaHigh) {
-                for (int f = _chromaLow; f < _length; ++f)
-                    _frequency[f] = 0;
-            }
-            else {
-                for (int f = _chromaLow; f < _chromaHigh; ++f)
-                    _frequency[f] = 0;
-                for (int f = _lumaHigh; f < _length; ++f)
-                    _frequency[f] = 0;
-            }
-        }
+        _forward.execute(_yTime, _frequency);
+        for (int f = 0; f < fLength; ++f)
+            _frequency[f] *= _lumaResponse[f];
+
         _backward.execute(_frequency, _yTime);
 
-        // Transform I
-        _forward.execute(_iTime, _frequency);
-
         // Filter I
-        for (int f = _chromaCutoff; f < _length; ++f)
-            _frequency[f] = 0;
+        _forward.execute(_iTime, _frequency);
+        for (int f = 0; f < fLength; ++f)
+            _frequency[f] *= _chromaResponse[f];
         _backward.execute(_frequency, _iTime);
 
-        // Transform Q
-        _forward.execute(_qTime, _frequency);
-
         // Filter Q
-        for (int f = _chromaCutoff; f < _length; ++f)
-            _frequency[f] = 0;
+        _forward.execute(_qTime, _frequency);
+        for (int f = 0; f < fLength; ++f)
+            _frequency[f] *= _chromaResponse[f];
         _backward.execute(_frequency, _qTime);
 
         for (int t = _padding; t < _length - _padding; ++t) {
@@ -923,20 +938,16 @@ private:
     Complex<float> _iqAdjust;
     float _contrast2;
     float _brightness2;
-    int _chromaLow;
-    int _chromaHigh;
-    int _lumaHigh;
-    int _chromaCutoff;
     int _padding;
 
-    FFTWPlanDFTR2C1D<float> _forward;
     FFTWComplexArray<float> _frequency;
     Array<float> _lumaResponse;
     Array<float> _chromaResponse;
-    FFTWPlanDFTC2R1D<float> _backward;
     FFTWRealArray<float> _yTime;
     FFTWRealArray<float> _iTime;
     FFTWRealArray<float> _qTime;
+    FFTWPlanDFTR2C1D<float> _forward;
+    FFTWPlanDFTC2R1D<float> _backward;
 
     int _rigor;
     int _length;

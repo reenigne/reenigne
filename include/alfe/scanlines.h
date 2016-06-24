@@ -245,12 +245,6 @@ public:
     {
         float kernelRadiusVertical = 16;
         std::function<float(float)> verticalKernel;
-        Vector2<float> bandLimit(0.5f, 0.5f);
-        if (_zoom.x < 1)
-            bandLimit.x = 0.5f*_zoom.x;
-        if (_zoom.y < 1)
-            bandLimit.y = 0.5f*_zoom.y;
-
         switch (_profile) {
             case 0:
                 // Rectangle
@@ -319,6 +313,7 @@ public:
 
         float kernelRadiusHorizontal = 16;
         Timer timerHorizontalGenerate;
+        float bandLimit = min(1.0f, _zoom.x);
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
@@ -326,7 +321,7 @@ public:
             {
                 if (inputChannel != outputChannel)
                     return 0.0f;
-                return bandLimit.x*sinc(distance*bandLimit.x);
+                return bandLimit*sinc(distance*bandLimit);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
         timerHorizontalGenerate.output("horizontal generate");

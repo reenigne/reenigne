@@ -727,7 +727,7 @@ public:
         int carrierAlignmentAdjust = tl.x & 3;
         int decoderPadding = 32;
         _decoder.setPadding(decoderPadding);
-        int horizontalInactive = 272;
+        int horizontalInactive = 272 - (_rgbi.size().x & 3);
         int verticalInactive = 62;
         int totalWidth = _rgbi.size().x + horizontalInactive;
         int srgbSize = totalWidth*(_rgbi.size().y + verticalInactive);
@@ -742,7 +742,7 @@ public:
             combedSize = srgbSize + 2*decoderPadding;
             _combed.ensure(combedSize*2);
             Vector combTL = Vector(2, 1)*combFilter;
-            ntscSize = combedSize + combTL.x + combTL.y*totalWidth;
+            ntscSize = combedSize + /*combTL.x +*/ combTL.y*totalWidth;
             _ntsc.ensure(ntscSize);
             rgbiSize = ntscSize + 1;
         }
@@ -824,7 +824,7 @@ public:
             const Byte* rgbi = &_rgbi2[0];
             Byte* ntsc = &_ntsc[0];
             for (int x = 0; x < ntscSize; ++x) {
-                *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], x & 3);
+                *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], (x + 1) & 3);
                 ++rgbi;
                 ++ntsc;
             }
@@ -834,7 +834,6 @@ public:
             Timer timerComb;
             ntsc = &_ntsc[0];
             Byte* combed = &_combed[0];
-            int lineOffset = totalWidth - 2;
             switch (combFilter) {
                 case 0:
                     // No comb filter
@@ -852,8 +851,8 @@ public:
                     // sharpening vertical detail a comb filter applied to CGA
                     // will sharpen 1-ldot-per-scanline diagonals.
                     for (int x = 0; x < combedSize; ++x) {
-                        combed[0] = (*ntsc + ntsc[lineOffset] + 1) >> 1;
-                        combed[1] = (*ntsc - ntsc[lineOffset] + 1) >> 1;
+                        combed[0] = (ntsc[2] + ntsc[totalWidth] + 1) >> 1;
+                        combed[1] = (ntsc[2] - ntsc[totalWidth] + 1) >> 1;
                         ++ntsc;
                         combed += 2;
                     }
@@ -861,8 +860,8 @@ public:
                 case 2:
                     // 2 line.
                     for (int x = 0; x < combedSize; ++x) {
-                        int a = *ntsc + ntsc[lineOffset << 1] + 2;
-                        int b = ntsc[lineOffset] << 1;
+                        int a = ntsc[4] + ntsc[totalWidth << 1] + 2;
+                        int b = ntsc[2 + totalWidth] << 1;
                         combed[0] = (a + b) >> 2;
                         combed[1] = (a - b) >> 2;
                         ++ntsc;
@@ -871,13 +870,21 @@ public:
                     break;
             }
             timerComb.output("comb");
-            // Decode 128 bit composite to 9.7 fixed-point sRGB
+
+            // Decode composite to sRGB
             Timer timerDecode;
             Byte* combedBlock = &_combed[0];
             Byte* srgb = &_srgb[0];
             int fftLength = 512;
             int stride = fftLength - 2*decoderPadding;
-            for (int j = 0; j <= combedSize - stride; j += stride) {
+            for (int j = 0; j < combedSize; j += stride) {
+                if (j + stride > combedSize) {
+                    // The last block is a small one, so we'll decode it by
+                    // overlapping the previous one.
+                    j = combedSize - stride;
+                    combedBlock = &_combed[2*j];
+                    srgb = &_srgb[3*j];
+                }
                 Byte* combed = combedBlock;
                 float* yData = _decoder.yData();
                 float* iData = _decoder.iData();
@@ -888,12 +895,12 @@ public:
                     yData[i + 2] = combed[4];
                     yData[i + 3] = combed[6];
                     iData[i] = 0;
-                    iData[i + 1] = -static_cast<float>(combed[i + 3]);
+                    iData[i + 1] = -static_cast<float>(combed[3]);
                     iData[i + 2] = 0;
-                    iData[i + 3] = combed[i + 7];
-                    qData[i] = combed[i + 1];
+                    iData[i + 3] = combed[7];
+                    qData[i] = combed[1];
                     qData[i + 1] = 0;
-                    qData[i + 2] = -static_cast<float>(combed[i + 5]);
+                    qData[i + 2] = -static_cast<float>(combed[5]);
                     qData[i + 3] = 0;
                     combed += 8;
                 }
@@ -923,12 +930,14 @@ public:
             offsetTL = srgbSize - (-offsetTL)%srgbSize;
         else
             offsetTL = offsetTL % srgbSize;
-        const Byte* srgb = &_srgb[offsetTL*3];
+        const Byte* srgbRow = &_srgb[offsetTL*3];
         Byte* unscaledRow = _unscaled.data();
         int scanlineChannels = _unscaledSize.x*3;
+        int totalSrgbWidth = totalWidth*3;
         for (int y = 0; y < _unscaledSize.y; ++y) {
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
-            if (offsetTL + _unscaledSize.x > srgbSize) {
+            const Byte* srgb = srgbRow;
+            if (offsetTL + scanlineChannels > srgbSize) {
                 int endChannels = (srgbSize - offsetTL)*3;
                 for (int x = 0; x < endChannels; ++x) {
                     *unscaled = linear[byteClamp(*srgb + bright)];
@@ -941,7 +950,8 @@ public:
                     ++srgb;
                     ++unscaled;
                 }
-                offsetTL = offsetTL + _unscaledSize.x - srgbSize;
+                offsetTL = (offsetTL + totalWidth) % srgbSize;
+                srgbRow = &_srgb[offsetTL*3];
             }
             else {
                 for (int x = 0; x < scanlineChannels; ++x) {
@@ -949,7 +959,8 @@ public:
                     ++srgb;
                     ++unscaled;
                 }
-                offsetTL += _unscaledSize.x;
+                offsetTL += totalWidth;
+                srgbRow += totalSrgbWidth;
             }
             unscaledRow += _unscaled.stride();
         }
@@ -1796,8 +1807,6 @@ private:
                 _combFilter.add("none");
                 _combFilter.add("1 line");
                 _combFilter.add("2 line");
-                _combFilter.add("1 frame");
-                _combFilter.add("2 frame");
                 add(&_combFilter);
             }
             void layout()
