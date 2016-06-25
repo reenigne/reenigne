@@ -712,6 +712,8 @@ public:
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
 
+        int decoderPadding = 32;
+        _decoder.setPadding(decoderPadding);
         _decoder.calculateBurst(burst);
 
         _bitmap.ensure(outputSize);
@@ -725,8 +727,6 @@ public:
         _unscaledSize = br - tl;
         Vector activeTL = Vector(0, 0) - tl;
         int carrierAlignmentAdjust = tl.x & 3;
-        int decoderPadding = 32;
-        _decoder.setPadding(decoderPadding);
         int horizontalInactive = 272 - (_rgbi.size().x & 3);
         int verticalInactive = 62;
         int totalWidth = _rgbi.size().x + horizontalInactive;
@@ -1798,7 +1798,7 @@ private:
                 _rollOff.setValueSet(
                     [&](double value) { _host->rollOffSet(value); });
                 _rollOff.setText("Roll-off: ");
-                _rollOff.setRange(0, 2);
+                _rollOff.setRange(0, 1);
                 add(&_rollOff);
 
                 _combFilter.setChanged(

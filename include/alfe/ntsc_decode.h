@@ -811,48 +811,63 @@ public:
         Complex<float> iq;
         iq.x = static_cast<float>(burst[0] - burst[2]);
         iq.y = static_cast<float>(burst[1] - burst[3]);
-        _iqAdjust =
+        Complex<float> iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
             _contrast*2/iq.modulus()/static_cast<float>(_length);
         _contrast2 = _contrast/_length;
         _brightness2 = _brightness*256.0f;
         int fLength = _length/2 + 1;
-        int chromaLow = clamp(0,
-            static_cast<int>((_length*(4 - _chromaBandwidth))/16), fLength);
-        int chromaHigh = clamp(0,
-            static_cast<int>((_length*(4 + _chromaBandwidth))/16), fLength);
-        int lumaHigh = clamp(0,
-            static_cast<int>(_length*_lumaBandwidth/4), fLength);
-        int chromaCutoff = clamp(0,
-            static_cast<int>(_length*_chromaBandwidth/16), fLength);
-        if (lumaHigh < chromaLow || !_chromaNotch) {
-            for (int f = 0; f < lumaHigh; ++f)
-                _lumaResponse[f] = 1;
-            for (int f = lumaHigh; f < fLength; ++f)
-                _lumaResponse[f] = 0;
-        }
-        else {
-            if (lumaHigh < chromaHigh) {
-                for (int f = 0; f < chromaLow; ++f)
-                    _lumaResponse[f] = 1;
-                for (int f = chromaLow; f < fLength; ++f)
-                    _lumaResponse[f] = 0;
-            }
+        float lumaHigh = _lumaBandwidth / 2;
+        float chromaLow = (4 - _chromaBandwidth) / 8;
+        float chromaHigh = (4 + _chromaBandwidth) / 8;
+        float lumaCutoff = min(lumaHigh, chromaLow);
+        float rollOff = _rollOff / 4;
+        float chromaCutoff = _chromaBandwidth / 8;
+
+        for (int t = 0; t < fLength; ++t) {
+            float d = static_cast<float>(t);
+            float r;
+            if (_rollOff == 0)
+                r = 1;
+            else
+                r = sinc(d*rollOff);
+            if (lumaHigh < chromaHigh)
+                r *= lumaCutoff*sinc(d*lumaCutoff);
             else {
-                for (int f = 0; f < chromaLow; ++f)
-                    _lumaResponse[f] = 1;
-                for (int f = chromaLow; f < chromaHigh; ++f)
-                    _lumaResponse[f] = 0;
-                for (int f = chromaHigh; f < lumaHigh; ++f)
-                    _lumaResponse[f] = 1;
-                for (int f = lumaHigh; f < fLength; ++f)
-                    _lumaResponse[f] = 0;
+                r *= lumaHigh*sinc(d*lumaHigh)
+                    - chromaHigh*sinc(d*chromaHigh)
+                    + chromaLow*sinc(d*chromaLow);
             }
+            _yTime[t] = r;
+            if (t > 0)
+                _yTime[_length - t] = r;
         }
-        for (int f = 0; f < chromaCutoff; ++f)
-            _chromaResponse[f] = 1;
-        for (int f = chromaCutoff; f < fLength; ++f)
-            _chromaResponse[f] = 0;
+        _forward.execute(_yTime, _frequency);
+        for (int f = 0; f < fLength; ++f)
+            _lumaResponse[f] = _frequency[f].x;
+
+        for (int t = 0; t < fLength; ++t) {
+            float d = static_cast<float>(t);
+            float r;
+            if (_rollOff == 0)
+                r = 1;
+            else
+                r = sinc(d*rollOff);
+            r *= chromaCutoff*sinc(d*chromaCutoff);
+            _yTime[t] = r;
+            if (t > 0)
+                _yTime[_length - t] = r;
+        }
+        _forward.execute(_yTime, _frequency);
+        for (int f = 0; f < fLength; ++f)
+            _chromaResponse[f] = _frequency[f].x;
+
+        _ri =  0.9563f*iqAdjust.x +0.6210f*iqAdjust.y;
+        _rq =  0.6210f*iqAdjust.x -0.9563f*iqAdjust.y;
+        _gi = -0.2721f*iqAdjust.x -0.6474f*iqAdjust.y;
+        _gq = -0.6474f*iqAdjust.x +0.2721f*iqAdjust.y;
+        _bi = -1.1069f*iqAdjust.x +1.7046f*iqAdjust.y;
+        _bq =  1.7046f*iqAdjust.x +1.1069f*iqAdjust.y;
     }
 
     void decodeBlock(Byte* srgb)
@@ -863,7 +878,6 @@ public:
         _forward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f)
             _frequency[f] *= _lumaResponse[f];
-
         _backward.execute(_frequency, _yTime);
 
         // Filter I
@@ -880,10 +894,10 @@ public:
 
         for (int t = _padding; t < _length - _padding; ++t) {
             float y = _yTime[t]*_contrast2 + _brightness2;
-            Complex<float> iq = Complex<float>(_iTime[t], _qTime[t])*_iqAdjust;
-            srgb[0] = byteClamp(y + 0.9563f*iq.x + 0.6210f*iq.y);
-            srgb[1] = byteClamp(y - 0.2721f*iq.x - 0.6474f*iq.y);
-            srgb[2] = byteClamp(y - 1.1069f*iq.x + 1.7046f*iq.y);
+            Complex<float> iq(_iTime[t], _qTime[t]);
+            srgb[0] = byteClamp(y + _ri*iq.x + _rq*iq.y);
+            srgb[1] = byteClamp(y + _gi*iq.x + _gq*iq.y);
+            srgb[2] = byteClamp(y + _bi*iq.x + _bq*iq.y);
             srgb += 3;
         }
     }
@@ -935,7 +949,12 @@ private:
     float _rollOff;
     bool _chromaNotch;
 
-    Complex<float> _iqAdjust;
+    float _ri;
+    float _gi;
+    float _bi;
+    float _rq;
+    float _gq;
+    float _bq;
     float _contrast2;
     float _brightness2;
     int _padding;
