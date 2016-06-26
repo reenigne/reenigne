@@ -335,15 +335,39 @@ public:
         Timer timerHorizontalExecute;
         _horizontal.execute();
         timerHorizontalExecute.output("horizontal execute");
+        Timer timerHorizontalBleeding;
+        Byte* d = _intermediate.data();
+        for (int y = 0; y < _inputBR.y - _inputTL.y; ++y) {
+            bleed(d, 12, Vector(3, _size.x));
+            d += _intermediate.stride();
+        }
+        timerHorizontalBleeding.output("horizontal bleeding");
         Timer timerVerticalExecute;
         _vertical.execute();
         timerVerticalExecute.output("vertical execute");
-        int s = _output.stride();
-        Vector size = _size;
-        size.x *= 3;
         Timer timerBleeding;
+        bleed(_output.data(), _output.stride(), _size*Vector(3, 1));
+        timerBleeding.output("bleeding");
+    }
+    int getProfile() { return _profile; }
+    void setProfile(int profile) { _profile = profile; }
+    float getWidth() { return _width; }
+    void setWidth(float width) { _width = width; }
+    int getBleeding() { return _bleeding; }
+    void setBleeding(int bleeding) { _bleeding = bleeding; }
+    void setZoom(Vector2<float> zoom) { _zoom = zoom; }
+    void setOffset(Vector2<float> offset) { _offset = offset; }
+    void setOutputSize(Vector size) { _size = size; }
+    Vector inputTL() { return _inputTL; }
+    Vector inputBR() { return _inputBR; }
+    AlignedBuffer input() { return _input; }
+    AlignedBuffer output() { return _output; }
+
+private:
+    void bleed(Byte* data, int s, Vector size)
+    {
         if (_bleeding == 1) {
-            Byte* outputColumn = _output.data();
+            Byte* outputColumn = data;
             for (int x = 0; x < size.x; ++x) {
                 Byte* output = outputColumn;
                 float bleed = 0;
@@ -366,7 +390,7 @@ public:
             return;
         }
         if (_bleeding == 2) {
-            Byte* outputColumn = _output.data();
+            Byte* outputColumn = data;
             for (int x = 0; x < size.x; ++x) {
                 Byte* output = outputColumn;
                 float bleed = 0;
@@ -475,23 +499,8 @@ public:
                 outputColumn += sizeof(float);
             }
         }
-        timerBleeding.output("bleeding");
     }
-    int getProfile() { return _profile; }
-    void setProfile(int profile) { _profile = profile; }
-    float getWidth() { return _width; }
-    void setWidth(float width) { _width = width; }
-    int getBleeding() { return _bleeding; }
-    void setBleeding(int bleeding) { _bleeding = bleeding; }
-    void setZoom(Vector2<float> zoom) { _zoom = zoom; }
-    void setOffset(Vector2<float> offset) { _offset = offset; }
-    void setOutputSize(Vector size) { _size = size; }
-    Vector inputTL() { return _inputTL; }
-    Vector inputBR() { return _inputBR; }
-    AlignedBuffer input() { return _input; }
-    AlignedBuffer output() { return _output; }
 
-private:
     int _profile;
     float _width;
     int _bleeding;

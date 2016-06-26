@@ -677,6 +677,7 @@ public:
         bool showClipping;
         float brightness;
         float contrast;
+        int decoderPadding = 32;
         {
             Lock lock(&_mutex);
             if (!_active || _outputSize.zeroArea())
@@ -690,7 +691,8 @@ public:
             _decoder.setHue(_hue);
             _decoder.setSaturation(_saturation);
             contrast = static_cast<float>(_contrast);
-            _decoder.setContrast(_contrast);
+            static const double combDivisors[3] = {1, 2, 4};
+            _decoder.setContrast(_contrast/combDivisors[combFilter]);
             brightness = static_cast<float>(_brightness);
             _decoder.setBrightness(_brightness);
             _decoder.setChromaBandwidth(_chromaBandwidth);
@@ -700,7 +702,16 @@ public:
             _scaler.setProfile(_scanlineProfile);
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
             _scaler.setBleeding(_scanlineBleeding);
-            _scaler.setOffset(_inputTL);
+            Vector2<float> offset(0, 0);
+            if (connector != 0) {
+                offset = Vector2<float>(-decoderPadding - 0.5f, 0);
+                switch (combFilter) {
+                    case 0: offset += Vector2<float>(0, 0); break;
+                    case 1: offset += Vector2<float>(1, -0.5f); break;
+                    case 2: offset += Vector2<float>(-2, -1); break;
+                }
+            }
+            _scaler.setOffset(_inputTL + offset);
             _scaler.setZoom(scale());
         }
 
@@ -712,7 +723,6 @@ public:
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
 
-        int decoderPadding = 32;
         _decoder.setPadding(decoderPadding);
         _decoder.calculateBurst(burst);
 
@@ -740,7 +750,6 @@ public:
             Timer timerDecoderInit;
             timerDecoderInit.output("decoder init");
             combedSize = srgbSize + 2*decoderPadding;
-            _combed.ensure(combedSize*2);
             Vector combTL = Vector(2, 1)*combFilter;
             ntscSize = combedSize + /*combTL.x +*/ combTL.y*totalWidth;
             _ntsc.ensure(ntscSize);
@@ -829,19 +838,46 @@ public:
                 ++ntsc;
             }
             timerRGBIToComposite.output("rgbi to composite");
-            // Apply comb filter and expand to 8 channels of 16 bits per
-            // channel.
-            Timer timerComb;
+            // Apply comb filter and decode to sRGB.
+            Timer timerDecode;
             ntsc = &_ntsc[0];
-            Byte* combed = &_combed[0];
+            Byte* srgb = &_srgb[0];
+            int fftLength = 512;
+            int stride = fftLength - 2*decoderPadding;
+            Byte* ntscBlock = &_ntsc[0];
             switch (combFilter) {
                 case 0:
                     // No comb filter
-                    for (int x = 0; x < combedSize; ++x) {
-                        combed[0] = *ntsc;
-                        combed[1] = *ntsc;
-                        ++ntsc;
-                        combed += 2;
+                    for (int j = 0; j < combedSize; j += stride) {
+                        if (j + stride > combedSize) {
+                            // The last block is a small one, so we'll decode
+                            // it by overlapping the previous one.
+                            j = combedSize - stride;
+                            ntscBlock = &_ntsc[j];
+                            srgb = &_srgb[3*j];
+                        }
+                        Byte* ntsc = ntscBlock;
+                        float* yData = _decoder.yData();
+                        float* iData = _decoder.iData();
+                        float* qData = _decoder.qData();
+                        for (int i = 0; i < fftLength; i += 4) {
+                            yData[i] = ntsc[0];
+                            yData[i + 1] = ntsc[1];
+                            yData[i + 2] = ntsc[2];
+                            yData[i + 3] = ntsc[3];
+                            iData[i] = 0;
+                            iData[i + 1] = -static_cast<float>(ntsc[1]);
+                            iData[i + 2] = 0;
+                            iData[i + 3] = ntsc[3];
+                            qData[i] = ntsc[0];
+                            qData[i + 1] = 0;
+                            qData[i + 2] = -static_cast<float>(ntsc[2]);
+                            qData[i + 3] = 0;
+                            ntsc += 4;
+                        }
+                        _decoder.decodeBlock(srgb);
+                        srgb += stride*3;
+                        ntscBlock += stride;
                     }
                     break;
                 case 1:
@@ -850,65 +886,99 @@ public:
                     // CGA scanline is 228 color carrier cycles, so instead of
                     // sharpening vertical detail a comb filter applied to CGA
                     // will sharpen 1-ldot-per-scanline diagonals.
-                    for (int x = 0; x < combedSize; ++x) {
-                        combed[0] = (ntsc[2] + ntsc[totalWidth] + 1) >> 1;
-                        combed[1] = (ntsc[2] - ntsc[totalWidth] + 1) >> 1;
-                        ++ntsc;
-                        combed += 2;
+                    for (int j = 0; j < combedSize; j += stride) {
+                        if (j + stride > combedSize) {
+                            // The last block is a small one, so we'll decode
+                            // it by overlapping the previous one.
+                            j = combedSize - stride;
+                            ntscBlock = &_ntsc[j];
+                            srgb = &_srgb[3*j];
+                        }
+                        Byte* ntsc = ntscBlock;
+                        float* yData = _decoder.yData();
+                        float* iData = _decoder.iData();
+                        float* qData = _decoder.qData();
+                        for (int i = 0; i < fftLength; i += 4) {
+                            yData[i] = static_cast<float>(
+                                ntsc[0] + ntsc[totalWidth - 2]);
+                            yData[i + 1] = static_cast<float>(
+                                ntsc[1] + ntsc[totalWidth - 1]);
+                            yData[i + 2] = static_cast<float>(
+                                ntsc[2] + ntsc[totalWidth]);
+                            yData[i + 3] = static_cast<float>(
+                                ntsc[3] + ntsc[totalWidth + 1]);
+                            iData[i] = 0;
+                            iData[i + 1] = -static_cast<float>(
+                                ntsc[1] - ntsc[totalWidth - 1]);
+                            iData[i + 2] = 0;
+                            iData[i + 3] = static_cast<float>(
+                                ntsc[3] - ntsc[totalWidth + 1]);
+                            qData[i] = static_cast<float>(
+                                ntsc[0] - ntsc[totalWidth - 2]);
+                            qData[i + 1] = 0;
+                            qData[i + 2] = -static_cast<float>(
+                                ntsc[2] - ntsc[totalWidth]);
+                            qData[i + 3] = 0;
+                            ntsc += 4;
+                        }
+                        _decoder.decodeBlock(srgb);
+                        srgb += stride*3;
+                        ntscBlock += stride;
                     }
                     break;
                 case 2:
                     // 2 line.
-                    for (int x = 0; x < combedSize; ++x) {
-                        int a = ntsc[4] + ntsc[totalWidth << 1] + 2;
-                        int b = ntsc[2 + totalWidth] << 1;
-                        combed[0] = (a + b) >> 2;
-                        combed[1] = (a - b) >> 2;
-                        ++ntsc;
-                        combed += 2;
+                    for (int j = 0; j < combedSize; j += stride) {
+                        if (j + stride > combedSize) {
+                            // The last block is a small one, so we'll decode
+                            // it by overlapping the previous one.
+                            j = combedSize - stride;
+                            ntscBlock = &_ntsc[j];
+                            srgb = &_srgb[3*j];
+                        }
+                        Byte* ntsc = ntscBlock;
+                        float* yData = _decoder.yData();
+                        float* iData = _decoder.iData();
+                        float* qData = _decoder.qData();
+                        for (int i = 0; i < fftLength; i += 4) {
+                            yData[i] = static_cast<float>(ntsc[4] +
+                                ntsc[totalWidth << 1] +
+                                (ntsc[2 + totalWidth] << 1));
+                            yData[i + 1] = static_cast<float>(ntsc[5] +
+                                ntsc[1 + (totalWidth << 1)] +
+                                (ntsc[3 + totalWidth] << 1));
+                            yData[i + 2] = static_cast<float>(ntsc[6] +
+                                ntsc[2 + (totalWidth << 1)] +
+                                (ntsc[4 + totalWidth] << 1));
+                            yData[i + 3] = static_cast<float>(ntsc[7] +
+                                ntsc[3 + (totalWidth << 1)] +
+                                (ntsc[5 + totalWidth] << 1));
+                            iData[i] = 0;
+                            iData[i + 1] = -static_cast<float>(ntsc[5] +
+                                ntsc[1 + (totalWidth << 1)] -
+                                (ntsc[3 + totalWidth] << 1));
+                            iData[i + 2] = 0;
+                            iData[i + 3] = static_cast<float>(ntsc[7] +
+                                ntsc[3 + (totalWidth << 1)] -
+                                (ntsc[5 + totalWidth] << 1));
+                            qData[i] = static_cast<float>(ntsc[4] +
+                                ntsc[totalWidth << 1] -
+                                (ntsc[2 + totalWidth] << 1));
+                            qData[i + 1] = 0;
+                            qData[i + 2] = -static_cast<float>(ntsc[6] +
+                                ntsc[2 + (totalWidth << 1)] -
+                                (ntsc[4 + totalWidth] << 1));
+                            qData[i + 3] = 0;
+                            ntsc += 4;
+                        }
+                        _decoder.decodeBlock(srgb);
+                        srgb += stride*3;
+                        ntscBlock += stride;
                     }
                     break;
             }
-            timerComb.output("comb");
-
-            // Decode composite to sRGB
-            Timer timerDecode;
-            Byte* combedBlock = &_combed[0];
-            Byte* srgb = &_srgb[0];
-            int fftLength = 512;
-            int stride = fftLength - 2*decoderPadding;
-            for (int j = 0; j < combedSize; j += stride) {
-                if (j + stride > combedSize) {
-                    // The last block is a small one, so we'll decode it by
-                    // overlapping the previous one.
-                    j = combedSize - stride;
-                    combedBlock = &_combed[2*j];
-                    srgb = &_srgb[3*j];
-                }
-                Byte* combed = combedBlock;
-                float* yData = _decoder.yData();
-                float* iData = _decoder.iData();
-                float* qData = _decoder.qData();
-                for (int i = 0; i < fftLength; i += 4) {
-                    yData[i] = combed[0];
-                    yData[i + 1] = combed[2];
-                    yData[i + 2] = combed[4];
-                    yData[i + 3] = combed[6];
-                    iData[i] = 0;
-                    iData[i + 1] = -static_cast<float>(combed[3]);
-                    iData[i + 2] = 0;
-                    iData[i + 3] = combed[7];
-                    qData[i] = combed[1];
-                    qData[i + 1] = 0;
-                    qData[i + 2] = -static_cast<float>(combed[5]);
-                    qData[i + 3] = 0;
-                    combed += 8;
-                }
-                _decoder.decodeBlock(srgb);
-                srgb += stride*3;
-                combedBlock += stride*2;
-            }
             timerDecode.output("decode");
+
         }
         int bright = static_cast<int>(255.0f*brightness);
         // Shift, clip, show clipping, brightness and linearization
@@ -937,7 +1007,7 @@ public:
         for (int y = 0; y < _unscaledSize.y; ++y) {
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
             const Byte* srgb = srgbRow;
-            if (offsetTL + scanlineChannels > srgbSize) {
+            if (offsetTL + _unscaledSize.x > srgbSize) {
                 int endChannels = (srgbSize - offsetTL)*3;
                 for (int x = 0; x < endChannels; ++x) {
                     *unscaled = linear[byteClamp(*srgb + bright)];
@@ -1329,7 +1399,6 @@ private:
     Vector _combedSize;
     Array<Byte> _rgbi2;
     Array<Byte> _ntsc;
-    Array<Byte> _combed;
     Array<Byte> _srgb;
     Vector _unscaledSize;
     AlignedBuffer _unscaled;

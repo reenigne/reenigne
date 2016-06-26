@@ -1,4 +1,5 @@
 #include "alfe/main.h"
+#include "alfe/complex.h"
 
 #ifndef INCLUDED_FFT_H
 #define INCLUDED_FFT_H
