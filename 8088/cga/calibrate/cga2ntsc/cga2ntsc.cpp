@@ -24,6 +24,15 @@ static const SRGB rgbiPalette[16] = {
     SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
     SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
 
+class CGAData
+{
+public:
+    void output(int t, int n, Byte* rgbi)
+    {
+    }
+private:
+};
+
 class CGAShower
 {
 public:
@@ -865,15 +874,13 @@ public:
                             yData[i + 1] = ntsc[1];
                             yData[i + 2] = ntsc[2];
                             yData[i + 3] = ntsc[3];
-                            iData[i] = 0;
-                            iData[i + 1] = -static_cast<float>(ntsc[1]);
-                            iData[i + 2] = 0;
-                            iData[i + 3] = ntsc[3];
-                            qData[i] = ntsc[0];
-                            qData[i + 1] = 0;
-                            qData[i + 2] = -static_cast<float>(ntsc[2]);
-                            qData[i + 3] = 0;
+                            iData[0] = -static_cast<float>(ntsc[1]);
+                            iData[1] = ntsc[3];
+                            qData[0] = ntsc[0];
+                            qData[1] = -static_cast<float>(ntsc[2]);
                             ntsc += 4;
+                            iData += 2;
+                            qData += 2;
                         }
                         _decoder.decodeBlock(srgb);
                         srgb += stride*3;
@@ -907,19 +914,17 @@ public:
                                 ntsc[2] + ntsc[totalWidth]);
                             yData[i + 3] = static_cast<float>(
                                 ntsc[3] + ntsc[totalWidth + 1]);
-                            iData[i] = 0;
-                            iData[i + 1] = -static_cast<float>(
+                            iData[0] = -static_cast<float>(
                                 ntsc[1] - ntsc[totalWidth - 1]);
-                            iData[i + 2] = 0;
-                            iData[i + 3] = static_cast<float>(
+                            iData[1] = static_cast<float>(
                                 ntsc[3] - ntsc[totalWidth + 1]);
-                            qData[i] = static_cast<float>(
+                            qData[0] = static_cast<float>(
                                 ntsc[0] - ntsc[totalWidth - 2]);
-                            qData[i + 1] = 0;
-                            qData[i + 2] = -static_cast<float>(
+                            qData[1] = -static_cast<float>(
                                 ntsc[2] - ntsc[totalWidth]);
-                            qData[i + 3] = 0;
                             ntsc += 4;
+                            iData += 2;
+                            qData += 2;
                         }
                         _decoder.decodeBlock(srgb);
                         srgb += stride*3;
@@ -953,23 +958,21 @@ public:
                             yData[i + 3] = static_cast<float>(ntsc[7] +
                                 ntsc[3 + (totalWidth << 1)] +
                                 (ntsc[5 + totalWidth] << 1));
-                            iData[i] = 0;
-                            iData[i + 1] = -static_cast<float>(ntsc[5] +
+                            iData[0] = -static_cast<float>(ntsc[5] +
                                 ntsc[1 + (totalWidth << 1)] -
                                 (ntsc[3 + totalWidth] << 1));
-                            iData[i + 2] = 0;
-                            iData[i + 3] = static_cast<float>(ntsc[7] +
+                            iData[1] = static_cast<float>(ntsc[7] +
                                 ntsc[3 + (totalWidth << 1)] -
                                 (ntsc[5 + totalWidth] << 1));
-                            qData[i] = static_cast<float>(ntsc[4] +
+                            qData[0] = static_cast<float>(ntsc[4] +
                                 ntsc[totalWidth << 1] -
                                 (ntsc[2 + totalWidth] << 1));
-                            qData[i + 1] = 0;
-                            qData[i + 2] = -static_cast<float>(ntsc[6] +
+                            qData[1] = -static_cast<float>(ntsc[6] +
                                 ntsc[2 + (totalWidth << 1)] -
                                 (ntsc[4 + totalWidth] << 1));
-                            qData[i + 3] = 0;
                             ntsc += 4;
+                            iData += 2;
+                            qData += 2;
                         }
                         _decoder.decodeBlock(srgb);
                         srgb += stride*3;
@@ -980,8 +983,7 @@ public:
             timerDecode.output("decode");
 
         }
-        int bright = static_cast<int>(255.0f*brightness);
-        // Shift, clip, show clipping, brightness and linearization
+        // Shift, clip, show clipping and linearization
         float linear[256];
         for (int i = 0; i < 256; ++i) {
             float t = i/255.0f;
@@ -1008,30 +1010,28 @@ public:
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
             const Byte* srgb = srgbRow;
             if (offsetTL + _unscaledSize.x > srgbSize) {
-                int endChannels = (srgbSize - offsetTL)*3;
+                int endChannels = max(0, (srgbSize - offsetTL)*3);
                 for (int x = 0; x < endChannels; ++x) {
-                    *unscaled = linear[byteClamp(*srgb + bright)];
+                    *unscaled = linear[*srgb];
                     ++srgb;
                     ++unscaled;
                 }
                 srgb = &_srgb[0];
                 for (int x = 0; x < scanlineChannels - endChannels; ++x) {
-                    *unscaled = linear[byteClamp(*srgb + bright)];
+                    *unscaled = linear[*srgb];
                     ++srgb;
                     ++unscaled;
                 }
-                offsetTL = (offsetTL + totalWidth) % srgbSize;
-                srgbRow = &_srgb[offsetTL*3];
             }
             else {
                 for (int x = 0; x < scanlineChannels; ++x) {
-                    *unscaled = linear[byteClamp(*srgb + bright)];
+                    *unscaled = linear[*srgb];
                     ++srgb;
                     ++unscaled;
                 }
-                offsetTL += totalWidth;
-                srgbRow += totalSrgbWidth;
             }
+            offsetTL = (offsetTL + totalWidth) % srgbSize;
+            srgbRow = &_srgb[offsetTL*3];
             unscaledRow += _unscaled.stride();
         }
         timerLinearize.output("linearize");
@@ -1912,6 +1912,7 @@ private:
                 _profile.add("triangle");
                 _profile.add("circle");
                 _profile.add("gaussian");
+                _profile.add("sinc");
                 add(&_profile);
                 _width.setSliders(&_host->_knobSliders);
                 _width.setValueSet(

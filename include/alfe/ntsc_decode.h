@@ -800,11 +800,15 @@ public:
         _yTime.ensure(length);
         int fLength = length/2 + 1;
         _frequency.ensure(fLength);
-        _forward = FFTWPlanDFTR2C1D<float>(length, _yTime, _frequency, _rigor);
+        _lumaForward =
+            FFTWPlanDFTR2C1D<float>(length, _yTime, _frequency, _rigor);
+        _chromaForward =
+            FFTWPlanDFTR2C1D<float>(length / 2, _yTime, _frequency, _rigor);
         _backward =
             FFTWPlanDFTC2R1D<float>(length, _frequency, _yTime, _rigor);
-        _lumaResponse.ensure(fLength);
-        _chromaResponse.ensure(fLength);
+        _yResponse.ensure(fLength);
+        _iResponse.ensure(fLength);
+        _qResponse.ensure(fLength);
     }
     void calculateBurst(Byte* burst)
     {
@@ -842,9 +846,9 @@ public:
             if (t > 0)
                 _yTime[_length - t] = r;
         }
-        _forward.execute(_yTime, _frequency);
+        _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f)
-            _lumaResponse[f] = _frequency[f].x;
+            _yResponse[f] = _frequency[f].x;
 
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
@@ -858,9 +862,11 @@ public:
             if (t > 0)
                 _yTime[_length - t] = r;
         }
-        _forward.execute(_yTime, _frequency);
-        for (int f = 0; f < fLength; ++f)
-            _chromaResponse[f] = _frequency[f].x;
+        _lumaForward.execute(_yTime, _frequency);
+        for (int f = 0; f < fLength; ++f) {
+            _iResponse[f] = _frequency[f].x * unit(f/512.0f);
+            _qResponse[f] = _frequency[f].x;
+        }
 
         _ri =  0.9563f*iqAdjust.x +0.6210f*iqAdjust.y;
         _rq =  0.6210f*iqAdjust.x -0.9563f*iqAdjust.y;
@@ -875,21 +881,29 @@ public:
         int fLength = _length/2 + 1;
 
         // Filter Y
-        _forward.execute(_yTime, _frequency);
+        _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f)
-            _frequency[f] *= _lumaResponse[f];
+            _frequency[f] *= _yResponse[f];
         _backward.execute(_frequency, _yTime);
 
         // Filter I
-        _forward.execute(_iTime, _frequency);
+        _chromaForward.execute(_iTime, _frequency);
+        for (int f = 0; f < fLength/2; ++f) {
+            _frequency[f + fLength/2 + 1] =
+                _frequency[fLength/2 - 1 - f].conjugate();
+        }
         for (int f = 0; f < fLength; ++f)
-            _frequency[f] *= _chromaResponse[f];
+            _frequency[f] *= _iResponse[f];
         _backward.execute(_frequency, _iTime);
 
         // Filter Q
-        _forward.execute(_qTime, _frequency);
+        _chromaForward.execute(_qTime, _frequency);
+        for (int f = 0; f < fLength/2; ++f) {
+            _frequency[f + fLength/2 + 1] =
+                _frequency[fLength/2 - 1 - f].conjugate();
+        }
         for (int f = 0; f < fLength; ++f)
-            _frequency[f] *= _chromaResponse[f];
+            _frequency[f] *= _qResponse[f];
         _backward.execute(_frequency, _qTime);
 
         for (int t = _padding; t < _length - _padding; ++t) {
@@ -960,12 +974,14 @@ private:
     int _padding;
 
     FFTWComplexArray<float> _frequency;
-    Array<float> _lumaResponse;
-    Array<float> _chromaResponse;
+    Array<float> _yResponse;
+    Array<Complex<float>> _iResponse;
+    Array<float> _qResponse;
     FFTWRealArray<float> _yTime;
     FFTWRealArray<float> _iTime;
     FFTWRealArray<float> _qTime;
-    FFTWPlanDFTR2C1D<float> _forward;
+    FFTWPlanDFTR2C1D<float> _lumaForward;
+    FFTWPlanDFTR2C1D<float> _chromaForward;
     FFTWPlanDFTC2R1D<float> _backward;
 
     int _rigor;

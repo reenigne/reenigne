@@ -954,3 +954,19 @@ _chromaTime forward transforms can be half-length, so 0.95508, giving 4942.57584
 512 standard block (luma)
 
 
+Scanline profiles:
+  Circle
+    Fix circular scanlines at small widths: To avoid aliasing we should sample at high frequency (scale up by N) and then take every Nth sample after the FFT
+    May not be practical to compute directly
+    Use FFTs for this
+      If we have the FT of the desired scanline pattern, we can sample it with N multiplies and adds
+  Gaussian
+    This will also need the band-limiting treatment to get the correct result for small widths
+      integral(exp(a*x*x)*cos(2*pi*f*x)*dx) = (sqrt(pi)*exp(pi*pi*f*f/a)*(erfi((a*x+i*pi*f)/sqrt(a))-erfi((-a*x+i*pi*f)/sqrt(a)))/(4*sqrt(a)) + c
+      integral(exp(-a*x*x)*cos(2*pi*x*f)*dx) = (i*sqrt(pi)*exp(-pi*pi*f*f/a)*(erfi((pi*f-i*a*x)/sqrt(a))-erfi((pi*f+i*a*x)/sqrt(a)))/(4*sqrt(a)) + c
+      integral(exp(-a*x*x)*exp(2*pi*i*x*f)*dx) = -(i*sqrt(pi)*exp(-pi*pi*f*f/a)*erfi((pi*f+i*a*x)/sqrt(a))/(2*sqrt(a)) + c
+      erfi(x) = -i*erf(i*x)
+      erf can be computed via Maclauren series (7.1.5) or 7.1.6 in http://people.math.sfu.ca/~cbm/aands/page_297.htm
+  Parabolic
+  Sine
+

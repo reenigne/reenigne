@@ -278,22 +278,42 @@ public:
                 break;
             case 2:
                 // Circle
-                verticalKernel = [=](float distance)
                 {
-                    return 0.0f;
-                };
+                    float b = 4.0f/(_width*_width);
+                    float a = 2.0f*b*_width/static_cast<float>(tau);
+                    float c = _width/2.0f;
+                    verticalKernel = [=](float distance)
+                    {
+                        if (distance < -c || distance > c)
+                            return 0.0f;
+                        return a*sqrt(1 - b*distance*distance);
+                    };
+                }
                 break;
             case 3:
                 // Gaussian
                 {
-                    float a = -1/(2*_width*_width);
-                    float b = 1/(sqrt(static_cast<float>(tau))*_width);
+                    float a = -8/(_width*_width);
+                    float b = 4/(sqrt(static_cast<float>(tau))*_width);
                     verticalKernel = [=](float distance)
                     {
                         return b*exp(a*distance*distance);
                     };
                 }
                 break;
+            case 4:
+                // Sinc
+                {
+                    float bandLimit = min(1.0f, _zoom.y)/_width;
+                    if (_width == 0)
+                        bandLimit = 10000;
+                    verticalKernel = [=](float distance)
+                    {
+                        return bandLimit*sinc(distance*bandLimit);
+                    };
+                }
+                break;
+
         }
 
         _output.ensure(_size.x*3*sizeof(float), _size.y);
@@ -400,11 +420,13 @@ private:
                         Byte* output1 = output + s;
                         int y1;
                         float t = -o;
+                        *reinterpret_cast<float*>(output) = 0;
                         for (y1 = y + 1; y1 < size.y; ++y1, output1 += s) {
                             float o1 = *reinterpret_cast<float*>(output1);
                             if (o1 > 0)
                                 break;
                             t -= o1;
+                            *reinterpret_cast<float*>(output1) = 0;
                         }
                         float bleed = t/2;
                         Byte* output2 = output - s;
@@ -449,11 +471,13 @@ private:
                         Byte* output1 = output + s;
                         int y1;
                         float t = o - 1;
+                        *reinterpret_cast<float*>(output) = 1;
                         for (y1 = y + 1; y1 < size.y; ++y1, output1 += s) {
                             float o1 = *reinterpret_cast<float*>(output1);
                             if (o1 < 1)
                                 break;
                             t += o1 - 1;
+                            *reinterpret_cast<float*>(output1) = 1;
                         }
                         float bleed = t/2;
                         Byte* output2 = output - s;
