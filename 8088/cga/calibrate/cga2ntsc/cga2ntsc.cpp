@@ -24,13 +24,96 @@ static const SRGB rgbiPalette[16] = {
     SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
     SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
 
-class CGAData
+class CGAData : Uncopyable
 {
 public:
+    CGAData() : _total(1) { }
     void output(int t, int n, Byte* rgbi)
     {
     }
+    void change(int t, int address, Byte data)
+    {
+        change(t, address, 1, &data);
+    }
+    void change(int t, int address, int count, Byte* data)
+    {
+    }
+    void setTotal(int total)
+    {
+        int c = ceilingPowerOf2(total);
+        if (_root._right != 0) {
+            while (ceilingPowerOf2(_total) < c) {
+                Node* node = new Node();
+                node->_left = _root._right;
+                _root._right = node;
+                _total *= 2;
+            }
+            while (ceilingPowerOf2(_total) > c) {
+                Node* node = _root._right;
+                if (node->_right != 0) {
+                    delete node->_right;
+                    node->_right = 0;
+                }
+                _root._right = node->_left;
+                delete node;
+            }
+        }
+        _total = total;
+    }
+
+    // Addresses:
+    // -18: CGA mode register (port 0x3d8)
+    // -17: CGA palette register (port 0x3d9)
+    // -16: Horizontal Total (CRTC register 0x00)
+    // -15: Horizontal Displayed (CRTC register 0x01)
+    // -14: Horizontal Sync Position (CRTC register 0x02)
+    // -13: Horizontal Sync Width (CRTC register 0x03)
+    // -12: Vertical Total (CRTC register 0x04)
+    // -11: Vertical Total Adjust (CRTC register 0x05)
+    // -10: Vertical Displayed (CRTC register 0x06)
+    //  -9: Vertical Sync Position (CRTC register 0x07)
+    //  -8: Interlace Mode (CRTC register 0x08)
+    //  -7: Maximum Scan Line Address (CRTC register 0x09)
+    //  -6: Cursor Start (CRTC register 0x0a)
+    //  -5: Cursor End (CRTC register 0x0b)
+    //  -4: Start Address High (CRTC register 0x0c)
+    //  -3: Start Address Low (CRTC register 0x0d)
+    //  -2: Cursor Address High (CRTC register 0x0e)
+    //  -1: Cursor Address Low (CRTC register 0x0f)
+    //   0 onwards: VRAM
 private:
+    static int ceilingPowerOf2(int x)
+    {
+        --x;
+        x |= x >> 1;
+        x |= x >> 2;
+        x |= x >> 4;
+        x |= x >> 8;
+        return (x | (x >> 16)) + 1;
+    }
+
+    struct Change
+    {
+        int _address;
+        Array<Byte> _data;
+    };
+    struct Node
+    {
+        Node() : _left(0), _right(0) { }
+        ~Node()
+        {
+            if (_left != 0)
+                delete _left;
+            if (_right != 0)
+                delete _right;
+        }
+        Node* _left;
+        Array<Change> _changes;
+        Node* _right;
+    };
+    // The root of the tree always has a 0 _left branch.
+    Node _root;
+    int _total;
 };
 
 class CGAShower
