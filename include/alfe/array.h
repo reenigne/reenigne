@@ -3,9 +3,7 @@
 #ifndef INCLUDED_ARRAY_H
 #define INCLUDED_ARRAY_H
 
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif
+#include "alfe/bitwise.h"
 
 // List is not quite a value type, since adding an element to a list will
 // affect copies of the list.
@@ -537,29 +535,6 @@ public:
     }
 
 private:
-    static int roundUpToPowerOf2(int n)
-    {
-#ifdef _MSC_VER
-        unsigned long k;
-        _BitScanReverse(&k, n);
-        if ((n & (n - 1)) != 0)
-            ++k;
-        return 1 << k;
-#elif defined __GNUC__
-        int k = (sizeof(int)*8 - 1) - __builtin_clz(n);
-        if ((n & (n - 1)) != 0)
-            ++k;
-        return 1 << k;
-#else
-        --n;
-        n |= n >> 1;
-        n |= n >> 2;
-        n |= n >> 4;
-        n |= n >> 8;
-        n |= n >> 16;
-        return n + 1;
-#endif
-    }
     void addUnchecked(const T* start, int c)
     {
         for (int i = 0; i < c; ++i) {

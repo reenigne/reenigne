@@ -31,36 +31,6 @@ public:
     void output(int t, int n, Byte* rgbi)
     {
     }
-    void change(int t, int address, Byte data)
-    {
-        change(t, address, 1, &data);
-    }
-    void change(int t, int address, int count, Byte* data)
-    {
-    }
-    void setTotal(int total)
-    {
-        int c = ceilingPowerOf2(total);
-        if (_root._right != 0) {
-            while (ceilingPowerOf2(_total) < c) {
-                Node* node = new Node();
-                node->_left = _root._right;
-                _root._right = node;
-                _total *= 2;
-            }
-            while (ceilingPowerOf2(_total) > c) {
-                Node* node = _root._right;
-                if (node->_right != 0) {
-                    delete node->_right;
-                    node->_right = 0;
-                }
-                _root._right = node->_left;
-                delete node;
-            }
-        }
-        _total = total;
-    }
-
     // Addresses:
     // -18: CGA mode register (port 0x3d8)
     // -17: CGA palette register (port 0x3d9)
@@ -81,19 +51,67 @@ public:
     //  -2: Cursor Address High (CRTC register 0x0e)
     //  -1: Cursor Address Low (CRTC register 0x0f)
     //   0 onwards: VRAM
-private:
-    static int ceilingPowerOf2(int x)
+    void change(int t, int address, Byte data)
     {
-        --x;
-        x |= x >> 1;
-        x |= x >> 2;
-        x |= x >> 4;
-        x |= x >> 8;
-        return (x | (x >> 16)) + 1;
+        change(t, address, 1, &data);
+    }
+    void change(int t, int address, int count, Byte* data)
+    {
+        if (t == 0)
+            _root.setData(address, count, data);
+        else {
+            Array<Byte> prevData = getData(t, address, count);
+            _root.change(t, address, count, data, 0, _total, &data[0]);
+        }
+    }
+    void setTotal(int total)
+    {
+        int c = roundUpToPowerOf2(total);
+        if (_root._right != 0) {
+            while (roundUpToPowerOf2(_total) < c) {
+                Node* node = new Node();
+                node->_left = _root._right;
+                _root._right = node;
+                _total *= 2;
+            }
+            _root._right->prune(_total, total);
+        }
+        _total = total;
     }
 
+private:
+    Array<Byte> getData(int t, int address, int count)
+    {
+        Array<Byte> result(count);
+        Array<bool> gotResult(count);
+        for (int i = 0; i < count; ++i)
+            gotResult[i] = false;
+        _root.getData(&result, &gotResult, t, address, count, 0, _total, 0);
+    }
     struct Change
     {
+        int count() { return _data.count(); }
+        int start() { return _address; }
+        int end() { return _address + count() - 1; }
+        int getData(Array<Byte>* result, Array<bool>* gotResult, int address,
+            int count, int gotCount)
+        {
+            int s = max(address, start());
+            int e = min(address + count, end());
+            for (int a = s; a < e; ++a) {
+                int i = a - address;
+                if (!(*gotResult)[i]) {
+                    (*result)[i] = _data[a - _address];
+                    (*gotResult)[i] = true;
+                    ++gotCount;
+                }
+            }
+            return gotCount;
+        }
+        void clearData(int address, int count)
+        {
+        }
+
         int _address;
         Array<Byte> _data;
     };
@@ -107,6 +125,158 @@ private:
             if (_right != 0)
                 delete _right;
         }
+        void setData(int address, int count, Byte* data)
+        {
+        }
+        void clearData(int address, int count)
+        {
+            int start, end;
+            findChanges(address, count, &start, &end);
+            int deleteStart = end, deleteEnd = start;
+            for (int i = start; i < end; ++i) {
+                _changes[i].clearData(address, count);
+                if (_changes[i].count() == 0) {
+                    deleteStart = min(deleteStart, i);
+                    deleteEnd = max(deleteStart, i + 1);
+                }
+            }
+            int deleteCount = deleteEnd - deleteStart;
+            if (deleteCount > 0) {
+                Array<Change> changes(_changes.count() - deleteCount);
+                for (int i = 0; i < deleteStart; ++i)
+                    changes[i] = _changes[i];
+                for (int i = deleteEnd; i < _changes.count(); ++i)
+                    changes[i - deleteCount] = _changes[i];
+                _changes = changes;
+            }
+        }
+        void findChanges(int address, int count, int* start, int* end)
+        {
+            int lowStart = 0;
+            int lowEnd = _changes.count() - 1;
+            while (lowStart < lowEnd) {
+                int lowTest = lowStart + (lowEnd - lowStart)/2;
+                if (_changes[lowTest].end() <= address) {
+                    lowStart = lowTest + 1;
+                    continue;
+                }
+                if (_changes[lowTest].start() >= address + count) {
+                    lowEnd = lowTest - 1;
+                    continue;
+                }
+                lowStart = lowTest;
+                break;
+            }
+            int highStart = lowStart;
+            int highEnd = _changes.count() - 1;
+            while (highStart < highEnd) {
+                int highTest = highStart + (highEnd - highStart)/2;
+                if (_changes[highTest].start() >= address + count) {
+                    highStart = highTest - 1;
+                    continue;
+                }
+                if (_changes[highTest].end() <= address) {
+                    highEnd = highTest + 1;
+                    continue;
+                }
+                highStart = highTest;
+                break;
+            } while (true);
+            *start = lowStart;
+            *end = highStart + 1;
+        }
+        void setOrClearData(int address, int count, Byte* data, bool match)
+        {
+            if (match)
+                clearData(address, count);
+            else
+                setData(address, count, data);
+        }
+        void change(int t, int address, int count, Byte* data, int leftTotal,
+            int rightTotal, Byte* prevData)
+        {
+            if (t > 0) {
+                if (_right == 0)
+                    _right = new Node();
+                int rlTotal = roundUpToPowerOf2(rightTotal) / 2;
+                _right->change(t - rlTotal, address, count, data, rlTotal,
+                    rightTotal - rlTotal, prevData);
+                return;
+            }
+            if (t == 0) {
+                bool match = (data[0] == prevData[0]);
+                int matchStart = 0;
+                int i;
+                for (i = 1; i < count; ++i) {
+                    bool newMatch = (data[i] == prevData[i]);
+                    if (newMatch != match) {
+                        setOrClearData(address + matchStart, i - matchStart,
+                            data + matchStart, match);
+                        matchStart = i;
+                        match = newMatch;
+                    }
+                }
+                setOrClearData(address + matchStart, i - matchStart,
+                    data + matchStart, match);
+                return;
+            }
+            if (t < 0) {
+                if (_left == 0)
+                    _left = new Node();
+                int llTotal = roundUpToPowerOf2(leftTotal) / 2;
+                int lrTotal = leftTotal - llTotal;
+                _left->change(t + lrTotal, address, count, data, llTotal,
+                    lrTotal, prevData);
+            }
+        }
+        int getData(Array<Byte>* result, Array<bool>* gotResult, int t,
+            int address, int count, int leftTotal, int rightTotal,
+            int gotCount)
+        {
+            if (t > 0 && _right != 0) {
+                int rlTotal = roundUpToPowerOf2(rightTotal) / 2;
+                int c = _right->getData(result, gotResult, t - rlTotal,
+                    address, count, rlTotal, rightTotal - rlTotal, gotCount);
+                if (c == gotCount)
+                    return c;
+                gotCount = c;
+            }
+            if (t >= 0 && _changes.count() != 0) {
+                int start, end;
+                findChanges(address, count, &start, &end);
+                for (int i = start; i < end; ++i) {
+                    gotCount = _changes[i].getData(result, gotResult, address,
+                        count, gotCount);
+                }
+            }
+            if (_left != 0) {
+                int llTotal = roundUpToPowerOf2(leftTotal) / 2;
+                int lrTotal = leftTotal - llTotal;
+                gotCount = _left->getData(result, gotResult, t + lrTotal,
+                    address, count, llTotal, lrTotal, gotCount);
+            }
+            return gotCount;
+        }
+        void prune(int oldTotal, int newTotal)
+        {
+            int lTotal;
+            do {
+                lTotal = roundUpToPowerOf2(oldTotal) / 2;
+                if (lTotal < newTotal)
+                    break;
+                if (_right != 0)
+                    delete _right;
+                Node* left = _left;
+                *this = *left;
+                left->_left = 0;
+                left->_right = 0;
+                delete left;
+                oldTotal = lTotal;
+            } while (true);
+            if (_right != 0)
+                _right->prune(oldTotal - lTotal, newTotal - lTotal);
+        }
+
         Node* _left;
         Array<Change> _changes;
         Node* _right;
