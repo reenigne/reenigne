@@ -28,6 +28,11 @@ class CGAData : Uncopyable
 {
 public:
     CGAData() : _total(1) { }
+    void reset()
+    {
+        _root.reset();
+        _endAddress = 0;
+    }
     void output(int t, int n, Byte* rgbi)
     {
     }
@@ -55,9 +60,10 @@ public:
     {
         change(t, address, 1, &data);
     }
-    void change(int t, int address, int count, Byte* data)
+    void change(int t, int address, int count, const Byte* data)
     {
         _root.change(t, address, count, data, 0, _total);
+        _endAddress = max(_endAddress, address + count);
     }
     void remove(int t, int address, int count = 1)
     {
@@ -77,8 +83,59 @@ public:
         }
         _total = total;
     }
+    void save(File file)
+    {
+        AppendableArray<Byte> data;
+        data.append(reinterpret_cast<const Byte*>("CGAD"), 4);
+        DWord version = 0;
+        data.append(reinterpret_cast<const Byte*>(&version), 4);
+        DWord total = _total;
+        data.append(reinterpret_cast<const Byte*>(&total), 4);
+        _root.save(&data, 0, 0, _total);
+        file.openWrite().write(data);
+    }
+    void load(File file)
+    {
+        _root.reset();
+        Array<Byte> data;
+        file.readIntoArray(&data);
+        if (deserialize(&data, 0) != *reinterpret_cast<const DWord*>("CGAD"))
+            throw Exception(file.path() + " is not a CGAData file.");
+        if (deserialize(&data, 4) != 0)
+            throw Exception(file.path() + " is too new for this program.");
+        _total = deserialize(&data, 8);
+        int offset = 12;
+        do {
+            if (offset == data.count())
+                return;
+            int t = deserialize(&data, offset);
+            int address = deserialize(&data, offset + 4);
+            int count = deserialize(&data, offset + 8);
+            if (offset + 12 + count < data.count())
+                throw Exception(file.path() + " is truncated.");
+            change(t, address, count, &data[offset + 12]);
+        } while (true);
+    }
+    void saveVRAM(File file)
+    {
+        file.openWrite().write(getData(0, 0, _endAddress));
+    }
+    void loadVRAM(File file)
+    {
+        _root.reset();
+        Array<Byte> data;
+        file.readIntoArray(&data);
+        change(0, 0, data.count(), &data[0]);
+    }
 
 private:
+    int deserialize(Array<Byte>* data, int offset)
+    {
+        if (data->count() < offset + 4)
+            return -1;
+        return *reinterpret_cast<DWord*>(&(*data)[offset]);
+    }
+
     Array<Byte> getData(int t, int address, int count)
     {
         Array<Byte> result(count);
@@ -90,7 +147,7 @@ private:
     struct Change
     {
         Change() { }
-        Change(int address, Byte* data, int count)
+        Change(int address, const Byte* data, int count)
           : _address(address), _data(count)
         {
             memcpy(&_data[0], data, count);
@@ -120,13 +177,14 @@ private:
     struct Node
     {
         Node() : _left(0), _right(0) { }
-        ~Node()
+        void reset()
         {
             if (_left != 0)
                 delete _left;
             if (_right != 0)
                 delete _right;
         }
+        ~Node() { reset(); }
         void findChanges(int address, int count, int* start, int* end)
         {
             int lowStart = 0;
@@ -162,8 +220,8 @@ private:
             *start = lowStart;
             *end = highStart + 1;
         }
-        void change(int t, int address, int count, Byte* data, int leftTotal,
-            int rightTotal)
+        void change(int t, int address, int count, const Byte* data,
+            int leftTotal, int rightTotal)
         {
             if (t > 0) {
                 if (_right == 0)
@@ -177,11 +235,43 @@ private:
                 int start, end;
                 findChanges(address, count, &start, &end);
                 if (start <= end) {
-                    int startAddress = _changes[start].start();
-                    int endAddress = _changes[end].end();
-
+                    int startAddress = min(address, _changes[start].start());
+                    Change e = _changes[end];
+                    int e2 = address + count;
+                    int endAddress = max(e2, e.end());
+                    Change c;
+                    c._data.allocate(endAddress - startAddress);
+                    c._address = startAddress;
+                    int a = 0;
+                    if (startAddress < address) {
+                        a = address - startAddress;
+                        memcpy(&c._data[0], &_changes[start]._data[0], a);
+                    }
+                    memcpy(&c._data[a], data, count);
+                    if (endAddress > e2) {
+                        memcpy(&c._data[a + count], &e._data[e2 - e.start()],
+                            endAddress - e2);
+                    }
+                    if (start < end) {
+                        Array<Change> changes(_changes.count() + start - end);
+                        for (int i = 0; i < start; ++i)
+                            changes[i] = _changes[i];
+                        changes[start] = c;
+                        for (int i = start + 1; i < changes.count(); ++i)
+                            changes[i] = _changes[i + end - start];
+                        _changes = changes;
+                    }
+                    else
+                        _changes[start] = c;
                 }
-                //setData(address, count, data);
+                else {
+                    Array<Change> changes(_changes.count() + 1);
+                    for (int i = 0; i < start; ++i)
+                        changes[i] = _changes[i];
+                    changes[start] = Change(address, data, count);
+                    for (int i = start; i < _changes.count(); ++i)
+                        changes[i + 1] = _changes[i];
+                }
                 return;
             }
             if (_left == 0)
@@ -208,8 +298,9 @@ private:
                 for (int i = start; i < end; ++i) {
                     int newCount;
                     Change c = _changes[i];
+                    int e2 = address + count;
                     if (address < c._address) {
-                        newCount = max(0, c.end() - (address + count));
+                        newCount = max(0, c.end() - e2);
                         int offset = c.count() - newCount;
                         _changes[i] = Change(c._address + offset,
                             &c._data[offset], newCount);
@@ -219,7 +310,6 @@ private:
                         if (newCount < c.count()) {
                             _changes[i] =
                                 Change(c._address, &c._data[0], newCount);
-                            int e2 = address + count;
                             if (e2 < c.end()) {
                                 Array<Change> changes(_changes.count() + 1);
                                 for (int j = 0; j <= i; ++j)
@@ -302,6 +392,31 @@ private:
             if (_right != 0)
                 _right->prune(oldTotal - lTotal, newTotal - lTotal);
         }
+        void save(AppendableArray<Byte>* array, int t, int leftTotal,
+            int rightTotal)
+        {
+            if (_left != 0) {
+                int llTotal = roundUpToPowerOf2(leftTotal) / 2;
+                int lrTotal = leftTotal - llTotal;
+                _left->save(array, t - lrTotal, llTotal, lrTotal);
+            }
+            for (auto c : _changes) {
+                DWord tt = t;
+                array->append(reinterpret_cast<const Byte*>(&tt), 4);
+                array->append(reinterpret_cast<const Byte*>(&c._address), 4);
+                DWord count = c._data.count();
+                array->append(reinterpret_cast<const Byte*>(&count), 4);
+                array->append(&c._data[0], count);
+                DWord zero = 0;
+                array->append(reinterpret_cast<const Byte*>(&zero),
+                    ((~count) + 1) & 3);
+            }
+            if (_right != 0) {
+                int rlTotal = roundUpToPowerOf2(rightTotal) / 2;
+                _right->
+                    save(array, t + rlTotal, rlTotal, rightTotal - rlTotal);
+            }
+        }
 
         Node* _left;
         Array<Change> _changes;
@@ -310,6 +425,7 @@ private:
     // The root of the tree always has a 0 _left branch.
     Node _root;
     int _total;
+    int _endAddress;
 };
 
 class CGAShower
