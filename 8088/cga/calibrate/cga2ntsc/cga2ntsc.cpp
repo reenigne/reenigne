@@ -33,10 +33,29 @@ public:
         _root.reset();
         _endAddress = 0;
     }
-    void output(int t, int n, Byte* rgbi)
+    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer)
     {
+        static const int startAddress = -21;
+
+        State state;
+        state._n = n;
+        state._rgbi = rgbi;
+        state._t = t;
+        state._startAddress = startAddress;
+        state._addresses = _endAddress - startAddress;
+        state._data.allocate(state._addresses);
+        state._sequencer = sequencer;
+        for (const auto& c : _root._changes)
+            c.getData(&state._data, 0, startAddress, state._addresses, 0);
+        state.reset();
+        if (_root._right != 0)
+            _root._right->output(0, 0, _total, &state);
+        state.runTo(t + n);
     }
     // Addresses:
+    // -21: log(characters per bank)/log(2)
+    // -20: CRT PLL width in hdots high
+    // -19: CRT PLL width in hdots low
     // -18: CGA mode register (port 0x3d8)
     // -17: CGA palette register (port 0x3d9)
     // -16: Horizontal Total (CRTC register 0x00)
@@ -71,16 +90,8 @@ public:
     }
     void setTotal(int total)
     {
-        int c = roundUpToPowerOf2(total);
-        if (_root._right != 0) {
-            while (roundUpToPowerOf2(_total) < c) {
-                Node* node = new Node();
-                node->_left = _root._right;
-                _root._right = node;
-                _total *= 2;
-            }
-            _root._right->prune(_total, total);
-        }
+        if (_root._right != 0)
+            _root._right->resize(_total, total);
         _total = total;
     }
     void save(File file)
@@ -126,6 +137,11 @@ public:
         Array<Byte> data;
         file.readIntoArray(&data);
         change(0, 0, data.count(), &data[0]);
+        static Byte defaultRegisters[21] = {
+            12, 0x03, 0x8e, 0x1a, 0x0f, 0x38, 0x28, 0x2d, 0x0a, 0x7f, 0x06,
+            0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0
+        };
+        change(0, -21, 21, &defaultRegisters[0]);
     }
 
 private:
@@ -152,19 +168,20 @@ private:
         {
             memcpy(&_data[0], data, count);
         }
-        int count() { return _data.count(); }
-        int start() { return _address; }
-        int end() { return _address + count(); }
+        int count() const { return _data.count(); }
+        int start() const { return _address; }
+        int end() const { return _address + count(); }
         int getData(Array<Byte>* result, Array<bool>* gotResult, int address,
-            int count, int gotCount)
+            int count, int gotCount) const
         {
             int s = max(address, start());
             int e = min(address + count, end());
             for (int a = s; a < e; ++a) {
                 int i = a - address;
-                if (!(*gotResult)[i]) {
+                if (gotResult == 0 || !(*gotResult)[i]) {
                     (*result)[i] = _data[a - _address];
-                    (*gotResult)[i] = true;
+                    if (gotResult != 0)
+                        (*gotResult)[i] = true;
                     ++gotCount;
                 }
             }
@@ -173,6 +190,31 @@ private:
 
         int _address;
         Array<Byte> _data;
+    };
+    struct State
+    {
+        void reset()
+        {
+            _memoryAddress = (_data[-4 - _startAddress] << 8) +
+                _data[-3 - _startAddress];
+            _leftMemoryAddress = _memoryAddress;
+            _rowAddress = 0;
+        }
+        void runTo(int t)
+        {
+
+        }
+
+        int _memoryAddress;
+        int _leftMemoryAddress;
+        int _rowAddress;
+        int _n;
+        int _t;
+        int _startAddress;
+        int _addresses;
+        Byte* _rgbi;
+        Array<Byte> _data;
+        CGASequencer* _sequencer;
     };
     struct Node
     {
@@ -373,11 +415,10 @@ private:
             }
             return gotCount;
         }
-        void prune(int oldTotal, int newTotal)
+        void resize(int oldTotal, int newTotal)
         {
-            int lTotal;
+            int lTotal = roundUpToPowerOf2(oldTotal) / 2;
             do {
-                lTotal = roundUpToPowerOf2(oldTotal) / 2;
                 if (lTotal < newTotal)
                     break;
                 if (_right != 0)
@@ -388,9 +429,21 @@ private:
                 left->_right = 0;
                 delete left;
                 oldTotal = lTotal;
+                lTotal /= 2;
+            } while (true);
+            do {
+                int rTotal = oldTotal - lTotal;
+                int newLTotal = roundUpToPowerOf2(newTotal) / 2;
+                if (lTotal >= newLTotal)
+                    break;
+                Node* newNode = new Node();
+                newNode->_left = this;
+                *this = *newNode;
+                oldTotal += lTotal;
+                lTotal *= 2;
             } while (true);
             if (_right != 0)
-                _right->prune(oldTotal - lTotal, newTotal - lTotal);
+                _right->resize(oldTotal - lTotal, newTotal - lTotal);
         }
         void save(AppendableArray<Byte>* array, int t, int leftTotal,
             int rightTotal)
@@ -415,6 +468,28 @@ private:
                 int rlTotal = roundUpToPowerOf2(rightTotal) / 2;
                 _right->
                     save(array, t + rlTotal, rlTotal, rightTotal - rlTotal);
+            }
+        }
+        void output(int t, int leftTotal, int rightTotal, State* state)
+        {
+            if (_left != 0) {
+                int llTotal = roundUpToPowerOf2(leftTotal) / 2;
+                int lrTotal = leftTotal - llTotal;
+                _left->output(t - lrTotal, llTotal, lrTotal, state);
+            }
+            if (t >= state->_t + state->_n) {
+                state->runTo(state->_t + state->_n);
+                return;
+            }
+            state->runTo(t);
+            for (const auto& c : _changes) {
+                c.getData(&state->_data, 0, state->_startAddress,
+                    state->_addresses, 0);
+            }
+            if (_right != 0) {
+                int rlTotal = roundUpToPowerOf2(rightTotal) / 2;
+                _right->output(t + rlTotal, rlTotal, rightTotal - rlTotal,
+                    state);
             }
         }
 
