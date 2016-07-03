@@ -33,8 +33,12 @@ public:
     // cursor is cursor output pin from CRTC
     // cursorBlink counts from 0..3 then repeats, changes every 8 frames (low
     // bit cursor, high bit blink)
+    // mode bit 6 is phase
+    // input bits 0-7 are first/character byte
+    // input bits 8-15 are second/attribute byte
+    // input bits 24-31 are previous (latched) attribute byte
     UInt64 process(UInt32 input, UInt8 mode, UInt8 palette, int scanline,
-        bool cursor, int cursorBlink, UInt8* latch)
+        bool cursor, int cursorBlink)
     {
         if ((mode & 8) == 0)
             return 0;
@@ -42,103 +46,128 @@ public:
         UInt64 r = 0;
         int x;
         Byte* pal;
-        UInt8 temp;
+        UInt64 fg;
+        UInt64 bg;
 
-        switch (mode & 0x13) {
-            case 0:
+        switch (mode & 0x53) {
+            case 0x00:
+            case 0x40:
                 // 40-column text mode
                 c = getCharacter(input, mode, scanline, cursor, cursorBlink);
+                fg = (c.attribute & 0x0f) * 0x11;
+                bg = (c.attribute >> 4) * 0x11;
                 for (x = 0; x < 8; ++x)
-                    r += static_cast<UInt64>(((c.attribute >> ((c.bits & (128 >> x)) != 0 ? 0 : 4)) & 0xf) * 0x11) << (x * 8);
+                    r += ((c.bits & (0x80 >> x)) != 0 ? fg : bg) << (x*8);
                 break;
-            case 1:
+            case 0x01:
+            case 0x41:
                 // 80-column text mode
                 c = getCharacter(input, mode, scanline, cursor, cursorBlink);
+                fg = c.attribute & 0x0f;
+                bg = c.attribute >> 4;
                 for (x = 0; x < 8; ++x)
-                    r += static_cast<UInt64>((c.attribute >> ((c.bits & (128 >> x)) != 0 ? 0 : 4)) & 0xf) << (x * 4);
-                c = getCharacter(input >> 16, mode, scanline, cursor, cursorBlink);
-                for (x = 0; x < 8; ++x)
-                    r += static_cast<UInt64>((c.attribute >> ((c.bits & (128 >> x)) != 0 ? 0 : 4)) & 0xf) << (x * 4 + 32);
+                    r += ((c.bits & (0x80 >> x)) != 0 ? fg : bg) << (x*4);
                 break;
-            case 2:
+            case 0x02:
+            case 0x42:
                 // 2bpp graphics mode
                 pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
-                for (x = 0; x < 2; ++x) {
-                    Byte b = input >> (x * 8);
-                    for (int xx = 0; xx < 4; ++xx)
-                        r += static_cast<UInt64>(pal[(b >> (6 - xx * 2)) & 3] * 0x11) << (x*32 + xx*8);
-                }
+                for (int x = 0; x < 4; ++x)
+                    r += static_cast<UInt64>(pal[(input >> (6 - x*2)) & 3] * 0x11) << (x*8);
+                for (int x = 0; x < 4; ++x)
+                    r += static_cast<UInt64>(pal[(input >> (14 - x*2)) & 3] * 0x11) << (32 + x*8);
                 break;
-            case 3:
+            case 0x03:
                 // Improper: +HRES 2bpp graphics mode
                 pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
                 // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
-                input = (input & 0x00ffffff) | ((input << 16) & 0xff000000);
-                for (x = 0; x < 4; ++x) {
-                    Byte b = input >> (x * 8);
-                    for (int xx = 0; xx < 4; ++xx)
-                        r += static_cast<UInt64>(pal[(b >> (6 - xx * 2)) & 3]) << (x*16 + xx*4);
-                }
+                for (int x = 0; x < 4; ++x)
+                    r += static_cast<UInt64>(pal[(input >> (6 - x*2)) & 3]) << (x*4);
+                for (int x = 0; x < 4; ++x)
+                    r += static_cast<UInt64>(pal[(input >> (14 - x*2)) & 3]) << (16 + x*4);
+                break;
+            case 0x43:
+                // Improper: +HRES 2bpp graphics mode
+                pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
+                *pal = palette & 0xf;
+                // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
+                for (int x = 0; x < 4; ++x)
+                    r += static_cast<UInt64>(pal[(input >> (6 - x*2)) & 3]) << (x*4);
+                for (int x = 0; x < 4; ++x)
+                    r += static_cast<UInt64>(pal[(input >> (30 - x*2)) & 3]) << (16 + x*4);
                 break;
             case 0x10:
+            case 0x50:
                 // Improper: 40-column text mode with 1bpp graphics overlay
                 c = getCharacter(input, mode, scanline, cursor, cursorBlink);
+                fg = (c.attribute & 0x0f) * 0x11;
+                bg = (c.attribute >> 4) * 0x11;
                 for (x = 0; x < 8; ++x)
-                    r += static_cast<UInt64>(((c.attribute >> ((c.bits & (128 >> x)) != 0 ? 0 : 4)) & 0xf) * 0x11) << (x * 8);
+                    r += ((c.bits & (128 >> x)) != 0 ? fg : bg) << (x*8);
                 // Shift register loaded from attribute latch before attribute latch loaded from VRAM.
-                temp = input >> 8;
-                input = (input & 0xff) + (*latch)*256;
-                *latch = temp;
-                for (x = 0; x < 2; ++x) {
-                    Byte b = input >> (x * 8);
-                    for (int xx = 0; xx < 8; ++xx) {
-                        if ((b & (128 >> xx)) == 0)
-                            r &= ~(static_cast<UInt64>(1) << (x*32 + xx*4));
-                    }
+                for (int x = 0; x < 8; ++x) {
+                    if ((input & (0x80 >> x)) == 0)
+                        r &= ~(static_cast<UInt64>(0x0f) << (x*4));
+                }
+                for (int x = 0; x < 8; ++x) {
+                    if ((input & (0x80000000 >> x)) == 0)
+                        r &= ~(static_cast<UInt64>(0x0f) << (32 + x*4));
                 }
                 break;
             case 0x11:
+            case 0x51:
                 // Improper: 80-column text mode with +HRES 1bpp graphics mode
                 c = getCharacter(input, mode, scanline, cursor, cursorBlink);
+                fg = c.attribute & 0x0f;
+                bg = c.attribute >> 4;
                 for (x = 0; x < 8; ++x)
-                    r += static_cast<UInt64>((c.attribute >> ((c.bits & (128 >> x)) != 0 ? 0 : 4)) & 0xf) << (x * 4);
-                c = getCharacter(input >> 16, mode, scanline, cursor, cursorBlink);
-                for (x = 0; x < 8; ++x)
-                    r += static_cast<UInt64>((c.attribute >> ((c.bits & (128 >> x)) != 0 ? 0 : 4)) & 0xf) << (x * 4 + 32);
+                    r += ((c.bits & (128 >> x)) != 0 ? fg : bg) << (x*4);
                 // Shift register loaded from attribute latch before attribute latch loaded from VRAM.
-                temp = input >> 24;
-                input = (input & 0x00ff00ff) + ((input & 0xff00)*65536) + (*latch)*256;
-                *latch = temp;
-                for (x = 0; x < 4; ++x) {
-                    Byte b = input >> (x * 8);
-                    for (int xx = 0; xx < 4; ++xx) {
-                        if ((b & (64 >> (xx*2))) == 0)
-                            r &= ~(static_cast<UInt64>(1) << (x*16 + xx*4));
-                    }
+                for (int x = 0; x < 4; ++x) {
+                    if ((input & (0x40 >> (x*2))) == 0)
+                        r &= ~(static_cast<UInt64>(0x0f) << (x*4));
+                }
+                for (int x = 0; x < 4; ++x) {
+                    if ((input & (0x40000000 >> (x*2))) == 0)
+                        r &= ~(static_cast<UInt64>(0x0f) << (16 + x*4));
                 }
                 break;
             case 0x12:
+            case 0x52:
                 // 1bpp graphics mode
-                for (x = 0; x < 2; ++x) {
-                    Byte b = input >> (x * 8);
-                    for (int xx = 0; xx < 8; ++xx) {
-                        if ((b & (128 >> xx)) != 0)
-                            r += static_cast<UInt64>(palette & 0x0f) << (x*32 + xx*4);
-                    }
+                for (int x = 0; x < 8; ++x) {
+                    if ((input & (0x80 >> x)) != 0)
+                        r += static_cast<UInt64>(palette & 0x0f) << (x*4);
+                }
+                for (int x = 0; x < 8; ++x) {
+                    if ((input & (0x8000 >> x)) != 0)
+                        r += static_cast<UInt64>(palette & 0x0f) << (32 + x*4);
                 }
                 break;
             case 0x13:
                 // Improper: +HRES 1bpp graphics mode
                 // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
-                input = (input & 0x00ffffff) | ((input << 16) & 0xff000000);
-                for (x = 0; x < 4; ++x) {
-                    Byte b = input >> (x * 8);
-                    for (int xx = 0; xx < 4; ++xx) {
-                        if ((b & (64 >> (xx*2))) != 0)
-                            r += static_cast<UInt64>(palette & 0x0f) << (x*16 + xx*4);
-                    }
+                for (int x = 0; x < 4; ++x) {
+                    if ((input & (0x40 >> (x*2))) != 0)
+                        r += static_cast<UInt64>(palette & 0x0f) << (x*4);
+                }
+                for (int x = 0; x < 4; ++x) {
+                    if ((input & (0x4000 >> (x*2))) != 0)
+                        r += static_cast<UInt64>(palette & 0x0f) << (16 + x*4);
+                }
+                break;
+            case 0x53:
+                // Improper: +HRES 1bpp graphics mode
+                // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
+                for (int x = 0; x < 4; ++x) {
+                    if ((input & (0x40 >> (x*2))) != 0)
+                        r += static_cast<UInt64>(palette & 0x0f) << (x*4);
+                }
+                for (int x = 0; x < 4; ++x) {
+                    if ((input & (0x40000000 >> (x*2))) != 0)
+                        r += static_cast<UInt64>(palette & 0x0f) << (16 + x*4);
                 }
                 break;
         }

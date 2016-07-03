@@ -199,19 +199,61 @@ private:
                 _data[-3 - _startAddress];
             _leftMemoryAddress = _memoryAddress;
             _rowAddress = 0;
+            _character = 0;
+            _row = 0;
+            _hdot = 0;
         }
         void runTo(int t)
         {
+            if (_hdot != 0) {
+                Byte mode = dat(-18);
+                if (_character < dat(-15) && _row < dat(-10)) {
+                    int vRAMAddress = _memoryAddress << 1;
+                    if ((mode & 2) != 0 && (_rowAddress & 1) != 0)
+                        vRAMAddress += 1 << dat(-21);
+                    Word data = dat(vRAMAddress) + (dat(vRAMAddress + 1) << 8);
+                    UInt64 r = _sequencer->process(data, mode, dat(-17),
+                        _rowAddress, false, 0, &_latch);
+                    int hdots = (mode & 1) != 0 ? 8 : 16;
+                    int c = min(hdots, _hdot + t - _t);
+                    for (; _hdot < c; ++_hdot) {
+                        *_rgbi = (r >> (_hdot * 4)) & 0x0f;
+                        ++_rgbi;
+                    }
+                }
+                else {
+                    Byte v = dat(-17);
+                    if ((mode & 0x10) != 0)
+                        v = 0;
+                    int c = min(hdots, _hdot + t - _t);
+                    memset(_rgbi, v, min(hdots, _hdot + t - _t));
+                    _rgbi += c;
+                    for (; _hdot < c; ++_hdot) {
+                        *_rgbi = v;
+                        ++_rgbi;
+                    }
 
+                }
+            }
+            while (_t < t) {
+
+            }
+            if (_t )
         }
+        Byte dat(int address) { return _data[address - _startAddress]; }
+
 
         int _memoryAddress;
         int _leftMemoryAddress;
         int _rowAddress;
+        int _character;
+        int _row;
+        int _hdot;
         int _n;
         int _t;
         int _startAddress;
         int _addresses;
+        Byte _latch;
         Byte* _rgbi;
         Array<Byte> _data;
         CGASequencer* _sequencer;
