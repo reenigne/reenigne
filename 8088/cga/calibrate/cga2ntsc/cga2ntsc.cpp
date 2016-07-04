@@ -193,67 +193,161 @@ private:
     };
     struct State
     {
-        void reset()
+        void latch()
         {
-            _memoryAddress = (_data[-4 - _startAddress] << 8) +
-                _data[-3 - _startAddress];
+            int vRAMAddress = _memoryAddress << 1;
+            if ((dat(-18) & 2) != 0 && (_rowAddress & 1) != 0)
+                vRAMAddress += 1 << dat(-21);
+            _latch = (_latch << 16) + dat(vRAMAddress) +
+                (dat(vRAMAddress + 1) << 8);
+        }
+        void startOfFrame()
+        {
+            _memoryAddress = (dat(-4) << 8) + dat(-3);
             _leftMemoryAddress = _memoryAddress;
             _rowAddress = 0;
-            _character = 0;
             _row = 0;
+        }
+        void reset()
+        {
+            startOfFrame();
+            _character = 0;
             _hdot = 0;
+            _state = 0;
+            latch();
         }
         void runTo(int t)
         {
-            if (_hdot != 0) {
-                Byte mode = dat(-18);
-                if (_character < dat(-15) && _row < dat(-10)) {
-                    int vRAMAddress = _memoryAddress << 1;
-                    if ((mode & 2) != 0 && (_rowAddress & 1) != 0)
-                        vRAMAddress += 1 << dat(-21);
-                    Word data = dat(vRAMAddress) + (dat(vRAMAddress + 1) << 8);
-                    UInt64 r = _sequencer->process(data, mode, dat(-17),
-                        _rowAddress, false, 0, &_latch);
-                    int hdots = (mode & 1) != 0 ? 8 : 16;
-                    int c = min(hdots, _hdot + t - _t);
+            Byte mode = dat(-18);
+            int hdots = (mode & 1) != 0 ? 8 : 16;
+            while (_t < t) {
+                int c = min(hdots, _hdot + t - _t);
+                if (_state == 0) {
+                    UInt64 r = _sequencer->process(_latch, mode | _phase,
+                        dat(-17), _rowAddress, false, 0);
                     for (; _hdot < c; ++_hdot) {
                         *_rgbi = (r >> (_hdot * 4)) & 0x0f;
                         ++_rgbi;
                     }
                 }
                 else {
-                    Byte v = dat(-17);
-                    if ((mode & 0x10) != 0)
-                        v = 0;
-                    int c = min(hdots, _hdot + t - _t);
-                    memset(_rgbi, v, min(hdots, _hdot + t - _t));
+                    memset(_rgbi, (mode & 0x10) != 0 ? 0 : dat(-17) & 0xf, c);
                     _rgbi += c;
-                    for (; _hdot < c; ++_hdot) {
-                        *_rgbi = v;
-                        ++_rgbi;
-                    }
-
+                    _hdot += c;
                 }
-            }
-            while (_t < t) {
+                _t += c;
+                if (_t == t)
+                    break;
+                _hdot = 0;
 
+                // Emulate CRTC
+                ++_character;
+                _phase ^= 0x40;
+                ++_memoryAddress;
+                if (_character == dat(-15)) {
+                    // Start of horizontal overscan
+                    _state |= 1;
+                    _nextRowMemoryAddress = _memoryAddress;
+                    _latch = 0;
+                }
+                if ((_state & 8) != 0) {
+                    // Horizontal sync active
+                    ++_hSync;
+                    if ((_hSync & 0x0f) == dat(-13)) {
+                        // End of horizontal sync
+                        _state &= ~8;
+                    }
+                }
+                if (_character == dat(-14)) {
+                    // Start of horizontal sync
+                    _state |= 8;
+                    _hSync = 0;
+                }
+                if (_character == dat(-16)) {
+                    // End of scanline
+                    _state &= ~1;
+                    _character = 0;
+                    if ((_state & 0x10) != 0) {
+                        // Vertical sync active
+                        ++_vSync;
+                        if ((_vSync & 0x0f) == 0) {
+                            // End of vertical sync
+                            _state &= ~0x10;
+                        }
+                    }
+                    if (_rowAddress == dat(-7)) {
+                        // End of row
+                        _rowAddress = 0;
+                        ++_row;
+                        if (_row == dat(-10)) {
+                            // Start of vertical overscan
+                            _state |= 2;
+                            _latch = 0;
+                        }
+                        if (_row == dat(-12)) {
+                            // Start of vertical total adjust
+                            _state |= 4;
+                            _adjust = 0;
+                            _latch = 0;
+                        }
+                        if (_row == dat(-9)) {
+                            // Start of vertical sync
+                            _state |= 0x10;
+                            _vSync = 0;
+                        }
+                        _memoryAddress = _nextRowMemoryAddress;
+                    }
+                    else {
+                        ++_rowAddress;
+                        _memoryAddress = _leftMemoryAddress;
+                    }
+                    if ((_state & 4) != 0) {
+                        // Vertical total adjust active
+                        if (_adjust == dat(-11)) {
+                            // End of vertical total adjust
+                            startOfFrame();
+                            _state &= ~4;
+                        }
+                        else
+                            ++_adjust;
+                    }
+                }
+                latch();
             }
-            if (_t )
         }
-        Byte dat(int address) { return _data[address - _startAddress]; }
+        Byte dat(int address)
+        {
+            address -= _startAddress;
+            if (address >= 0 && address < _addresses)
+                return _data[address];
+            return 0;
+        }
 
 
         int _memoryAddress;
         int _leftMemoryAddress;
+        int _nextRowMemoryAddress;
         int _rowAddress;
         int _character;
+        int _adjust;
+        int _hSync;
+        int _vSync;
         int _row;
         int _hdot;
         int _n;
         int _t;
+        int _phase;
         int _startAddress;
         int _addresses;
-        Byte _latch;
+
+        // _state bits:
+        //    0 = we are in horizontal overscan
+        //    1 = we are in vertical overscan
+        //    2 = we are in vertical total adjust
+        //    3 = we are in horizontal sync
+        //    4 = we are in vertical sync
+        int _state;
+        UInt32 _latch;
         Byte* _rgbi;
         Array<Byte> _data;
         CGASequencer* _sequencer;
@@ -993,20 +1087,6 @@ public:
         else
             _hdots = 8;
     }
-    void save(String outputFileName)
-    {
-        File(outputFileName, true).
-            save(reinterpret_cast<const Byte*>(&_data[0]), _data.count()*2);
-    }
-    void saveRGBI(String outputFileName)
-    {
-        FileStream stream = File(outputFileName, true).openWrite();
-        const Byte* rgbiRow = _rgbi.data() + 7;
-        for (int y = 0; y < _size.y; ++y) {
-            stream.write(reinterpret_cast<const void*>(rgbiRow), _size.x);
-            rgbiRow += _rgbi.stride();
-        }
-    }
     void savePalettes(String outputFileName)
     {
         if (_startConfig + 1 == _endConfig)
@@ -1031,11 +1111,10 @@ public:
     void plotPattern(Byte* rgbi, int pattern, int line)
     {
         int modeAndPalette = modeAndPaletteFromConfig(_config);
-        UInt8 latch = 0;
         if ((modeAndPalette & 3) == 2)
             pattern <<= 4;
         UInt64 r = _sequencer.process(pattern, modeAndPalette & 0xff,
-            modeAndPalette >> 8, line / _scanlinesRepeat, false, 0, &latch);
+            modeAndPalette >> 8, line / _scanlinesRepeat, false, 0);
         int hdots = 8;
         if ((modeAndPalette & 3) == 0) {
             // For -HRES-GRPH need 16 hdots
@@ -1262,11 +1341,10 @@ public:
         int verticalInactive = 62;
         int totalWidth = _rgbi.size().x + horizontalInactive;
         int srgbSize = totalWidth*(_rgbi.size().y + verticalInactive);
-        int rgbiSize;
         int combedSize;
         int ntscSize;
         if (connector == 0)
-            rgbiSize = srgbSize;
+            _rgbiSize = srgbSize;
         else {
             Timer timerDecoderInit;
             timerDecoderInit.output("decoder init");
@@ -1274,15 +1352,15 @@ public:
             Vector combTL = Vector(2, 1)*combFilter;
             ntscSize = combedSize + /*combTL.x +*/ combTL.y*totalWidth;
             _ntsc.ensure(ntscSize);
-            rgbiSize = ntscSize + 1;
+            _rgbiSize = ntscSize + 1;
         }
         Timer timerRGBICopy;
-        _rgbi2.ensure(rgbiSize);
+        _rgbi2.ensure(_rgbiSize);
         Byte border = _program->borderColour();
         int y = 0;
         const Byte* rgbiRow = rgbi.data();
         Byte* rgbi2 = &_rgbi2[0];
-        int remaining = rgbiSize;
+        int remaining = _rgbiSize;
         while (true) {
             int copy = rgbi.size().x;
             if (copy > remaining) {
@@ -1854,6 +1932,12 @@ public:
         }
        _dragging = button;
     }
+    void saveRGBI(String outputFileName)
+    {
+        File(outputFileName, true).openWrite().write(
+            static_cast<const void*>(&_rgbi2[0]), _rgbiSize);
+    }
+
 private:
     static Byte delinearize(float l)
     {
@@ -1910,6 +1994,7 @@ private:
     FIRScanlineRenderer _scaler;
     Vector _combedSize;
     Array<Byte> _rgbi2;
+    int _rgbiSize;
     Array<Byte> _ntsc;
     Array<Byte> _srgb;
     Vector _unscaledSize;
@@ -3066,9 +3151,9 @@ public:
             inputFileName = inputFileName.subString(0, i);
 
         output.save(inputFileName + "_out.png");
-        _matcher.save(inputFileName + "_out.dat");
-        _matcher.saveRGBI(inputFileName + "_out.rgbi");
-        _matcher.savePalettes(inputFileName + "_out.palettes");
+        _data.save(inputFileName + "_out.cgad");
+        _data.saveVRAM(inputFileName + "_out.dat");
+        output.saveRGBI(inputFileName + "_out.rgbi");
 
         if (!interactive)
             timer.output("Elapsed time");
@@ -3102,14 +3187,8 @@ public:
         else
             _matcher.restart();
     }
-    Byte borderColour()
-    {
-        Byte mode = _matcher.getMode();
-        if ((mode & 0x10) != 0)
-            return 0;
-        return _matcher.getPalette() & 0x0f;
-    }
 private:
+    CGAData _data;
     CGAMatcher _matcher;
     CGAShower _shower;
     CGAOutput* _output;

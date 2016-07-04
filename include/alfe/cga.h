@@ -73,30 +73,42 @@ public:
                 // 2bpp graphics mode
                 pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
-                for (int x = 0; x < 4; ++x)
-                    r += static_cast<UInt64>(pal[(input >> (6 - x*2)) & 3] * 0x11) << (x*8);
-                for (int x = 0; x < 4; ++x)
-                    r += static_cast<UInt64>(pal[(input >> (14 - x*2)) & 3] * 0x11) << (32 + x*8);
+                for (int x = 0; x < 4; ++x) {
+                    r += static_cast<UInt64>(
+                        pal[(input >> (6 - x*2)) & 3] * 0x11) << (x*8);
+                }
+                for (int x = 0; x < 4; ++x) {
+                    r += static_cast<UInt64>(
+                        pal[(input >> (14 - x*2)) & 3] * 0x11) << (32 + x*8);
+                }
                 break;
             case 0x03:
                 // Improper: +HRES 2bpp graphics mode
                 pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
-                // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
-                for (int x = 0; x < 4; ++x)
-                    r += static_cast<UInt64>(pal[(input >> (6 - x*2)) & 3]) << (x*4);
-                for (int x = 0; x < 4; ++x)
-                    r += static_cast<UInt64>(pal[(input >> (14 - x*2)) & 3]) << (16 + x*4);
+                for (int x = 0; x < 4; ++x) {
+                    r += static_cast<UInt64>(
+                        pal[(input >> (6 - x*2)) & 3]) << (x*4);
+                }
+                for (int x = 0; x < 4; ++x) {
+                    r += static_cast<UInt64>(
+                        pal[(input >> (14 - x*2)) & 3]) << (16 + x*4);
+                }
                 break;
             case 0x43:
                 // Improper: +HRES 2bpp graphics mode
                 pal = &_palettes[((palette & 0x30) >> 2) + ((mode & 4) << 2)];
                 *pal = palette & 0xf;
-                // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
-                for (int x = 0; x < 4; ++x)
-                    r += static_cast<UInt64>(pal[(input >> (6 - x*2)) & 3]) << (x*4);
-                for (int x = 0; x < 4; ++x)
-                    r += static_cast<UInt64>(pal[(input >> (30 - x*2)) & 3]) << (16 + x*4);
+                // The attribute byte is not latched for odd hchars, so the
+                // second column uses the previously latched value.
+                for (int x = 0; x < 4; ++x) {
+                    r += static_cast<UInt64>(
+                        pal[(input >> (6 - x*2)) & 3]) << (x*4);
+                }
+                for (int x = 0; x < 4; ++x) {
+                    r += static_cast<UInt64>(
+                        pal[(input >> (30 - x*2)) & 3]) << (16 + x*4);
+                }
                 break;
             case 0x10:
             case 0x50:
@@ -106,7 +118,9 @@ public:
                 bg = (c.attribute >> 4) * 0x11;
                 for (x = 0; x < 8; ++x)
                     r += ((c.bits & (128 >> x)) != 0 ? fg : bg) << (x*8);
-                // Shift register loaded from attribute latch before attribute latch loaded from VRAM.
+                // Shift register loaded from attribute latch before attribute
+                // latch loaded from VRAM, so the second column uses the
+                // previously latched value.
                 for (int x = 0; x < 8; ++x) {
                     if ((input & (0x80 >> x)) == 0)
                         r &= ~(static_cast<UInt64>(0x0f) << (x*4));
@@ -124,7 +138,9 @@ public:
                 bg = c.attribute >> 4;
                 for (x = 0; x < 8; ++x)
                     r += ((c.bits & (128 >> x)) != 0 ? fg : bg) << (x*4);
-                // Shift register loaded from attribute latch before attribute latch loaded from VRAM.
+                // Shift register loaded from attribute latch before attribute
+                // latch loaded from VRAM, so the second column uses the
+                // previously latched value on both odd and even hchars.
                 for (int x = 0; x < 4; ++x) {
                     if ((input & (0x40 >> (x*2))) == 0)
                         r &= ~(static_cast<UInt64>(0x0f) << (x*4));
@@ -148,7 +164,7 @@ public:
                 break;
             case 0x13:
                 // Improper: +HRES 1bpp graphics mode
-                // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
+                // Only the even bits have an effect.
                 for (int x = 0; x < 4; ++x) {
                     if ((input & (0x40 >> (x*2))) != 0)
                         r += static_cast<UInt64>(palette & 0x0f) << (x*4);
@@ -160,7 +176,9 @@ public:
                 break;
             case 0x53:
                 // Improper: +HRES 1bpp graphics mode
-                // The attribute byte is not latched for odd hchars, so byte column 1's data is repeated in byte column 3
+                // Only the even bits have an effect.
+                // The attribute byte is not latched for odd hchars, so the
+                // second column uses the previously latched value.
                 for (int x = 0; x < 4; ++x) {
                     if ((input & (0x40 >> (x*2))) != 0)
                         r += static_cast<UInt64>(palette & 0x0f) << (x*4);

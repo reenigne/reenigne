@@ -624,7 +624,8 @@ List of modes and which data bits are used (memory layout bCcDd)
   0x1b +HRES+GRPH+1BPP 1               CcDc  problem 1
 
 We don't want to just pass in a pointer to memory data as it's the previous value in the latch and/or SR that's important, not previous in RAM
-  So before character 0 is character -40-1+57 or -80-1+113 or -1+57 or -1+113 depending on +HRES and scanline
+  So before character 0 is character -40-1+57 or -80-1+113 or -1+57 or -1+113 depending on +HRES and scanline?
+    No; attribute latch is cleared when display disabled, so we always get 0 pixels
 
 The problem in +GRPH+HRES (problem 1) is that the attribute latch value is stale
 The problem in -GRPH+1BPP (problem 2) is that the SR is loaded before the attribute latch is loaded
