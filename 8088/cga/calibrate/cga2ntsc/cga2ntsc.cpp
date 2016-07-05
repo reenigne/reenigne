@@ -27,7 +27,7 @@ static const SRGB rgbiPalette[16] = {
 class CGAData : Uncopyable
 {
 public:
-    CGAData() : _total(1) { }
+    CGAData() : _total(1) { reset(); }
     void reset()
     {
         _root.reset();
@@ -35,7 +35,7 @@ public:
     }
     void output(int t, int n, Byte* rgbi, CGASequencer* sequencer)
     {
-        static const int startAddress = -21;
+        static const int startAddress = -29;
 
         State state;
         state._n = n;
@@ -53,7 +53,15 @@ public:
         state.runTo(t + n);
     }
     // Addresses:
-    // -21: log(characters per bank)/log(2)
+    // -29: log(characters per bank)/log(2)
+    // -28: Horizontal Total high
+    // -27: Horizontal Displayed high
+    // -26: Horizontal Sync Position high
+    // -25: Vertical Total high
+    // -24: Vertical Displayed high
+    // -23: Vertical Sync Position high
+    // -22: CRT PLL height in scanlines high
+    // -21: CRT PLL height in scanlines low
     // -20: CRT PLL width in hdots high
     // -19: CRT PLL width in hdots low
     // -18: CGA mode register (port 0x3d8)
@@ -82,7 +90,10 @@ public:
     void change(int t, int address, int count, const Byte* data)
     {
         _root.change(t, address, count, data, 0, _total);
-        _endAddress = max(_endAddress, address + count);
+        if (address + count > _endAddress) {
+            _endAddress = address + count;
+            _root.ensureAddresses(-29, _endAddress);
+        }
     }
     void remove(int t, int address, int count = 1)
     {
@@ -94,6 +105,7 @@ public:
             _root._right->resize(_total, total);
         _total = total;
     }
+    int getTotal() { return _total; }
     void save(File file)
     {
         AppendableArray<Byte> data;
@@ -137,11 +149,10 @@ public:
         Array<Byte> data;
         file.readIntoArray(&data);
         change(0, 0, data.count(), &data[0]);
-        static Byte defaultRegisters[21] = {
-            12, 0x03, 0x8e, 0x1a, 0x0f, 0x38, 0x28, 0x2d, 0x0a, 0x7f, 0x06,
-            0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0
-        };
-        change(0, -21, 21, &defaultRegisters[0]);
+        static Byte defaultRegisters[29] = {
+            12, 0, 0, 0, 0, 0, 0, 0x01, 0x06, 0x03, 0x8e, 0x1a, 0x0f, 0x38,
+            0x28, 0x2d, 0x0a, 0x7f, 0x06, 0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0};
+        change(0, -29, 29, &defaultRegisters[0]);
     }
 
 private:
@@ -159,6 +170,7 @@ private:
         for (int i = 0; i < count; ++i)
             gotResult[i] = false;
         _root.getData(&result, &gotResult, t, address, count, 0, _total, 0);
+        return result;
     }
     struct Change
     {
@@ -196,8 +208,12 @@ private:
         void latch()
         {
             int vRAMAddress = _memoryAddress << 1;
-            if ((dat(-18) & 2) != 0 && (_rowAddress & 1) != 0)
-                vRAMAddress += 1 << dat(-21);
+            if ((dat(-18) & 2) != 0) {
+                if ((_rowAddress & 1) != 0)
+                    vRAMAddress |= 1 << dat(-29);
+                else
+                    vRAMAddress &= ~(1 << dat(-29));
+            }
             _latch = (_latch << 16) + dat(vRAMAddress) +
                 (dat(vRAMAddress + 1) << 8);
         }
@@ -244,7 +260,7 @@ private:
                 ++_character;
                 _phase ^= 0x40;
                 ++_memoryAddress;
-                if (_character == dat(-15)) {
+                if (_character == dat(-15) + (dat(-27) << 8)) {
                     // Start of horizontal overscan
                     _state |= 1;
                     _nextRowMemoryAddress = _memoryAddress;
@@ -258,12 +274,12 @@ private:
                         _state &= ~8;
                     }
                 }
-                if (_character == dat(-14)) {
+                if (_character == dat(-14) + (dat(-26) << 8)) {
                     // Start of horizontal sync
                     _state |= 8;
                     _hSync = 0;
                 }
-                if (_character == dat(-16)) {
+                if (_character == dat(-16) + (dat(-28) << 8)) {
                     // End of scanline
                     _state &= ~1;
                     _character = 0;
@@ -279,18 +295,18 @@ private:
                         // End of row
                         _rowAddress = 0;
                         ++_row;
-                        if (_row == dat(-10)) {
+                        if (_row == dat(-10) + (dat(-24) << 8)) {
                             // Start of vertical overscan
                             _state |= 2;
                             _latch = 0;
                         }
-                        if (_row == dat(-12)) {
+                        if (_row == dat(-12) + (dat(-25) << 8)) {
                             // Start of vertical total adjust
                             _state |= 4;
                             _adjust = 0;
                             _latch = 0;
                         }
-                        if (_row == dat(-9)) {
+                        if (_row == dat(-9) + (dat(-23) << 8)) {
                             // Start of vertical sync
                             _state |= 0x10;
                             _vSync = 0;
@@ -315,14 +331,7 @@ private:
                 latch();
             }
         }
-        Byte dat(int address)
-        {
-            address -= _startAddress;
-            if (address >= 0 && address < _addresses)
-                return _data[address];
-            return 0;
-        }
-
+        Byte dat(int address) { return _data[address - _startAddress]; }
 
         int _memoryAddress;
         int _leftMemoryAddress;
@@ -628,6 +637,19 @@ private:
                     state);
             }
         }
+        void ensureAddresses(int startAddress, int endAddress)
+        {
+            if (_changes.count() == 0)
+                _changes.allocate(1);
+            int count = endAddress - startAddress;
+            if (_changes[0]._data.count() < count) {
+                Array<Byte> data(count);
+                memcpy(&data[0] + _changes[0]._address - startAddress,
+                    &_changes[0]._data[0], _changes[0]._data.count());
+                _changes[0]._data = data;
+                _changes[0]._address = startAddress;
+            }
+        }
 
         Node* _left;
         Array<Change> _changes;
@@ -637,79 +659,6 @@ private:
     Node _root;
     int _total;
     int _endAddress;
-};
-
-class CGAShower
-{
-public:
-    void setInput(Bitmap<SRGB> input)
-    {
-        _input = input;
-        _size = input.size();
-        _rgbi = Bitmap<Byte>(_size);
-    }
-    void convert()
-    {
-        // Convert to RGBI indexes and add left and right borders.
-        const Byte* inputRow = _input.data();
-        Byte* rgbiRow = _rgbi.data();
-        int background = _palette & 15;
-        if ((_mode & 0x10) != 0)
-            background = 0;
-
-        for (int y = 0; y < _size.y; ++y) {
-            const SRGB* inputPixel =
-                reinterpret_cast<const SRGB*>(inputRow);
-            Byte* rgbiPixel = rgbiRow;
-            for (int x = 0; x < _size.x; ++x) {
-                SRGB s = *inputPixel;
-                ++inputPixel;
-                int bestDistance = 0x7fffffff;
-                Byte bestRGBI = 0;
-                for (int i = 0; i < 16; ++i) {
-                    int distance = (Vector3Cast<int>(rgbiPalette[i]) -
-                        Vector3Cast<int>(s)).modulus2();
-                    if (distance < bestDistance) {
-                        bestDistance = distance;
-                        bestRGBI = i;
-                        if (distance < 42*42)
-                            break;
-                    }
-                }
-                *rgbiPixel = bestRGBI;
-                ++rgbiPixel;
-            }
-
-            inputRow += _input.stride();
-            rgbiRow += _rgbi.stride();
-        }
-
-        // Find all different composite colours (sequences of 8 consecutive
-        // RGBI pixels).
-        rgbiRow = _rgbi.data();
-        for (int y = 0; y < _size.y; ++y) {
-            const Byte* rgbiPixel = rgbiRow;
-            UInt32 seq = 0;
-            for (int xx = 0; xx < 7; ++xx) {
-                seq = (seq >> 4) | ((*rgbiPixel) << 28);
-                ++rgbiPixel;
-            }
-            for (int xx = 0; xx < _size.x + 7; ++xx) {
-                seq = (seq >> 4) | ((*rgbiPixel) << 28);
-                ++rgbiPixel;
-            }
-            rgbiRow += _rgbi.stride();
-        }
-    }
-    void setMode(int mode) { _mode = mode; }
-    void setPalette(int palette) { _palette = palette; }
-    Bitmap<Byte> getOutput() { return _rgbi; }
-private:
-    Vector _size;
-    Bitmap<SRGB> _input;
-    Bitmap<Byte> _rgbi;
-    int _mode;
-    int _palette;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
@@ -727,10 +676,11 @@ public:
         _input2.fill(SRGB(0, 0, 0));
         _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
         _configs.allocate(_size.y);
-        _rgbi = Bitmap<Byte>(_size + Vector(14, 0));
+        initData();
     }
-    Bitmap<Byte> getOutput() { return _rgbi; }
     void setProgram(Program* program) { _program = program; }
+    void setSequencer(CGASequencer* sequencer) { _sequencer = sequencer; }
+    void setData(CGAData* data) { _data = data; }
     static void filterHF(const Byte* input, SInt16* output, int n)
     {
         for (int x = 0; x < n; ++x)
@@ -755,7 +705,7 @@ public:
                 _skip[i] = false;
         }
         else {
-            auto cgaROM = _sequencer.romData();
+            auto cgaROM = _sequencer->romData();
             int lines = _scanlinesPerRow;
             for (int i = 0; i < 256; ++i) {
                 _skip[i] = false;
@@ -911,9 +861,7 @@ public:
         }
 
         int overscan = (_mode & 0x10) == 0 ? _palette & 0x0f : 0;
-        _data.allocate((_size.y/_block.y)*(_size.x/_hdots));
         int y = 0;
-        _rgbiRow = _rgbi.data() + 7;
         _inputRow = _ntscInput.data();
         _error = Bitmap<int>(_size + Vector(4, 1));
         _error.fill(0);
@@ -933,10 +881,6 @@ public:
             SInt16* p = &_patterns[(_config & 0x7f)*5*256];
             UInt64 lineScore = 0;
 
-            _rgbi.subBitmap(Vector(0, y), Vector(7, _block.y)).fill(overscan);
-            _rgbi.subBitmap(Vector(7 + (_size.x & -_hdots), y),
-                Vector(7 + _size.x - (_size.x & -_hdots), _block.y))
-                .fill(overscan);
             for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
                 int bestPattern = 0;
                 int bestScore = 0x7fffffff;
@@ -982,28 +926,16 @@ public:
                         bestPattern = pattern;
                     }
                 }
-                for (int yy = 0; yy < _block.y; ++yy) {
-                    Byte* rgbiPixel = _rgbiRow + yy*_rgbi.stride() + x;
-                    plotPattern(rgbiPixel, bestPattern, yy);
-                    UInt32 seq = 0;
-                    rgbiPixel -= 7;
-                    for (int xx = 0; xx < 7; ++xx) {
-                        seq = (seq >> 4) | ((*rgbiPixel) << 28);
-                        ++rgbiPixel;
-                    }
-                    for (int xx = 0; xx < _block.x; ++xx) {
-                        seq = (seq >> 4) | ((*rgbiPixel) << 28);
-                        ++rgbiPixel;
-                    }
-                }
 
                 int address = (y/_block.y)*(_size.x/_hdots) + x/_hdots;
                 if ((_mode & 2) == 0)
-                    _data[address] = bestPattern;
+                    _data->change(0, address*2, 2, &bestPattern);
                 else {
                     int bit = (x & 12) ^ 4;
-                    _data[address] =
-                        (_data[address] & ~(15 << bit)) | (bestPattern << bit);
+                    Array<Byte> d = _data->getData(0, address*2, 2);
+                    Word data = ((d[0] + (d[1] << 8)) & ~(15 << bit)) |
+                        (bestPattern << bit);
+                    _data->change(0, address*2, 2, &data);
                 }
 
                 const Byte* inputRow2 = _inputRow;
@@ -1055,7 +987,6 @@ public:
             if (advance) {
                 _inputRow += _ntscInput.stride() * _block.y;
                 _errorRow += _error.stride() * _block.y;
-                _rgbiRow += _rgbi.stride() * _block.y;
                 y += _block.y;
                 if (y >= _size.y + 1 - _block.y)
                     return;
@@ -1113,7 +1044,7 @@ public:
         int modeAndPalette = modeAndPaletteFromConfig(_config);
         if ((modeAndPalette & 3) == 2)
             pattern <<= 4;
-        UInt64 r = _sequencer.process(pattern, modeAndPalette & 0xff,
+        UInt64 r = _sequencer->process(pattern, modeAndPalette & 0xff,
             modeAndPalette >> 8, line / _scanlinesRepeat, false, 0);
         int hdots = 8;
         if ((modeAndPalette & 3) == 0) {
@@ -1166,7 +1097,6 @@ public:
     int getScanlinesPerRow() { return _scanlinesPerRow; }
     void setScanlinesRepeat(int v) { _scanlinesRepeat = v; }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
-    void setROM(File rom) { _sequencer.setROM(rom); }
     void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
     void setPhase(int phase) { _phase = phase; }
     int getPhase() { return _phase; }
@@ -1193,6 +1123,61 @@ public:
     }
 
 private:
+    void initData()
+    {
+        Byte cgaRegisters[29] = { 0 };
+        int hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
+        int chars = (size.x + hdotsPerChar - 1)/hdotsPerChar;
+        int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
+        int rows = (size.y + scanlinesPerRow - 1)/scanlinesPerRow;
+        int logCharactersPerBank = 0;
+        while ((1 << logCharactersPerBank) < chars*rows)
+            ++logCharactersPerBank;
+        int horizontalTotal = chars + 272/hdotsPerChar;
+        int horizontalSyncPosition = chars + 80/hdotsPerChar;
+        int totalScanlines = size.y + 62;
+        int verticalTotal = totalScanlines/scanlinesPerRow;
+        int verticalTotalAdjust =
+            totalScanlines - verticalTotal*scanlinesPerRow;
+        if (verticalTotal > 128 &&
+            verticalTotal < (32 - verticalTotalAdjust)/scanlinesPerRow + 128) {
+            verticalTotalAdjust += (verticalTotal - 128)*scanlinesPerRow;
+            verticalTotal = 128;
+        }
+        int verticalSyncPosition = rows + 24/scanlinesPerRow;
+        int pllWidth = horizontalTotal*hdotsPerChar - 2;
+        cgaRegisters[0] = logCharactersPerBank;
+        cgaRegisters[1] = horizontalTotal >> 8;
+        cgaRegisters[2] = chars >> 8;
+        cgaRegisters[3] = horizontalSyncPosition >> 8;
+        cgaRegisters[4] = verticalTotal >> 8;
+        cgaRegisters[5] = rows >> 8;
+        cgaRegisters[6] = verticalSyncPosition >> 8;
+        cgaRegisters[7] = totalScanlines >> 8;
+        cgaRegisters[8] = totalScanlines & 0xff;
+        cgaRegisters[9] = pllWidth >> 8;
+        cgaRegisters[10] = pllWidth & 0xff;
+        cgaRegisters[11] = _mode;
+        cgaRegisters[12] = _palette;
+        cgaRegisters[13] = horizontalTotal & 0xff;
+        cgaRegisters[14] = chars & 0xff;
+        cgaRegisters[15] = horizontalSyncPosition & 0xff;
+        cgaRegisters[16] = 10;
+        cgaRegisters[17] = verticalTotal & 0xff;
+        cgaRegisters[18] = verticalTotalAdjust;
+        cgaRegisters[19] = rows & 0xff;
+        cgaRegisters[20] = verticalSyncPosition & 0xff;
+        cgaRegisters[21] = 2;
+        cgaRegisters[22] = _scanlinesPerRow - 1;
+        cgaRegisters[23] = 6;
+        cgaRegisters[24] = 7;
+        _data->change(0, -29, 29, &cgaRegisters[0]);
+        int last = chars*rows*2 - 1;
+        if ((_mode & 2) != 0)
+            last += 2 << logCharactersPerBank;
+        _data->change(0, last, 0);
+    }
+
     int _phase;
     int _mode;
     int _palette;
@@ -1200,18 +1185,16 @@ private:
     int _scanlinesRepeat;
     Vector _size;
     Bitmap<SRGB> _input;
-    Bitmap<Byte> _rgbi;
     CGAComposite _composite;
     NTSCDecoder _decoder;
     Program* _program;
-    CGASequencer _sequencer;
+    CGAData* _data;
+    CGASequencer* _sequencer;
     Array<SInt16> _patterns;
     Bitmap<SRGB> _input2;
     const Byte* _inputRow;
-    Byte* _rgbiRow;
     Byte* _errorRow;
     int _y;
-    Array<Word> _data;
     Bitmap<SInt16> _ntscInput;
     int _patternCount;
     Bitmap<int> _error;
@@ -1250,27 +1233,13 @@ typedef CGAMatcherT<void> CGAMatcher;
 template<class T> class CGAOutputT : public ThreadTask
 {
 public:
-    CGAOutputT(Program* program)
-      : _program(program), _window(0), _zoom(0), _aspectRatio(1),
-        _inputTL(0, 0), _outputSize(0, 0), _active(false)
+    CGAOutputT(CGAData* data, CGASequencer* sequencer)
+      : _data(data), _sequencer(sequencer), window(0), _zoom(0),
+        _aspectRatio(1), _inputTL(0, 0), _outputSize(0, 0)
     { }
-    void setRGBI(Bitmap<Byte> rgbi)
-    {
-        {
-            Lock lock(&_mutex);
-            _rgbi = rgbi;
-            if (!_active) {
-                _inputTL = Vector2<float>(0, 0.25f) -
-                    static_cast<float>(_overscan)*
-                    Vector2Cast<float>(_rgbi.size());
-            }
-        }
-        restart();
-    }
     void run()
     {
         Timer timerTotal;
-        Bitmap<Byte> rgbi;
         int connector;
         Vector outputSize;
         int combFilter;
@@ -1280,9 +1249,23 @@ public:
         int decoderPadding = 32;
         {
             Lock lock(&_mutex);
-            if (!_active || _outputSize.zeroArea())
-                return;
-            rgbi = _rgbi;
+
+            int total = _data->getTotal();
+            _rgbi.ensure(total);
+            _data->output(0, total, &_rgbi[0], _sequencer);
+
+            if (_outputSize.zeroArea()) {
+                _inputTL = Vector2<float>(0, 0.25f) -
+                    static_cast<float>(_overscan)*
+                    Vector2Cast<float>(_activeSize);
+
+                double o = 1 + 2*_overscan;
+                double y = _zoom*_activeSize.y*o;
+                double x = _zoom*_activeSize.x*o*_aspectRatio/2;
+                _outputSize = Vector(static_cast<int>(x + 0.5),
+                    static_cast<int>(y + 0.5));
+            }
+
             connector = _connector;
             combFilter = _combFilter;
             showClipping = _showClipping;
@@ -1324,7 +1307,9 @@ public:
             burst[i] = _composite.simulateCGA(6, 6, i);
 
         _decoder.setPadding(decoderPadding);
+        Timer timerDecoderInit;
         _decoder.calculateBurst(burst);
+        timerDecoderInit.output("decoder init");
 
         _bitmap.ensure(outputSize);
         //Timer timerScalerInit;
@@ -1337,58 +1322,13 @@ public:
         _unscaledSize = br - tl;
         Vector activeTL = Vector(0, 0) - tl;
         int carrierAlignmentAdjust = tl.x & 3;
-        int horizontalInactive = 272 - (_rgbi.size().x & 3);
+        int horizontalInactive = 272 - (_activeSize.x & 3);
         int verticalInactive = 62;
-        int totalWidth = _rgbi.size().x + horizontalInactive;
-        int srgbSize = totalWidth*(_rgbi.size().y + verticalInactive);
-        int combedSize;
-        int ntscSize;
-        if (connector == 0)
-            _rgbiSize = srgbSize;
-        else {
-            Timer timerDecoderInit;
-            timerDecoderInit.output("decoder init");
-            combedSize = srgbSize + 2*decoderPadding;
-            Vector combTL = Vector(2, 1)*combFilter;
-            ntscSize = combedSize + /*combTL.x +*/ combTL.y*totalWidth;
-            _ntsc.ensure(ntscSize);
-            _rgbiSize = ntscSize + 1;
-        }
-        Timer timerRGBICopy;
-        _rgbi2.ensure(_rgbiSize);
-        Byte border = _program->borderColour();
-        int y = 0;
-        const Byte* rgbiRow = rgbi.data();
-        Byte* rgbi2 = &_rgbi2[0];
-        int remaining = _rgbiSize;
-        while (true) {
-            int copy = rgbi.size().x;
-            if (copy > remaining) {
-                memcpy(rgbi2, rgbiRow, remaining);
-                break;
-            }
-            memcpy(rgbi2, rgbiRow, copy);
-            rgbi2 += copy;
-            remaining -= copy;
-            rgbiRow += rgbi.stride();
-            ++y;
-            int clear = horizontalInactive;
-            if (y == rgbi.size().y) {
-                y = 0;
-                rgbiRow = rgbi.data();
-                clear += verticalInactive*totalWidth;
-            }
-            if (clear > remaining) {
-                memset(rgbi2, border, remaining);
-                break;
-            }
-            memset(rgbi2, border, clear);
-            rgbi2 += clear;
-            remaining -= clear;
-        }
+        int totalWidth = _activeSize.x + horizontalInactive;
+        int srgbSize = totalWidth*(_activeSize.y + verticalInactive);
         _srgb.ensure(srgbSize*3);
-        timerRGBICopy.output("rgbi copy");
         if (connector == 0) {
+            _rgbiSize = srgbSize;
             // Convert from RGBI to 9.7 fixed-point sRGB
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1414,9 +1354,9 @@ public:
             for (int i = 0; i < 3*16; ++i)
                 srgbPalette[i] = levels[palette[i]];
             Timer timerRGBIToSRGB;
-            const Byte* rgbi = &_rgbi2[0];
+            const Byte* rgbi = &_rgbi[0];
             Byte* srgb = &_srgb[0];
-            for (int x = 0; x < rgbiSize; ++x) {
+            for (int x = 0; x < _rgbiSize; ++x) {
                 Byte* p = &srgbPalette[3 * *rgbi];
                 ++rgbi;
                 srgb[0] = p[0];
@@ -1427,9 +1367,14 @@ public:
             timerRGBIToSRGB.output("rgbi to srgb");
         }
         else {
+            int combedSize = srgbSize + 2*decoderPadding;
+            Vector combTL = Vector(2, 1)*combFilter;
+            int ntscSize = combedSize + combTL.y*totalWidth;
+            _ntsc.ensure(ntscSize);
+            _rgbiSize = ntscSize + 1;
             Timer timerRGBIToComposite;
             // Convert from RGBI to composite
-            const Byte* rgbi = &_rgbi2[0];
+            const Byte* rgbi = &_rgbi[0];
             Byte* ntsc = &_ntsc[0];
             for (int x = 0; x < ntscSize; ++x) {
                 *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], (x + 1) & 3);
@@ -1688,10 +1633,6 @@ public:
         _lastBitmap = _bitmap;
         _bitmap = _window->setNextBitmap(_bitmap);
 
-        {
-            Lock lock(&_mutex);
-            rgbi = Bitmap<Byte>();
-        }
         timerTotal.output("total");
     }
 
@@ -1701,7 +1642,7 @@ public:
             Lock lock(&_mutex);
             _active = true;
             _inputTL = Vector2<float>(0, 0.25f) -
-                static_cast<float>(_overscan)*Vector2Cast<float>(_rgbi.size());
+                static_cast<float>(_overscan)*Vector2Cast<float>(_activeSize);
         }
         setOutputSize(requiredSize());
         join();
@@ -1904,10 +1845,11 @@ public:
 
     Vector requiredSize()
     {
-        double o = 1 + 2*_overscan;
-        double y = _zoom*_rgbi.size().y*o;
-        double x = _zoom*_rgbi.size().x*o*_aspectRatio/2;
-        return Vector(static_cast<int>(x + 0.5), static_cast<int>(y + 0.5));
+        if (_outputSize.zeroArea()) {
+            restart();
+            join();
+        }
+        return _outputSize;
     }
     void setWindow(CGA2NTSCWindow* window)
     {
@@ -1932,10 +1874,10 @@ public:
         }
        _dragging = button;
     }
-    void saveRGBI(String outputFileName)
+    void saveRGBI(File outputFile)
     {
-        File(outputFileName, true).openWrite().write(
-            static_cast<const void*>(&_rgbi2[0]), _rgbiSize);
+        outputFile.openWrite().write(static_cast<const void*>(&_rgbi[0]),
+            _rgbiSize);
     }
 
 private:
@@ -1960,8 +1902,7 @@ private:
         return (input - _inputTL)*scale();
     }
 
-    Program* _program;
-    bool _active;
+    CGAData* _data;
 
     int _connector;
     bool _bw;
@@ -1985,7 +1926,6 @@ private:
 
     Bitmap<DWORD> _bitmap;
     Bitmap<DWORD> _lastBitmap;
-    Bitmap<Byte> _rgbi;
     CGAComposite _composite;
     FFTNTSCDecoder _decoder;
     CGA2NTSCWindow* _window;
@@ -1993,7 +1933,7 @@ private:
 
     FIRScanlineRenderer _scaler;
     Vector _combedSize;
-    Array<Byte> _rgbi2;
+    Array<Byte> _rgbi;
     int _rgbiSize;
     Array<Byte> _ntsc;
     Array<Byte> _srgb;
@@ -3016,12 +2956,13 @@ public:
         FFTWWisdom<float> wisdom(
             File(configFile.get<String>("fftWisdom"), config.parent()));
 
-        CGAOutput output(this);
+        CGAOutput output(&_data, &_sequencer);
         _output = &output;
         _matcher.setProgram(this);
+        _matcher.setData(&_data);
+        _matcher.setSequencer(&_sequencer);
         _window.setConfig(&configFile);
         _window.setMatcher(&_matcher);
-        _window.setShower(&_shower);
         _window.setOutput(&output);
         _window.setProgram(this);
 
@@ -3036,10 +2977,13 @@ public:
         _matcher.setCharacterSet(configFile.get<int>("characterSet"));
         Byte mode = configFile.get<int>("mode");
         _matcher.setMode(mode);
-        _matcher.setPalette(configFile.get<int>("palette"));
-        _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
-        _matcher.setScanlinesRepeat(configFile.get<int>("scanlinesRepeat"));
-        _matcher.setROM(
+        Byte palette = configFile.get<int>("palette");
+        _matcher.setPalette(palette);
+        int scanlinesPerRow = configFile.get<int>("scanlinesPerRow");
+        _matcher.setScanlinesPerRow(scanlinesPerRow);
+        int scanlinesRepeat = configFile.get<int>("scanlinesRepeat");
+        _matcher.setScanlinesRepeat(scanlinesRepeat);
+        _sequencer.setROM(
             File(configFile.get<String>("cgaROM"), config.parent()));
 
         double brightness = configFile.get<double>("brightness");
@@ -3125,7 +3069,6 @@ public:
         }
 
         _matcher.setInput(input);
-        _shower.setInput(input);
         setMatchMode(configFile.get<bool>("matchMode"));
 
         Timer timer;
@@ -3151,22 +3094,15 @@ public:
             inputFileName = inputFileName.subString(0, i);
 
         output.save(inputFileName + "_out.png");
-        _data.save(inputFileName + "_out.cgad");
-        _data.saveVRAM(inputFileName + "_out.dat");
-        output.saveRGBI(inputFileName + "_out.rgbi");
+        _data.save(File(inputFileName + "_out.cgad", true));
+        _data.saveVRAM(File(inputFileName + "_out.dat", true));
+        output.saveRGBI(File(inputFileName + "_out.rgbi", true));
 
         if (!interactive)
             timer.output("Elapsed time");
     }
     bool getMatchMode() { return _matchMode; }
-    void setMatchMode(bool matchMode)
-    {
-        _matchMode = matchMode;
-        if (!matchMode)
-            _output->setRGBI(_shower.getOutput());
-        else
-            _output->setRGBI(_matcher.getOutput());
-    }
+    void setMatchMode(bool matchMode) { _matchMode = matchMode; }
     void updateOutput()
     {
         _updateNeeded = true;
@@ -3182,15 +3118,13 @@ public:
     }
     void beginConvert()
     {
-        if (!_matchMode)
-            _shower.convert();
-        else
+        if (_matchMode)
             _matcher.restart();
     }
 private:
     CGAData _data;
     CGAMatcher _matcher;
-    CGAShower _shower;
+    CGASequencer _sequencer;
     CGAOutput* _output;
     bool _matchMode;
     bool _updateNeeded;
