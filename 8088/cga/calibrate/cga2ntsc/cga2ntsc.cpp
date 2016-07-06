@@ -33,9 +33,11 @@ public:
         _root.reset();
         _endAddress = 0;
     }
-    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer)
+    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer,
+        AppendableArray<int>* scanlines, AppendableArray<int>* fields)
     {
-        static const int startAddress = -29;
+        Lock lock(&_mutex);
+        static const int startAddress = -25;
 
         State state;
         state._n = n;
@@ -53,17 +55,13 @@ public:
         state.runTo(t + n);
     }
     // Addresses:
-    // -29: log(characters per bank)/log(2)
-    // -28: Horizontal Total high
-    // -27: Horizontal Displayed high
-    // -26: Horizontal Sync Position high
-    // -25: Vertical Total high
-    // -24: Vertical Displayed high
-    // -23: Vertical Sync Position high
-    // -22: CRT PLL height in scanlines high
-    // -21: CRT PLL height in scanlines low
-    // -20: CRT PLL width in hdots high
-    // -19: CRT PLL width in hdots low
+    // -25: log(characters per bank)/log(2)
+    // -24: Horizontal Total high
+    // -23: Horizontal Displayed high
+    // -22: Horizontal Sync Position high
+    // -21: Vertical Total high
+    // -20: Vertical Displayed high
+    // -19: Vertical Sync Position high
     // -18: CGA mode register (port 0x3d8)
     // -17: CGA palette register (port 0x3d9)
     // -16: Horizontal Total (CRTC register 0x00)
@@ -89,36 +87,47 @@ public:
     }
     void change(int t, int address, int count, const Byte* data)
     {
-        _root.change(t, address, count, data, 0, _total);
-        if (address + count > _endAddress) {
-            _endAddress = address + count;
-            _root.ensureAddresses(-29, _endAddress);
-        }
+        Lock lock(&_mutex);
+        changeNoLock(t, address, count, data);
     }
     void remove(int t, int address, int count = 1)
     {
+        Lock lock(&_mutex);
         _root.remove(t, address, count, 0, _total);
     }
-    void setTotal(int total)
+    void setTotals(int total, int pllWidth, int pllHeight)
     {
+        Lock lock(&_mutex);
         if (_root._right != 0)
             _root._right->resize(_total, total);
         _total = total;
+        _pllWidth = pllWidth;
+        _pllHeight = pllHeight;
     }
-    int getTotal() { return _total; }
+    int getTotal()
+    {
+        Lock lock(&_mutex);
+        return _total;
+    }
     void save(File file)
     {
+        Lock lock(&_mutex);
         AppendableArray<Byte> data;
         data.append(reinterpret_cast<const Byte*>("CGAD"), 4);
         DWord version = 0;
         data.append(reinterpret_cast<const Byte*>(&version), 4);
         DWord total = _total;
         data.append(reinterpret_cast<const Byte*>(&total), 4);
+        DWord pllWidth = _pllWidth;
+        data.append(reinterpret_cast<const Byte*>(&pllWidth), 4);
+        DWord pllHeight = _pllHeight;
+        data.append(reinterpret_cast<const Byte*>(&pllHeight), 4);
         _root.save(&data, 0, 0, _total);
         file.openWrite().write(data);
     }
     void load(File file)
     {
+        Lock lock(&_mutex);
         _root.reset();
         Array<Byte> data;
         file.readIntoArray(&data);
@@ -127,7 +136,9 @@ public:
         if (deserialize(&data, 4) != 0)
             throw Exception(file.path() + " is too new for this program.");
         _total = deserialize(&data, 8);
-        int offset = 12;
+        _pllWidth = deserialize(&data, 12);
+        _pllHeight = deserialize(&data, 16);
+        int offset = 20;
         do {
             if (offset == data.count())
                 return;
@@ -136,26 +147,36 @@ public:
             int count = deserialize(&data, offset + 8);
             if (offset + 12 + count < data.count())
                 throw Exception(file.path() + " is truncated.");
-            change(t, address, count, &data[offset + 12]);
+            changeNoLock(t, address, count, &data[offset + 12]);
         } while (true);
     }
     void saveVRAM(File file)
     {
+        Lock lock(&_mutex);
         file.openWrite().write(getData(0, 0, _endAddress));
     }
     void loadVRAM(File file)
     {
+        Lock lock(&_mutex);
         _root.reset();
         Array<Byte> data;
         file.readIntoArray(&data);
-        change(0, 0, data.count(), &data[0]);
-        static Byte defaultRegisters[29] = {
-            12, 0, 0, 0, 0, 0, 0, 0x01, 0x06, 0x03, 0x8e, 0x1a, 0x0f, 0x38,
-            0x28, 0x2d, 0x0a, 0x7f, 0x06, 0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0};
-        change(0, -29, 29, &defaultRegisters[0]);
+        changeNoLock(0, 0, data.count(), &data[0]);
+        static Byte defaultRegisters[25] = {
+            12, 0, 0, 0, 0, 0, 0, 0x1a, 0x0f, 0x38, 0x28, 0x2d, 0x0a, 0x7f,
+            0x06, 0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0};
+        changeNoLock(0, -25, 25, &defaultRegisters[0]);
     }
 
 private:
+    void changeNoLock(int t, int address, int count, const Byte* data)
+    {
+        _root.change(t, address, count, data, 0, _total);
+        if (address + count > _endAddress) {
+            _endAddress = address + count;
+            _root.ensureAddresses(-25, _endAddress);
+        }
+    }
     int deserialize(Array<Byte>* data, int offset)
     {
         if (data->count() < offset + 4)
@@ -210,9 +231,9 @@ private:
             int vRAMAddress = _memoryAddress << 1;
             if ((dat(-18) & 2) != 0) {
                 if ((_rowAddress & 1) != 0)
-                    vRAMAddress |= 1 << dat(-29);
+                    vRAMAddress |= 1 << dat(-25);
                 else
-                    vRAMAddress &= ~(1 << dat(-29));
+                    vRAMAddress &= ~(1 << dat(-25));
             }
             _latch = (_latch << 16) + dat(vRAMAddress) +
                 (dat(vRAMAddress + 1) << 8);
@@ -260,7 +281,7 @@ private:
                 ++_character;
                 _phase ^= 0x40;
                 ++_memoryAddress;
-                if (_character == dat(-15) + (dat(-27) << 8)) {
+                if (_character == dat(-15) + (dat(-23) << 8)) {
                     // Start of horizontal overscan
                     _state |= 1;
                     _nextRowMemoryAddress = _memoryAddress;
@@ -274,12 +295,12 @@ private:
                         _state &= ~8;
                     }
                 }
-                if (_character == dat(-14) + (dat(-26) << 8)) {
+                if (_character == dat(-14) + (dat(-22) << 8)) {
                     // Start of horizontal sync
                     _state |= 8;
                     _hSync = 0;
                 }
-                if (_character == dat(-16) + (dat(-28) << 8)) {
+                if (_character == dat(-16) + (dat(-24) << 8)) {
                     // End of scanline
                     _state &= ~1;
                     _character = 0;
@@ -295,18 +316,18 @@ private:
                         // End of row
                         _rowAddress = 0;
                         ++_row;
-                        if (_row == dat(-10) + (dat(-24) << 8)) {
+                        if (_row == dat(-10) + (dat(-20) << 8)) {
                             // Start of vertical overscan
                             _state |= 2;
                             _latch = 0;
                         }
-                        if (_row == dat(-12) + (dat(-25) << 8)) {
+                        if (_row == dat(-12) + (dat(-21) << 8)) {
                             // Start of vertical total adjust
                             _state |= 4;
                             _adjust = 0;
                             _latch = 0;
                         }
-                        if (_row == dat(-9) + (dat(-23) << 8)) {
+                        if (_row == dat(-9) + (dat(-19) << 8)) {
                             // Start of vertical sync
                             _state |= 0x10;
                             _vSync = 0;
@@ -658,7 +679,10 @@ private:
     // The root of the tree always has a 0 _left branch.
     Node _root;
     int _total;
+    int _pllWidth;
+    int _pllHeight;
     int _endAddress;
+    Mutex _mutex;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
@@ -870,6 +894,7 @@ public:
         _config = _startConfig;
         _testConfig = (_startConfig + 1 != _endConfig);
         _configScore = 0x7fffffffffffffffUL;
+        _rowData.ensure(2*_horizontalDisplayed);
         while (true) {
             int w = _block.x + 1;
             Vector errorLineSize(_size.x + 4, 1);
@@ -881,7 +906,7 @@ public:
             SInt16* p = &_patterns[(_config & 0x7f)*5*256];
             UInt64 lineScore = 0;
 
-            for (int x = 0; x < (_size.x & -_hdots); x += _block.x) {
+            for (int x = 0; x < (_size.x & -_hdotsPerChar); x += _block.x) {
                 int bestPattern = 0;
                 int bestScore = 0x7fffffff;
                 int skipSolidColour = 0xf00;
@@ -927,15 +952,16 @@ public:
                     }
                 }
 
-                int address = (y/_block.y)*(_size.x/_hdots) + x/_hdots;
-                if ((_mode & 2) == 0)
-                    _data->change(0, address*2, 2, &bestPattern);
+                if ((_mode & 2) == 0) {
+                    int address = 2*(x/_hdotsPerChar);
+                    _rowData[address] = bestPattern & 0xff;
+                    _rowData[address + 1] = bestPattern >> 8;
+                }
                 else {
-                    int bit = (x & 12) ^ 4;
-                    Array<Byte> d = _data->getData(0, address*2, 2);
-                    Word data = ((d[0] + (d[1] << 8)) & ~(15 << bit)) |
+                    int address = x/8;
+                    int bit = (x & 4) ^ 4;
+                    _rowData[address] = (_rowData[address] & ~(15 << bit)) |
                         (bestPattern << bit);
-                    _data->change(0, address*2, 2, &data);
                 }
 
                 const Byte* inputRow2 = _inputRow;
@@ -959,6 +985,8 @@ public:
                     errorRow2 += _error.stride();
                 }
             }
+            _data->change(0, (y/_block.y)*_horizontalDisplayed*2,
+                _horizontalDisplayed*2, &_rowData[0]);
             _program->updateOutput();
             bool advance = false;
             if (_testConfig) {
@@ -1014,9 +1042,9 @@ public:
                 break;
         }
         if ((_config & 0x80) == 0)
-            _hdots = 16;
+            _hdotsPerChar = 16;
         else
-            _hdots = 8;
+            _hdotsPerChar = 8;
     }
     void savePalettes(String outputFileName)
     {
@@ -1125,16 +1153,16 @@ public:
 private:
     void initData()
     {
-        Byte cgaRegisters[29] = { 0 };
-        int hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
-        int chars = (size.x + hdotsPerChar - 1)/hdotsPerChar;
+        Byte cgaRegisters[25] = { 0 };
+        _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
+        _horizontalDisplayed = (size.x + _hdotsPerChar - 1)/_hdotsPerChar;
         int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
         int rows = (size.y + scanlinesPerRow - 1)/scanlinesPerRow;
         int logCharactersPerBank = 0;
-        while ((1 << logCharactersPerBank) < chars*rows)
+        while ((1 << logCharactersPerBank) < _horizontalDisplayed*rows)
             ++logCharactersPerBank;
-        int horizontalTotal = chars + 272/hdotsPerChar;
-        int horizontalSyncPosition = chars + 80/hdotsPerChar;
+        int horizontalTotal = _horizontalDisplayed + 272/hdotsPerChar;
+        int horizontalSyncPosition = _horizontalDisplayed + 80/hdotsPerChar;
         int totalScanlines = size.y + 62;
         int verticalTotal = totalScanlines/scanlinesPerRow;
         int verticalTotalAdjust =
@@ -1145,37 +1173,35 @@ private:
             verticalTotal = 128;
         }
         int verticalSyncPosition = rows + 24/scanlinesPerRow;
-        int pllWidth = horizontalTotal*hdotsPerChar - 2;
+        int hdotsPerScanline = horizontalTotal*hdotsPerChar;
         cgaRegisters[0] = logCharactersPerBank;
         cgaRegisters[1] = horizontalTotal >> 8;
-        cgaRegisters[2] = chars >> 8;
+        cgaRegisters[2] = _horizontalDisplayed >> 8;
         cgaRegisters[3] = horizontalSyncPosition >> 8;
         cgaRegisters[4] = verticalTotal >> 8;
         cgaRegisters[5] = rows >> 8;
         cgaRegisters[6] = verticalSyncPosition >> 8;
-        cgaRegisters[7] = totalScanlines >> 8;
-        cgaRegisters[8] = totalScanlines & 0xff;
-        cgaRegisters[9] = pllWidth >> 8;
-        cgaRegisters[10] = pllWidth & 0xff;
-        cgaRegisters[11] = _mode;
-        cgaRegisters[12] = _palette;
-        cgaRegisters[13] = horizontalTotal & 0xff;
-        cgaRegisters[14] = chars & 0xff;
-        cgaRegisters[15] = horizontalSyncPosition & 0xff;
-        cgaRegisters[16] = 10;
-        cgaRegisters[17] = verticalTotal & 0xff;
-        cgaRegisters[18] = verticalTotalAdjust;
-        cgaRegisters[19] = rows & 0xff;
-        cgaRegisters[20] = verticalSyncPosition & 0xff;
-        cgaRegisters[21] = 2;
-        cgaRegisters[22] = _scanlinesPerRow - 1;
-        cgaRegisters[23] = 6;
-        cgaRegisters[24] = 7;
-        _data->change(0, -29, 29, &cgaRegisters[0]);
-        int last = chars*rows*2 - 1;
+        cgaRegisters[7] = _mode;
+        cgaRegisters[8] = _palette;
+        cgaRegisters[9] = horizontalTotal & 0xff;
+        cgaRegisters[10] = _horizontalDisplayed & 0xff;
+        cgaRegisters[11] = horizontalSyncPosition & 0xff;
+        cgaRegisters[12] = 10;
+        cgaRegisters[13] = verticalTotal & 0xff;
+        cgaRegisters[14] = verticalTotalAdjust;
+        cgaRegisters[15] = rows & 0xff;
+        cgaRegisters[16] = verticalSyncPosition & 0xff;
+        cgaRegisters[17] = 2;
+        cgaRegisters[18] = _scanlinesPerRow - 1;
+        cgaRegisters[19] = 6;
+        cgaRegisters[20] = 7;
+        _data->change(0, -25, 25, &cgaRegisters[0]);
+        int last = _horizontalDisplayed*rows*2 - 1;
         if ((_mode & 2) != 0)
             last += 2 << logCharactersPerBank;
         _data->change(0, last, 0);
+        _data->setTotals(hdotsPerScanline*totalScanlines, hdotsPerScanline - 2,
+            static_cast<int>(hdotsPerScanline*262.5));
     }
 
     int _phase;
@@ -1199,7 +1225,6 @@ private:
     int _patternCount;
     Bitmap<int> _error;
     Bitmap<int> _testError;
-    int _hdots;
     Vector _block;
     int _diffusionHorizontal;
     int _diffusionVertical;
@@ -1209,6 +1234,9 @@ private:
     int _characterSet;
     UInt64 _configScore;
     Array<bool> _skip;
+    int _horizontalDisplayed;
+    int _hdotsPerChar;
+    Array<Byte> _rowData;
 
     // a config is a mode/palette combination suitable for auto testing
     // The configs are:
@@ -1321,14 +1349,13 @@ public:
         Vector br = _scaler.inputBR();
         _unscaledSize = br - tl;
         Vector activeTL = Vector(0, 0) - tl;
-        int carrierAlignmentAdjust = tl.x & 3;
-        int horizontalInactive = 272 - (_activeSize.x & 3);
-        int verticalInactive = 62;
-        int totalWidth = _activeSize.x + horizontalInactive;
-        int srgbSize = totalWidth*(_activeSize.y + verticalInactive);
+        //int carrierAlignmentAdjust = tl.x & 3;
+        //int horizontalInactive = 272 - (_activeSize.x & 3);
+        //int verticalInactive = 62;
+        //int totalWidth = _activeSize.x + horizontalInactive;
+        int srgbSize = _data->getTotal();
         _srgb.ensure(srgbSize*3);
         if (connector == 0) {
-            _rgbiSize = srgbSize;
             // Convert from RGBI to 9.7 fixed-point sRGB
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1356,7 +1383,7 @@ public:
             Timer timerRGBIToSRGB;
             const Byte* rgbi = &_rgbi[0];
             Byte* srgb = &_srgb[0];
-            for (int x = 0; x < _rgbiSize; ++x) {
+            for (int x = 0; x < srgbSize; ++x) {
                 Byte* p = &srgbPalette[3 * *rgbi];
                 ++rgbi;
                 srgb[0] = p[0];
@@ -1371,7 +1398,14 @@ public:
             Vector combTL = Vector(2, 1)*combFilter;
             int ntscSize = combedSize + combTL.y*totalWidth;
             _ntsc.ensure(ntscSize);
-            _rgbiSize = ntscSize + 1;
+            int rgbiSize = ntscSize + 1;
+            if (_rgbi.count() < rgbiSize) {
+                Array<Byte> rgbi(rgbiSize);
+                memcpy(&rgbi[0], &_rgbi[0], srgbSize);
+                memcpy(&rgbi[srgbSize], &_rgbi[0], rgbiSize - srgbSize);
+                _rgbi = rgbi;
+            }
+
             Timer timerRGBIToComposite;
             // Convert from RGBI to composite
             const Byte* rgbi = &_rgbi[0];
@@ -1638,14 +1672,7 @@ public:
 
     void save(String outputFileName)
     {
-        {
-            Lock lock(&_mutex);
-            _active = true;
-            _inputTL = Vector2<float>(0, 0.25f) -
-                static_cast<float>(_overscan)*Vector2Cast<float>(_activeSize);
-        }
-        setOutputSize(requiredSize());
-        join();
+        setOutputSize(Vector(0, 0));
 
         _lastBitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
 
@@ -1845,11 +1872,17 @@ public:
 
     Vector requiredSize()
     {
-        if (_outputSize.zeroArea()) {
-            restart();
-            join();
+        {
+            Lock lock(&_mutex);
+            if (!_outputSize.zeroArea())
+                return _outputSize;
         }
-        return _outputSize;
+        restart();
+        join();
+        {
+            Lock lock(&_mutex);
+            return _outputSize;
+        }
     }
     void setWindow(CGA2NTSCWindow* window)
     {
@@ -1877,7 +1910,7 @@ public:
     void saveRGBI(File outputFile)
     {
         outputFile.openWrite().write(static_cast<const void*>(&_rgbi[0]),
-            _rgbiSize);
+            _data->getTotal());
     }
 
 private:
@@ -1934,7 +1967,6 @@ private:
     FIRScanlineRenderer _scaler;
     Vector _combedSize;
     Array<Byte> _rgbi;
-    int _rgbiSize;
     Array<Byte> _ntsc;
     Array<Byte> _srgb;
     Vector _unscaledSize;

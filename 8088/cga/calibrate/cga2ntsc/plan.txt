@@ -970,3 +970,16 @@ Scanline profiles:
   Parabolic
   Sine
 
+
+  Does it actually make sense for the PLL width/height to change over time? How would that actually work?
+    The only reason these are not fixed at 910/262.5 is that we'd like to be able to use extended canvases. This reason does not extend to variable PLLs
+    Since we need variable scanline lengths for PLL, it's only a small step to allow the PLL to change too, but there are complications:
+      We can't then divide up into scanlines/frames as a post-processing step (since we don't know what the PLL width is at each point)
+      The actual effect of changing PLL width is underspecified (what happens to the PLL phase?)
+      So, let's move PLL width/height into the non-temporal part of CGAData
+
+    Can we do sub-hdot positioning?
+      Not in horizontal scaling - we use the same kernel for each scanline
+      Doing it in decode might be possible but fiddly
+      I don't think we really need sub-hdot positioning anyway (sync position granulatity is at least 4 hdots)
+
