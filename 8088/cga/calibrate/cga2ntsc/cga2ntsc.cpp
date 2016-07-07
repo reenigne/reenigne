@@ -33,8 +33,7 @@ public:
         _root.reset();
         _endAddress = 0;
     }
-    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer,
-        AppendableArray<int>* scanlines, AppendableArray<int>* fields)
+    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer)
     {
         Lock lock(&_mutex);
         static const int startAddress = -25;
@@ -268,7 +267,30 @@ private:
                     }
                 }
                 else {
-                    memset(_rgbi, (mode & 0x10) != 0 ? 0 : dat(-17) & 0xf, c);
+                    int v = 0;
+                    if ((_state & 0x18) == 0)
+                        v = (mode & 0x10) != 0 ? 0 : dat(-17) & 0xf;
+                    else {
+                        v = (_state & 0x10) + ((_state & 0x20) >> 1);
+                        static Byte hSync[48] = {
+                            0x10, 0x10, 0x11, 0x11, 0x11, 0x11, 0x10, 0x18,
+                            0x18, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+
+                            0x30, 0x30, 0x35, 0x35, 0x35, 0x35, 0x30, 0x38,
+                            0x38, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+
+                            0x32, 0x32, 0x33, 0x33, 0x33, 0x33, 0x32, 0x3a,
+                            0x3a, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32};
+                        if ((_state & 8) != 0) {
+                            if ((mode & 1) != 0)
+                                v = hSync[(_hSync >> 1) + v + (_phase >> 6)];
+                            else
+                                v = hSync[_hSync + v];
+                        }
+                        else
+                            v = hSync[v];
+                    }
+                    memset(_rgbi, v, c);
                     _rgbi += c;
                     _hdot += c;
                 }
@@ -299,6 +321,14 @@ private:
                     // Start of horizontal sync
                     _state |= 8;
                     _hSync = 0;
+                    if ((_state & 0x10) != 0) {
+                        if (_vSync == 0)
+                            _state |= 0x20;
+                        else {
+                            if (_vSync == 3)
+                                _state &= ~0x20;
+                        }
+                    }
                 }
                 if (_character == dat(-16) + (dat(-24) << 8)) {
                     // End of scanline
@@ -309,7 +339,7 @@ private:
                         ++_vSync;
                         if ((_vSync & 0x0f) == 0) {
                             // End of vertical sync
-                            _state &= ~0x10;
+                            _state &= ~0x30;
                         }
                     }
                     if (_rowAddress == dat(-7)) {
@@ -375,7 +405,8 @@ private:
         //    1 = we are in vertical overscan
         //    2 = we are in vertical total adjust
         //    3 = we are in horizontal sync
-        //    4 = we are in vertical sync
+        //    4 = we are in vertical CRTC sync
+        //    5 = we are in vertical CRT sync
         int _state;
         UInt32 _latch;
         Byte* _rgbi;
@@ -1936,6 +1967,8 @@ private:
     }
 
     CGAData* _data;
+    AppendableArray<int> _scanlines;
+    AppendableArray<int> _fields;
 
     int _connector;
     bool _bw;
