@@ -33,6 +33,25 @@ public:
         _root.reset();
         _endAddress = 0;
     }
+    // Output RGBI values:
+    //   0-15: normal active data
+    //   16-54: blanking
+    //     bit 0: CRT hsync
+    //     bit 1: CRT vsync
+    //     bit 2: composite sync (CRT hsync ^ CRT vsync)
+    //     bit 3: colour burst
+    //     bit 4: CRTC hsync
+    //     bit 5: CRTC vsync
+    //   Only the following blanking values actually occur:
+    //     0x10: CRTC hsync
+    //     0x15: CRT hsync (composite sync)
+    //     0x18: Colour burst (suppressed during CRTC vsync)
+    //     0x20: CRTC vsync
+    //     0x26: CRT vsync (composite sync)
+    //     0x30: CRTC hsync + CRTC vsync
+    //     0x33: CRT hsync + CRT vsync (no composite sync)
+    //     0x35: CRT hsync + CRTC vsync (composite sync)
+    //     0x36: CRTC hsync + CRT vsync (composite sync)
     void output(int t, int n, Byte* rgbi, CGASequencer* sequencer)
     {
         Lock lock(&_mutex);
@@ -272,23 +291,23 @@ private:
                         v = (mode & 0x10) != 0 ? 0 : dat(-17) & 0xf;
                     else {
                         v = (_state & 0x10) + ((_state & 0x20) >> 1);
-                        static Byte hSync[48] = {
-                            0x10, 0x10, 0x11, 0x11, 0x11, 0x11, 0x10, 0x18,
+                        static Byte sync[48] = {
+                            0x10, 0x10, 0x15, 0x15, 0x15, 0x15, 0x10, 0x18,
                             0x18, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
 
-                            0x30, 0x30, 0x35, 0x35, 0x35, 0x35, 0x30, 0x38,
-                            0x38, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                            0x30, 0x30, 0x35, 0x35, 0x35, 0x35, 0x30, 0x30,
+                            0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
 
-                            0x32, 0x32, 0x33, 0x33, 0x33, 0x33, 0x32, 0x3a,
-                            0x3a, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32};
+                            0x36, 0x36, 0x33, 0x33, 0x33, 0x33, 0x36, 0x36,
+                            0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36};
                         if ((_state & 8) != 0) {
                             if ((mode & 1) != 0)
-                                v = hSync[(_hSync >> 1) + v + (_phase >> 6)];
+                                v = sync[(_hSync >> 1) + v + (_phase >> 6)];
                             else
-                                v = hSync[_hSync + v];
+                                v = sync[_hSync + v];
                         }
                         else
-                            v = hSync[v];
+                            v = (_state & 0x20) != 0 ? 0x26 : 0x20;
                     }
                     memset(_rgbi, v, c);
                     _rgbi += c;
@@ -1403,13 +1422,28 @@ public:
                     l = clamp(0, l, 255);
                 levels[i] = l;
             }
-            static const int palette[3*16] = {
+            // On the RGBI connector we don't show composite sync, colour
+            // burst, or blanking since these are not output on the actual
+            // connector. Blanking is visible as black if the overscan is a
+            // non-black colour.
+            static const int palette[3*55] = {
                 0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
                 2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
                 1, 1, 1,  1, 1, 3,  1, 3, 1,  1, 3, 3,
-                3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
-            Byte srgbPalette[3*16];
-            for (int i = 0; i < 3*16; ++i)
+                3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3,
+
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
+                0, 0, 0,  0, 1, 0,  1, 0, 0};
+            Byte srgbPalette[3*55];
+            for (int i = 0; i < 3*55; ++i)
                 srgbPalette[i] = levels[palette[i]];
             Timer timerRGBIToSRGB;
             const Byte* rgbi = &_rgbi[0];
