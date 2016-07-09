@@ -331,7 +331,8 @@ public:
 #if 1
         FileStream s = File("C:\\t\\reenigne\\8088\\cga\\calibrate\\calibrate6\\output.dat", true).openRead();
         double tSamples[1024];
-        s.seek((2048+8+2)*8*2*67);
+        int best = 0;
+        s.seek((2048+8+2)*8*2*best);
         s.read(reinterpret_cast<Byte*>(tSamples), 1024*sizeof(double));
 
         double chroma[256];
@@ -364,7 +365,7 @@ public:
         printf("};\n");
 
         double iSamples[8];
-        s.seek((2048+8+2)*8*2*67 + 2048*8);
+        s.seek((2048+8+2)*8*2*best + 2048*8);
         s.read(reinterpret_cast<Byte*>(iSamples), 8*sizeof(double));
         printf("unsigned char iSamples[4] = {\n");
         for (int i = 0; i < 4; ++i) {

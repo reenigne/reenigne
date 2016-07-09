@@ -52,7 +52,7 @@ public:
     //     0x33: CRT hsync + CRT vsync (no composite sync)
     //     0x35: CRT hsync + CRTC vsync (composite sync)
     //     0x36: CRTC hsync + CRT vsync (composite sync)
-    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer)
+    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer, bool phase0)
     {
         Lock lock(&_mutex);
         static const int startAddress = -25;
@@ -65,6 +65,7 @@ public:
         state._addresses = _endAddress - startAddress;
         state._data.allocate(state._addresses);
         state._sequencer = sequencer;
+        state._phase = phase0 ? 0 : 0x40;
         for (const auto& c : _root._changes)
             c.getData(&state._data, 0, startAddress, state._addresses, 0);
         state.reset();
@@ -184,6 +185,10 @@ public:
             12, 0, 0, 0, 0, 0, 0, 0x1a, 0x0f, 0x38, 0x28, 0x2d, 0x0a, 0x7f,
             0x06, 0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0};
         changeNoLock(0, -25, 25, &defaultRegisters[0]);
+    }
+    Byte getData(int address, int t = 0)
+    {
+        return getData(t, address, 1)[0];
     }
 
 private:
@@ -763,7 +768,18 @@ public:
     }
     void run()
     {
+        _composite.setBW((_mode & 4) != 0);
+        bool newCGA = connector == 2;
+        _composite.setNewCGA(newCGA);
         _composite.initChroma();
+        double black = _composite.black();
+        double white = _composite.white();
+        _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
+        _decoder.setSaturation(_saturation*2.9*(newCGA ? 1.5 : 1.0));
+        _decoder.setContrast(_contrast*256*(newCGA ? 1.2 : 1)/(white - black));
+        _decoder.setBrightness(-black*_contrast +
+            (_brightness + (newCGA ? -10 : 0))*5);
+
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
@@ -1175,7 +1191,6 @@ public:
     int getScanlinesPerRow() { return _scanlinesPerRow; }
     void setScanlinesRepeat(int v) { _scanlinesRepeat = v; }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
-    void setNewCGA(bool newCGA) { _composite.setNewCGA(newCGA); }
     void setPhase(int phase) { _phase = phase; }
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; }
@@ -1184,21 +1199,15 @@ public:
     double getQuality() { return _quality; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
     int getCharacterSet() { return _characterSet; }
-
-    double getHue() { return _decoder.getHue(); }
-    void setHue(double hue) { _decoder.setHue(hue); }
-    double getSaturation() { return _decoder.getSaturation(); }
-    void setSaturation(double saturation)
-    {
-        _decoder.setSaturation(saturation);
-    }
-    double getContrast() { return _decoder.getContrast(); }
-    void setContrast(double contrast) { _decoder.setContrast(contrast); }
-    double getBrightness() { return _decoder.getBrightness(); }
-    void setBrightness(double brightness)
-    {
-        _decoder.setBrightness(brightness);
-    }
+    double getHue() { return _hue; }
+    void setHue(double hue) { _hue = hue; }
+    double getSaturation() { return _saturation; }
+    void setSaturation(double saturation) { _saturation = saturation; }
+    double getContrast() { return _contrast; }
+    void setContrast(double contrast) { _contrast = contrast; }
+    double getBrightness() { return _brightness; }
+    void setBrightness(double brightness) { _brightness = brightness; }
+    void setConnector(int connector) { _connector = connector; }
 
 private:
     void initData()
@@ -1259,6 +1268,7 @@ private:
     int _palette;
     int _scanlinesPerRow;
     int _scanlinesRepeat;
+    int _connector;
     Vector _size;
     Bitmap<SRGB> _input;
     CGAComposite _composite;
@@ -1304,6 +1314,11 @@ private:
     int _config;
     bool _testConfig;
     int _bestConfig;
+
+    double _hue;
+    double _saturation;
+    double _contrast;
+    double _brightness;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
@@ -1330,7 +1345,7 @@ public:
 
             int total = _data->getTotal();
             _rgbi.ensure(total);
-            _data->output(0, total, &_rgbi[0], _sequencer);
+            _data->output(0, total, &_rgbi[0], _sequencer, _phase);
 
             if (_outputSize.zeroArea()) {
                 _inputTL = Vector2<float>(0, 0.25f) -
@@ -1348,14 +1363,22 @@ public:
             combFilter = _combFilter;
             showClipping = _showClipping;
             outputSize = _outputSize;
-            _composite.setBW(_bw);
-            _decoder.setHue(_hue);
-            _decoder.setSaturation(_saturation);
+            Byte mode = _data->getData(-18);
+            _composite.setBW((mode & 4) != 0);
+            bool newCGA = connector == 2;
+            _composite.setNewCGA(newCGA);
+            _composite.initChroma();
+            double black = _composite.black();
+            double white = _composite.white();
+            _decoder.setHue(_hue + ((mode & 1) != 0 ? 14 : 4));
+            _decoder.setSaturation(_saturation*2.9*(newCGA ? 1.5 : 1.0));
             contrast = static_cast<float>(_contrast);
             static const double combDivisors[3] = {1, 2, 4};
-            _decoder.setContrast(_contrast/combDivisors[combFilter]);
+            _decoder.setContrast(_contrast*256*(newCGA ? 1.2 : 1)/
+                (combDivisors[combFilter]*(white - black)));
             brightness = static_cast<float>(_brightness);
-            _decoder.setBrightness(_brightness);
+            _decoder.setBrightness(-black*_contrast +
+                (_brightness + (newCGA ? -10 : 0))*5);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setRollOff(_rollOff);
@@ -1376,10 +1399,7 @@ public:
             _scaler.setZoom(scale());
         }
 
-        _composite.setNewCGA(connector == 2);
         _scaler.setOutputSize(outputSize);
-
-        _composite.initChroma();
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
             burst[i] = _composite.simulateCGA(6, 6, i);
@@ -1403,8 +1423,15 @@ public:
         //int horizontalInactive = 272 - (_activeSize.x & 3);
         //int verticalInactive = 62;
         //int totalWidth = _activeSize.x + horizontalInactive;
+
         int srgbSize = _data->getTotal();
         _srgb.ensure(srgbSize*3);
+
+        _scanlines.clear();
+
+
+
+
         if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
             Byte levels[4];
@@ -1756,14 +1783,6 @@ public:
         restart();
     }
     int getConnector() { return _connector; }
-    void setBW(bool bw)
-    {
-        {
-            Lock lock(&_mutex);
-            _bw = bw;
-        }
-        restart();
-    }
     void setScanlineProfile(int profile)
     {
         {
@@ -1933,6 +1952,14 @@ public:
         }
         restart();
     }
+    void setPhase(int phase)
+    {
+        {
+            Lock lock(&_mutex);
+            _phase = phase;
+        }
+        restart();
+    }
     double getRollOff() { return _rollOff; }
 
     Vector requiredSize()
@@ -2001,11 +2028,12 @@ private:
     }
 
     CGAData* _data;
-    AppendableArray<int> _scanlines;
-    AppendableArray<int> _fields;
+    AppendableArray<int> _scanlines;    // hdot positions of scanline starts
+    AppendableArray<int> _fields;       // scanline numbers of field starts
+    AppendableArray<int> _fieldOffsets; // fractional scanline numbers
 
     int _connector;
-    bool _bw;
+    int _phase;
     int _scanlineProfile;
     double _scanlineWidth;
     int _scanlineBleeding;
@@ -2277,8 +2305,6 @@ public:
     void bwSet(bool value)
     {
         _matcher->setMode((_matcher->getMode() & ~4) | (value ? 4 : 0));
-        _output->setBW(value);
-        //_composite.setBW(value);
         beginConvert();
     }
     void blinkSet(bool value)
@@ -2288,7 +2314,11 @@ public:
         if ((mode & 2) == 0)
             beginConvert();
     }
-    void phaseSet(bool value) { _matcher->setPhase(value ? 0 : 1); }
+    void phaseSet(bool value)
+    {
+        _matcher->setPhase(value ? 0 : 1);
+        _output->setPhase(value ? 0 : 1);
+    }
     void interlaceSet(int value)
     {
         _matcher->setInterlace(value);
@@ -2348,7 +2378,7 @@ public:
     void connectorSet(int connector)
     {
         _output->setConnector(connector);
-        _matcher->setNewCGA(connector == 2);
+        _matcher->setConnector(connector);
         updateApplicableControls();
         beginConvert();
     }
@@ -3103,7 +3133,7 @@ public:
         output.setRollOff(configFile.get<double>("rollOff"));
         int connector = configFile.get<int>("connector");
         output.setConnector(connector);
-        _matcher.setNewCGA(connector == 2);
+        _matcher.setConnector(connector);
         output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
         output.setZoom(configFile.get<double>("zoom"));
@@ -3111,7 +3141,6 @@ public:
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
         output.setOverscan(configFile.get<double>("overscan"));
         output.setCombFilter(configFile.get<int>("combFilter"));
-        output.setBW((mode & 4) != 0);
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
         Bitmap<SRGB> input2 = input;

@@ -226,60 +226,76 @@ public:
     CGAComposite() : _newCGA(false), _bw(false) { }
     void initChroma()
     {
-        static Byte chromaData[256] = {
-             65, 11, 62,  6, 121, 87, 63,  6,  60,  9,120, 65,  61, 59,129,  5,
-            121,  6, 58, 58, 134, 65, 62,  6,  57,  9,108, 72, 126, 72,125, 77,
-             60, 98,160,  6, 113,195,194,  8,  53, 94,218, 64,  56,152,225,  5,
-            118, 90,147, 56, 115,154,156,  0,  52, 92,197, 73, 107,156,213, 62,
-            119, 10, 97,122, 178, 77, 60, 87, 119, 12,174,205, 119, 58,135, 88,
-            185,  6, 54,158, 194, 67, 57, 87, 114, 10,101,168, 181, 67,114,160,
-             64,  8,156,109, 121, 73,177,122,  58,  8,244,207,  65, 58,251,137,
-            127,  5,141,156, 126, 58,144, 97,  57,  7,189,168, 106, 55,201,162,
-            163,124, 62, 10, 185,159, 59,  8, 135,104,128, 80, 119,142,140,  5,
-            241,141, 59, 57, 210,160, 61,  5, 137,108,103, 61, 177,140,110, 65,
-             59,107,124,  4, 180,201,122,  6,  52,104,194, 77,  55,159,197,  3,
-            130,128,121, 51, 174,197,123,  3,  52,100,162, 62, 101,156,171, 51,
-            173, 11, 60,113, 199, 93, 58, 77, 167, 11,118,196, 132, 63,129, 74,
-            255,  9, 54,195, 192, 55, 59, 74, 183, 14,103,199, 206, 74,118,154,
-            153,108,156,105, 255,202,188,123, 143,107,246,203, 164,208,250,129,
-            209,103,148,157, 253,195,171,120, 163,106,196,207, 245,202,249,208
-        };
+        double maxV = 0;
+        for (int x = 0; x < 1024; ++x)
+            maxV = max(maxV, tableValue(x));
+        double vBlack = tableValue(0);
+        double vWhite = tableValue(1023);
 
-        static double intensity[4] = {
-            0, 0.047932237386703491, 0.15110087022185326, 0.18384206667542458};
+        // v                p          q       f
+        //
+        //                  0          0
+        // tableValue(0)    0.416              0
+        // tableValue(1023) 1.46               1
+        // maxV                      255
 
-        static const double minChroma = 0.070565;
-        static const double maxChroma = 0.727546;
+        // p = n*v + m
+        // 0.416 = n*vBlack + m
+        // 1.46 = n*vWhite + m
+        // 0.416*vWhite = n*vBlack*vWhite + m*vWhite
+        // 1.46*vBlack = n*vBlack*vWhite + m*vBlack
+        // 0.416*vWhite - 1.46*vBlack = m*(vWhite - vBlack)
+        double m = (0.416*vWhite - 1.46*vBlack)/(vWhite - vBlack);
+        double n = (1.46 - m)/vWhite;
 
-        for (int x = 0; x < 1024; ++x) {
-            int phase = x & 3;
-            int right = (x >> 2) & 15;
-            int left = (x >> 6) & 15;
-            int rc = right;
-            int lc = left;
-            if (_bw) {
-                rc = (right & 8) | ((right & 7) != 0 ? 7 : 0);
-                lc = (left & 8) | ((left & 7) != 0 ? 7 : 0);
+        // q = v*a + b
+        // q = p*c = (n*v + m)*c = n*c*v + m*c
+        // a = n*c, b = m*c
+        // 255 = (n*maxV + m)*c
+        double c = 255.0/(n*maxV + m);
+        double a = n*c;
+        double b = m*c;
+        for (int x = 0; x < 1024; ++x)
+            _table[x] = byteClamp(tableValue(x)*a + b);
+        _black = vBlack*a + b;
+        _white = vWhite*a + b;
+
+        // v                 p
+        //
+        // tableValue(0)     0.291
+        // tableValue(0x1df) 1.04
+        if (!_newCGA) {
+            double vGrey = tableValue((0x77 << 2) + 3);
+            m = (0.291*vGrey - 1.04*vBlack)/(vGrey - vBlack);
+            n = (1.04 - m)/vGrey;
+            a = n*c;
+            b = m*c;
+        }
+
+        for (int x = 0; x < 55*4; ++x) {
+            double q;
+            if ((x & 0x10) != 0) {
+                // Sync
+                q = 0;
             }
-            double c = minChroma +
-                chromaData[((lc & 7) << 5) | ((rc & 7) << 2) | phase]*
-                (maxChroma-minChroma)/256.0;
-            double i = intensity[(left >> 3) | ((right >> 2) & 2)];
-            if (!_newCGA)
-                _table[x] = byteClamp(static_cast<int>((c + i)*256));
             else {
-                double r = intensity[((left >> 2) & 1) | ((right >> 1) & 2)];
-                double g = intensity[((left >> 1) & 1) | (right & 2)];
-                double b = intensity[(left & 1) | ((right << 1) & 1)];
-                _table[x] = byteClamp(static_cast<int>(((c/0.72)*0.29 +
-                    (i/0.28)*0.32 + (r/0.28)*0.1 + (g/0.28)*0.22 +
-                    (b/0.28)*0.07)*256));
+                if ((x & 0x20) != 0) {
+                    // Burst
+                    q = tableValue((0x66 << 2) + (x & 3))*a + b;
+                }
+                else {
+                    // Blank
+                    q = tableValue(x & 3)*a + b;
+                }
             }
+            _syncTable[x] = byteClamp(q);
         }
     }
     Byte simulateCGA(int left, int right, int phase)
     {
-        return _table[((left & 15) << 6) | ((right & 15) << 2) | phase];
+        if ((left | right) < 16)
+            return _table[((left & 15) << 6) + ((right & 15) << 2) + phase];
+        return _syncTable[(left << 4) + phase];
     }
     void simulateLine(const Byte* rgbi, Byte* ntsc, int length, int phase)
     {
@@ -319,10 +335,65 @@ public:
         _bw = bw;
         initChroma();
     }
+
+    // A real monitor will figure out appropriate black and white levels from
+    // the sync and blanking levels. However, CGA voltages are somewhat outside
+    // of NTSC spec, so there is a lot of variation between monitors in terms
+    // of black and white levels. We return the actual CGA black and white
+    // levels here so that emulated output devices can make sensible defaults
+    // (setting black and white levels to sRGB (0, 0, 0) and (255, 255, 255)
+    // respectively).
+    double black() { return _black; }
+    double white() { return _white; }
 private:
+    double tableValue(int x)
+    {
+        static unsigned char chromaData[256] = {
+              2,  2,  2,  2, 114,174,  4,  3,   2,  1,133,135,   2,113,150,  4,
+            133,  2,  1, 99, 151,152,  2,  1,   3,  2, 96,136, 151,152,151,152,
+              2, 56, 62,  4, 111,250,118,  4,   0, 51,207,137,   1,171,209,  5,
+            140, 50, 54,100, 133,202, 57,  4,   2, 50,153,149, 128,198,198,135,
+             32,  1, 36, 81, 147,158,  1, 42,  33,  1,210,254,  34,109,169, 77,
+            177,  2,  0,165, 189,154,  3, 44,  33,  0, 91,197, 178,142,144,192,
+              4,  2, 61, 67, 117,151,112, 83,   4,  0,249,255,   3,107,249,117,
+            147,  1, 50,162, 143,141, 52, 54,   3,  0,145,206, 124,123,192,193,
+             72, 78,  2,  0, 159,208,  4,  0,  53, 58,164,159,  37,159,171,  1,
+            248,117,  4, 98, 212,218,  5,  2,  54, 59, 93,121, 176,181,134,130,
+              1, 61, 31,  0, 160,255, 34,  1,   1, 58,197,166,   0,177,194,  2,
+            162,111, 34, 96, 205,253, 32,  1,   1, 57,123,125, 119,188,150,112,
+             78,  4,  0, 75, 166,180, 20, 38,  78,  1,143,246,  42,113,156, 37,
+            252,  4,  1,188, 175,129,  1, 37, 118,  4, 88,249, 202,150,145,200,
+             61, 59, 60, 60, 228,252,117, 77,  60, 58,248,251,  81,212,254,107,
+            198, 59, 58,169, 250,251, 81, 80, 100, 58,154,250, 251,252,252,252
+        };
+        static double intensity[4] = {
+            77.175381, 88.654656, 166.564623, 174.228438};
+        int phase = x & 3;
+        int right = (x >> 2) & 15;
+        int left = (x >> 6) & 15;
+        int rc = right;
+        int lc = left;
+        if (_bw) {
+            rc = (right & 8) | ((right & 7) != 0 ? 7 : 0);
+            lc = (left & 8) | ((left & 7) != 0 ? 7 : 0);
+        }
+        double c = chromaData[((lc & 7) << 5) | ((rc & 7) << 2) | phase];
+        double i = intensity[(left >> 3) | ((right >> 2) & 2)];
+        if (!_newCGA)
+            return c + i;
+        double r = intensity[((left >> 2) & 1) | ((right >> 1) & 2)];
+        double g = intensity[((left >> 1) & 1) | (right & 2)];
+        double b = intensity[(left & 1) | ((right << 1) & 1)];
+        return (c/0.72)*0.29 + (i/0.28)*0.32 + (r/0.28)*0.1 + (g/0.28)*0.22 +
+            (b/0.28)*0.07;
+    }
+
     bool _newCGA;
     bool _bw;
-    int _table[1024];
+    Byte _table[1024];
+    Byte _syncTable[55*4];
+    double _black;
+    double _white;
 };
 
 #endif // INCLUDED_CGA_H

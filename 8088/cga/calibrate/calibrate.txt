@@ -53,7 +53,10 @@ saturate - checks clipping of final result                                      
 calibrate5 - included decoder to avoid clipping                                                      2014/07/02
 cga2ntsc - convert a CGA RGBI .png image to the corresponding composite output image                 2014/07/10
 make_decoder - convert the output.dat from calibrate5 to source code, display the 3D rotating gamut  2014/07/10
-
+calibrate6 - 7.16MHz correct, repeatedly captures all data in one frame, graphs, tries different transition and "eight" values.  2015/07/05
+  Note: make_decoder and xtserver/testcases/hres_colours have been updated to work with calibrate6. Run overnight to get a decent number of samples
+  according to make_deccoder, sample 67 is the best one (lowest fitness value)
+  However, fitness values do not appear to be consistent from run to run
 
 
 There is a _fitness for each block, but an _optimizing for each transition
