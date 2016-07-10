@@ -52,7 +52,7 @@ public:
     //     0x33: CRT hsync + CRT vsync (no composite sync)
     //     0x35: CRT hsync + CRTC vsync (composite sync)
     //     0x36: CRTC hsync + CRT vsync (composite sync)
-    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer, bool phase0)
+    void output(int t, int n, Byte* rgbi, CGASequencer* sequencer, int phase)
     {
         Lock lock(&_mutex);
         static const int startAddress = -25;
@@ -65,7 +65,7 @@ public:
         state._addresses = _endAddress - startAddress;
         state._data.allocate(state._addresses);
         state._sequencer = sequencer;
-        state._phase = phase0 ? 0 : 0x40;
+        state._phase = phase != 0 ? 0x40 : 0;
         for (const auto& c : _root._changes)
             c.getData(&state._data, 0, startAddress, state._addresses, 0);
         state.reset();
@@ -128,6 +128,8 @@ public:
         Lock lock(&_mutex);
         return _total;
     }
+    int getPLLWidth() { return _pllWidth; }
+    int getPLLHeight() { return _pllHeight; }
     void save(File file)
     {
         Lock lock(&_mutex);
@@ -1426,13 +1428,71 @@ public:
 
         int srgbSize = _data->getTotal();
         _srgb.ensure(srgbSize*3);
-
+        int pllWidth = _data->getPLLWidth();
+        int pllHeight = _data->getPLLHeight();
+        static const int driftHorizontal = 8;
+        static const int driftVertical = 14*pllWidth;
         _scanlines.clear();
-
-
-
+        _fields.clear();
+        _fieldOffsets.clear();
 
         if (connector == 0) {
+            int lastScanline = 0;
+            do {
+                int offset = (lastScanline + pllWidth - driftHorizontal) %
+                    srgbSize;
+                Byte* p = &_rgbi[offset];
+                int n = driftHorizontal*2;
+                int i;
+                if (offset + n <= srgbSize) {
+                    for (i = 0; i < n; ++i) {
+                        if ((p[i] & 1) != 0)
+                            break;
+                    }
+                }
+                else {
+                    int n2 = srgbSize - offset;
+                    for (i = 0; i < n2; ++i) {
+                        if ((p[i] & 1) != 0)
+                            break;
+                    }
+                    if (i == n2) {
+                        offset = 0;
+                        p = &_rgbi[offset];
+                        for (i = 0; i < n -  n2; ++i) {
+                            if ((p[i] & 1) != 0)
+                                break;
+                        }
+                    }
+                }
+                i = (i + offset) % srgbSize;
+                if ((_rgbi[i] & 0x80) != 0)
+                    break;
+                _rgbi[i] |= 0x80;
+                _scanlines.add(i);
+                lastScanline = i;
+            } while (true);
+            for (auto& s : _scanlines)
+                _rgbi[s] &= ~0x80;
+            int lastField = 0;
+            do {
+                int offset = (lastField + pllHeight - driftVertical) %
+                    srgbSize;
+                Byte* p = &_rgbi[offset];
+                int n = driftVertical*2;
+                int i;
+                for (i = 0; i < n; i += 57) {
+
+                }
+
+
+            } while (true);
+
+
+
+
+
+
             // Convert from RGBI to 9.7 fixed-point sRGB
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1494,9 +1554,9 @@ public:
             if (_rgbi.count() < rgbiSize) {
                 Array<Byte> rgbi(rgbiSize);
                 memcpy(&rgbi[0], &_rgbi[0], srgbSize);
-                memcpy(&rgbi[srgbSize], &_rgbi[0], rgbiSize - srgbSize);
                 _rgbi = rgbi;
             }
+            memcpy(&_rgbi[srgbSize], &_rgbi[0], rgbiSize - srgbSize);
 
             Timer timerRGBIToComposite;
             // Convert from RGBI to composite
