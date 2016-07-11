@@ -124,6 +124,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\type.h" />
     <ClInclude Include="..\..\..\..\include\alfe\user.h" />
     <ClInclude Include="..\..\..\..\include\alfe\vectors.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\wrap.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\..\include\alfe.natvis" />

@@ -10,6 +10,7 @@
 #include "alfe/knob.h"
 #include "alfe/scanlines.h"
 #include "alfe/image_filter.h"
+#include "alfe/wrap.h"
 
 template<class T> class CGA2NTSCWindowT;
 typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
@@ -1328,8 +1329,8 @@ typedef CGAMatcherT<void> CGAMatcher;
 template<class T> class CGAOutputT : public ThreadTask
 {
 public:
-    CGAOutputT(CGAData* data, CGASequencer* sequencer)
-      : _data(data), _sequencer(sequencer), window(0), _zoom(0),
+    CGAOutputT(CGAData* data, CGASequencer* sequencer, CGA2NTSCWindow* window)
+      : _data(data), _sequencer(sequencer), _window(window), _zoom(0),
         _aspectRatio(1), _inputTL(0, 0), _outputSize(0, 0)
     { }
     void run()
@@ -1390,12 +1391,8 @@ public:
             _scaler.setBleeding(_scanlineBleeding);
             Vector2<float> offset(0, 0);
             if (connector != 0) {
-                offset = Vector2<float>(-decoderPadding - 0.5f, 0);
-                switch (combFilter) {
-                    case 0: offset += Vector2<float>(0, 0); break;
-                    case 1: offset += Vector2<float>(1, -0.5f); break;
-                    case 2: offset += Vector2<float>(-2, -1); break;
-                }
+                offset = Vector2<float>(-decoderPadding - 0.5f, 0) +
+                    combFilter*Vector2<float>(1, -0.5f);
             }
             _scaler.setOffset(_inputTL + offset);
             _scaler.setZoom(scale());
@@ -1421,10 +1418,6 @@ public:
         Vector br = _scaler.inputBR();
         _unscaledSize = br - tl;
         Vector activeTL = Vector(0, 0) - tl;
-        //int carrierAlignmentAdjust = tl.x & 3;
-        //int horizontalInactive = 272 - (_activeSize.x & 3);
-        //int verticalInactive = 62;
-        //int totalWidth = _activeSize.x + horizontalInactive;
 
         int srgbSize = _data->getTotal();
         _srgb.ensure(srgbSize*3);
@@ -1436,63 +1429,125 @@ public:
         _fields.clear();
         _fieldOffsets.clear();
 
-        if (connector == 0) {
-            int lastScanline = 0;
-            do {
-                int offset = (lastScanline + pllWidth - driftHorizontal) %
-                    srgbSize;
-                Byte* p = &_rgbi[offset];
-                int n = driftHorizontal*2;
-                int i;
-                if (offset + n <= srgbSize) {
-                    for (i = 0; i < n; ++i) {
-                        if ((p[i] & 1) != 0)
+        Byte hSync = 1;
+        Byte vSync = 2;
+        if (connector != 0) {
+            hSync = 4;
+            vSync = 4;
+        }
+        int lastScanline = 0;
+        int i;
+        do {
+            int offset = (lastScanline + pllWidth - driftHorizontal) %
+                srgbSize;
+            Byte* p = &_rgbi[offset];
+            int n = driftHorizontal*2;
+            if (offset + n <= srgbSize) {
+                for (i = 0; i < n; ++i) {
+                    if ((p[i] & hSync) != 0)
+                        break;
+                }
+            }
+            else {
+                int n2 = srgbSize - offset;
+                for (i = 0; i < n2; ++i) {
+                    if ((p[i] & hSync) != 0)
+                        break;
+                }
+                if (i == n2) {
+                    offset = 0;
+                    p = &_rgbi[offset];
+                    for (i = 0; i < n -  n2; ++i) {
+                        if ((p[i] & hSync) != 0)
                             break;
+                    }
+                }
+            }
+            if ((_rgbi[i] & 0x80) != 0)
+                break;
+            _rgbi[i] |= 0x80;
+            i = (i + offset) % srgbSize;
+            _scanlines.add(i);
+            lastScanline = i;
+        } while (true);
+        int firstScanline = _scanlines.count() - 1;
+        for (; firstScanline > 0; --firstScanline) {
+            if (_scanlines[firstScanline] == i)
+                break;
+        }
+        int scanlines = _scanlines.count() - firstScanline;
+
+        for (auto& s : _scanlines)
+            _rgbi[s] &= ~0x80;
+        int lastField = 0;
+        do {
+            int offset = (lastField + pllHeight - driftVertical) %
+                srgbSize;
+            Byte* p = &_rgbi[offset];
+            int n = driftVertical*2;
+            int j;
+            int s = 0;
+            for (j = 0; j < n; j += 57) {
+                if ((p[k] & 2) != 0) {
+                    ++s;
+                    if (s == 3)
+                        break;
+                }
+                else
+                    s = 0;
+            }
+            int j;
+            int s0;
+            int s1;
+            float fieldOffset;
+            for (i = _scanlines.count() - 1; i >= 1; --i) {
+                s0 = _scanlines[i - 1];
+                if (s0 < 0)
+                    s0 = -1 - s0;
+                s1 = _scanlines[i];
+                if (s1 < 0)
+                    s1 = -1 - s1;
+                if (s0 < s1) {
+                    if (j >= s0 && j < s1) {
+                        fieldOffset = static_cast<float>(j - s0) / (s1 - s0);
+                        break;
                     }
                 }
                 else {
-                    int n2 = srgbSize - offset;
-                    for (i = 0; i < n2; ++i) {
-                        if ((p[i] & 1) != 0)
-                            break;
+                    if (j >= s0) {
+                        fieldOffset =
+                            static_cast<float>(j - s0) / (s1 + srgbSize - s0);
+                        break;
                     }
-                    if (i == n2) {
-                        offset = 0;
-                        p = &_rgbi[offset];
-                        for (i = 0; i < n -  n2; ++i) {
-                            if ((p[i] & 1) != 0)
-                                break;
+                    else {
+                        if (j < s1) {
+                            fieldOffset = static_cast<float>(j + srgbSize - s0)
+                                / (s1 + srgbSize - s0);
+                            break;
                         }
                     }
                 }
-                i = (i + offset) % srgbSize;
-                if ((_rgbi[i] & 0x80) != 0)
-                    break;
-                _rgbi[i] |= 0x80;
-                _scanlines.add(i);
-                lastScanline = i;
-            } while (true);
-            for (auto& s : _scanlines)
-                _rgbi[s] &= ~0x80;
-            int lastField = 0;
-            do {
-                int offset = (lastField + pllHeight - driftVertical) %
-                    srgbSize;
-                Byte* p = &_rgbi[offset];
-                int n = driftVertical*2;
-                int i;
-                for (i = 0; i < n; i += 57) {
+            }
+            int fo = static_cast<int>(fieldOffset * 8 + 0.5);
+            if (fo == 8) {
+                fo = 0;
+                --i;
+            }
+            if (_scanlines[i] < 0)
+                break;
+            _fields.add(i);
+            _fieldOffsets.add(fo / 8.0f);
+            _scanlines[i] = -1 - _scanlines[j];
+        } while (true);
+        int firstField = _fields.count() - 1;
+        for (; firstField > 0; --firstField) {
+            if (_fields[firstField] == i)
+                break;
+        }
+        for (auto& f : _fields)
+            _scanlines[f] = -1 - _scanlines[f];
 
-                }
-
-
-            } while (true);
-
-
-
-
-
-
+        if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1548,7 +1603,7 @@ public:
         else {
             int combedSize = srgbSize + 2*decoderPadding;
             Vector combTL = Vector(2, 1)*combFilter;
-            int ntscSize = combedSize + combTL.y*totalWidth;
+            int ntscSize = combedSize + combTL.y*pllWidth;
             _ntsc.ensure(ntscSize);
             int rgbiSize = ntscSize + 1;
             if (_rgbi.count() < rgbiSize) {
@@ -1572,7 +1627,7 @@ public:
             Timer timerDecode;
             ntsc = &_ntsc[0];
             Byte* srgb = &_srgb[0];
-            int fftLength = 512;
+            static const int fftLength = 512;
             int stride = fftLength - 2*decoderPadding;
             Byte* ntscBlock = &_ntsc[0];
             switch (combFilter) {
@@ -1622,30 +1677,25 @@ public:
                             ntscBlock = &_ntsc[j];
                             srgb = &_srgb[3*j];
                         }
-                        Byte* ntsc = ntscBlock;
-                        float* yData = _decoder.yData();
-                        float* iData = _decoder.iData();
-                        float* qData = _decoder.qData();
-                        for (int i = 0; i < fftLength; i += 4) {
-                            yData[i] = static_cast<float>(
-                                ntsc[0] + ntsc[totalWidth - 2]);
-                            yData[i + 1] = static_cast<float>(
-                                ntsc[1] + ntsc[totalWidth - 1]);
-                            yData[i + 2] = static_cast<float>(
-                                ntsc[2] + ntsc[totalWidth]);
-                            yData[i + 3] = static_cast<float>(
-                                ntsc[3] + ntsc[totalWidth + 1]);
-                            iData[0] = -static_cast<float>(
-                                ntsc[1] - ntsc[totalWidth - 1]);
-                            iData[1] = static_cast<float>(
-                                ntsc[3] - ntsc[totalWidth + 1]);
-                            qData[0] = static_cast<float>(
-                                ntsc[0] - ntsc[totalWidth - 2]);
-                            qData[1] = -static_cast<float>(
-                                ntsc[2] - ntsc[totalWidth]);
-                            ntsc += 4;
-                            iData += 2;
-                            qData += 2;
+                        Byte* n0 = ntscBlock;
+                        Byte* n1 = ntsc + pllWidth;
+                        float* y = _decoder.yData();
+                        float* i = _decoder.iData();
+                        float* q = _decoder.qData();
+                        for (int x = 0; x < fftLength; x += 4) {
+                            y[0] = static_cast<float>(n0[0] + n1[0]);
+                            y[1] = static_cast<float>(n0[1] + n1[1]);
+                            y[2] = static_cast<float>(n0[2] + n1[2]);
+                            y[3] = static_cast<float>(n0[3] + n1[3]);
+                            i[0] = -static_cast<float>(n0[1] - n1[1]);
+                            i[1] = static_cast<float>(n0[3] - n1[3]);
+                            q[0] = static_cast<float>(n0[0] - n1[0]);
+                            q[1] = -static_cast<float>(n0[2] - n1[2]);
+                            n0 += 4;
+                            n1 += 4;
+                            y += 4;
+                            i += 2;
+                            q += 2;
                         }
                         _decoder.decodeBlock(srgb);
                         srgb += stride*3;
@@ -1662,38 +1712,27 @@ public:
                             ntscBlock = &_ntsc[j];
                             srgb = &_srgb[3*j];
                         }
-                        Byte* ntsc = ntscBlock;
-                        float* yData = _decoder.yData();
-                        float* iData = _decoder.iData();
-                        float* qData = _decoder.qData();
-                        for (int i = 0; i < fftLength; i += 4) {
-                            yData[i] = static_cast<float>(ntsc[4] +
-                                ntsc[totalWidth << 1] +
-                                (ntsc[2 + totalWidth] << 1));
-                            yData[i + 1] = static_cast<float>(ntsc[5] +
-                                ntsc[1 + (totalWidth << 1)] +
-                                (ntsc[3 + totalWidth] << 1));
-                            yData[i + 2] = static_cast<float>(ntsc[6] +
-                                ntsc[2 + (totalWidth << 1)] +
-                                (ntsc[4 + totalWidth] << 1));
-                            yData[i + 3] = static_cast<float>(ntsc[7] +
-                                ntsc[3 + (totalWidth << 1)] +
-                                (ntsc[5 + totalWidth] << 1));
-                            iData[0] = -static_cast<float>(ntsc[5] +
-                                ntsc[1 + (totalWidth << 1)] -
-                                (ntsc[3 + totalWidth] << 1));
-                            iData[1] = static_cast<float>(ntsc[7] +
-                                ntsc[3 + (totalWidth << 1)] -
-                                (ntsc[5 + totalWidth] << 1));
-                            qData[0] = static_cast<float>(ntsc[4] +
-                                ntsc[totalWidth << 1] -
-                                (ntsc[2 + totalWidth] << 1));
-                            qData[1] = -static_cast<float>(ntsc[6] +
-                                ntsc[2 + (totalWidth << 1)] -
-                                (ntsc[4 + totalWidth] << 1));
-                            ntsc += 4;
-                            iData += 2;
-                            qData += 2;
+                        Byte* n0 = ntscBlock;
+                        Byte* n1 = n0 + pllWidth;
+                        Byte* n2 = n1 + pllWidth;
+                        float* y = _decoder.yData();
+                        float* i = _decoder.iData();
+                        float* q = _decoder.qData();
+                        for (int x = 0; x < fftLength; x += 4) {
+                            y[0] = static_cast<float>(n0[0] + n1[0] + 2*n2[0]);
+                            y[1] = static_cast<float>(n0[1] + n1[1] + 2*n2[1]);
+                            y[2] = static_cast<float>(n0[2] + n1[2] + 2*n2[2]);
+                            y[3] = static_cast<float>(n0[3] + n1[3] + 2*n2[3]);
+                            i[0] = static_cast<float>(2*n2[1] - n0[1] - n1[1]);
+                            i[1] = static_cast<float>(n0[3] + n1[3] - 2*n2[3]);
+                            q[0] = static_cast<float>(n0[0] + n1[0] - 2*n2[0]);
+                            q[1] = static_cast<float>(2*n2[2] - n0[2] - n1[2]);
+                            n0 += 4;
+                            n1 += 4;
+                            n2 += 4;
+                            y += 4;
+                            i += 2;
+                            q += 2;
                         }
                         _decoder.decodeBlock(srgb);
                         srgb += stride*3;
@@ -1718,16 +1757,13 @@ public:
             linear[255] = 0.0f;
         }
         Timer timerLinearize;
-        int offsetTL = tl.x + tl.y*totalWidth;
-        if (offsetTL < 0)
-            offsetTL = srgbSize - (-offsetTL)%srgbSize;
-        else
-            offsetTL = offsetTL % srgbSize;
-        const Byte* srgbRow = &_srgb[offsetTL*3];
+        tl.y = wrap(tl.y + _fields[firstField], scanlines);
         Byte* unscaledRow = _unscaled.data();
         int scanlineChannels = _unscaledSize.x*3;
-        int totalSrgbWidth = totalWidth*3;
         for (int y = 0; y < _unscaledSize.y; ++y) {
+            int offsetTL = wrap(tl.x + _scanlines[tl.y + y + firstScanline],
+                srgbSize);
+            const Byte* srgbRow = &_srgb[offsetTL*3];
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
             const Byte* srgb = srgbRow;
             if (offsetTL + _unscaledSize.x > srgbSize) {
@@ -1751,8 +1787,6 @@ public:
                     ++unscaled;
                 }
             }
-            offsetTL = (offsetTL + totalWidth) % srgbSize;
-            srgbRow = &_srgb[offsetTL*3];
             unscaledRow += _unscaled.stride();
         }
         timerLinearize.output("linearize");
@@ -1876,7 +1910,7 @@ public:
             zoom = 1.0;
         {
             Lock lock(&_mutex);
-            if (_window != 0 && _window->hWnd() != 0) {
+            if (_window->hWnd() != 0) {
                 Vector mousePosition = _window->outputMousePosition();
                 Vector size = _outputSize;
                 Vector2<float> position = Vector2Cast<float>(size)/2.0f;
@@ -1899,7 +1933,7 @@ public:
             ratio = 1.0;
         {
             Lock lock(&_mutex);
-            if (_window != 0 && _window->hWnd() != 0) {
+            if (_window->hWnd() != 0) {
                 Vector mousePosition = _window->outputMousePosition();
                 Vector size = _outputSize;
                 Vector2<float> position = Vector2Cast<float>(size)/2.0f;
@@ -2036,15 +2070,6 @@ public:
             return _outputSize;
         }
     }
-    void setWindow(CGA2NTSCWindow* window)
-    {
-        _window = window;
-        {
-            Lock lock(&_mutex);
-            _active = true;
-        }
-        restart();
-    }
     void mouseInput(Vector position, bool button)
     {
         _mousePosition = position;
@@ -2088,9 +2113,10 @@ private:
     }
 
     CGAData* _data;
+    CGASequencer* _sequencer;
     AppendableArray<int> _scanlines;    // hdot positions of scanline starts
     AppendableArray<int> _fields;       // scanline numbers of field starts
-    AppendableArray<int> _fieldOffsets; // fractional scanline numbers
+    AppendableArray<float> _fieldOffsets; // fractional scanline numbers
 
     int _connector;
     int _phase;
@@ -2263,7 +2289,6 @@ public:
         _videoCard._matching._quality.setConfig(config);
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
-    void setShower(CGAShower* shower) { _shower = shower; }
     void setOutput(CGAOutput* output) { _output = output; }
     void setProgram(Program* program) { _program = program; }
     Bitmap<DWORD> setNextBitmap(Bitmap<DWORD> bitmap)
@@ -2929,7 +2954,6 @@ private:
     KnobSliders _knobSliders;
 
     CGAMatcher* _matcher;
-    CGAShower* _shower;
     CGAOutput* _output;
     Program* _program;
     int _paletteSelected;
@@ -3145,7 +3169,7 @@ public:
         FFTWWisdom<float> wisdom(
             File(configFile.get<String>("fftWisdom"), config.parent()));
 
-        CGAOutput output(&_data, &_sequencer);
+        CGAOutput output(&_data, &_sequencer, &_window);
         _output = &output;
         _matcher.setProgram(this);
         _matcher.setData(&_data);
@@ -3264,10 +3288,8 @@ public:
         beginConvert();
 
         bool interactive = configFile.get<bool>("interactive");
-        if (interactive) {
-            output.setWindow(&_window);
+        if (interactive)
             WindowProgram::run();
-        }
 
         if (!_matchMode)
             _matcher.cancel();

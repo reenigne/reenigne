@@ -57,6 +57,7 @@ calibrate6 - 7.16MHz correct, repeatedly captures all data in one frame, graphs,
   Note: make_decoder and xtserver/testcases/hres_colours have been updated to work with calibrate6. Run overnight to get a decent number of samples
   according to make_deccoder, sample 67 is the best one (lowest fitness value)
   However, fitness values do not appear to be consistent from run to run
+  See calibrate6*.xlsx
 
 
 There is a _fitness for each block, but an _optimizing for each transition
