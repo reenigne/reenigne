@@ -43,16 +43,17 @@ public:
     //     bit 3: colour burst
     //     bit 4: CRTC hsync
     //     bit 5: CRTC vsync
+    //     bit 6: CRTC hsync | CRTC vsync
     //   Only the following blanking values actually occur:
-    //     0x10: CRTC hsync
-    //     0x15: CRT hsync (composite sync)
-    //     0x18: Colour burst (suppressed during CRTC vsync)
-    //     0x20: CRTC vsync
-    //     0x26: CRT vsync (composite sync)
-    //     0x30: CRTC hsync + CRTC vsync
-    //     0x33: CRT hsync + CRT vsync (no composite sync)
-    //     0x35: CRT hsync + CRTC vsync (composite sync)
-    //     0x36: CRTC hsync + CRT vsync (composite sync)
+    //     0x50: CRTC hsync
+    //     0x55: CRT hsync (composite sync)
+    //     0x58: Colour burst (suppressed during CRTC vsync)
+    //     0x60: CRTC vsync
+    //     0x66: CRT vsync (composite sync)
+    //     0x70: CRTC hsync + CRTC vsync
+    //     0x73: CRT hsync + CRT vsync (no composite sync)
+    //     0x75: CRT hsync + CRTC vsync (composite sync)
+    //     0x76: CRTC hsync + CRT vsync (composite sync)
     void output(int t, int n, Byte* rgbi, CGASequencer* sequencer, int phase)
     {
         Lock lock(&_mutex);
@@ -255,12 +256,14 @@ private:
         void latch()
         {
             int vRAMAddress = _memoryAddress << 1;
+            int bytesPerBank = 2 << dat(-25);
             if ((dat(-18) & 2) != 0) {
                 if ((_rowAddress & 1) != 0)
-                    vRAMAddress |= 1 << dat(-25);
+                    vRAMAddress |= bytesPerBank;
                 else
-                    vRAMAddress &= ~(1 << dat(-25));
+                    vRAMAddress &= ~bytesPerBank;
             }
+            vRAMAddress &= (bytesPerBank << 1) - 1;
             _latch = (_latch << 16) + dat(vRAMAddress) +
                 (dat(vRAMAddress + 1) << 8);
         }
@@ -300,14 +303,14 @@ private:
                     else {
                         v = (_state & 0x10) + ((_state & 0x20) >> 1);
                         static Byte sync[48] = {
-                            0x10, 0x10, 0x15, 0x15, 0x15, 0x15, 0x10, 0x18,
-                            0x18, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+                            0x50, 0x50, 0x55, 0x55, 0x55, 0x55, 0x50, 0x58,
+                            0x58, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50,
 
-                            0x30, 0x30, 0x35, 0x35, 0x35, 0x35, 0x30, 0x30,
-                            0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+                            0x70, 0x70, 0x75, 0x75, 0x75, 0x75, 0x70, 0x70,
+                            0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70,
 
-                            0x36, 0x36, 0x33, 0x33, 0x33, 0x33, 0x36, 0x36,
-                            0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36, 0x36};
+                            0x76, 0x76, 0x73, 0x73, 0x73, 0x73, 0x76, 0x76,
+                            0x76, 0x76, 0x76, 0x76, 0x76, 0x76, 0x76, 0x76};
                         if ((_state & 8) != 0) {
                             if ((mode & 1) != 0)
                                 v = sync[(_hSync >> 1) + v + (_phase >> 6)];
@@ -315,7 +318,7 @@ private:
                                 v = sync[_hSync + v];
                         }
                         else
-                            v = (_state & 0x20) != 0 ? 0x26 : 0x20;
+                            v = (_state & 0x20) != 0 ? 0x66 : 0x60;
                     }
                     memset(_rgbi, v, c);
                     _rgbi += c;
@@ -339,6 +342,17 @@ private:
                 if ((_state & 8) != 0) {
                     // Horizontal sync active
                     ++_hSync;
+                    bool crtSync = _hSync == 2;
+                    if ((mode & 1) != 0)
+                        crtSync = ((_hSync >> 1) + (_phase >> 6) == 2);
+                    if (crtSync && (_state & 0x10) != 0) {
+                        if (_vSync == 0)
+                            _state |= 0x20;
+                        else {
+                            if (_vSync == 3)
+                                _state &= ~0x20;
+                        }
+                    }
                     if ((_hSync & 0x0f) == dat(-13)) {
                         // End of horizontal sync
                         _state &= ~8;
@@ -348,14 +362,6 @@ private:
                     // Start of horizontal sync
                     _state |= 8;
                     _hSync = 0;
-                    if ((_state & 0x10) != 0) {
-                        if (_vSync == 0)
-                            _state |= 0x20;
-                        else {
-                            if (_vSync == 3)
-                                _state &= ~0x20;
-                        }
-                    }
                 }
                 if (_character == dat(-16) + (dat(-24) << 8)) {
                     // End of scanline
@@ -482,9 +488,9 @@ private:
                 }
                 highStart = highTest;
                 break;
-            } while (true);
+            }
             *start = lowStart;
-            *end = highStart + 1;
+            *end = highEnd;
         }
         void change(int t, int address, int count, const Byte* data,
             int leftTotal, int rightTotal)
@@ -537,6 +543,7 @@ private:
                     changes[start] = Change(address, data, count);
                     for (int i = start; i < _changes.count(); ++i)
                         changes[i + 1] = _changes[i];
+                    _changes = changes;
                 }
                 return;
             }
@@ -772,7 +779,7 @@ public:
     void run()
     {
         _composite.setBW((_mode & 4) != 0);
-        bool newCGA = connector == 2;
+        bool newCGA = _connector == 2;
         _composite.setNewCGA(newCGA);
         _composite.initChroma();
         double black = _composite.black();
@@ -780,8 +787,8 @@ public:
         _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
         _decoder.setSaturation(_saturation*2.9*(newCGA ? 1.5 : 1.0));
         _decoder.setContrast(_contrast*256*(newCGA ? 1.2 : 1)/(white - black));
-        _decoder.setBrightness(-black*_contrast +
-            (_brightness + (newCGA ? -10 : 0))*5);
+        _decoder.setBrightness((-black*_contrast +
+            _brightness*5 + (newCGA ? -50 : 0))/256.0);
 
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
@@ -1217,15 +1224,15 @@ private:
     {
         Byte cgaRegisters[25] = { 0 };
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
-        _horizontalDisplayed = (size.x + _hdotsPerChar - 1)/_hdotsPerChar;
+        _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
         int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
-        int rows = (size.y + scanlinesPerRow - 1)/scanlinesPerRow;
+        int rows = (_size.y + scanlinesPerRow - 1)/scanlinesPerRow;
         int logCharactersPerBank = 0;
         while ((1 << logCharactersPerBank) < _horizontalDisplayed*rows)
             ++logCharactersPerBank;
-        int horizontalTotal = _horizontalDisplayed + 272/hdotsPerChar;
-        int horizontalSyncPosition = _horizontalDisplayed + 80/hdotsPerChar;
-        int totalScanlines = size.y + 62;
+        int horizontalTotal = _horizontalDisplayed + 272/_hdotsPerChar;
+        int horizontalSyncPosition = _horizontalDisplayed + 80/_hdotsPerChar;
+        int totalScanlines = _size.y + 62;
         int verticalTotal = totalScanlines/scanlinesPerRow;
         int verticalTotalAdjust =
             totalScanlines - verticalTotal*scanlinesPerRow;
@@ -1235,7 +1242,7 @@ private:
             verticalTotal = 128;
         }
         int verticalSyncPosition = rows + 24/scanlinesPerRow;
-        int hdotsPerScanline = horizontalTotal*hdotsPerChar;
+        int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
         cgaRegisters[0] = logCharactersPerBank;
         cgaRegisters[1] = horizontalTotal >> 8;
         cgaRegisters[2] = _horizontalDisplayed >> 8;
@@ -1263,7 +1270,7 @@ private:
             last += 2 << logCharactersPerBank;
         _data->change(0, last, 0);
         _data->setTotals(hdotsPerScanline*totalScanlines, hdotsPerScanline - 2,
-            static_cast<int>(hdotsPerScanline*262.5));
+            static_cast<int>((hdotsPerScanline - 2)*(totalScanlines + 0.5)));
     }
 
     int _phase;
@@ -1331,7 +1338,7 @@ template<class T> class CGAOutputT : public ThreadTask
 public:
     CGAOutputT(CGAData* data, CGASequencer* sequencer, CGA2NTSCWindow* window)
       : _data(data), _sequencer(sequencer), _window(window), _zoom(0),
-        _aspectRatio(1), _inputTL(0, 0), _outputSize(0, 0)
+        _aspectRatio(1), _inputTL(0, 0), _outputSize(0, 0), _active(false)
     { }
     void run()
     {
@@ -1342,30 +1349,28 @@ public:
         bool showClipping;
         float brightness;
         float contrast;
-        int decoderPadding = 32;
+        Vector2<float> inputTL;
+        float overscan;
+        double zoom;
+        double aspectRatio;
+        static const int decoderPadding = 32;
         {
             Lock lock(&_mutex);
+            if (!_active)
+                return;
 
             int total = _data->getTotal();
             _rgbi.ensure(total);
             _data->output(0, total, &_rgbi[0], _sequencer, _phase);
 
-            if (_outputSize.zeroArea()) {
-                _inputTL = Vector2<float>(0, 0.25f) -
-                    static_cast<float>(_overscan)*
-                    Vector2Cast<float>(_activeSize);
-
-                double o = 1 + 2*_overscan;
-                double y = _zoom*_activeSize.y*o;
-                double x = _zoom*_activeSize.x*o*_aspectRatio/2;
-                _outputSize = Vector(static_cast<int>(x + 0.5),
-                    static_cast<int>(y + 0.5));
-            }
-
             connector = _connector;
             combFilter = _combFilter;
             showClipping = _showClipping;
             outputSize = _outputSize;
+            inputTL = _inputTL;
+            overscan = static_cast<float>(_overscan);
+            zoom = _zoom;
+            aspectRatio = _aspectRatio;
             Byte mode = _data->getData(-18);
             _composite.setBW((mode & 4) != 0);
             bool newCGA = connector == 2;
@@ -1380,8 +1385,8 @@ public:
             _decoder.setContrast(_contrast*256*(newCGA ? 1.2 : 1)/
                 (combDivisors[combFilter]*(white - black)));
             brightness = static_cast<float>(_brightness);
-            _decoder.setBrightness(-black*_contrast +
-                (_brightness + (newCGA ? -10 : 0))*5);
+            _decoder.setBrightness((-black*_contrast +
+                _brightness*5 + (newCGA ? -50 : 0))/256.0);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setRollOff(_rollOff);
@@ -1389,35 +1394,8 @@ public:
             _scaler.setProfile(_scanlineProfile);
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
             _scaler.setBleeding(_scanlineBleeding);
-            Vector2<float> offset(0, 0);
-            if (connector != 0) {
-                offset = Vector2<float>(-decoderPadding - 0.5f, 0) +
-                    combFilter*Vector2<float>(1, -0.5f);
-            }
-            _scaler.setOffset(_inputTL + offset);
             _scaler.setZoom(scale());
         }
-
-        _scaler.setOutputSize(outputSize);
-        Byte burst[4];
-        for (int i = 0; i < 4; ++i)
-            burst[i] = _composite.simulateCGA(6, 6, i);
-
-        _decoder.setPadding(decoderPadding);
-        Timer timerDecoderInit;
-        _decoder.calculateBurst(burst);
-        timerDecoderInit.output("decoder init");
-
-        _bitmap.ensure(outputSize);
-        //Timer timerScalerInit;
-        _scaler.init();
-        //timerScalerInit.output("scaler init");
-        _unscaled = _scaler.input();
-        _scaled = _scaler.output();
-        Vector tl = _scaler.inputTL();
-        Vector br = _scaler.inputBR();
-        _unscaledSize = br - tl;
-        Vector activeTL = Vector(0, 0) - tl;
 
         int srgbSize = _data->getTotal();
         _srgb.ensure(srgbSize*3);
@@ -1429,14 +1407,15 @@ public:
         _fields.clear();
         _fieldOffsets.clear();
 
-        Byte hSync = 1;
-        Byte vSync = 2;
+        Byte hSync = 0x41;
+        Byte vSync = 0x42;
         if (connector != 0) {
-            hSync = 4;
-            vSync = 4;
+            hSync = 0x44;
+            vSync = 0x44;
         }
         int lastScanline = 0;
         int i;
+        Vector2<float> activeSize(0, 0);
         do {
             int offset = (lastScanline + pllWidth - driftHorizontal) %
                 srgbSize;
@@ -1444,30 +1423,23 @@ public:
             int n = driftHorizontal*2;
             if (offset + n <= srgbSize) {
                 for (i = 0; i < n; ++i) {
-                    if ((p[i] & hSync) != 0)
+                    if ((p[i] & hSync) == hSync)
                         break;
                 }
             }
             else {
-                int n2 = srgbSize - offset;
-                for (i = 0; i < n2; ++i) {
-                    if ((p[i] & hSync) != 0)
+                for (i = 0; i < n; ++i) {
+                    if ((_rgbi[(offset + i) % srgbSize] & hSync) == hSync)
                         break;
                 }
-                if (i == n2) {
-                    offset = 0;
-                    p = &_rgbi[offset];
-                    for (i = 0; i < n -  n2; ++i) {
-                        if ((p[i] & hSync) != 0)
-                            break;
-                    }
-                }
             }
+            i = (i + offset) % srgbSize;
+            activeSize.x = max(activeSize.x,
+                static_cast<float>(wrap(i - lastScanline, srgbSize)));
             if ((_rgbi[i] & 0x80) != 0)
                 break;
             _rgbi[i] |= 0x80;
-            i = (i + offset) % srgbSize;
-            _scanlines.add(i);
+            _scanlines.append(i);
             lastScanline = i;
         } while (true);
         int firstScanline = _scanlines.count() - 1;
@@ -1487,24 +1459,39 @@ public:
             int n = driftVertical*2;
             int j;
             int s = 0;
-            for (j = 0; j < n; j += 57) {
-                if ((p[k] & 2) != 0) {
-                    ++s;
-                    if (s == 3)
-                        break;
+            if (offset + n <= srgbSize) {
+                for (j = 0; j < n; j += 57) {
+                    if ((p[j] & vSync) == vSync) {
+                        ++s;
+                        if (s == 3)
+                            break;
+                    }
+                    else
+                        s = 0;
                 }
-                else
-                    s = 0;
             }
-            int j;
+            else {
+                for (j = 0; j < n; j += 57) {
+                    if ((_rgbi[(offset + j) % srgbSize] & vSync) == vSync) {
+                        ++s;
+                        if (s == 3)
+                            break;
+                    }
+                    else
+                        s = 0;
+                }
+            }
+            j = (j + offset) % srgbSize;
+            lastField = j;
             int s0;
             int s1;
             float fieldOffset;
-            for (i = _scanlines.count() - 1; i >= 1; --i) {
-                s0 = _scanlines[i - 1];
+            for (i = 0; i < scanlines; ++i) {
+                s0 = _scanlines[
+                    (firstScanline + scanlines + i - 1) % scanlines];
                 if (s0 < 0)
                     s0 = -1 - s0;
-                s1 = _scanlines[i];
+                s1 = _scanlines[firstScanline + i];
                 if (s1 < 0)
                     s1 = -1 - s1;
                 if (s0 < s1) {
@@ -1531,13 +1518,22 @@ public:
             int fo = static_cast<int>(fieldOffset * 8 + 0.5);
             if (fo == 8) {
                 fo = 0;
-                --i;
+                i = (i + 1) % scanlines;
             }
-            if (_scanlines[i] < 0)
+            float f = fo/8.0f;
+            int c = _fields.count() - 1;
+            if (c >= 0) {
+                int iLast = _fields[c];
+                float fLast = _fieldOffsets[c];
+                int lines = (i - iLast + scanlines - 1) % scanlines + 1;
+                activeSize.y = max(activeSize.y,
+                    static_cast<float>(lines) + f - fLast);
+            }
+            if (_scanlines[firstScanline + i] < 0)
                 break;
-            _fields.add(i);
-            _fieldOffsets.add(fo / 8.0f);
-            _scanlines[i] = -1 - _scanlines[j];
+            _fields.append(i);
+            _fieldOffsets.append(f);
+            _scanlines[firstScanline + i] = -1 - _scanlines[firstScanline + i];
         } while (true);
         int firstField = _fields.count() - 1;
         for (; firstField > 0; --firstField) {
@@ -1545,7 +1541,44 @@ public:
                 break;
         }
         for (auto& f : _fields)
-            _scanlines[f] = -1 - _scanlines[f];
+            _scanlines[firstScanline + f] = -1 - _scanlines[firstScanline + f];
+
+        // Assume standard overscan/blank/sync areas
+        activeSize -= Vector2<float>(272, 62);
+
+        if (outputSize.zeroArea()) {
+            inputTL = Vector2<float>(0, 0.25f) - overscan*activeSize;
+            double o = 1 + 2*overscan;
+            double y = zoom*activeSize.y*o;
+            double x = zoom*activeSize.x*o*aspectRatio/2;
+            outputSize = Vector(static_cast<int>(x + 0.5),
+                static_cast<int>(y + 0.5));
+
+            Lock lock(&_mutex);
+            _inputTL = inputTL;
+            _outputSize = outputSize;
+        }
+        Vector2<float> offset(0, 0);
+        if (connector != 0) {
+            offset = Vector2<float>(-decoderPadding - 0.5f, 0) +
+                static_cast<float>(combFilter)*Vector2<float>(1, -0.5f);
+        }
+        _scaler.setOffset(inputTL + offset);
+        _scaler.setOutputSize(outputSize);
+        Byte burst[4];
+        for (int i = 0; i < 4; ++i)
+            burst[i] = _composite.simulateCGA(6, 6, i);
+
+        _bitmap.ensure(outputSize);
+        //Timer timerScalerInit;
+        _scaler.init();
+        //timerScalerInit.output("scaler init");
+        _unscaled = _scaler.input();
+        _scaled = _scaler.output();
+        Vector tl = _scaler.inputTL();
+        Vector br = _scaler.inputBR();
+        _unscaledSize = br - tl;
+        Vector activeTL = Vector(0, 0) - tl;
 
         if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
@@ -1568,24 +1601,17 @@ public:
             // burst, or blanking since these are not output on the actual
             // connector. Blanking is visible as black if the overscan is a
             // non-black colour.
-            static const int palette[3*55] = {
+            int palette[3*0x78] = {
                 0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
                 2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
                 1, 1, 1,  1, 1, 3,  1, 3, 1,  1, 3, 3,
-                3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3,
-
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0,
-                0, 0, 0,  0, 1, 0,  1, 0, 0};
-            Byte srgbPalette[3*55];
-            for (int i = 0; i < 3*55; ++i)
+                3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
+            static int overscanPalette[3*4] = {
+                0, 0, 0,  0, 1, 0,  1, 0, 0,  1, 1, 0};
+            for (int i = 3*0x10; i < 3*0x78; i += 3*4)
+                memcpy(palette + i, overscanPalette, 3*4*sizeof(int));
+            Byte srgbPalette[3*0x77];
+            for (int i = 0; i < 3*0x77; ++i)
                 srgbPalette[i] = levels[palette[i]];
             Timer timerRGBIToSRGB;
             const Byte* rgbi = &_rgbi[0];
@@ -1601,6 +1627,11 @@ public:
             timerRGBIToSRGB.output("rgbi to srgb");
         }
         else {
+            _decoder.setPadding(decoderPadding);
+            Timer timerDecoderInit;
+            _decoder.calculateBurst(burst);
+            timerDecoderInit.output("decoder init");
+
             int combedSize = srgbSize + 2*decoderPadding;
             Vector combTL = Vector(2, 1)*combFilter;
             int ntscSize = combedSize + combTL.y*pllWidth;
@@ -1761,7 +1792,8 @@ public:
         Byte* unscaledRow = _unscaled.data();
         int scanlineChannels = _unscaledSize.x*3;
         for (int y = 0; y < _unscaledSize.y; ++y) {
-            int offsetTL = wrap(tl.x + _scanlines[tl.y + y + firstScanline],
+            int offsetTL = wrap(
+                tl.x + _scanlines[(tl.y + y)%scanlines + firstScanline],
                 srgbSize);
             const Byte* srgbRow = &_srgb[offsetTL*3];
             float* unscaled = reinterpret_cast<float*>(unscaledRow);
@@ -1962,6 +1994,7 @@ public:
         {
             Lock lock(&_mutex);
             _outputSize = outputSize;
+            _active = true;
         }
         restart();
     }
@@ -2062,6 +2095,7 @@ public:
             Lock lock(&_mutex);
             if (!_outputSize.zeroArea())
                 return _outputSize;
+            _active = true;
         }
         restart();
         join();
@@ -2137,6 +2171,7 @@ private:
     double _rollOff;
     int _combFilter;
     bool _showClipping;
+    bool _active;
 
     Bitmap<DWORD> _bitmap;
     Bitmap<DWORD> _lastBitmap;

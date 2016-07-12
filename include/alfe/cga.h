@@ -272,7 +272,7 @@ public:
             b = m*c;
         }
 
-        for (int x = 0; x < 55*4; ++x) {
+        for (int x = 0; x < 0x77*4; ++x) {
             double q;
             if ((x & 0x10) != 0) {
                 // Sync
@@ -295,7 +295,7 @@ public:
     {
         if ((left | right) < 16)
             return _table[((left & 15) << 6) + ((right & 15) << 2) + phase];
-        return _syncTable[(left << 4) + phase];
+        return _syncTable[(left << 2) + phase];
     }
     void simulateLine(const Byte* rgbi, Byte* ntsc, int length, int phase)
     {
@@ -391,7 +391,7 @@ private:
     bool _newCGA;
     bool _bw;
     Byte _table[1024];
-    Byte _syncTable[55*4];
+    Byte _syncTable[0x77*4];
     double _black;
     double _white;
 };

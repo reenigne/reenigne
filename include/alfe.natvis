@@ -233,6 +233,15 @@
       <ExpandedItem>_t</ExpandedItem>
     </Expand>
   </Type>
+  <Type Name="Array&lt;*&gt;::Body&lt;Array&lt;*&gt;::AppendableBaseBody&gt;" ExcludeView="count">
+    <DisplayString>Array {_size,d} {((int)this) + 16,x}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>_size</Size>
+        <ValuePointer>($T1*)(((char*)this) + 16)</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;*&gt;" IncludeView="count">
     <DisplayString>{_size,d}</DisplayString>
     <Expand>
@@ -240,7 +249,7 @@
     </Expand>
   </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;*&gt;" ExcludeView="count">
-    <DisplayString>Array {_size,d}</DisplayString>
+    <DisplayString>Array {_size,d} {((int)this) + 12,x}</DisplayString>
     <Expand>
       <ArrayItems>
         <Size>_size</Size>
