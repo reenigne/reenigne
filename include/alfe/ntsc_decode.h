@@ -817,7 +817,7 @@ public:
         iq.y = static_cast<float>(burst[1] - burst[3]);
         Complex<float> iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            _contrast*2/iq.modulus()/static_cast<float>(_length);
+            _contrast/iq.modulus()/static_cast<float>(_length);
         _contrast2 = _contrast/_length;
         _brightness2 = _brightness*256.0f;
         int fLength = _length/2 + 1;
