@@ -634,7 +634,7 @@ private:
             if (t >= 0 && _changes.count() != 0) {
                 int start, end;
                 findChanges(address, count, &start, &end);
-                for (int i = start; i < end; ++i) {
+                for (int i = start; i <= end; ++i) {
                     gotCount = _changes[i].getData(result, gotResult, address,
                         count, gotCount);
                 }
@@ -754,7 +754,7 @@ private:
 template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
-    CGAMatcherT() : _skip(256)
+    CGAMatcherT() : _skip(256), _active(false)
     {
         _patterns.allocate(0x10000*8*17 + 0x100*80*5);
     }
@@ -766,6 +766,7 @@ public:
         _input2.fill(SRGB(0, 0, 0));
         _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
         _configs.allocate(_size.y);
+        _active = true;
         initData();
     }
     void setProgram(Program* program) { _program = program; }
@@ -786,10 +787,11 @@ public:
         double black = _composite.black();
         double white = _composite.white();
         _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
-        _decoder.setSaturation(_saturation*2.9*(newCGA ? 1.5 : 1.0));
-        _decoder.setContrast(_contrast*256*(newCGA ? 1.2 : 1)/(white - black));
-        _decoder.setBrightness((-black*_contrast +
-            _brightness*500 + (newCGA ? -50 : 0))/256.0);
+        _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
+        double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+        _decoder.setContrast(c);
+        _decoder.setBrightness((-black*c +
+            _brightness*5 + (newCGA ? -50 : 0))/256.0);
 
         Byte burst[4];
         for (int i = 0; i < 4; ++i)
@@ -1200,17 +1202,17 @@ public:
         _diffusionTemporal = static_cast<int>(diffusionTemporal*256);
     }
     double getDiffusionTemporal() { return _diffusionTemporal/256.0; }
-    void setMode(int mode) { _mode = mode; }
+    void setMode(int mode) { _mode = mode; initData(); }
     int getMode() { return _mode; }
-    void setPalette(int palette) { _palette = palette; }
+    void setPalette(int palette) { _palette = palette; initData(); }
     int getPalette() { return _palette; }
-    void setScanlinesPerRow(int v) { _scanlinesPerRow = v; }
+    void setScanlinesPerRow(int v) { _scanlinesPerRow = v; initData(); }
     int getScanlinesPerRow() { return _scanlinesPerRow; }
-    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; }
+    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; initData(); }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
-    void setPhase(int phase) { _phase = phase; }
+    void setPhase(int phase) { _phase = phase; initData(); }
     int getPhase() { return _phase; }
-    void setInterlace(int interlace) { _interlace = interlace; }
+    void setInterlace(int interlace) { _interlace = interlace; initData(); }
     int getInterlace() { return _interlace; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
@@ -1229,6 +1231,8 @@ public:
 private:
     void initData()
     {
+        if (!_active)
+            return;
         Byte cgaRegisters[25] = { 0 };
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
         _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
@@ -1280,6 +1284,7 @@ private:
             static_cast<int>((hdotsPerScanline - 2)*(totalScanlines + 0.5)));
     }
 
+    bool _active;
     int _phase;
     int _mode;
     int _palette;
@@ -1387,14 +1392,15 @@ public:
             double black = _composite.black();
             double white = _composite.white();
             _decoder.setHue(_hue + ((mode & 1) != 0 ? 14 : 4));
-            _decoder.setSaturation(_saturation*2.9*(newCGA ? 1.5 : 1.0));
-            contrast = static_cast<float>(_contrast);
+            _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
+            contrast = static_cast<float>(_contrast/100);
             static const double combDivisors[3] = {1, 2, 4};
-            _decoder.setContrast(_contrast*256*(newCGA ? 1.2 : 1)/
-                (combDivisors[combFilter]*(white - black)));
-            brightness = static_cast<float>(_brightness);
-            _decoder.setBrightness((-black*_contrast +
-                _brightness*500 + (newCGA ? -50 : 0))/256.0);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/
+                (combDivisors[combFilter]*(white - black)*100);
+            _decoder.setContrast(c);
+            brightness = static_cast<float>(_brightness/100);
+            _decoder.setBrightness((-black*c +
+                _brightness*5 + (newCGA ? -50 : 0))/256.0);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setRollOff(_rollOff);
@@ -1573,9 +1579,6 @@ public:
         }
         _scaler.setOffset(inputTL + offset);
         _scaler.setOutputSize(outputSize);
-        Byte burst[4];
-        for (int i = 0; i < 4; ++i)
-            burst[i] = _composite.simulateCGA(6, 6, i);
 
         _bitmap.ensure(outputSize);
         //Timer timerScalerInit;
@@ -1637,6 +1640,9 @@ public:
         else {
             _decoder.setPadding(decoderPadding);
             Timer timerDecoderInit;
+            Byte burst[4];
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, (i + 3) & 3);
             _decoder.calculateBurst(burst);
             timerDecoderInit.output("decoder init");
 
@@ -1657,7 +1663,7 @@ public:
             const Byte* rgbi = &_rgbi[0];
             Byte* ntsc = &_ntsc[0];
             for (int x = 0; x < ntscSize; ++x) {
-                *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], (x + 1) & 3);
+                *ntsc = _composite.simulateCGA(*rgbi, rgbi[1], x & 3);
                 ++rgbi;
                 ++ntsc;
             }
@@ -1899,7 +1905,7 @@ public:
     void save(String outputFileName)
     {
         setOutputSize(Vector(0, 0));
-
+        join();
         _lastBitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
 
         if (_connector != 0) {
@@ -2271,8 +2277,10 @@ public:
             _matcher->getScanlinesRepeat() - 1);
         _videoCard._registers._phase.setCheckState(_matcher->getPhase() == 0);
         _videoCard._registers._interlace.set(_matcher->getInterlace());
-        _videoCard._matching._matchMode.setCheckState(
-            _program->getMatchMode());
+        bool matchMode = _program->getMatchMode();
+        _videoCard._matching._matchMode.setCheckState(matchMode);
+        if (!matchMode)
+            _videoCard._matching._matchMode.enableWindow(false);
         _videoCard._matching._diffusionHorizontal.setValue(
             _matcher->getDiffusionHorizontal());
         _videoCard._matching._diffusionVertical.setValue(
@@ -2590,19 +2598,19 @@ private:
                 _brightness.setValueSet(
                     [&](double value) { _host->brightnessSet(value); });
                 _brightness.setText("Brightness: ");
-                _brightness.setRange(-2, 2);
+                _brightness.setRange(-50, 50);
                 add(&_brightness);
                 _saturation.setSliders(sliders);
                 _saturation.setValueSet(
                     [&](double value) { _host->saturationSet(value); });
                 _saturation.setText("Saturation: ");
-                _saturation.setRange(0, 4);
+                _saturation.setRange(0, 400);
                 add(&_saturation);
                 _contrast.setSliders(sliders);
                 _contrast.setValueSet(
                     [&](double value) { _host->contrastSet(value); });
                 _contrast.setText("Contrast: ");
-                _contrast.setRange(0, 4);
+                _contrast.setRange(0, 400);
                 add(&_contrast);
                 _hue.setSliders(sliders);
                 _hue.setValueSet([&](double value) { _host->hueSet(value); });
@@ -3006,6 +3014,18 @@ private:
     friend class OutputWindow;
 };
 
+bool endsIn(String s, String suffix)
+{
+    int l = suffix.length();
+    int o = s.length() - l;
+    if (o < 0)
+        return false;
+    for (int i = 0; i < l; ++i)
+        if (tolower(s[i + o]) != tolower(suffix[i]))
+            return false;
+    return true;
+}
+
 class BitmapValue : public Structure
 {
 public:
@@ -3015,8 +3035,11 @@ public:
         // We parse the filename relative to the current directory here instead
         // of relative to the config file path because the filename usually
         // comes from the command line.
-        _bitmap = PNGFileFormat<SRGB>().load(File(filename, true));
-        Vector size = _bitmap.size();
+        Vector size(0, 0);
+        if (endsIn(filename, ".png")) {
+            _bitmap = PNGFileFormat<SRGB>().load(File(filename, true));
+            size = _bitmap.size();
+        }
         _size.set("x", size.x, Span());
         _size.set("y", size.y, Span());
     }
@@ -3032,7 +3055,9 @@ public:
     {
         return _name == other._name;
     }
+    bool isPNG() { return _isPNG; }
 private:
+    bool _isPNG;
     Structure _size;
     String _name;
     Bitmap<SRGB> _bitmap;
@@ -3144,10 +3169,9 @@ public:
         configFile.addDefaultOption("interlaceMode", 0);
         configFile.addDefaultOption("scanlinesPerRow", 2);
         configFile.addDefaultOption("scanlinesRepeat", 1);
-        configFile.addDefaultOption("matchMode", true);
-        configFile.addDefaultOption("contrast", 1.0);
+        configFile.addDefaultOption("contrast", 100.0);
         configFile.addDefaultOption("brightness", 0.0);
-        configFile.addDefaultOption("saturation", 1.0);
+        configFile.addDefaultOption("saturation", 100.0);
         configFile.addDefaultOption("hue", 0.0);
         configFile.addDefaultOption("showClipping", false);
         configFile.addDefaultOption("chromaBandwidth", 1.0);
@@ -3179,19 +3203,13 @@ public:
 
         if (_arguments.count() < 2) {
             console.write("Syntax: " + _arguments[0] +
-                " <input file name>(.png|.config)\n");
+                " <input file name>(.png|.dat|.cgad|.config)\n");
             return;
         }
         String configPath = _arguments[1];
         int n = configPath.length();
-        bool isPng = false;
-        if (n > 4) {
-            auto p = &configPath[n - 4];
-            if (p[0] == '.' && (p[1] == 'p' || p[1] == 'P') &&
-                (p[2] == 'n' || p[2] == 'N') && (p[3] == 'g' || p[3] == 'G'))
-                isPng = true;
-        }
-        if (isPng) {
+        if (endsIn(configPath, ".png") || endsIn(configPath, ".dat") ||
+            endsIn(configPath, ".cgad")) {
             configPath = "default.config";
             arguments.add(_arguments[0] + " " + configPath);
             for (int i = 1; i < _arguments.count(); ++i)
@@ -3324,7 +3342,16 @@ public:
         }
 
         _matcher.setInput(input);
-        setMatchMode(configFile.get<bool>("matchMode"));
+        bool isPNG = bitmapValue.isPNG();
+        String inputName = bitmapValue.name();
+        setMatchMode(isPNG);
+        if (!isPNG) {
+            File file(inputName, true);
+            if (endsIn(inputName, ".cgad"))
+                _data.load(file);
+            else
+                _data.loadVRAM(file);
+        }
 
         Timer timer;
 
@@ -3373,6 +3400,8 @@ public:
     {
         if (_matchMode)
             _matcher.restart();
+        else
+            _output->restart();
     }
 private:
     CGAData _data;
