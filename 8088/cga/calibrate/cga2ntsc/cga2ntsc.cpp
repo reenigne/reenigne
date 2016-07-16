@@ -15,16 +15,6 @@
 template<class T> class CGA2NTSCWindowT;
 typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
 
-static const SRGB rgbiPalette[16] = {
-    SRGB(0x00, 0x00, 0x00), SRGB(0x00, 0x00, 0xaa),
-    SRGB(0x00, 0xaa, 0x00), SRGB(0x00, 0xaa, 0xaa),
-    SRGB(0xaa, 0x00, 0x00), SRGB(0xaa, 0x00, 0xaa),
-    SRGB(0xaa, 0x55, 0x00), SRGB(0xaa, 0xaa, 0xaa),
-    SRGB(0x55, 0x55, 0x55), SRGB(0x55, 0x55, 0xff),
-    SRGB(0x55, 0xff, 0x55), SRGB(0x55, 0xff, 0xff),
-    SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
-    SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
-
 class CGAData : Uncopyable
 {
 public:
@@ -175,8 +165,7 @@ public:
     }
     void saveVRAM(File file)
     {
-        Lock lock(&_mutex);
-        file.openWrite().write(getData(0, 0, _endAddress));
+        file.openWrite().write(getData(0, _endAddress, 0));
     }
     void loadVRAM(File file)
     {
@@ -185,14 +174,20 @@ public:
         Array<Byte> data;
         file.readIntoArray(&data);
         changeNoLock(0, 0, data.count(), &data[0]);
-        static Byte defaultRegisters[25] = {
-            12, 0, 0, 0, 0, 0, 0, 0x1a, 0x0f, 0x38, 0x28, 0x2d, 0x0a, 0x7f,
-            0x06, 0x64, 0x70, 2, 1, 6, 7, 0, 0, 0, 0};
-        changeNoLock(0, -25, 25, &defaultRegisters[0]);
     }
-    Byte getData(int address, int t = 0)
+    Byte getDataByte(int address, int t = 0)
     {
-        return getData(t, address, 1)[0];
+        return getData(address, 1, t)[0];
+    }
+    Array<Byte> getData(int address, int count, int t = 0)
+    {
+        Lock lock(&_mutex);
+        Array<Byte> result(count);
+        Array<bool> gotResult(count);
+        for (int i = 0; i < count; ++i)
+            gotResult[i] = false;
+        _root.getData(&result, &gotResult, t, address, count, 0, _total, 0);
+        return result;
     }
 
 private:
@@ -211,15 +206,6 @@ private:
         return *reinterpret_cast<DWord*>(&(*data)[offset]);
     }
 
-    Array<Byte> getData(int t, int address, int count)
-    {
-        Array<Byte> result(count);
-        Array<bool> gotResult(count);
-        for (int i = 0; i < count; ++i)
-            gotResult[i] = false;
-        _root.getData(&result, &gotResult, t, address, count, 0, _total, 0);
-        return result;
-    }
     struct Change
     {
         Change() { }
@@ -312,8 +298,9 @@ private:
                             0x76, 0x76, 0x73, 0x73, 0x73, 0x73, 0x76, 0x76,
                             0x76, 0x76, 0x76, 0x76, 0x76, 0x76, 0x76, 0x76};
                         if ((_state & 8) != 0) {
-                            if ((mode & 1) != 0)
-                                v = sync[(_hSync >> 1) + v + (_phase >> 6)];
+                            if ((mode & 1) != 0) {
+                                v = sync[((_hSync + (_phase >> 6)) >> 1) + v];
+                            }
                             else
                                 v = sync[_hSync + v];
                         }
@@ -344,7 +331,7 @@ private:
                     ++_hSync;
                     bool crtSync = _hSync == 2;
                     if ((mode & 1) != 0)
-                        crtSync = ((_hSync >> 1) + (_phase >> 6) == 2);
+                        crtSync = (((_hSync + (_phase >> 6)) >> 1) == 2);
                     if (crtSync && (_state & 0x10) != 0) {
                         if (_vSync == 0)
                             _state |= 0x20;
@@ -767,6 +754,11 @@ public:
         _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
         _configs.allocate(_size.y);
         _active = true;
+        initData();
+    }
+    void setSize(Vector size)
+    {
+        _size = size;
         initData();
     }
     void setProgram(Program* program) { _program = program; }
@@ -1384,7 +1376,7 @@ public:
             overscan = static_cast<float>(_overscan);
             zoom = _zoom;
             aspectRatio = _aspectRatio;
-            Byte mode = _data->getData(-18);
+            Byte mode = _data->getDataByte(-18);
             _composite.setBW((mode & 4) != 0);
             bool newCGA = connector == 2;
             _composite.setNewCGA(newCGA);
@@ -3036,7 +3028,8 @@ public:
         // of relative to the config file path because the filename usually
         // comes from the command line.
         Vector size(0, 0);
-        if (endsIn(filename, ".png")) {
+        _isPNG = endsIn(filename, ".png");
+        if (_isPNG) {
             _bitmap = PNGFileFormat<SRGB>().load(File(filename, true));
             size = _bitmap.size();
         }
@@ -3113,6 +3106,16 @@ public:
         Body(BitmapType bitmapType) : _bitmapType(bitmapType) { }
         Value evaluate(List<Value> arguments, Span span) const
         {
+            static const SRGB rgbiPalette[16] = {
+                SRGB(0x00, 0x00, 0x00), SRGB(0x00, 0x00, 0xaa),
+                SRGB(0x00, 0xaa, 0x00), SRGB(0x00, 0xaa, 0xaa),
+                SRGB(0xaa, 0x00, 0x00), SRGB(0xaa, 0x00, 0xaa),
+                SRGB(0xaa, 0x55, 0x00), SRGB(0xaa, 0xaa, 0xaa),
+                SRGB(0x55, 0x55, 0x55), SRGB(0x55, 0x55, 0xff),
+                SRGB(0x55, 0xff, 0x55), SRGB(0x55, 0xff, 0xff),
+                SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
+                SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
+
             auto bitmap = static_cast<BitmapValue*>(
                 arguments.begin()->value<Structure*>())->bitmap();
             Vector size = bitmap.size();
@@ -3249,12 +3252,9 @@ public:
         _matcher.setQuality(configFile.get<double>("quality"));
         _matcher.setInterlace(configFile.get<int>("interlaceMode"));
         _matcher.setCharacterSet(configFile.get<int>("characterSet"));
-        Byte mode = configFile.get<int>("mode");
-        _matcher.setMode(mode);
-        Byte palette = configFile.get<int>("palette");
-        _matcher.setPalette(palette);
-        int scanlinesPerRow = configFile.get<int>("scanlinesPerRow");
-        _matcher.setScanlinesPerRow(scanlinesPerRow);
+        _matcher.setMode(configFile.get<int>("mode"));
+        _matcher.setPalette(configFile.get<int>("palette"));
+        _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         int scanlinesRepeat = configFile.get<int>("scanlinesRepeat");
         _matcher.setScanlinesRepeat(scanlinesRepeat);
         _sequencer.setROM(
@@ -3347,10 +3347,17 @@ public:
         setMatchMode(isPNG);
         if (!isPNG) {
             File file(inputName, true);
-            if (endsIn(inputName, ".cgad"))
+            if (endsIn(inputName, ".cgad")) {
                 _data.load(file);
-            else
+                Array<Byte> data = _data.getData(-25, 25);
+                _matcher.setMode(data[25 -18]);
+                _matcher.setPalette(data[25 -17]);
+                _matcher.setScanlinesPerRow(1 + data[25 -7]);
+            }
+            else {
                 _data.loadVRAM(file);
+                _matcher.setSize(Vector(640, 200));
+            }
         }
 
         Timer timer;

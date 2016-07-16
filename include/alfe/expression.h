@@ -35,6 +35,9 @@ typedef TycoIdentifierT<void> TycoIdentifier;
 template<class T> class LogicalOrExpressionT;
 typedef LogicalOrExpressionT<void> LogicalOrExpression;
 
+template<class T> class ConditionalExpressionT;
+typedef ConditionalExpressionT<void> ConditionalExpression;
+
 template<class T> class NumericLiteralT;
 typedef NumericLiteralT<void> NumericLiteral;
 
@@ -111,7 +114,7 @@ public:
 
     static Expression parse(CharacterSource* source)
     {
-        return LogicalOrExpressionT<T>::parse(source);
+        return ConditionalExpressionT<T>::parse(source);
     }
     static Expression parseOrFail(CharacterSource* source)
     {
@@ -927,6 +930,60 @@ private:
             }
             return v.template value<bool>();
         }
+    };
+};
+
+template<class T> class ConditionalExpressionT : public Expression
+{
+public:
+    static Expression parse(CharacterSource* source)
+    {
+        Expression e = LogicalOrExpression::parse(source);
+        if (!e.valid())
+            return e;
+        Span span1;
+        if (Space::parseOperator(source, "?", &span1)) {
+            Expression trueExpression = parse(source);
+            if (!trueExpression.valid())
+                source->throwUnexpected("expression");
+            Span span2;
+            if (!Space::parseOperator(source, ":", &span2))
+                source->throwUnexpected(":");
+            Expression falseExpression = parse(source);
+            if (!falseExpression.valid())
+                source->throwUnexpected("expression");
+            e = create<Body>(e, span1, trueExpression, span2, falseExpression);
+        }
+        return e;
+    }
+private:
+    class Body : public Expression::Body
+    {
+    public:
+        Body(const Expression& condition, const Span& s1,
+            const Expression& trueExpression, const Span& s2,
+            const Expression& falseExpression)
+          : Expression::Body(condition.span() + falseExpression.span()),
+            _condition(condition), _s1(s1), _trueExpression(trueExpression),
+            _s2(s2), _falseExpression(falseExpression)
+        { }
+        ValueT<T> evaluate(EvaluationContext* context) const
+        {
+            ValueT<T> v = _condition.evaluate(context);
+            if (v.type() != BooleanType()) {
+                _condition.span().throwError("Conditional operator requires "
+                    "operand of type Boolean.");
+            }
+            if (v.template value<bool>())
+                return _trueExpression.evaluate(context);
+            return _falseExpression.evaluate(context);
+        }
+    private:
+        Expression _condition;
+        Span _s1;
+        Expression _trueExpression;
+        Span _s2;
+        Expression _falseExpression;
     };
 };
 

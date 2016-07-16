@@ -257,6 +257,15 @@
       </ArrayItems>
     </Expand>
   </Type>
+  <Type Name="Array&lt;double&gt;::Body&lt;*&gt;" ExcludeView="count">
+    <DisplayString>Array {_size,d} {((int)this) + 16,x}</DisplayString>
+    <Expand>
+      <ArrayItems>
+        <Size>_size</Size>
+        <ValuePointer>(double*)(((char*)this) + 16)</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
   <Type Name="Array&lt;*&gt;::Body&lt;HashTableBody&lt;*&gt;&gt;" ExcludeView="count">
     <DisplayString>size={_size,d} allocated={_allocated,d}</DisplayString>
     <Expand>
