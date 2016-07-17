@@ -317,6 +317,56 @@ private:
                 _hdot = 0;
 
                 // Emulate CRTC
+                if (_character == dat(-16) + (dat(-24) << 8)) {
+                    // End of scanline
+                    _state &= ~1;
+                    _character = 0;
+                    if ((_state & 0x10) != 0) {
+                        // Vertical sync active
+                        ++_vSync;
+                        if ((_vSync & 0x0f) == 0) {
+                            // End of vertical sync
+                            _state &= ~0x30;
+                        }
+                    }
+                    if (_rowAddress == dat(-7)) {
+                        // End of row
+                        _rowAddress = 0;
+                        if (_row == dat(-12) + (dat(-21) << 8)) {
+                            // Start of vertical total adjust
+                            _state |= 4;
+                            _adjust = 0;
+                            _latch = 0;
+                        }
+                        ++_row;
+                        if (_row == dat(-10) + (dat(-20) << 8)) {
+                            // Start of vertical overscan
+                            _state |= 2;
+                            _latch = 0;
+                        }
+                        if (_row == dat(-9) + (dat(-19) << 8)) {
+                            // Start of vertical sync
+                            _state |= 0x10;
+                            _vSync = 0;
+                        }
+                        _memoryAddress = _nextRowMemoryAddress;
+                        _leftMemoryAddress = _nextRowMemoryAddress;
+                    }
+                    else {
+                        ++_rowAddress;
+                        _memoryAddress = _leftMemoryAddress;
+                    }
+                    if ((_state & 4) != 0) {
+                        // Vertical total adjust active
+                        if (_adjust == dat(-11)) {
+                            // End of vertical total adjust
+                            startOfFrame();
+                            _state &= ~4;
+                        }
+                        else
+                            ++_adjust;
+                    }
+                }
                 ++_character;
                 _phase ^= 0x40;
                 ++_memoryAddress;
@@ -349,56 +399,6 @@ private:
                     // Start of horizontal sync
                     _state |= 8;
                     _hSync = 0;
-                }
-                if (_character == dat(-16) + (dat(-24) << 8)) {
-                    // End of scanline
-                    _state &= ~1;
-                    _character = 0;
-                    if ((_state & 0x10) != 0) {
-                        // Vertical sync active
-                        ++_vSync;
-                        if ((_vSync & 0x0f) == 0) {
-                            // End of vertical sync
-                            _state &= ~0x30;
-                        }
-                    }
-                    if (_rowAddress == dat(-7)) {
-                        // End of row
-                        _rowAddress = 0;
-                        ++_row;
-                        if (_row == dat(-10) + (dat(-20) << 8)) {
-                            // Start of vertical overscan
-                            _state |= 2;
-                            _latch = 0;
-                        }
-                        if (_row == dat(-12) + (dat(-21) << 8)) {
-                            // Start of vertical total adjust
-                            _state |= 4;
-                            _adjust = 0;
-                            _latch = 0;
-                        }
-                        if (_row == dat(-9) + (dat(-19) << 8)) {
-                            // Start of vertical sync
-                            _state |= 0x10;
-                            _vSync = 0;
-                        }
-                        _memoryAddress = _nextRowMemoryAddress;
-                        _leftMemoryAddress = _nextRowMemoryAddress;
-                    }
-                    else {
-                        ++_rowAddress;
-                        _memoryAddress = _leftMemoryAddress;
-                    }
-                    if ((_state & 4) != 0) {
-                        // Vertical total adjust active
-                        if (_adjust == dat(-11)) {
-                            // End of vertical total adjust
-                            startOfFrame();
-                            _state &= ~4;
-                        }
-                        else
-                            ++_adjust;
-                    }
                 }
                 latch();
             }
@@ -1247,19 +1247,19 @@ private:
         int verticalSyncPosition = rows + 24/scanlinesPerRow;
         int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
         cgaRegisters[0] = _logCharactersPerBank;
-        cgaRegisters[1] = horizontalTotal >> 8;
+        cgaRegisters[1] = (horizontalTotal - 1) >> 8;
         cgaRegisters[2] = _horizontalDisplayed >> 8;
         cgaRegisters[3] = horizontalSyncPosition >> 8;
-        cgaRegisters[4] = verticalTotal >> 8;
+        cgaRegisters[4] = (verticalTotal - 1) >> 8;
         cgaRegisters[5] = rows >> 8;
         cgaRegisters[6] = verticalSyncPosition >> 8;
         cgaRegisters[7] = _mode;
         cgaRegisters[8] = _palette;
-        cgaRegisters[9] = horizontalTotal & 0xff;
+        cgaRegisters[9] = (horizontalTotal - 1) & 0xff;
         cgaRegisters[10] = _horizontalDisplayed & 0xff;
         cgaRegisters[11] = horizontalSyncPosition & 0xff;
         cgaRegisters[12] = 10;
-        cgaRegisters[13] = verticalTotal & 0xff;
+        cgaRegisters[13] = (verticalTotal - 1) & 0xff;
         cgaRegisters[14] = verticalTotalAdjust;
         cgaRegisters[15] = rows & 0xff;
         cgaRegisters[16] = verticalSyncPosition & 0xff;
