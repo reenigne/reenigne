@@ -367,9 +367,11 @@ private:
                             ++_adjust;
                     }
                 }
-                ++_character;
+                else {
+                    ++_character;
+                    ++_memoryAddress;
+                }
                 _phase ^= 0x40;
-                ++_memoryAddress;
                 if (_character == dat(-15) + (dat(-23) << 8)) {
                     // Start of horizontal overscan
                     _state |= 1;
@@ -736,6 +738,63 @@ private:
     int _pllHeight;
     int _endAddress;
     Mutex _mutex;
+};
+
+class MatcherTable
+{
+public:
+    MatcherTable() : _next(0x10000), _patterns(0x10000) { }
+    void setSize(int entries)
+    {
+        _table.ensure(entries);
+        _entries = entries;
+    }
+
+    void clear()
+    {
+        for (int i = 0; i < _entries; ++i)
+            _table[i].clear();
+    }
+    void add(Word pattern, int position)
+    {
+        Entry* e = &_table[position];
+        _next[pattern] = e->_pattern;
+        e->_pattern = pattern;
+        ++e->_count;
+    }
+    void finalize()
+    {
+        int p = 0;
+        for (int i = 0; i < _entries; ++i) {
+            int c = _table[i]._count;
+            int pattern = _table[i]._pattern;
+            _table[i]._pattern = p;
+            for (int j = 0; j < c; ++j) {
+                _patterns[p] = pattern;
+                pattern = _next[pattern];
+                ++p;
+            }
+        }
+    }
+    int get(int position, Word** p)
+    {
+        Entry* e = &_table[position];
+        *p = &_patterns[e->_pattern];
+        return e->_count;
+    }
+private:
+    struct Entry
+    {
+        bool empty() { return _count == 0; }
+        void clear() { _count = 0; }
+
+        Word _pattern;
+        Word _count;
+    };
+    Array<Entry> _table;
+    Array<Word> _next;
+    Array<Word> _patterns;
+    int _entries;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
