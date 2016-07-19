@@ -748,13 +748,10 @@ public:
     {
         _table.ensure(entries);
         _entries = entries;
+        for (int i = 0; i < _entries; ++i)
+            _table[i]._count = 0;
     }
 
-    void clear()
-    {
-        for (int i = 0; i < _entries; ++i)
-            _table[i].clear();
-    }
     void add(Word pattern, int position)
     {
         Entry* e = &_table[position];
@@ -785,9 +782,6 @@ public:
 private:
     struct Entry
     {
-        bool empty() { return _count == 0; }
-        void clear() { _count = 0; }
-
         Word _pattern;
         Word _count;
     };
@@ -795,6 +789,27 @@ private:
     Array<Word> _next;
     Array<Word> _patterns;
     int _entries;
+};
+
+class CGANewMatcher : public ThreadTask
+{
+public:
+    void run()
+    {
+        double iDivisions = 64.0/pow(2, _quality*5);
+        double edge = 0.596*2/iDivisions;
+        int yDiv = static_cast<int>(1/edge) + 1;
+        int iDiv = static_cast<int>(0.596*2/edge) + 1;
+        int qDiv = static_cast<int>(0.523*2/edge) + 1;
+    }
+
+    void setQuality(double quality) { _quality = quality; }
+    double getQuality() { return _quality; }
+
+private:
+    MatcherTable _table;
+
+    double _quality;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
