@@ -794,6 +794,21 @@ private:
 class CGANewMatcher : public ThreadTask
 {
 public:
+    void setInput(Bitmap<SRGB> input)
+    {
+        _input = input;
+        _size = input.size();
+        _active = true;
+        initData();
+    }
+    void setSize(Vector size)
+    {
+        _size = size;
+        initData();
+    }
+    void setProgram(Program* program) { _program = program; }
+    void setSequencer(CGASequencer* sequencer) { _sequencer = sequencer; }
+    void setData(CGAData* data) { _data = data; }
     void run()
     {
         double iDivisions = 64.0/pow(2, _quality*5);
@@ -801,15 +816,171 @@ public:
         int yDiv = static_cast<int>(1/edge) + 1;
         int iDiv = static_cast<int>(0.596*2/edge) + 1;
         int qDiv = static_cast<int>(0.523*2/edge) + 1;
+        int entries = yDiv*iDiv*qDiv;
+        _table.setSize(entries);
+        int patternCount = 0x10000;
+        int multiplier = 1;
+        int blockHeight = _scanlinesPerRow;
+        int lineMultipliers[2] = {1, 1};
+        int blockWidth = (_mode & 1) != 0 ? 8 : 16;
+        if ((_mode & 2) != 0) {
+            blockWidth = 4;
+            if (_scanlinesPerRow <= 2) {
+                if ((_mode & 0x11) == 1) {
+                    patternCount = 0x100;
+                    multiplier = 0x101;
+                }
+                else {
+                    patternCount = 0x10;
+                    multiplier = 0x1111;
+                }
+                blockHeight = 1;
+            }
+            else {
+                if ((_mode & 0x11) != 1) {
+                    patternCount = 0x100;
+                    multiplier = 0x101;
+                }
+                blockHeight = 2;
+                lineMultipliers[0] = (_scanlinesPerRow + 1)/2;
+                lineMultipliers[1] = _scanlinesPerRow/2;
+            }
+        }
+        for (int pattern = 0; pattern < patternCount; ++pattern) {
+            Vector3<float> rgb(0, 0, 0);
+            for (int y = 0; y < blockHeight; ++y) {
+                UInt64 rgbi = _sequencer->process(pattern*multiplier, _mode,
+                    _palette, y, false, 0);
+
+            }
+        }
     }
 
+    void setDiffusionHorizontal(double diffusionHorizontal)
+    {
+        _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
+    }
+    double getDiffusionHorizontal() { return _diffusionHorizontal/256.0; }
+    void setDiffusionVertical(double diffusionVertical)
+    {
+        _diffusionVertical = static_cast<int>(diffusionVertical*256);
+    }
+    double getDiffusionVertical() { return _diffusionVertical/256.0; }
+    void setDiffusionTemporal(double diffusionTemporal)
+    {
+        _diffusionTemporal = static_cast<int>(diffusionTemporal*256);
+    }
+    double getDiffusionTemporal() { return _diffusionTemporal/256.0; }
+    void setMode(int mode) { _mode = mode; initData(); }
+    int getMode() { return _mode; }
+    void setPalette(int palette) { _palette = palette; initData(); }
+    int getPalette() { return _palette; }
+    void setScanlinesPerRow(int v) { _scanlinesPerRow = v; initData(); }
+    int getScanlinesPerRow() { return _scanlinesPerRow; }
+    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; initData(); }
+    int getScanlinesRepeat() { return _scanlinesRepeat; }
+    void setPhase(int phase) { _phase = phase; initData(); }
+    int getPhase() { return _phase; }
+    void setInterlace(int interlace) { _interlace = interlace; initData(); }
+    int getInterlace() { return _interlace; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
+    void setCharacterSet(int characterSet) { _characterSet = characterSet; }
+    int getCharacterSet() { return _characterSet; }
+    double getHue() { return _hue; }
+    void setHue(double hue) { _hue = hue; }
+    double getSaturation() { return _saturation; }
+    void setSaturation(double saturation) { _saturation = saturation; }
+    double getContrast() { return _contrast; }
+    void setContrast(double contrast) { _contrast = contrast; }
+    double getBrightness() { return _brightness; }
+    void setBrightness(double brightness) { _brightness = brightness; }
+    void setConnector(int connector) { _connector = connector; }
 
 private:
-    MatcherTable _table;
+    void initData()
+    {
+        if (!_active)
+            return;
+        Byte cgaRegisters[25] = { 0 };
+        _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
+        _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
+        int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
+        int rows = (_size.y + scanlinesPerRow - 1)/scanlinesPerRow;
+        _logCharactersPerBank = 0;
+        while ((1 << _logCharactersPerBank) < _horizontalDisplayed*rows)
+            ++_logCharactersPerBank;
+        int horizontalTotal = _horizontalDisplayed + 272/_hdotsPerChar;
+        int horizontalSyncPosition = _horizontalDisplayed + 80/_hdotsPerChar;
+        int totalScanlines = _size.y + 62;
+        int verticalTotal = totalScanlines/scanlinesPerRow;
+        int verticalTotalAdjust =
+            totalScanlines - verticalTotal*scanlinesPerRow;
+        if (verticalTotal > 128 &&
+            verticalTotal < (32 - verticalTotalAdjust)/scanlinesPerRow + 128) {
+            verticalTotalAdjust += (verticalTotal - 128)*scanlinesPerRow;
+            verticalTotal = 128;
+        }
+        int verticalSyncPosition = rows + 24/scanlinesPerRow;
+        int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
+        cgaRegisters[0] = _logCharactersPerBank;
+        cgaRegisters[1] = (horizontalTotal - 1) >> 8;
+        cgaRegisters[2] = _horizontalDisplayed >> 8;
+        cgaRegisters[3] = horizontalSyncPosition >> 8;
+        cgaRegisters[4] = (verticalTotal - 1) >> 8;
+        cgaRegisters[5] = rows >> 8;
+        cgaRegisters[6] = verticalSyncPosition >> 8;
+        cgaRegisters[7] = _mode;
+        cgaRegisters[8] = _palette;
+        cgaRegisters[9] = (horizontalTotal - 1) & 0xff;
+        cgaRegisters[10] = _horizontalDisplayed & 0xff;
+        cgaRegisters[11] = horizontalSyncPosition & 0xff;
+        cgaRegisters[12] = 10;
+        cgaRegisters[13] = (verticalTotal - 1) & 0xff;
+        cgaRegisters[14] = verticalTotalAdjust;
+        cgaRegisters[15] = rows & 0xff;
+        cgaRegisters[16] = verticalSyncPosition & 0xff;
+        cgaRegisters[17] = 2;
+        cgaRegisters[18] = _scanlinesPerRow - 1;
+        cgaRegisters[19] = 6;
+        cgaRegisters[20] = 7;
+        _data->change(0, -25, 25, &cgaRegisters[0]);
+        int last = _horizontalDisplayed*rows*2 - 1;
+        if ((_mode & 2) != 0)
+            last += 2 << _logCharactersPerBank;
+        _data->change(0, last, 0);
+        _data->setTotals(hdotsPerScanline*totalScanlines, hdotsPerScanline - 2,
+            static_cast<int>((hdotsPerScanline - 2)*(totalScanlines + 0.5)));
+    }
 
+    MatcherTable _table;
+    Program* _program;
+    CGAData* _data;
+    CGASequencer* _sequencer;
+
+    int _phase;
+    int _mode;
+    int _palette;
+    int _scanlinesPerRow;
+    int _scanlinesRepeat;
+    int _connector;
+    int _diffusionHorizontal;
+    int _diffusionVertical;
+    int _diffusionTemporal;
+    int _interlace;
     double _quality;
+    int _characterSet;
+    double _hue;
+    double _saturation;
+    double _contrast;
+    double _brightness;
+
+    bool _active;
+    Vector _size;
+    Bitmap<SRGB> _input;
+    int _horizontalDisplayed;
+    int _hdotsPerChar;
+    int _logCharactersPerBank;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask

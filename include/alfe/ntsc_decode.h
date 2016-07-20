@@ -793,8 +793,14 @@ private:
 class FFTNTSCDecoder
 {
 public:
-    FFTNTSCDecoder(int length = 512) : _rigor(FFTW_EXHAUSTIVE), _length(length)
+    FFTNTSCDecoder(int length = 512) : _rigor(FFTW_EXHAUSTIVE)
     {
+        setLength(length);
+    }
+
+    void setLength(int length)
+    {
+        _length = length;
         _iTime.ensure(length);
         _qTime.ensure(length);
         _yTime.ensure(length);
