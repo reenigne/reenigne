@@ -794,6 +794,7 @@ private:
 class CGANewMatcher : public ThreadTask
 {
 public:
+    CGANewMatcher() : _rgbiPalette(3*0x10) { }
     void setInput(Bitmap<SRGB> input)
     {
         _input = input;
@@ -846,13 +847,118 @@ public:
                 lineMultipliers[1] = _scanlinesPerRow/2;
             }
         }
+        if (_connector == 0) {
+            Byte levels[4];
+            for (int i = 0; i < 4; ++i)
+                levels[i] = byteClamp(2.55*_brightness + 0.85*i*_contrast);
+            int palette[3*0x10] = {
+                0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
+                2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
+                1, 1, 1,  1, 1, 3,  1, 3, 1,  1, 3, 3,
+                3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
+            for (int i = 0; i < 3*0x10; ++i)
+                _rgbiPalette[i] = levels[palette[i]];
+        }
+        else {
+            _composite.setBW((_mode & 4) != 0);
+            bool newCGA = _connector == 2;
+            _composite.setNewCGA(newCGA);
+            _composite.initChroma();
+            double black = _composite.black();
+            double white = _composite.white();
+            _decoder.setLength(blockWidth);
+            _decoder.setPadding(0);
+            _decoder.setLumaBandwidth(_lumaBandwidth);
+            _decoder.setChromaBandwidth(_chromaBandwidth);
+            _decoder.setRollOff(_rollOff);
+            _decoder.setChromaNotch(true);
+            _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
+            _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+            _decoder.setContrast(c);
+            _decoder.setBrightness(
+                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
+            Byte burst[4];
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, i);
+            _decoder.calculateBurst(burst);
+            _ntsc.ensure(blockWidth);
+        }
+        _srgb.ensure(blockWidth);
+        float linear[256];
+        for (int i = 0; i < 256; ++i) {
+            float t = i/255.0f;
+            if (t <= 0.04045f)
+                linear[i] = t/12.92f;
+            else
+                linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
+        }
+        Byte lut[6590];
+        float multiplier = 2*255.0f*12.92f;
+        for (int i = 0; i < 6590; ++i) {
+            float l = i/multiplier;
+            float s;
+            if (l <= 0.0031308)
+                s = 12.92f*l;
+            else
+                s = 1.055f*pow(l, 1/2.4f) - 0.055f;
+            lut[i] = static_cast<int>(0.5f + 255.0f*s);
+        }
+
         for (int pattern = 0; pattern < patternCount; ++pattern) {
             Vector3<float> rgb(0, 0, 0);
             for (int y = 0; y < blockHeight; ++y) {
                 UInt64 rgbi = _sequencer->process(pattern*multiplier, _mode,
                     _palette, y, false, 0);
-
+                if (_connector == 0) {
+                    Byte* srgb = &_srgb[0];
+                    for (int x = 0; x < blockWidth; ++x) {
+                        Byte* p =
+                            &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
+                        srgb[0] = p[0];
+                        srgb[1] = p[1];
+                        srgb[2] = p[2];
+                        srgb += 3;
+                    }
+                }
+                else {
+                    Byte* ntsc = &_ntsc[0];
+                    int x;
+                    for (x = 0; x < blockWidth - 1; ++x) {
+                        *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
+                            (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
+                        ++ntsc;
+                    }
+                    *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
+                        rgbi & 0xf, x & 3);
+                    ntsc = &_ntsc[0];
+                    float* yData = _decoder.yData();
+                    float* iData = _decoder.iData();
+                    float* qData = _decoder.qData();
+                    for (int i = 0; i < blockWidth; i += 4) {
+                        yData[i] = ntsc[0];
+                        yData[i + 1] = ntsc[1];
+                        yData[i + 2] = ntsc[2];
+                        yData[i + 3] = ntsc[3];
+                        iData[0] = -static_cast<float>(ntsc[1]);
+                        iData[1] = ntsc[3];
+                        qData[0] = ntsc[0];
+                        qData[1] = -static_cast<float>(ntsc[2]);
+                        ntsc += 4;
+                        iData += 2;
+                        qData += 2;
+                    }
+                    _decoder.decodeBlock(&_srgb[0]);
+                }
+                Byte* srgb = &_srgb[0];
+                for (int x = 0; x < blockWidth; ++x) {
+                    rgb.x += linear[srgb[0]];
+                    rgb.y += linear[srgb[1]];
+                    rgb.z += linear[srgb[2]];
+                }
             }
+            rgb /= blockWidth*blockHeight;
+            rgb.x =
         }
     }
 
@@ -896,6 +1002,18 @@ public:
     double getBrightness() { return _brightness; }
     void setBrightness(double brightness) { _brightness = brightness; }
     void setConnector(int connector) { _connector = connector; }
+    void setChromaBandwidth(double chromaBandwidth)
+    {
+        _chromaBandwidth = chromaBandwidth;
+    }
+    double getChromaBandwidth() { return _chromaBandwidth; }
+    void setLumaBandwidth(double lumaBandwidth)
+    {
+        _lumaBandwidth = lumaBandwidth;
+    }
+    double getLumaBandwidth() { return _lumaBandwidth; }
+    void setRollOff(double rollOff) { _rollOff = rollOff; }
+    double getRollOff() { return _rollOff; }
 
 private:
     void initData()
@@ -957,6 +1075,8 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
+    FFTNTSCDecoder _decoder;
+    CGAComposite _composite;
 
     int _phase;
     int _mode;
@@ -974,6 +1094,9 @@ private:
     double _saturation;
     double _contrast;
     double _brightness;
+    double _chromaBandwidth;
+    double _lumaBandwidth;
+    double _rollOff;
 
     bool _active;
     Vector _size;
@@ -981,6 +1104,10 @@ private:
     int _horizontalDisplayed;
     int _hdotsPerChar;
     int _logCharactersPerBank;
+
+    Array<Byte> _ntsc;
+    Array<Byte> _rgbiPalette;
+    Array<Byte> _srgb;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
@@ -2034,7 +2161,7 @@ public:
             else
                 linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
         }
-        if (showClipping) {
+        if (showClipping && _connector != 0) {
             linear[0] = 1.0f;
             linear[255] = 0.0f;
         }
