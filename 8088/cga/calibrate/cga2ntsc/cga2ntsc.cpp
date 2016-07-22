@@ -791,6 +791,62 @@ private:
     int _entries;
 };
 
+class Linearizer
+{
+public:
+    Linearizer()
+    {
+        for (int i = 0; i < 256; ++i) {
+            float t = i/255.0f;
+            if (t <= 0.04045f)
+                _linear[i] = t/12.92f;
+            else
+                _linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
+        }
+        for (int i = 0; i < 6590; ++i) {
+            float l = i/_multiplier;
+            float s;
+            if (l <= 0.0031308)
+                s = 12.92f*l;
+            else
+                s = 1.055f*pow(l, 1/2.4f) - 0.055f;
+            _srgb[i] = static_cast<int>(0.5f + 255.0f*s);
+        }
+    }
+    void setShowClipping(bool showClipping)
+    {
+        if (showClipping) {
+            _linear[0] = 1.0f;
+            _linear[255] = 0.0f;
+        }
+        else {
+            _linear[0] = 0.0f;
+            _linear[255] = 1.0f;
+        }
+    }
+    Vector3<float> linear(SRGB srgb)
+    {
+        return Vector3<float>(linear(srgb.x), linear(srgb.y), linear(srgb.z));
+    }
+    SRGB srgb(Vector3<float> linear)
+    {
+        return SRGB(srgb(linear.x), srgb(linear.y), srgb(linear.z));
+    }
+    float linear(Byte srgb) { return _linear[srgb]; }
+    Byte srgb(float linear)
+    {
+        if (linear <= 0)
+            return 0;
+        if (linear >= 1)
+            return 1;
+        return _srgb[static_cast<int>(linear*_multiplier)];
+    }
+private:
+    float _linear[256];
+    Byte _srgb[6590];
+    constexpr static const float _multiplier = 2*255.0f*12.92f;
+};
+
 class CGANewMatcher : public ThreadTask
 {
 public:
@@ -812,12 +868,14 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
-        double iDivisions = 64.0/pow(2, _quality*5);
-        double edge = 0.596*2/iDivisions;
-        int yDiv = static_cast<int>(1/edge) + 1;
-        int iDiv = static_cast<int>(0.596*2/edge) + 1;
-        int qDiv = static_cast<int>(0.523*2/edge) + 1;
-        int entries = yDiv*iDiv*qDiv;
+        double gDivisions = 64.0/pow(2, _quality*5);
+        float gScale = gDivisions/255;
+        float rScale = gScale*0.84f;
+        float bScale = gScale*0.55f;
+        int rDiv = static_cast<int>(255*rScale) + 1;
+        int gDiv = static_cast<int>(255*gScale) + 1;
+        int bDiv = static_cast<int>(255*bScale) + 1;
+        int entries = rDiv*gDiv*bDiv;
         _table.setSize(entries);
         int patternCount = 0x10000;
         int multiplier = 1;
@@ -885,25 +943,6 @@ public:
             _ntsc.ensure(blockWidth);
         }
         _srgb.ensure(blockWidth);
-        float linear[256];
-        for (int i = 0; i < 256; ++i) {
-            float t = i/255.0f;
-            if (t <= 0.04045f)
-                linear[i] = t/12.92f;
-            else
-                linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
-        }
-        Byte lut[6590];
-        float multiplier = 2*255.0f*12.92f;
-        for (int i = 0; i < 6590; ++i) {
-            float l = i/multiplier;
-            float s;
-            if (l <= 0.0031308)
-                s = 12.92f*l;
-            else
-                s = 1.055f*pow(l, 1/2.4f) - 0.055f;
-            lut[i] = static_cast<int>(0.5f + 255.0f*s);
-        }
 
         for (int pattern = 0; pattern < patternCount; ++pattern) {
             Vector3<float> rgb(0, 0, 0);
@@ -951,14 +990,29 @@ public:
                     _decoder.decodeBlock(&_srgb[0]);
                 }
                 Byte* srgb = &_srgb[0];
-                for (int x = 0; x < blockWidth; ++x) {
-                    rgb.x += linear[srgb[0]];
-                    rgb.y += linear[srgb[1]];
-                    rgb.z += linear[srgb[2]];
-                }
+                for (int x = 0; x < blockWidth; ++x)
+                    rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
             }
-            rgb /= blockWidth*blockHeight;
-            rgb.x =
+            SRGB srgb = _linearizer.srgb(rgb/(blockWidth*blockHeight));
+            Vector3<float> s = srgb;
+            s /= 255.0f;
+            int r = static_cast<int>(s.x*rScale);
+            int g = static_cast<int>(s.y*gScale);
+            int b = static_cast<int>(s.z*bScale);
+            _table.add(pattern, r + rDiv*(g + gDiv*b));
+        }
+        int y = 0;
+        while (!cancelling()) {
+            for (int x = 0; x < _size.x; ++x) {
+                int bestPattern = 0;
+                float bestScore = std::numeric_limits<float>::max();
+
+
+            }
+            y += blockHeight;
+            if (y >= _size.y)
+                return;
+
         }
     }
 
@@ -1077,6 +1131,7 @@ private:
     CGASequencer* _sequencer;
     FFTNTSCDecoder _decoder;
     CGAComposite _composite;
+    Linearizer _linearizer;
 
     int _phase;
     int _mode;
@@ -2153,18 +2208,7 @@ public:
 
         }
         // Shift, clip, show clipping and linearization
-        float linear[256];
-        for (int i = 0; i < 256; ++i) {
-            float t = i/255.0f;
-            if (t <= 0.04045f)
-                linear[i] = t/12.92f;
-            else
-                linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
-        }
-        if (showClipping && _connector != 0) {
-            linear[0] = 1.0f;
-            linear[255] = 0.0f;
-        }
+        _linearizer.setShowClipping(showClipping && _connector != 0);
         Timer timerLinearize;
         tl.y = wrap(tl.y + _fields[firstField], scanlines);
         Byte* unscaledRow = _unscaled.data();
@@ -2178,24 +2222,14 @@ public:
             const Byte* srgb = srgbRow;
             if (offsetTL + _unscaledSize.x > srgbSize) {
                 int endChannels = max(0, (srgbSize - offsetTL)*3);
-                for (int x = 0; x < endChannels; ++x) {
-                    *unscaled = linear[*srgb];
-                    ++srgb;
-                    ++unscaled;
-                }
-                srgb = &_srgb[0];
-                for (int x = 0; x < scanlineChannels - endChannels; ++x) {
-                    *unscaled = linear[*srgb];
-                    ++srgb;
-                    ++unscaled;
-                }
+                for (int x = 0; x < endChannels; ++x)
+                    unscaled[x] = _linearizer.linear(srgb[x]);
+                for (int x = 0; x < scanlineChannels - endChannels; ++x)
+                    unscaled[x + endChannels] = _linearizer.linear(_srgb[x]);
             }
             else {
-                for (int x = 0; x < scanlineChannels; ++x) {
-                    *unscaled = linear[*srgb];
-                    ++srgb;
-                    ++unscaled;
-                }
+                for (int x = 0; x < scanlineChannels; ++x)
+                    unscaled[x] = _linearizer.linear(srgb[x]);
             }
             unscaledRow += _unscaled.stride();
         }
@@ -2205,17 +2239,6 @@ public:
         _scaler.render();
 
         // Delinearization and float-to-byte conversion
-        Byte lut[6590];
-        float multiplier = 2*255.0f*12.92f;
-        for (int i = 0; i < 6590; ++i) {
-            float l = i/multiplier;
-            float s;
-            if (l <= 0.0031308)
-                s = 12.92f*l;
-            else
-                s = 1.055f*pow(l, 1/2.4f) - 0.055f;
-            lut[i] = static_cast<int>(0.5f + 255.0f*s);
-        }
         Timer timerDelinearize;
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
@@ -2224,35 +2247,9 @@ public:
             const float* scaled = reinterpret_cast<const float*>(scaledRow);
             DWORD* output = reinterpret_cast<DWORD*>(outputRow);
             for (int x = 0; x < outputSize.x; ++x) {
-                Byte r;
-                float s = scaled[0];
-                if (s < 0)
-                    r = 0;
-                else
-                    if (s < 1)
-                        r = lut[static_cast<int>(s*multiplier)];
-                    else
-                        r = 255;
-                Byte g;
-                s = scaled[1];
-                if (s < 0)
-                    g = 0;
-                else
-                    if (s < 1)
-                        g = lut[static_cast<int>(s*multiplier)];
-                    else
-                        g = 255;
-                Byte b;
-                s = scaled[2];
-                if (s < 0)
-                    b = 0;
-                else
-                    if (s < 1)
-                        b = lut[static_cast<int>(s*multiplier)];
-                    else
-                        b = 255;
-
-                *output = (r << 16) | (g << 8) | b;
+                SRGB srgb = _linearizer.srgb(
+                    Vector3<float>(scaled[0], scaled[1], scaled[2]));
+                *output = (srgb.x << 16) | (srgb.y << 8) | srgb.z;
                 ++output;
                 scaled += 3;
             }
@@ -2503,12 +2500,6 @@ public:
     }
 
 private:
-    static Byte delinearize(float l)
-    {
-        if (l <= 0)
-            return 0;
-        return min(static_cast<int>(pow(l, 1/2.2f)*255.0f + 0.5f), 255);
-    }
     // Output pixels per input pixel
     Vector2<float> scale()
     {
@@ -2555,6 +2546,7 @@ private:
     Bitmap<DWORD> _lastBitmap;
     CGAComposite _composite;
     FFTNTSCDecoder _decoder;
+    Linearizer _linearizer;
     CGA2NTSCWindow* _window;
     Mutex _mutex;
 
