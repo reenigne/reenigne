@@ -851,7 +851,7 @@ class CGANewMatcher : public ThreadTask
 {
 public:
     CGANewMatcher() : _rgbiPalette(3*0x10) { }
-    void setInput(Bitmap<SRGB> input)
+    void setInput(Bitmap<SRGB> input, Vector activeSize)
     {
         _input = input;
         _size = input.size();
@@ -3561,8 +3561,7 @@ public:
         configFile.addDefaultOption("interactive", true);
         configFile.addDefaultOption("combFilter", 0);
         configFile.addDefaultOption("fftWisdom", String("wisdom"));
-        configFile.addDefaultOption("doubleWidth", false);
-        configFile.addDefaultOption("doubleHeight", false);
+        configFile.addDefaultOption("activeSize", Vector(640, 200));
 
         configFile.addFunco(BitmapIsRGBIFunction(bitmapType));
 
@@ -3652,60 +3651,7 @@ public:
         output.setCombFilter(configFile.get<int>("combFilter"));
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
-        Bitmap<SRGB> input2 = input;
-        Vector size = input.size();
-        if (!configFile.get<bool>("doubleHeight")) {
-            // Vertically shrink tall images by a factor of two, to handle the
-            // normal case of a DOSBox screenshot.
-            input2 = Bitmap<SRGB>(Vector(size.x, size.y/2));
-            const Byte* inputRow = input.data();
-            Byte* outputRow = input2.data();
-            for (int y = 0; y < size.y/2; ++y) {
-                const SRGB* inputPixelTop =
-                    reinterpret_cast<const SRGB*>(inputRow);
-                const SRGB* inputPixelBottom =
-                    reinterpret_cast<const SRGB*>(inputRow +input.stride());
-                SRGB* outputPixel = reinterpret_cast<SRGB*>(outputRow);
-                for (int x = 0; x < size.x; ++x) {
-                    Vector3<int> top = Vector3Cast<int>(*inputPixelTop);
-                    ++inputPixelTop;
-                    Vector3<int> bottom = Vector3Cast<int>(*inputPixelBottom);
-                    ++inputPixelBottom;
-                    *outputPixel = Vector3Cast<UInt8>((top + bottom)/2);
-                    ++outputPixel;
-                }
-                inputRow += input.stride()*2;
-                outputRow += input2.stride();
-            }
-            input = input2;
-            size = input.size();
-        }
-        if (configFile.get<bool>("doubleWidth")) {
-            // Image is most likely 2bpp or LRES text mode with 1 pixel per
-            // ldot. Rescale it to 1 pixel per hdot.
-            input2 = Bitmap<SRGB>(Vector(size.x*2, size.y));
-            const Byte* inputRow = input.data();
-            Byte* outputRow = input2.data();
-            for (int y = 0; y < size.y; ++y) {
-                SRGB* outputPixel = reinterpret_cast<SRGB*>(outputRow);
-                const SRGB* inputPixel =
-                    reinterpret_cast<const SRGB*>(inputRow);
-                for (int x = 0; x < size.x; ++x) {
-                    SRGB s = *inputPixel;
-                    ++inputPixel;
-                    *outputPixel = s;
-                    ++outputPixel;
-                    *outputPixel = s;
-                    ++outputPixel;
-                }
-                inputRow += input.stride();
-                outputRow += input2.stride();
-            }
-            input = input2;
-            size = input.size();
-        }
-
-        _matcher.setInput(input);
+        _matcher.setInput(input, configFile.get<Vector>("activeSize"));
         bool isPNG = bitmapValue.isPNG();
         String inputName = bitmapValue.name();
         setMatchMode(isPNG);
