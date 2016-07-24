@@ -850,9 +850,16 @@ private:
 class CGANewMatcher : public ThreadTask
 {
 public:
-    CGANewMatcher() : _rgbiPalette(3*0x10) { }
+    CGANewMatcher() : _rgbiPalette(3*0x10)
+    {
+        _scaler.setProfile(4);
+        _scaler.setWidth(1);
+        _scaler.setBleeding(2);
+        _scaler.setOffset(Vector2<float>(0, 0));
+    }
     void setInput(Bitmap<SRGB> input, Vector activeSize)
     {
+        _activeSize = activeSize;
         _input = input;
         _size = input.size();
         _active = true;
@@ -860,6 +867,7 @@ public:
     }
     void setSize(Vector size)
     {
+        _activeSize = size;
         _size = size;
         initData();
     }
@@ -868,6 +876,70 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
+        Vector size = _activeSize*Vector(1, _interlaceSync ? 2 : 1);
+        if (size != _size) {
+            _scaler.setOutputSize(size);
+            _scaler.setZoom(Vector2Cast<float>(size)/_input.size());
+            _size = size;
+            AlignedBuffer input = _scaler.input();
+            Vector tl = _scaler.inputTL();
+            Vector br = _scaler.inputBR();
+            Byte* unscaledRow = input.data() - tl.y*input.stride();
+            Byte* inputRow = _input.data();
+            for (int y = 0; y < _input.size().y; ++y) {
+                float* unscaled = reinterpret_cast<float*>(unscaledRow);
+                Byte* p = inputRow;
+                for (int x = 0; x < -tl.x; ++x) {
+                    unscaled[0] = _linearizer.linear(p[0]);
+                    unscaled[1] = _linearizer.linear(p[1]);
+                    unscaled[2] = _linearizer.linear(p[2]);
+                    unscaled += 3;
+                }
+                for (int x = 0; x < _input.size().x; ++x) {
+                    unscaled[0] = _linearizer.linear(p[0]);
+                    unscaled[1] = _linearizer.linear(p[1]);
+                    unscaled[2] = _linearizer.linear(p[2]);
+                    unscaled += 3;
+                    p += 3;
+                }
+                p -= 3;
+                for (int x = 0; x < br.x - _input.size().x; ++x) {
+                    unscaled[0] = _linearizer.linear(p[0]);
+                    unscaled[1] = _linearizer.linear(p[1]);
+                    unscaled[2] = _linearizer.linear(p[2]);
+                    unscaled += 3;
+                }
+                unscaledRow += input.stride();
+                inputRow += _input.stride();
+            }
+            unscaledRow = input.data();
+            float* pp =
+                reinterpret_cast<float*>(input.data() - tl.y*input.stride());
+            for (int y = 0; y < -tl.y; ++y) {
+                float* unscaled = reinterpret_cast<float*>(unscaledRow);
+                float* p = pp;
+                for (int x = 0; x < br.x - tl.x; ++x) {
+                    unscaled[0] = p[0];
+                    unscaled[1] = p[1];
+                    unscaled[2] = p[2];
+                }
+                unscaledRow += input.stride();
+            }
+            unscaledRow =
+                input.data() + (_input.size().y - tl.y)*input.stride();
+            pp = reinterpret_cast<float*>(unscaledRow - input.stride());
+            for (int y = 0; y < br.y - _input.size().y; ++y) {
+                float* unscaled = reinterpret_cast<float*>(unscaledRow);
+                float* p = pp;
+                for (int x = 0; x < br.x - tl.x; ++x) {
+                    unscaled[0] = p[0];
+                    unscaled[1] = p[1];
+                    unscaled[2] = p[2];
+                }
+                unscaledRow += input.stride();
+            }
+        }
+
         double gDivisions = 64.0/pow(2, _quality*5);
         float gScale = gDivisions/255;
         float rScale = gScale*0.84f;
@@ -1001,6 +1073,11 @@ public:
             int b = static_cast<int>(s.z*bScale);
             _table.add(pattern, r + rDiv*(g + gDiv*b));
         }
+        int errorSize = 3*(size.x + 1)*(size.y + 1);
+        _error.ensure(errorSize);
+        for (int x = 0; x < errorSize; ++x)
+            _error[x] = 0;
+
         int y = 0;
         while (!cancelling()) {
             for (int x = 0; x < _size.x; ++x) {
@@ -1043,6 +1120,20 @@ public:
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; initData(); }
     int getInterlace() { return _interlace; }
+    void setInterlaceSync(int interlaceSync)
+    {
+        _interlaceSync = interlaceSync;
+        initData();
+    }
+    int getInterlaceSync() { return _interlaceSync; }
+    void setInterlacePhase(int interlacePhase)
+    {
+        _interlacePhase = interlacePhase;
+        initData();
+    }
+    int getInterlacePhase() { return _interlacePhase; }
+    void setFlicker(int flicker) { _flicker = flicker; initData(); }
+    int getFlicker() { return _flicker; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
@@ -1143,6 +1234,9 @@ private:
     int _diffusionVertical;
     int _diffusionTemporal;
     int _interlace;
+    bool _interlaceSync;
+    bool _interlacePhase;
+    bool _flicker;
     double _quality;
     int _characterSet;
     double _hue;
@@ -1155,7 +1249,11 @@ private:
 
     bool _active;
     Vector _size;
+    Vector _activeSize;
+    ScanlineRenderer _scaler;
     Bitmap<SRGB> _input;
+    Array<float> _error;
+    AlignedBuffer _scaled;
     int _horizontalDisplayed;
     int _hdotsPerChar;
     int _logCharactersPerBank;
@@ -1172,7 +1270,7 @@ public:
     {
         _patterns.allocate(0x10000*8*17 + 0x100*80*5);
     }
-    void setInput(Bitmap<SRGB> input)
+    void setInput(Bitmap<SRGB> input, Vector activeSize)
     {
         _input = input;
         _size = input.size();
@@ -1633,6 +1731,20 @@ public:
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; initData(); }
     int getInterlace() { return _interlace; }
+    void setInterlaceSync(int interlaceSync)
+    {
+        _interlaceSync = interlaceSync;
+        initData();
+    }
+    int getInterlaceSync() { return _interlaceSync; }
+    void setInterlacePhase(int interlacePhase)
+    {
+        _interlacePhase = interlacePhase;
+        initData();
+    }
+    int getInterlacePhase() { return _interlacePhase; }
+    void setFlicker(int flicker) { _flicker = flicker; initData(); }
+    int getFlicker() { return _flicker; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
@@ -1731,6 +1843,9 @@ private:
     int _diffusionVertical;
     int _diffusionTemporal;
     int _interlace;
+    bool _interlaceSync;
+    bool _interlacePhase;
+    bool _flicker;
     double _quality;
     int _characterSet;
     UInt64 _configScore;
@@ -2267,7 +2382,8 @@ public:
     {
         setOutputSize(Vector(0, 0));
         join();
-        _lastBitmap.save(PNGFileFormat<DWORD>(), File(outputFileName, true));
+        _lastBitmap.save(PNGFileFormat<DWORD>(),
+            File(outputFileName + ".png", true));
 
         if (_connector != 0) {
             FileStream s = File(outputFileName + ".ntsc", true).openWrite();
@@ -2550,7 +2666,7 @@ private:
     CGA2NTSCWindow* _window;
     Mutex _mutex;
 
-    FIRScanlineRenderer _scaler;
+    ScanlineRenderer _scaler;
     Vector _combedSize;
     Array<Byte> _rgbi;
     Array<Byte> _ntsc;
@@ -2816,6 +2932,21 @@ public:
         _matcher->setInterlace(value);
         beginConvert();
     }
+    void interlaceSyncSet(bool value)
+    {
+        _matcher->setInterlaceSync(value);
+        beginConvert();
+    }
+    void interlacePhaseSet(bool value)
+    {
+        _matcher->setInterlacePhase(value);
+        beginConvert();
+    }
+    void flickerSet(bool value)
+    {
+        _matcher->setFlicker(value);
+        beginConvert();
+    }
     void characterSetSet(int value)
     {
         _matcher->setCharacterSet(value);
@@ -2861,12 +2992,18 @@ public:
     void chromaBandwidthSet(double chromaBandwidth)
     {
         _output->setChromaBandwidth(chromaBandwidth);
+        _matcher->setChromaBandwidth(chromaBandwidth);
     }
     void lumaBandwidthSet(double lumaBandwidth)
     {
         _output->setLumaBandwidth(lumaBandwidth);
+        _matcher->setLumaBandwidth(lumaBandwidth);
     }
-    void rollOffSet(double rollOff) { _output->setRollOff(rollOff); }
+    void rollOffSet(double rollOff)
+    {
+        _output->setRollOff(rollOff);
+        _matcher->setRollOff(rollOff);
+    }
     void connectorSet(int connector)
     {
         _output->setConnector(connector);
@@ -3226,24 +3363,23 @@ private:
                     [&](int value) { _host->interlaceSet(value); });
                 _interlace.setText("Interlace: ");
                 _interlace.add("None");
-                _interlace.add("Flicker");
-                _interlace.add("Sync");
-                _interlace.add("Sync and video");
-                _interlace.add("Even");
-                _interlace.add("Odd");
-                _interlace.add("Video");
-                _interlace.add("Video and flicker");
-                _interlace.add("Sync flicker");
-                _interlace.add("Sync video and flicker");
-                _interlace.add("Even flicker");
-                _interlace.add("Odd flicker");
-                _interlace.add("Sync even");
-                _interlace.add("Sync odd");
-                _interlace.add("Sync even flicker");
-                _interlace.add("Sync odd flicker");
-                _interlace.add("Sync and video swapped");
-                _interlace.add("Sync video and flicker swapped");
+                _interlace.add("Even odd");
+                _interlace.add("Odd even");
+                _interlace.add("Even even");
+                _interlace.add("Odd odd");
                 add(&_interlace);
+                _interlaceSync.setClicked(
+                    [&](bool value) { _host->interlaceSyncSet(value); });
+                _interlaceSync.setText("Interlace sync");
+                add(&_interlaceSync);
+                _interlacePhase.setClicked(
+                    [&](bool value) { _host->interlacePhaseSet(value); });
+                _interlacePhase.setText("Interlace phase");
+                add(&_interlacePhase);
+                _flicker.setClicked(
+                    [&](bool value) { _host->flickerSet(value); });
+                _interlacePhase.setText("Flicker");
+                add(&_flicker);
             }
             void layout()
             {
@@ -3262,7 +3398,14 @@ private:
                 r = max(r, _scanlinesRepeat.right());
                 _phase.setTopLeft(_scanlinesPerRow.bottomLeft() + vSpace);
                 _interlace.setTopLeft(_phase.topRight() + hSpace);
-                setInnerSize(Vector(r, _interlace.bottom()) +
+                _interlaceSync.setTopLeft(_interlace.bottomLeft() + vSpace);
+                r = max(r, _interlaceSync.right());
+                _interlacePhase.setTopLeft(
+                    _interlaceSync.bottomLeft() + vSpace);
+                r = max(r, _interlacePhase.right());
+                _flicker.setTopLeft(_interlacePhase.bottomLeft() + vSpace);
+                r = max(r, _flicker.right());
+                setInnerSize(Vector(r, _flicker.bottom()) +
                     _host->groupBR());
             }
             CGA2NTSCWindow* _host;
@@ -3275,6 +3418,9 @@ private:
             CaptionedDropDownList _scanlinesRepeat;
             CheckBox _phase;
             CaptionedDropDownList _interlace;
+            CheckBox _interlaceSync;
+            CheckBox _interlacePhase;
+            CheckBox _flicker;
         };
         RegistersGroup _registers;
         struct MatchingGroup : public GroupBox
@@ -3534,6 +3680,9 @@ public:
         configFile.addDefaultOption("mode", 0x1a);
         configFile.addDefaultOption("palette", 0x0f);
         configFile.addDefaultOption("interlaceMode", 0);
+        configFile.addDefaultOption("interlaceSync", false);
+        configFile.addDefaultOption("interlacePhase", false);
+        configFile.addDefaultOption("flicker", false);
         configFile.addDefaultOption("scanlinesPerRow", 2);
         configFile.addDefaultOption("scanlinesRepeat", 1);
         configFile.addDefaultOption("contrast", 100.0);
@@ -3614,6 +3763,9 @@ public:
             configFile.get<double>("temporalDiffusion"));
         _matcher.setQuality(configFile.get<double>("quality"));
         _matcher.setInterlace(configFile.get<int>("interlaceMode"));
+        _matcher.setInterlaceSync(configFile.get<bool>("interlaceSync"));
+        _matcher.setInterlacePhase(configFile.get<bool>("interlacePhase"));
+        _matcher.setFlicker(configFile.get<bool>("flicker"));
         _matcher.setCharacterSet(configFile.get<int>("characterSet"));
         _matcher.setMode(configFile.get<int>("mode"));
         _matcher.setPalette(configFile.get<int>("palette"));
@@ -3690,7 +3842,7 @@ public:
         if (i != -1)
             inputFileName = inputFileName.subString(0, i);
 
-        output.save(inputFileName + "_out.png");
+        output.save(inputFileName + "_out");
         _data.save(File(inputFileName + "_out.cgad", true));
         _data.saveVRAM(File(inputFileName + "_out.dat", true));
         output.saveRGBI(File(inputFileName + "_out.rgbi", true));

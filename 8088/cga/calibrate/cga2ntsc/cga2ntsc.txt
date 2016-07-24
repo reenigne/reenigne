@@ -37,6 +37,19 @@ for animation purposes.
 For detailed information about each of the controls, see the corresponding
 comments in default.config.
 
+CGA2NTSC's internal CGA lacks some of the limitations of a standard CGA:
+* The screen resolution can be extremely high (CRTC registers extended to 16
+  bits).
+* The amount of VRAM can be extremely high (limited only by the amount of RAM
+  that CGA2NTSC can allocate).
+* Scanlines can be repeated any number of times.
+
+CGA2NTSC emulates the CGA's overscan areas accurately, including the sync
+pulses. On the RGBI output, these are shown as dark red (vertical) and dark
+green (horizontal) regions. On the composite output, normally only the colour
+burst pulse can be seen, but if the brightness is turned up then the composite
+sync and blanking regions can also be seen.
+
 On exit, the program generates a number of output files alongside the input
 file:
 * <file>_out.png - the output from show mode.
