@@ -850,7 +850,7 @@ private:
 class CGANewMatcher : public ThreadTask
 {
 public:
-    CGANewMatcher() : _rgbiPalette(3*0x10)
+    CGANewMatcher() : _rgbiPalette(3*0x10), _decoder(128)
     {
         _scaler.setProfile(4);
         _scaler.setWidth(1);
@@ -940,42 +940,19 @@ public:
             }
         }
 
-        double gDivisions = 64.0/pow(2, _quality*5);
-        float gScale = gDivisions/255;
-        float rScale = gScale*0.84f;
-        float bScale = gScale*0.55f;
-        int rDiv = static_cast<int>(255*rScale) + 1;
-        int gDiv = static_cast<int>(255*gScale) + 1;
-        int bDiv = static_cast<int>(255*bScale) + 1;
-        int entries = rDiv*gDiv*bDiv;
+        double gDivisions = 64.0/pow(2, _quality*6);
+        Vector3<float> srgbScale;
+        srgbScale.y = gDivisions/256;
+        srgbScale.x = srgbScale.y*0.84f;
+        srgbScale.z = srgbScale.y*0.55f;
+        Vector3<int> srgbDiv = Vector3Cast<int>(255.0f*srgbScale) + 1;
+        int entries = srgbDiv.x*srgbDiv.y*srgbDiv.z;
         _table.setSize(entries);
-        int patternCount = 0x10000;
-        int multiplier = 1;
         int blockHeight = _scanlinesPerRow;
-        int lineMultipliers[2] = {1, 1};
         int blockWidth = (_mode & 1) != 0 ? 8 : 16;
         if ((_mode & 2) != 0) {
             blockWidth = 4;
-            if (_scanlinesPerRow <= 2) {
-                if ((_mode & 0x11) == 1) {
-                    patternCount = 0x100;
-                    multiplier = 0x101;
-                }
-                else {
-                    patternCount = 0x10;
-                    multiplier = 0x1111;
-                }
-                blockHeight = 1;
-            }
-            else {
-                if ((_mode & 0x11) != 1) {
-                    patternCount = 0x100;
-                    multiplier = 0x101;
-                }
-                blockHeight = 2;
-                lineMultipliers[0] = (_scanlinesPerRow + 1)/2;
-                lineMultipliers[1] = _scanlinesPerRow/2;
-            }
+            blockHeight = _scanlinesPerRow <= 2 ? 1 : 2;
         }
         if (_connector == 0) {
             Byte levels[4];
@@ -996,33 +973,50 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(blockWidth);
-            _decoder.setPadding(0);
+            _patternDecoder.setLength(blockWidth);
+            _patternDecoder.setPadding(0);
+            _patternDecoder.setLumaBandwidth(_lumaBandwidth);
+            _patternDecoder.setChromaBandwidth(_chromaBandwidth);
+            _patternDecoder.setRollOff(_rollOff);
+            _patternDecoder.setChromaNotch(true);
+            _patternDecoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
+            _patternDecoder.setSaturation(
+                _saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+            _patternDecoder.setContrast(c);
+            _patternDecoder.setBrightness(
+                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
+            Byte burst[4];
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, i);
+            _patternDecoder.calculateBurst(burst);
+
+            _decoder.setPadding((128 - blockWidth)/2);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
             _decoder.setChromaNotch(true);
             _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
             _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
-            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
             _decoder.setContrast(c);
             _decoder.setBrightness(
                 (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
-            Byte burst[4];
-            for (int i = 0; i < 4; ++i)
-                burst[i] = _composite.simulateCGA(6, 6, i);
             _decoder.calculateBurst(burst);
-            _ntsc.ensure(blockWidth);
-        }
-        _srgb.ensure(blockWidth);
 
-        for (int pattern = 0; pattern < patternCount; ++pattern) {
+            _ntscPattern.ensure(blockWidth);
+        }
+        _srgbPattern.ensure(blockWidth);
+
+        for (int pattern = 0;; ++pattern) {
             Vector3<float> rgb(0, 0, 0);
+            UInt32 dataBits[2];
+            if (getDataBits(&dataBits[0], pattern))
+                break;
             for (int y = 0; y < blockHeight; ++y) {
-                UInt64 rgbi = _sequencer->process(pattern*multiplier, _mode,
+                UInt64 rgbi = _sequencer->process(dataBits[y & 1], _mode,
                     _palette, y, false, 0);
                 if (_connector == 0) {
-                    Byte* srgb = &_srgb[0];
+                    Byte* srgb = &_srgbPattern[0];
                     for (int x = 0; x < blockWidth; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
@@ -1033,7 +1027,7 @@ public:
                     }
                 }
                 else {
-                    Byte* ntsc = &_ntsc[0];
+                    Byte* ntsc = &_ntscPattern[0];
                     int x;
                     for (x = 0; x < blockWidth - 1; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
@@ -1042,10 +1036,10 @@ public:
                     }
                     *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                         rgbi & 0xf, x & 3);
-                    ntsc = &_ntsc[0];
-                    float* yData = _decoder.yData();
-                    float* iData = _decoder.iData();
-                    float* qData = _decoder.qData();
+                    ntsc = &_ntscPattern[0];
+                    float* yData = _patternDecoder.yData();
+                    float* iData = _patternDecoder.iData();
+                    float* qData = _patternDecoder.qData();
                     for (int i = 0; i < blockWidth; i += 4) {
                         yData[i] = ntsc[0];
                         yData[i + 1] = ntsc[1];
@@ -1059,55 +1053,156 @@ public:
                         iData += 2;
                         qData += 2;
                     }
-                    _decoder.decodeBlock(&_srgb[0]);
+                    _patternDecoder.decodeBlock(&_srgbPattern[0]);
                 }
-                Byte* srgb = &_srgb[0];
+                Byte* srgb = &_srgbPattern[0];
                 for (int x = 0; x < blockWidth; ++x)
                     rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
             }
             SRGB srgb = _linearizer.srgb(rgb/(blockWidth*blockHeight));
-            Vector3<float> s = srgb;
-            s /= 255.0f;
-            int r = static_cast<int>(s.x*rScale);
-            int g = static_cast<int>(s.y*gScale);
-            int b = static_cast<int>(s.z*bScale);
-            _table.add(pattern, r + rDiv*(g + gDiv*b));
+            auto s = Vector3Cast<int>(srgb*srgbScale);
+            _table.add(pattern, s.x + srgbDiv.x*(s.y + srgbDiv.y*s.z));
         }
-        int errorSize = 3*(size.x + 1)*(size.y + 1);
+        int errorStride = 3*(size.x + 1);
+        int errorSize = errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
             _error[x] = 0;
 
         int y = 0;
+        const Byte* inputRow = _scaled.data();
+        float* errorRow = &_error[3*(size.x + 2)];
         while (!cancelling()) {
-            for (int x = 0; x < _size.x; ++x) {
+            const Byte* inputBlock = inputRow;
+            float* errorBlock = errorRow;
+            for (int x = 0; x < _size.x; x += blockWidth) {
                 int bestPattern = 0;
                 float bestScore = std::numeric_limits<float>::max();
+                Vector3<float> rgb(0, 0, 0);
+                const Byte* inputLine = inputBlock;
+                float* errorLine = errorBlock;
+                for (int y = 0; y < blockHeight; ++y) {
+                    const float* input =
+                        reinterpret_cast<const float*>(inputLine);
+                    float* error = errorLine;
+                    for (int x = 0; x < blockWidth; ++x) {
+                        rgb += Vector3<float>(input[0], input[1], input[2]);
+                        rgb += _diffusionHorizontal*
+                            Vector3<float>(error[-3], error[-2], error[-1]);
+                        rgb += _diffusionVertical*Vector3<float>(
+                            error[-errorStride], error[1 - errorStride],
+                            error[2 - errorStride]);
+                        error[0] = 0;
+                        error[1] = 0;
+                        error[2] = 0;
+                        input += 3;
+                        error += 3;
+                    }
+                    inputLine += _scaled.stride();
+                    errorLine += errorStride;
+                }
+                SRGB srgb = _linearizer.srgb(rgb/(blockWidth*blockHeight));
+                auto s = Vector3Cast<int>(srgb*srgbScale - 0.5);
+                for (int z = 0;; ++z) {
+                    bool foundPatterns = false;
+                    for (int r = s.x - z; r < s.x + 2 + z; ++r) {
+                        for (int g = s.y - z; g < s.y + 2 + z; ++g) {
+                            for (int b = s.z - z; b < s.z + 2 + z; ++b) {
+                                Word* pattern;
+                                int n = _table.get(
+                                    r + srgbDiv.x*(g + srgbDiv.y*b), &pattern);
+                                for (int i = 0; i < n; ++i) {
+                                    foundPatterns = true;
+                                    UInt32 dataBits[2];
+                                    getDataBits(&dataBits[0], *pattern);
 
+                                    for (int yy = 0; yy < blockHeight; ++yy) {
+                                        UInt64 rgbi = _sequencer->process(
+                                            dataBits[yy & 1], _mode, _palette,
+                                            yy, false, 0);
+                                        if (_connector == 0) {
+                                            Byte* srgb = &_srgb[0];
+                                            for (int x = 0; x < blockWidth; ++x) {
+                                                Byte* p =
+                                                    &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
+                                                srgb[0] = p[0];
+                                                srgb[1] = p[1];
+                                                srgb[2] = p[2];
+                                                srgb += 3;
+                                            }
+                                        }
+                                        else {
+                                            Byte* ntsc = &_ntsc[0];
+                                            int x;
+                                            for (x = 0; x < blockWidth - 1; ++x) {
+                                                *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
+                                                    (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
+                                                ++ntsc;
+                                            }
+                                            *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
+                                                rgbi & 0xf, x & 3);
+                                            ntsc = &_ntsc[0];
+                                            float* yData = _patternDecoder.yData();
+                                            float* iData = _patternDecoder.iData();
+                                            float* qData = _patternDecoder.qData();
+                                            for (int i = 0; i < blockWidth; i += 4) {
+                                                yData[i] = ntsc[0];
+                                                yData[i + 1] = ntsc[1];
+                                                yData[i + 2] = ntsc[2];
+                                                yData[i + 3] = ntsc[3];
+                                                iData[0] = -static_cast<float>(ntsc[1]);
+                                                iData[1] = ntsc[3];
+                                                qData[0] = ntsc[0];
+                                                qData[1] = -static_cast<float>(ntsc[2]);
+                                                ntsc += 4;
+                                                iData += 2;
+                                                qData += 2;
+                                            }
+                                            _patternDecoder.decodeBlock(&_srgb[0]);
+                                        }
+                                        Byte* srgb = &_srgb[0];
+                                        for (int x = 0; x < blockWidth; ++x)
+                                            rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
+                                    }
+                                    ++pattern;
+                                }
 
+                                if (r > s.x - z && r < s.x + 1 + z &&
+                                    g > s.y - z && g < s.y + 1 + z)
+                                    b += z*2;
+                            }
+                        }
+                    }
+                    if (foundPatterns)
+                        break;
+                }
+
+                inputBlock += blockWidth*3*sizeof(float);
+                errorBlock += blockWidth*3;
             }
             y += blockHeight;
             if (y >= _size.y)
                 return;
-
+            inputRow += blockHeight*_scaled.stride();
+            errorRow += errorStride*blockHeight;
         }
     }
 
     void setDiffusionHorizontal(double diffusionHorizontal)
     {
-        _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
+        _diffusionHorizontal = static_cast<float>(diffusionHorizontal);
     }
-    double getDiffusionHorizontal() { return _diffusionHorizontal/256.0; }
+    double getDiffusionHorizontal() { return _diffusionHorizontal; }
     void setDiffusionVertical(double diffusionVertical)
     {
-        _diffusionVertical = static_cast<int>(diffusionVertical*256);
+        _diffusionVertical = static_cast<float>(diffusionVertical);
     }
-    double getDiffusionVertical() { return _diffusionVertical/256.0; }
+    double getDiffusionVertical() { return _diffusionVertical; }
     void setDiffusionTemporal(double diffusionTemporal)
     {
-        _diffusionTemporal = static_cast<int>(diffusionTemporal*256);
+        _diffusionTemporal = static_cast<float>(diffusionTemporal);
     }
-    double getDiffusionTemporal() { return _diffusionTemporal/256.0; }
+    double getDiffusionTemporal() { return _diffusionTemporal; }
     void setMode(int mode) { _mode = mode; initData(); }
     int getMode() { return _mode; }
     void setPalette(int palette) { _palette = palette; initData(); }
@@ -1161,6 +1256,52 @@ public:
     double getRollOff() { return _rollOff; }
 
 private:
+    bool getDataBits(UInt32* dataBits, int pattern)
+    {
+        static const UInt32 hres1bpp[0x10] = {
+            0x00000000, 0x01010101, 0x04040404, 0x05050505,
+            0x10101010, 0x11111111, 0x14141414, 0x15151515,
+            0x40404040, 0x41414141, 0x44444444, 0x45454545,
+            0x50505050, 0x51515151, 0x54545454, 0x55555555};
+        int m = _mode + (_scanlinesPerRow > 2 ? 0x100 : 0);
+        switch (_mode & 0x113) {
+            case 0x102:
+            case 0x112:
+                dataBits[0] = static_cast<UInt32>(pattern & 0xf) * 0x11111111;
+                dataBits[1] = static_cast<UInt32>(pattern >> 4) * 0x11111111;
+                return pattern == 0x100;
+            case 0x103:
+                dataBits[0] = static_cast<UInt32>(pattern & 0xff) * 0x01010101;
+                dataBits[1] = static_cast<UInt32>(pattern >> 8) * 0x01010101;
+                return pattern == 0x10000;
+            case 0x113:
+                dataBits[0] = hres1bpp[pattern & 0xf];
+                dataBits[1] = hres1bpp[pattern >> 4];
+                return pattern == 0x100;
+        }
+        UInt32 p;
+        int patternCount = 0x10000;
+        switch (_mode & 0x113) {
+            case 0x002:
+            case 0x012:
+                p = static_cast<UInt32>(pattern) * 0x11111111;
+                patternCount = 0x10;
+                break;
+            case 0x003:
+                p = static_cast<UInt32>(pattern) * 0x1010101;
+                patternCount = 0x100;
+                break;
+            case 0x013:
+                p = hres1bpp[pattern];
+                patternCount = 0x10;
+                break;
+            default:
+                p = static_cast<UInt32>(pattern) * 0x10001;
+        }
+        dataBits[0] = p;
+        dataBits[1] = p;
+        return pattern == patternCount;
+    }
     void initData()
     {
         if (!_active)
@@ -1220,6 +1361,7 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
+    FFTNTSCDecoder _patternDecoder;
     FFTNTSCDecoder _decoder;
     CGAComposite _composite;
     Linearizer _linearizer;
@@ -1230,9 +1372,9 @@ private:
     int _scanlinesPerRow;
     int _scanlinesRepeat;
     int _connector;
-    int _diffusionHorizontal;
-    int _diffusionVertical;
-    int _diffusionTemporal;
+    float _diffusionHorizontal;
+    float _diffusionVertical;
+    float _diffusionTemporal;
     int _interlace;
     bool _interlaceSync;
     bool _interlacePhase;
@@ -1251,16 +1393,20 @@ private:
     Vector _size;
     Vector _activeSize;
     ScanlineRenderer _scaler;
-    Bitmap<SRGB> _input;
-    Array<float> _error;
     AlignedBuffer _scaled;
     int _horizontalDisplayed;
     int _hdotsPerChar;
     int _logCharactersPerBank;
 
-    Array<Byte> _ntsc;
     Array<Byte> _rgbiPalette;
+
+    Array<Byte> _srgbPattern;
+    Array<Byte> _ntscPattern;
     Array<Byte> _srgb;
+    Array<Byte> _ntsc;
+    Bitmap<SRGB> _input;
+    Array<float> _output;
+    Array<float> _error;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
