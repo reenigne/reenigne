@@ -876,10 +876,12 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
+        // Resample input image to desired size
         Vector size = _activeSize*Vector(1, _interlaceSync ? 2 : 1);
         if (size != _size) {
-            _scaler.setOutputSize(size);
             _scaler.setZoom(Vector2Cast<float>(size)/_input.size());
+            size.x = _hdotsPerChar*_horizontalDisplayed;
+            _scaler.setOutputSize(size);
             _size = size;
             AlignedBuffer input = _scaler.input();
             Vector tl = _scaler.inputTL();
@@ -940,6 +942,7 @@ public:
             }
         }
 
+        // Set up gamut table
         double gDivisions = 64.0/pow(2, _quality*6);
         Vector3<float> srgbScale;
         srgbScale.y = gDivisions/256;
@@ -954,6 +957,7 @@ public:
             blockWidth = 4;
             blockHeight = _scanlinesPerRow <= 2 ? 1 : 2;
         }
+        Byte burst[4];
         if (_connector == 0) {
             Byte levels[4];
             for (int i = 0; i < 4; ++i)
@@ -973,40 +977,26 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _patternDecoder.setLength(blockWidth);
-            _patternDecoder.setPadding(0);
-            _patternDecoder.setLumaBandwidth(_lumaBandwidth);
-            _patternDecoder.setChromaBandwidth(_chromaBandwidth);
-            _patternDecoder.setRollOff(_rollOff);
-            _patternDecoder.setChromaNotch(true);
-            _patternDecoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
-            _patternDecoder.setSaturation(
-                _saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
-            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
-            _patternDecoder.setContrast(c);
-            _patternDecoder.setBrightness(
-                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
-            Byte burst[4];
-            for (int i = 0; i < 4; ++i)
-                burst[i] = _composite.simulateCGA(6, 6, i);
-            _patternDecoder.calculateBurst(burst);
-
-            _decoder.setPadding((128 - blockWidth)/2);
+            _decoder.setLength(blockWidth);
+            _decoder.setPadding(0);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
             _decoder.setChromaNotch(true);
             _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
             _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
             _decoder.setContrast(c);
             _decoder.setBrightness(
                 (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, i);
             _decoder.calculateBurst(burst);
-
             _ntscPattern.ensure(blockWidth);
         }
         _srgbPattern.ensure(blockWidth);
 
+        // Populate gamut table
         for (int pattern = 0;; ++pattern) {
             Vector3<float> rgb(0, 0, 0);
             UInt32 dataBits[2];
@@ -1037,9 +1027,9 @@ public:
                     *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                         rgbi & 0xf, x & 3);
                     ntsc = &_ntscPattern[0];
-                    float* yData = _patternDecoder.yData();
-                    float* iData = _patternDecoder.iData();
-                    float* qData = _patternDecoder.qData();
+                    float* yData = _decoder.yData();
+                    float* iData = _decoder.iData();
+                    float* qData = _decoder.qData();
                     for (int i = 0; i < blockWidth; i += 4) {
                         yData[i] = ntsc[0];
                         yData[i + 1] = ntsc[1];
@@ -1053,7 +1043,7 @@ public:
                         iData += 2;
                         qData += 2;
                     }
-                    _patternDecoder.decodeBlock(&_srgbPattern[0]);
+                    _decoder.decodeBlock(&_srgbPattern[0]);
                 }
                 Byte* srgb = &_srgbPattern[0];
                 for (int x = 0; x < blockWidth; ++x)
@@ -1063,16 +1053,55 @@ public:
             auto s = Vector3Cast<int>(srgb*srgbScale);
             _table.add(pattern, s.x + srgbDiv.x*(s.y + srgbDiv.y*s.z));
         }
+
+        // Set up data structures for matching
+        int rowDataStride = 2*_horizontalDisplayed + 1;
+        _rowData.ensure(rowDataStride*2);
+        _rowData[0] = 0;
+        _rowData[rowDataStride] = 0;
         int errorStride = 3*(size.x + 1);
         int errorSize = errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
             _error[x] = 0;
+        int srgbSize = 65 + size.y*(size.x + 64);
+        _srgb.ensure(srgbSize);
+        int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
+        for (int x = 0; x < 65; ++x)
+            _srgb[x] = overscan;
+        for (int y = 0; y < size.y; ++y)
+            for (int x = 0; x < 64; ++x)
+                _srgb[65 + y*(size.x + 64) + x] = overscan;
+        if (_connector != 0) {
+            int ntscSize = 64 + size.y*(size.x + 64);
+            _ntsc.ensure(srgbSize - 1);
+            for (int x = 0; x < 64; ++x)
+                _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
+            for (int y = 0; y < size.y; ++y)
+                for (int x = 0; x < 64; ++x)
+                    _srgb[65 + y*(size.x + 64) + x] = overscan;
 
-        int y = 0;
+
+            _decoder.setPadding((128 - blockWidth)/2);
+            _decoder.calculateBurst(burst);
+        }
+
+
+        int row = 0;
         const Byte* inputRow = _scaled.data();
         float* errorRow = &_error[3*(size.x + 2)];
+
+        // Perform matching
         while (!cancelling()) {
+            int scanlines = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
+            int bytesPerRow = 2*_horizontalDisplayed;
+            for (int l = 0; l < scanlines; ++l) {
+                Array<Byte> rowData = _data->getData(row*bytesPerRow +
+                    (l << (_data->getDataByte(25) + 1)), bytesPerRow);
+                memcpy(&_rowData[1 + l*rowDataStride], &rowData[0],
+                    bytesPerRow);
+            }
+
             const Byte* inputBlock = inputRow;
             float* errorBlock = errorRow;
             for (int x = 0; x < _size.x; x += blockWidth) {
@@ -1081,7 +1110,7 @@ public:
                 Vector3<float> rgb(0, 0, 0);
                 const Byte* inputLine = inputBlock;
                 float* errorLine = errorBlock;
-                for (int y = 0; y < blockHeight; ++y) {
+                for (int scanline = 0; scanline < blockHeight; ++scanline) {
                     const float* input =
                         reinterpret_cast<const float*>(inputLine);
                     float* error = errorLine;
@@ -1116,10 +1145,11 @@ public:
                                     UInt32 dataBits[2];
                                     getDataBits(&dataBits[0], *pattern);
 
-                                    for (int yy = 0; yy < blockHeight; ++yy) {
+                                    for (int scanline = 0;
+                                        scanline < blockHeight; ++scanline) {
                                         UInt64 rgbi = _sequencer->process(
-                                            dataBits[yy & 1], _mode, _palette,
-                                            yy, false, 0);
+                                            dataBits[scanline & 1], _mode,
+                                            _palette, scanline, false, 0);
                                         if (_connector == 0) {
                                             Byte* srgb = &_srgb[0];
                                             for (int x = 0; x < blockWidth; ++x) {
@@ -1142,9 +1172,9 @@ public:
                                             *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                                                 rgbi & 0xf, x & 3);
                                             ntsc = &_ntsc[0];
-                                            float* yData = _patternDecoder.yData();
-                                            float* iData = _patternDecoder.iData();
-                                            float* qData = _patternDecoder.qData();
+                                            float* yData = _decoder.yData();
+                                            float* iData = _decoder.iData();
+                                            float* qData = _decoder.qData();
                                             for (int i = 0; i < blockWidth; i += 4) {
                                                 yData[i] = ntsc[0];
                                                 yData[i + 1] = ntsc[1];
@@ -1158,7 +1188,7 @@ public:
                                                 iData += 2;
                                                 qData += 2;
                                             }
-                                            _patternDecoder.decodeBlock(&_srgb[0]);
+                                            _decoder.decodeBlock(&_srgb[0]);
                                         }
                                         Byte* srgb = &_srgb[0];
                                         for (int x = 0; x < blockWidth; ++x)
@@ -1177,11 +1207,19 @@ public:
                         break;
                 }
 
+
                 inputBlock += blockWidth*3*sizeof(float);
                 errorBlock += blockWidth*3;
             }
-            y += blockHeight;
-            if (y >= _size.y)
+
+            for (int l = 0; l < scanlines; ++l) {
+                _data->change(0, row*bytesPerRow +
+                    (l << (_data->getDataByte(25) + 1)), bytesPerRow,
+                    &_rowData[1 + l*rowDataStride]);
+            }
+
+            ++row;
+            if (row >= _verticalDisplayed)
                 return;
             inputRow += blockHeight*_scaled.stride();
             errorRow += errorStride*blockHeight;
@@ -1310,9 +1348,10 @@ private:
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
         _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
         int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
-        int rows = (_size.y + scanlinesPerRow - 1)/scanlinesPerRow;
+        _verticalDisplayed = (_size.y + scanlinesPerRow - 1)/scanlinesPerRow;
         _logCharactersPerBank = 0;
-        while ((1 << _logCharactersPerBank) < _horizontalDisplayed*rows)
+        while ((1 << _logCharactersPerBank) <
+            _horizontalDisplayed*_verticalDisplayed)
             ++_logCharactersPerBank;
         int horizontalTotal = _horizontalDisplayed + 272/_hdotsPerChar;
         int horizontalSyncPosition = _horizontalDisplayed + 80/_hdotsPerChar;
@@ -1325,14 +1364,14 @@ private:
             verticalTotalAdjust += (verticalTotal - 128)*scanlinesPerRow;
             verticalTotal = 128;
         }
-        int verticalSyncPosition = rows + 24/scanlinesPerRow;
+        int verticalSyncPosition = _verticalDisplayed + 24/scanlinesPerRow;
         int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
         cgaRegisters[0] = _logCharactersPerBank;
         cgaRegisters[1] = (horizontalTotal - 1) >> 8;
         cgaRegisters[2] = _horizontalDisplayed >> 8;
         cgaRegisters[3] = horizontalSyncPosition >> 8;
         cgaRegisters[4] = (verticalTotal - 1) >> 8;
-        cgaRegisters[5] = rows >> 8;
+        cgaRegisters[5] = _verticalDisplayed >> 8;
         cgaRegisters[6] = verticalSyncPosition >> 8;
         cgaRegisters[7] = _mode;
         cgaRegisters[8] = _palette;
@@ -1342,14 +1381,14 @@ private:
         cgaRegisters[12] = 10;
         cgaRegisters[13] = (verticalTotal - 1) & 0xff;
         cgaRegisters[14] = verticalTotalAdjust;
-        cgaRegisters[15] = rows & 0xff;
+        cgaRegisters[15] = _verticalDisplayed & 0xff;
         cgaRegisters[16] = verticalSyncPosition & 0xff;
         cgaRegisters[17] = 2;
         cgaRegisters[18] = _scanlinesPerRow - 1;
         cgaRegisters[19] = 6;
         cgaRegisters[20] = 7;
         _data->change(0, -25, 25, &cgaRegisters[0]);
-        int last = _horizontalDisplayed*rows*2 - 1;
+        int last = _horizontalDisplayed*_verticalDisplayed*2 - 1;
         if ((_mode & 2) != 0)
             last += 2 << _logCharactersPerBank;
         _data->change(0, last, 0);
@@ -1361,7 +1400,6 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    FFTNTSCDecoder _patternDecoder;
     FFTNTSCDecoder _decoder;
     CGAComposite _composite;
     Linearizer _linearizer;
@@ -1395,15 +1433,17 @@ private:
     ScanlineRenderer _scaler;
     AlignedBuffer _scaled;
     int _horizontalDisplayed;
+    int _verticalDisplayed;
     int _hdotsPerChar;
     int _logCharactersPerBank;
 
     Array<Byte> _rgbiPalette;
 
-    Array<Byte> _srgbPattern;
     Array<Byte> _ntscPattern;
-    Array<Byte> _srgb;
+    Array<Byte> _srgbPattern;
+    Array<Byte> _rowData;
     Array<Byte> _ntsc;
+    Array<Byte> _srgb;
     Bitmap<SRGB> _input;
     Array<float> _output;
     Array<float> _error;
