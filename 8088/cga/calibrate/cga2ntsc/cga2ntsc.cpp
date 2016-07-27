@@ -1064,9 +1064,17 @@ public:
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
             _error[x] = 0;
+        int rgbiStride = size.x + 1;
+        _rgbi.ensure(rgbiStride*size.y + 1);
+        int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
+        _rgbi[0] = overscan;
+        for (int y = 0; y < size.y; ++y)
+            _rgbi[(y + 1)*rgbiStride - 1] = overscan;
+
+
+
         int srgbSize = 65 + size.y*(size.x + 64);
         _srgb.ensure(srgbSize);
-        int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
         for (int x = 0; x < 65; ++x)
             _srgb[x] = overscan;
         for (int y = 0; y < size.y; ++y)
@@ -1075,7 +1083,7 @@ public:
         if (_connector != 0) {
             int ntscSize = 64 + size.y*(size.x + 64);
             _ntsc.ensure(srgbSize - 1);
-            for (int x = 0; x < 64; ++x)
+            for (int x = 0; x < 63; ++x)
                 _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
             for (int y = 0; y < size.y; ++y)
                 for (int x = 0; x < 64; ++x)
@@ -1090,6 +1098,7 @@ public:
         int row = 0;
         const Byte* inputRow = _scaled.data();
         float* errorRow = &_error[3*(size.x + 2)];
+        int horizontalBlocks = size.x/blockWidth;
 
         // Perform matching
         while (!cancelling()) {
@@ -1104,7 +1113,8 @@ public:
 
             const Byte* inputBlock = inputRow;
             float* errorBlock = errorRow;
-            for (int x = 0; x < _size.x; x += blockWidth) {
+            for (int column = 0; column < horizontalBlocks;
+                column += blockWidth) {
                 int bestPattern = 0;
                 float bestScore = std::numeric_limits<float>::max();
                 Vector3<float> rgb(0, 0, 0);
@@ -1144,6 +1154,7 @@ public:
                                     foundPatterns = true;
                                     UInt32 dataBits[2];
                                     getDataBits(&dataBits[0], *pattern);
+
 
                                     for (int scanline = 0;
                                         scanline < blockHeight; ++scanline) {
@@ -1442,6 +1453,7 @@ private:
     Array<Byte> _ntscPattern;
     Array<Byte> _srgbPattern;
     Array<Byte> _rowData;
+    Array<Byte> _rgbi;
     Array<Byte> _ntsc;
     Array<Byte> _srgb;
     Bitmap<SRGB> _input;
