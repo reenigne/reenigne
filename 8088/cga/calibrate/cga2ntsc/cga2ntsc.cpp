@@ -957,6 +957,8 @@ public:
             blockWidth = 4;
             blockHeight = _scanlinesPerRow <= 2 ? 1 : 2;
         }
+        int scanlines = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
+        int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
         if (_connector == 0) {
             Byte levels[4];
@@ -995,15 +997,57 @@ public:
             _ntscPattern.ensure(blockWidth);
         }
         _srgbPattern.ensure(blockWidth);
+        static const UInt32 hres1bpp[0x10] = {
+            0x00000000, 0x01010101, 0x04040404, 0x05050505,
+            0x10101010, 0x11111111, 0x14141414, 0x15151515,
+            0x40404040, 0x41414141, 0x44444444, 0x45454545,
+            0x50505050, 0x51515151, 0x54545454, 0x55555555};
 
         // Populate gamut table
-        for (int pattern = 0;; ++pattern) {
+        int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0);
+        for (UInt32 pattern = 0;; ++pattern) {
             Vector3<float> rgb(0, 0, 0);
             UInt32 dataBits[2];
-            if (getDataBits(&dataBits[0], pattern))
+            int patternCount = 0x100;
+            int yMask = 1;
+            switch (mode1) {
+                case 0x102:
+                case 0x112:
+                    dataBits[0] = (pattern & 0xf) * 0x1111;
+                    dataBits[1] = (pattern >> 4) * 0x1111;
+                    break;
+                case 0x103:
+                    dataBits[0] = (pattern & 0xff) * 0x01010101;
+                    dataBits[1] = (pattern >> 8) * 0x01010101;
+                    patternCount = 0x10000;
+                    break;
+                case 0x113:
+                    dataBits[0] = hres1bpp[pattern & 0xf];
+                    dataBits[1] = hres1bpp[pattern >> 4];
+                    break;
+                case 0x002:
+                case 0x012:
+                    dataBits[0] = pattern * 0x1111;
+                    yMask = 0;
+                    patternCount = 0x10;
+                    break;
+                case 0x003:
+                    dataBits[0] = pattern * 0x01010101;
+                    yMask = 0;
+                    break;
+                case 0x013:
+                    dataBits[0] = hres1bpp[pattern];
+                    yMask = 0;
+                    patternCount = 0x10;
+                    break;
+                default:
+                    dataBits[0] = pattern * 0x00010001;
+                    yMask = 0;
+            }
+            if (pattern == patternCount)
                 break;
             for (int y = 0; y < blockHeight; ++y) {
-                UInt64 rgbi = _sequencer->process(dataBits[y & 1], _mode,
+                UInt64 rgbi = _sequencer->process(dataBits[y & yMask], _mode,
                     _palette, y, false, 0);
                 if (_connector == 0) {
                     Byte* srgb = &_srgbPattern[0];
@@ -1069,26 +1113,21 @@ public:
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
         _rgbi[0] = overscan;
         for (int y = 0; y < size.y; ++y)
-            _rgbi[(y + 1)*rgbiStride - 1] = overscan;
+            _rgbi[(y + 1)*rgbiStride] = overscan;
 
-
-
-        int srgbSize = 65 + size.y*(size.x + 64);
-        _srgb.ensure(srgbSize);
-        for (int x = 0; x < 65; ++x)
-            _srgb[x] = overscan;
-        for (int y = 0; y < size.y; ++y)
-            for (int x = 0; x < 64; ++x)
-                _srgb[65 + y*(size.x + 64) + x] = overscan;
+        int padding = 0;
+        if (_connector != 0)
+            padding = 32;
+        int srgbStride = 2*padding + size.x;
+        _srgb.ensure(size.y*srgbStride);
         if (_connector != 0) {
-            int ntscSize = 64 + size.y*(size.x + 64);
-            _ntsc.ensure(srgbSize - 1);
+            int ntscStride = size.x + 64;
+            _ntsc.ensure(64 + size.y*ntscStride);
             for (int x = 0; x < 63; ++x)
                 _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
             for (int y = 0; y < size.y; ++y)
-                for (int x = 0; x < 64; ++x)
-                    _srgb[65 + y*(size.x + 64) + x] = overscan;
-
+                for (int x = 0; x < 63; ++x)
+                    _ntsc[x + (y + 1)*ntscStride] = _ntsc[x & 3];
 
             _decoder.setPadding((128 - blockWidth)/2);
             _decoder.calculateBurst(burst);
@@ -1102,8 +1141,6 @@ public:
 
         // Perform matching
         while (!cancelling()) {
-            int scanlines = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
-            int bytesPerRow = 2*_horizontalDisplayed;
             for (int l = 0; l < scanlines; ++l) {
                 Array<Byte> rowData = _data->getData(row*bytesPerRow +
                     (l << (_data->getDataByte(25) + 1)), bytesPerRow);
@@ -1113,8 +1150,10 @@ public:
 
             const Byte* inputBlock = inputRow;
             float* errorBlock = errorRow;
-            for (int column = 0; column < horizontalBlocks;
-                column += blockWidth) {
+            Byte* d0 = &_rowData[1];
+            Byte* d1 = &_rowData[rowDataStride + 1];
+            for (int column = 0; column < horizontalBlocks; ++column) {
+                int mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
                 float bestScore = std::numeric_limits<float>::max();
                 Vector3<float> rgb(0, 0, 0);
@@ -1153,13 +1192,69 @@ public:
                                 for (int i = 0; i < n; ++i) {
                                     foundPatterns = true;
                                     UInt32 dataBits[2];
-                                    getDataBits(&dataBits[0], *pattern);
-
+                                    int yMask = 1;
+                                    switch (mode2) {
+                                        case 0x102:
+                                        case 0x112:
+                                            dataBits[0] = (*d0 & 0xf) +
+                                                (*pattern << 4);
+                                            dataBits[1] = (*d1 & 0xf) +
+                                                (*pattern & 0xf0);
+                                            break;
+                                        case 0x302:
+                                        case 0x312:
+                                            dataBits[0] = (*d0 & 0xf0) +
+                                                (*pattern & 0xf);
+                                            dataBits[1] = (*d1 & 0xf0) +
+                                                (*pattern >> 4);
+                                            break;
+                                        case 0x103:
+                                        case 0x303:
+                                            dataBits[0] = *pattern;
+                                            dataBits[1] = *pattern >> 8;
+                                            break;
+                                        case 0x113:
+                                        case 0x313:
+                                            dataBits[0] =
+                                                hres1bpp[*pattern & 0xf];
+                                            dataBits[1] =
+                                                hres1bpp[*pattern >> 4];
+                                            break;
+                                        case 0x002:
+                                        case 0x012:
+                                            dataBits[0] = (*d0 & 0xf) +
+                                                (*pattern << 4);
+                                            yMask = 0;
+                                            break;
+                                        case 0x202:
+                                        case 0x212:
+                                            dataBits[0] = (*d0 & 0xf0) +
+                                                (*pattern & 0xf);
+                                            yMask = 0;
+                                            break;
+                                        case 0x003:
+                                        case 0x203:
+                                            dataBits[0] = *pattern;
+                                            yMask = 0;
+                                            break;
+                                        case 0x013:
+                                        case 0x213:
+                                            dataBits[0] = hres1bpp[*pattern];
+                                            yMask = 0;
+                                            break;
+                                        default:
+                                            dataBits[0] = *pattern;
+                                            yMask = 0;
+                                    }
+                                    dataBits[0] = (dataBits[0] & 0xffff) +
+                                        (d0[-1] << 24);
+                                    dataBits[1] = (dataBits[1] & 0xffff) +
+                                        (d1[-1] << 24);
 
                                     for (int scanline = 0;
                                         scanline < blockHeight; ++scanline) {
                                         UInt64 rgbi = _sequencer->process(
-                                            dataBits[scanline & 1], _mode,
+                                            dataBits[scanline & yMask], _mode,
                                             _palette, scanline, false, 0);
                                         if (_connector == 0) {
                                             Byte* srgb = &_srgb[0];
@@ -1217,10 +1312,59 @@ public:
                     if (foundPatterns)
                         break;
                 }
-
-
                 inputBlock += blockWidth*3*sizeof(float);
                 errorBlock += blockWidth*3;
+
+                switch (mode2) {
+                    case 0x102:
+                    case 0x112:
+                        *d0 = (*d0 & 0xf) + (bestPattern << 4);
+                        *d1 = (*d1 & 0xf) + (bestPattern & 0xf0);
+                        break;
+                    case 0x302:
+                    case 0x312:
+                        *d0 = (*d0 & 0xf0) + (bestPattern & 0xf);
+                        *d1 = (*d1 & 0xf0) + (bestPattern >> 4);
+                        ++d0;
+                        ++d1;
+                        break;
+                    case 0x103:
+                    case 0x303:
+                        *d0 = bestPattern;
+                        *d1 = bestPattern >> 8;
+                        ++d0;
+                        ++d1;
+                        break;
+                    case 0x113:
+                    case 0x313:
+                        *d0 = hres1bpp[bestPattern & 0xf];
+                        *d1 = hres1bpp[bestPattern >> 4];
+                        ++d0;
+                        ++d1;
+                        break;
+                    case 0x002:
+                    case 0x012:
+                        *d0 = (*d0 & 0xf) + (bestPattern << 4);
+                        break;
+                    case 0x202:
+                    case 0x212:
+                        *d0 = (*d0 & 0xf0) + (bestPattern & 0xf);
+                        ++d0;
+                        break;
+                    case 0x003:
+                    case 0x203:
+                        *d0 = bestPattern;
+                        ++d0;
+                        break;
+                    case 0x013:
+                    case 0x213:
+                        *d0 = hres1bpp[bestPattern];
+                        ++d0;
+                        break;
+                    default:
+                        *d0 = bestPattern;
+                        d0 += 2;
+                }
             }
 
             for (int l = 0; l < scanlines; ++l) {
@@ -1305,52 +1449,6 @@ public:
     double getRollOff() { return _rollOff; }
 
 private:
-    bool getDataBits(UInt32* dataBits, int pattern)
-    {
-        static const UInt32 hres1bpp[0x10] = {
-            0x00000000, 0x01010101, 0x04040404, 0x05050505,
-            0x10101010, 0x11111111, 0x14141414, 0x15151515,
-            0x40404040, 0x41414141, 0x44444444, 0x45454545,
-            0x50505050, 0x51515151, 0x54545454, 0x55555555};
-        int m = _mode + (_scanlinesPerRow > 2 ? 0x100 : 0);
-        switch (_mode & 0x113) {
-            case 0x102:
-            case 0x112:
-                dataBits[0] = static_cast<UInt32>(pattern & 0xf) * 0x11111111;
-                dataBits[1] = static_cast<UInt32>(pattern >> 4) * 0x11111111;
-                return pattern == 0x100;
-            case 0x103:
-                dataBits[0] = static_cast<UInt32>(pattern & 0xff) * 0x01010101;
-                dataBits[1] = static_cast<UInt32>(pattern >> 8) * 0x01010101;
-                return pattern == 0x10000;
-            case 0x113:
-                dataBits[0] = hres1bpp[pattern & 0xf];
-                dataBits[1] = hres1bpp[pattern >> 4];
-                return pattern == 0x100;
-        }
-        UInt32 p;
-        int patternCount = 0x10000;
-        switch (_mode & 0x113) {
-            case 0x002:
-            case 0x012:
-                p = static_cast<UInt32>(pattern) * 0x11111111;
-                patternCount = 0x10;
-                break;
-            case 0x003:
-                p = static_cast<UInt32>(pattern) * 0x1010101;
-                patternCount = 0x100;
-                break;
-            case 0x013:
-                p = hres1bpp[pattern];
-                patternCount = 0x10;
-                break;
-            default:
-                p = static_cast<UInt32>(pattern) * 0x10001;
-        }
-        dataBits[0] = p;
-        dataBits[1] = p;
-        return pattern == patternCount;
-    }
     void initData()
     {
         if (!_active)
