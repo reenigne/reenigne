@@ -1190,61 +1190,75 @@ public:
                                 int n = _table.get(
                                     r + srgbDiv.x*(g + srgbDiv.y*b), &pattern);
                                 for (int i = 0; i < n; ++i) {
+                                    int p = *pattern;
                                     foundPatterns = true;
                                     UInt32 dataBits[2];
-                                    int yMask = 1;
+                                    int yMask =
+                                        (mode2 & 0x102) == 0x102 ? 1 : 0;
                                     switch (mode2) {
                                         case 0x102:
                                         case 0x112:
                                             dataBits[0] = (*d0 & 0xf) +
-                                                (*pattern << 4);
+                                                (p << 4);
                                             dataBits[1] = (*d1 & 0xf) +
-                                                (*pattern & 0xf0);
+                                                (p & 0xf0);
                                             break;
                                         case 0x302:
                                         case 0x312:
                                             dataBits[0] = (*d0 & 0xf0) +
-                                                (*pattern & 0xf);
+                                                (p & 0xf);
                                             dataBits[1] = (*d1 & 0xf0) +
-                                                (*pattern >> 4);
+                                                (p >> 4);
                                             break;
                                         case 0x103:
+                                            dataBits[0] = (d0[1] << 8) + p;
+                                            dataBits[1] = (d1[1] << 8) +
+                                                (p >> 8);
+                                            break;
                                         case 0x303:
-                                            dataBits[0] = *pattern;
-                                            dataBits[1] = *pattern >> 8;
+                                            dataBits[0] = d0[1] + (p << 8);
+                                            dataBits[1] = d1[1] + (p & 0xff00);
                                             break;
                                         case 0x113:
+                                            dataBits[0] = (d0[1] << 8) +
+                                                hres1bpp[p & 0xf];
+                                            dataBits[1] = (d1[1] << 8) +
+                                                hres1bpp[p >> 4];
+                                            break;
                                         case 0x313:
-                                            dataBits[0] =
-                                                hres1bpp[*pattern & 0xf];
-                                            dataBits[1] =
-                                                hres1bpp[*pattern >> 4];
+                                            dataBits[0] = d0[1] +
+                                                (hres1bpp[p & 0xf] << 8);
+                                            dataBits[1] = d1[1] +
+                                                (hres1bpp[p >> 4] << 8);
                                             break;
                                         case 0x002:
                                         case 0x012:
                                             dataBits[0] = (*d0 & 0xf) +
                                                 (*pattern << 4);
-                                            yMask = 0;
                                             break;
                                         case 0x202:
                                         case 0x212:
                                             dataBits[0] = (*d0 & 0xf0) +
                                                 (*pattern & 0xf);
-                                            yMask = 0;
                                             break;
                                         case 0x003:
+                                            dataBits[0] = (d0[1] << 8) +
+                                                *pattern;
+                                            break;
                                         case 0x203:
-                                            dataBits[0] = *pattern;
-                                            yMask = 0;
+                                            dataBits[0] = d0[1] +
+                                                (*pattern << 8);
                                             break;
                                         case 0x013:
+                                            dataBits[0] = (d0[1] << 8) +
+                                                hres1bpp[*pattern];
+                                            break;
                                         case 0x213:
-                                            dataBits[0] = hres1bpp[*pattern];
-                                            yMask = 0;
+                                            dataBits[0] = d0[1] +
+                                                (hres1bpp[*pattern] << 8);
                                             break;
                                         default:
                                             dataBits[0] = *pattern;
-                                            yMask = 0;
                                     }
                                     dataBits[0] = (dataBits[0] & 0xffff) +
                                         (d0[-1] << 24);
@@ -3138,7 +3152,8 @@ public:
     }
     void modeSet(int value)
     {
-        static const int modes[8] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3};
+        static const int modes[8] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3, 0x80,
+            0x81};
         int mode = modes[value] | 8 |
             (_videoCard._registers._bw.checked() ? 4 : 0) |
             (_videoCard._registers._blink.checked() ? 0x20 : 0);

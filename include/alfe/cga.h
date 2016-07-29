@@ -29,7 +29,8 @@ public:
 //   Or do it bytewise?
 
 
-    // renders a 16 hdot by 1 scanline region of CGA VRAM data into RGBI data
+    // renders a 1 character by 1 scanline region of CGA VRAM data into RGBI
+    // data.
     // cursor is cursor output pin from CRTC
     // cursorBlink counts from 0..3 then repeats, changes every 8 frames (low
     // bit cursor, high bit blink)

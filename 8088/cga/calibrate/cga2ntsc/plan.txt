@@ -983,3 +983,20 @@ Scanline profiles:
       Doing it in decode might be possible but fiddly
       I don't think we really need sub-hdot positioning anyway (sync position granulatity is at least 4 hdots)
 
+
+
+Extended mode bits:
+  0     1 +HRES
+  1     2 +GRPH
+  2     4 +BW
+  3     8 +VIDEO ENABLE
+  4  0x10 +1BPP
+  5  0x20 +ENABLE BLINK
+  6  0x40 Phase 1
+  7  0x80 auto mode
+  8 0x100 >2 scanlines per row
+  9 0x200 odd column
+
+-GRPH      - patterns always coincide with characters, don't care about column bits
++GRPH-HRES - patterns are always 1 nybble wide. We only use the column bit to decide which nybble to adjust in rowData, but always render 4 hdots
++GRPH+HRES - patterns are always 1 byte wide. We use the column bit to decide whether to adjust low or high byte in dataBits
