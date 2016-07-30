@@ -1000,3 +1000,19 @@ Extended mode bits:
 -GRPH      - patterns always coincide with characters, don't care about column bits
 +GRPH-HRES - patterns are always 1 nybble wide. We only use the column bit to decide which nybble to adjust in rowData, but always render 4 hdots
 +GRPH+HRES - patterns are always 1 byte wide. We use the column bit to decide whether to adjust low or high byte in dataBits
+
+AaAaAaAa,.,.SsCc,.
+,aAaAaAaA.,.,sCcs.
+AaAaAaAa,.,.SsCc,.
+,aAaAaAaA.,.,sCcs.
+
+  23256769
+  03454789
+
+  23256769
+  103454789
+
+  23256769
+  34547898
+
+

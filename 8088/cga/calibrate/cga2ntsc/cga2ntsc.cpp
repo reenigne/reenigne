@@ -1120,8 +1120,8 @@ public:
             padding = 32;
         int srgbStride = 2*padding + size.x;
         _srgb.ensure(size.y*srgbStride);
+        int ntscStride = size.x + 64;
         if (_connector != 0) {
-            int ntscStride = size.x + 64;
             _ntsc.ensure(64 + size.y*ntscStride);
             for (int x = 0; x < 63; ++x)
                 _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
@@ -1137,6 +1137,9 @@ public:
         int row = 0;
         const Byte* inputRow = _scaled.data();
         float* errorRow = &_error[3*(size.x + 2)];
+        Byte* rgbiRow = &_rgbi[0];
+        Byte* ntscRow = &_ntsc[0];
+        Byte* srgbRow = &_srgb[0];
         int horizontalBlocks = size.x/blockWidth;
 
         // Perform matching
@@ -1152,6 +1155,9 @@ public:
             float* errorBlock = errorRow;
             Byte* d0 = &_rowData[1];
             Byte* d1 = &_rowData[rowDataStride + 1];
+            Byte* rgbiBlock = rgbiRow;
+            Byte* ntscBlock = ntscRow;
+            Byte* srgbBlock = srgbRow;
             for (int column = 0; column < horizontalBlocks; ++column) {
                 int mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
@@ -1159,6 +1165,11 @@ public:
                 Vector3<float> rgb(0, 0, 0);
                 const Byte* inputLine = inputBlock;
                 float* errorLine = errorBlock;
+                Byte* rgbiLine = rgbiBlock;
+                Byte* ntscLine = ntscBlock;
+                Byte* srgbLine = srgbBlock;
+
+                // Compute average target colour for block to look up in table.
                 for (int scanline = 0; scanline < blockHeight; ++scanline) {
                     const float* input =
                         reinterpret_cast<const float*>(inputLine);
@@ -1179,8 +1190,11 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += errorStride;
                 }
+                inputLine = inputBlock;
+                errorLine = errorBlock;
                 SRGB srgb = _linearizer.srgb(rgb/(blockWidth*blockHeight));
                 auto s = Vector3Cast<int>(srgb*srgbScale - 0.5);
+                // Iterate through closest patterns to find the best match.
                 for (int z = 0;; ++z) {
                     bool foundPatterns = false;
                     for (int r = s.x - z; r < s.x + 2 + z; ++r) {
@@ -1234,31 +1248,29 @@ public:
                                         case 0x002:
                                         case 0x012:
                                             dataBits[0] = (*d0 & 0xf) +
-                                                (*pattern << 4);
+                                                (p << 4);
                                             break;
                                         case 0x202:
                                         case 0x212:
                                             dataBits[0] = (*d0 & 0xf0) +
-                                                (*pattern & 0xf);
+                                                (p & 0xf);
                                             break;
                                         case 0x003:
-                                            dataBits[0] = (d0[1] << 8) +
-                                                *pattern;
+                                            dataBits[0] = (d0[1] << 8) + p;
                                             break;
                                         case 0x203:
-                                            dataBits[0] = d0[1] +
-                                                (*pattern << 8);
+                                            dataBits[0] = d0[1] + (p << 8);
                                             break;
                                         case 0x013:
                                             dataBits[0] = (d0[1] << 8) +
-                                                hres1bpp[*pattern];
+                                                hres1bpp[p];
                                             break;
                                         case 0x213:
                                             dataBits[0] = d0[1] +
-                                                (hres1bpp[*pattern] << 8);
+                                                (hres1bpp[p] << 8);
                                             break;
                                         default:
-                                            dataBits[0] = *pattern;
+                                            dataBits[0] = p;
                                     }
                                     dataBits[0] = (dataBits[0] & 0xffff) +
                                         (d0[-1] << 24);
@@ -1268,13 +1280,15 @@ public:
                                     for (int scanline = 0;
                                         scanline < blockHeight; ++scanline) {
                                         UInt64 rgbi = _sequencer->process(
-                                            dataBits[scanline & yMask], _mode,
-                                            _palette, scanline, false, 0);
+                                            dataBits[scanline & yMask],
+                                            _mode + phase, _palette, scanline,
+                                            false, 0);
                                         if (_connector == 0) {
                                             Byte* srgb = &_srgb[0];
-                                            for (int x = 0; x < blockWidth; ++x) {
-                                                Byte* p =
-                                                    &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
+                                            for (int x = 0; x < blockWidth;
+                                                ++x) {
+                                                Byte* p = &_rgbiPalette[3*
+                                                    ((rgbi >> (x * 4)) & 0xf)];
                                                 srgb[0] = p[0];
                                                 srgb[1] = p[1];
                                                 srgb[2] = p[2];
@@ -1282,6 +1296,14 @@ public:
                                             }
                                         }
                                         else {
+                                            for (int x = 0; x < blockWidth;
+                                                ++x) {
+                                                Byte c =
+                                                    ((rgbi >> (x * 4)) & 0xf);
+
+                                            }
+
+
                                             Byte* ntsc = &_ntsc[0];
                                             int x;
                                             for (x = 0; x < blockWidth - 1; ++x) {
