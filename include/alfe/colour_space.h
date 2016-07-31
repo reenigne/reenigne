@@ -5,7 +5,7 @@
 
 #include "alfe/vectors.h"
 
-typedef Vector3<double> Colour;
+typedef Vector3<float> Colour;
 typedef Vector3<UInt8> SRGB;
 
 class ColourSpaceBody
@@ -36,48 +36,48 @@ public:
     Colour fromRgb(const Colour& rgb)
     {
         Colour xyz = ColourSpace::xyz().fromRgb(rgb);
-        double x = xyz.x;
-        double y = xyz.y;
-        double z = xyz.z;
-        static const double d = 3.0/29.0;
-        static const double d2 = d*2.0;
-        double l;
+        float x = xyz.x;
+        float y = xyz.y;
+        float z = xyz.z;
+        static const float d = 3.0f/29.0f;
+        static const float d2 = d*2.0f;
+        float l;
         if (y <= d2*d2*d2)
             l = y/(d*d*d);
         else
-            l = 116.0*pow(y, 1.0/3.0) - 16.0;
-        double r = x + 15*y + 3*z;
-        double u;
-        double v;
-        if (r < 1e-5) {
-            u = 13.0*l*(4 - 0.2105);
-            v = 13.0*l*(9.0/15.0 - 0.4737);
+            l = 116.0f*pow(y, 1.0f/3.0f) - 16.0f;
+        float r = x + 15f*y + 3f*z;
+        float u;
+        float v;
+        if (r < 1.0fe-5) {
+            u = 13.0f*l*(4.0f - 0.2105f);
+            v = 13.0f*l*(9.0f/15.0f - 0.4737f);
         }
         else {
-            u = 13.0*l*(4*x/r - 0.2105);
-            v = 13.0*l*(9*y/r - 0.4737);
+            u = 13.0f*l*(4.0f*x/r - 0.2105f);
+            v = 13.0f*l*(9.0f*y/r - 0.4737f);
         }
         return Colour(l, u, v);
     }
     Colour toRgb(const Colour& luv)
     {
-        double l = luv.x;
-        double u = luv.y;
-        double v = luv.z;
-        double uu = u/(13*l) + 0.2105;
-        double vv = v/(13*l) + 0.4737;
-        double y;
-        static const double d = 3.0/29.0;
-        if (l <= 8)
+        float l = luv.x;
+        float u = luv.y;
+        float v = luv.z;
+        float uu = u/(13.0f*l) + 0.2105f;
+        float vv = v/(13.0f*l) + 0.4737f;
+        float y;
+        static const float d = 3.0f/29.0f;
+        if (l <= 8.0f)
             y = l*d*d*d;
         else {
-            y = (l + 16)/116;
+            y = (l + 16.0f)/116.0f;
             y = y*y*y;
         }
-        if (vv < 1e-5)
+        if (vv < 1.0fe-5)
             return SRGB(0, 0, 0);
-        double x = y*(9*uu)/(4*vv);
-        double z = y*(12 - 3*uu - 20*vv)/(4*vv);
+        float x = y*(9.0f*uu)/(4.0f*vv);
+        float z = y*(12.0f - 3.0f*uu - 20.0f*vv)/(4.0f*vv);
         return ColourSpace::xyz().toRgb(Colour(x, y, z));
     }
 private:
@@ -102,31 +102,31 @@ public:
     Colour fromRgb(const Colour& rgb)
     {
         Colour xyz = ColourSpace::xyz().fromRgb(rgb);
-        double y = labFromXyzHelper(xyz.y);
+        float y = labFromXyzHelper(xyz.y);
         return Colour(
-            116.0*y - 16.0,
-            500.0*(labFromXyzHelper(xyz.x) - y),
-            200.0*(y - labFromXyzHelper(xyz.z)));
+            116.0f*y - 16.0f,
+            500.0f*(labFromXyzHelper(xyz.x) - y),
+            200.0f*(y - labFromXyzHelper(xyz.z)));
     }
     Colour toRgb(const Colour& lab)
     {
-        double y = (lab.x + 16.0)/116.0;
+        float y = (lab.x + 16.0f)/116.0f;
         return ColourSpace::xyz().toRgb(Colour(
-            xyzFromLabHelper(y + lab.y/500.0),
+            xyzFromLabHelper(y + lab.y/500.0f),
             xyzFromLabHelper(y),
-            xyzFromLabHelper(y - lab.z/200.0)));
+            xyzFromLabHelper(y - lab.z/200.0f)));
     }
 private:
-    double xyzFromLabHelper(double t)
+    float xyzFromLabHelper(float t)
     {
-        static const double d = 6.0/29.0;
-        return t > d ? pow(t, 3.0) : (t - 4.0/29.0)*3.0*d*d;
+        static const float d = 6.0f/29.0f;
+        return t > d ? pow(t, 3.0f) : (t - 4.0f/29.0f)*3.0f*d*d;
     }
 
-    double labFromXyzHelper(double t)
+    float labFromXyzHelper(float t)
     {
-        static const double d = 6.0/29.0;
-        return t > d*d*d ? pow(t, 1/3.0) : t/(3.0*d*d) + 4.0/29.0;
+        static const float d = 6.0f/29.0f;
+        return t > d*d*d ? pow(t, 1.0f/3.0f) : t/(3.0f*d*d) + 4.0f/29.0f;
     }
     LABColourSpaceBodyT() { }
     friend class ColourSpaceT<T>;
@@ -181,15 +181,15 @@ public:
     Colour fromRgb(const Colour& rgb) { return rgb; }
     Colour toRgb(const Colour& rgb) { return rgb; }
 private:
-    static double srgbFromRgbHelper(double t)
+    static float srgbFromRgbHelper(float t)
     {
-        return 256.0*(t <= 0.0031308 ? 12.92*t :
-                (1 + 0.055)*pow(t, 1.0/2.4) - 0.055);
+        return 256.0f*(t <= 0.0031308f ? 12.92f*t :
+                (1.0f + 0.055f)*pow(t, 1.0f/2.4f) - 0.055f);
     }
-    static double rgbFromSrgbHelper(double t)
+    static float rgbFromSrgbHelper(float t)
     {
-        t /= 256.0;
-        return t <= 0.04045 ? t/12.92 : pow((t + 0.055)/(1 + 0.055), 2.4);
+        t /= 256.0f;
+        return t <= 0.04045f ? t/12.92f : pow((t + 0.055f)/(1 + 0.055f), 2.4f);
     }
 
     //RGBColourSpaceBody()
@@ -197,11 +197,11 @@ private:
     //    for (int s = 0; s < 256+200; ++s)
     //        _lFromS[s] = rgbFromSrgbHelper(s-100);
     //    for (int l = 0; l < 583+200; ++l)
-    //        _sFromL[l] = srgbFromRgbHelper(static_cast<double>(l-100)/582.0);
+    //        _sFromL[l] = srgbFromRgbHelper(static_cast<float>(l-100)/582.0);
     //}
 
-    //double _sFromL[583+200];
-    //double _lFromS[256+200];
+    //float _sFromL[583+200];
+    //float _lFromS[256+200];
 
     friend class ColourSpaceT<void>;
 };
@@ -220,16 +220,16 @@ public:
     Colour fromRgb(const Colour& rgb)
     {
         return Colour(
-            0.4124*rgb.x + 0.3576*rgb.y + 0.1805*rgb.z,
-            0.2126*rgb.x + 0.7152*rgb.y + 0.0722*rgb.z,
-            0.0193*rgb.x + 0.1192*rgb.y + 0.9505*rgb.z);
+            0.4124f*rgb.x + 0.3576f*rgb.y + 0.1805f*rgb.z,
+            0.2126f*rgb.x + 0.7152f*rgb.y + 0.0722f*rgb.z,
+            0.0193f*rgb.x + 0.1192f*rgb.y + 0.9505f*rgb.z);
     }
     Colour toRgb(const Colour& xyz)
     {
         return Colour(
-             3.2410*xyz.x - 1.5374*xyz.y - 0.4986*xyz.z,
-            -0.9692*xyz.x + 1.8760*xyz.y + 0.0416*xyz.z,
-             0.0556*xyz.x - 0.2040*xyz.y + 1.0570*xyz.z);
+             3.2410f*xyz.x - 1.5374f*xyz.y - 0.4986f*xyz.z,
+            -0.9692f*xyz.x + 1.8760f*xyz.y + 0.0416f*xyz.z,
+             0.0556f*xyz.x - 0.2040f*xyz.y + 1.0570f*xyz.z);
     }
 private:
     XYZColourSpaceBodyT() { }

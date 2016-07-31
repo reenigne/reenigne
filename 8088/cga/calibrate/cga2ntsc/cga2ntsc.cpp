@@ -1137,17 +1137,18 @@ public:
         int row = 0;
         const Byte* inputRow = _scaled.data();
         float* errorRow = &_error[3*(size.x + 2)];
-        Byte* rgbiRow = &_rgbi[0];
+        Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
         Byte* srgbRow = &_srgb[0];
         int horizontalBlocks = size.x/blockWidth;
+        int phaseRow = _phase << 6;
 
         // Perform matching
         while (!cancelling()) {
-            for (int l = 0; l < scanlines; ++l) {
+            for (int y = 0; y < scanlines; ++y) {
                 Array<Byte> rowData = _data->getData(row*bytesPerRow +
-                    (l << (_data->getDataByte(25) + 1)), bytesPerRow);
-                memcpy(&_rowData[1 + l*rowDataStride], &rowData[0],
+                    (y << (_data->getDataByte(25) + 1)), bytesPerRow);
+                memcpy(&_rowData[1 + y*rowDataStride], &rowData[0],
                     bytesPerRow);
             }
 
@@ -1158,6 +1159,7 @@ public:
             Byte* rgbiBlock = rgbiRow;
             Byte* ntscBlock = ntscRow;
             Byte* srgbBlock = srgbRow;
+            int phase = phaseRow;
             for (int column = 0; column < horizontalBlocks; ++column) {
                 int mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
@@ -1170,9 +1172,8 @@ public:
                 Byte* srgbLine = srgbBlock;
 
                 // Compute average target colour for block to look up in table.
-                for (int scanline = 0; scanline < blockHeight; ++scanline) {
-                    const float* input =
-                        reinterpret_cast<const float*>(inputLine);
+                for (int y = 0; y < blockHeight; ++y) {
+                    auto input = reinterpret_cast<const float*>(inputLine);
                     float* error = errorLine;
                     for (int x = 0; x < blockWidth; ++x) {
                         rgb += Vector3<float>(input[0], input[1], input[2]);
@@ -1197,153 +1198,135 @@ public:
                 // Iterate through closest patterns to find the best match.
                 for (int z = 0;; ++z) {
                     bool foundPatterns = false;
-                    for (int r = s.x - z; r < s.x + 2 + z; ++r) {
-                        for (int g = s.y - z; g < s.y + 2 + z; ++g) {
-                            for (int b = s.z - z; b < s.z + 2 + z; ++b) {
-                                Word* pattern;
-                                int n = _table.get(
-                                    r + srgbDiv.x*(g + srgbDiv.y*b), &pattern);
-                                for (int i = 0; i < n; ++i) {
-                                    int p = *pattern;
-                                    foundPatterns = true;
-                                    UInt32 dataBits[2];
-                                    int yMask =
-                                        (mode2 & 0x102) == 0x102 ? 1 : 0;
-                                    switch (mode2) {
-                                        case 0x102:
-                                        case 0x112:
-                                            dataBits[0] = (*d0 & 0xf) +
-                                                (p << 4);
-                                            dataBits[1] = (*d1 & 0xf) +
-                                                (p & 0xf0);
-                                            break;
-                                        case 0x302:
-                                        case 0x312:
-                                            dataBits[0] = (*d0 & 0xf0) +
-                                                (p & 0xf);
-                                            dataBits[1] = (*d1 & 0xf0) +
-                                                (p >> 4);
-                                            break;
-                                        case 0x103:
-                                            dataBits[0] = (d0[1] << 8) + p;
-                                            dataBits[1] = (d1[1] << 8) +
-                                                (p >> 8);
-                                            break;
-                                        case 0x303:
-                                            dataBits[0] = d0[1] + (p << 8);
-                                            dataBits[1] = d1[1] + (p & 0xff00);
-                                            break;
-                                        case 0x113:
-                                            dataBits[0] = (d0[1] << 8) +
-                                                hres1bpp[p & 0xf];
-                                            dataBits[1] = (d1[1] << 8) +
-                                                hres1bpp[p >> 4];
-                                            break;
-                                        case 0x313:
-                                            dataBits[0] = d0[1] +
-                                                (hres1bpp[p & 0xf] << 8);
-                                            dataBits[1] = d1[1] +
-                                                (hres1bpp[p >> 4] << 8);
-                                            break;
-                                        case 0x002:
-                                        case 0x012:
-                                            dataBits[0] = (*d0 & 0xf) +
-                                                (p << 4);
-                                            break;
-                                        case 0x202:
-                                        case 0x212:
-                                            dataBits[0] = (*d0 & 0xf0) +
-                                                (p & 0xf);
-                                            break;
-                                        case 0x003:
-                                            dataBits[0] = (d0[1] << 8) + p;
-                                            break;
-                                        case 0x203:
-                                            dataBits[0] = d0[1] + (p << 8);
-                                            break;
-                                        case 0x013:
-                                            dataBits[0] = (d0[1] << 8) +
-                                                hres1bpp[p];
-                                            break;
-                                        case 0x213:
-                                            dataBits[0] = d0[1] +
-                                                (hres1bpp[p] << 8);
-                                            break;
-                                        default:
-                                            dataBits[0] = p;
-                                    }
-                                    dataBits[0] = (dataBits[0] & 0xffff) +
-                                        (d0[-1] << 24);
-                                    dataBits[1] = (dataBits[1] & 0xffff) +
-                                        (d1[-1] << 24);
-
-                                    for (int scanline = 0;
-                                        scanline < blockHeight; ++scanline) {
-                                        UInt64 rgbi = _sequencer->process(
-                                            dataBits[scanline & yMask],
-                                            _mode + phase, _palette, scanline,
-                                            false, 0);
-                                        if (_connector == 0) {
-                                            Byte* srgb = &_srgb[0];
-                                            for (int x = 0; x < blockWidth;
-                                                ++x) {
-                                                Byte* p = &_rgbiPalette[3*
-                                                    ((rgbi >> (x * 4)) & 0xf)];
-                                                srgb[0] = p[0];
-                                                srgb[1] = p[1];
-                                                srgb[2] = p[2];
-                                                srgb += 3;
-                                            }
-                                        }
-                                        else {
-                                            for (int x = 0; x < blockWidth;
-                                                ++x) {
-                                                Byte c =
-                                                    ((rgbi >> (x * 4)) & 0xf);
-
-                                            }
-
-
-                                            Byte* ntsc = &_ntsc[0];
-                                            int x;
-                                            for (x = 0; x < blockWidth - 1; ++x) {
-                                                *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
-                                                    (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
-                                                ++ntsc;
-                                            }
-                                            *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
-                                                rgbi & 0xf, x & 3);
-                                            ntsc = &_ntsc[0];
-                                            float* yData = _decoder.yData();
-                                            float* iData = _decoder.iData();
-                                            float* qData = _decoder.qData();
-                                            for (int i = 0; i < blockWidth; i += 4) {
-                                                yData[i] = ntsc[0];
-                                                yData[i + 1] = ntsc[1];
-                                                yData[i + 2] = ntsc[2];
-                                                yData[i + 3] = ntsc[3];
-                                                iData[0] = -static_cast<float>(ntsc[1]);
-                                                iData[1] = ntsc[3];
-                                                qData[0] = ntsc[0];
-                                                qData[1] = -static_cast<float>(ntsc[2]);
-                                                ntsc += 4;
-                                                iData += 2;
-                                                qData += 2;
-                                            }
-                                            _decoder.decodeBlock(&_srgb[0]);
-                                        }
-                                        Byte* srgb = &_srgb[0];
-                                        for (int x = 0; x < blockWidth; ++x)
-                                            rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
-                                    }
-                                    ++pattern;
-                                }
-
-                                if (r > s.x - z && r < s.x + 1 + z &&
-                                    g > s.y - z && g < s.y + 1 + z)
-                                    b += z*2;
+                    int rMin = max(s.x - z, 0);
+                    int rMax = min(s.x + 1 + z, srgbDiv.x - 1);
+                    int gMin = max(s.y - z, 0);
+                    int gMax = min(s.y + 1 + z, srgbDiv.y - 1);
+                    int bMin = max(s.z - z, 0);
+                    int bMax = min(s.z + 1 + z, srgbDiv.z - 1);
+                    for (int r = rMin; r <= rMax; ++r)
+                        for (int g = gMin; g <= gMax; ++g)
+                        for (int b = bMin; b <= bMax; ++b) {
+                        Word* patterns;
+                        int n = _table.get(r + srgbDiv.x*(g + srgbDiv.y*b),
+                            &patterns);
+                        for (int i = 0; i < n; ++i) {
+                            int pattern = *patterns;
+                            foundPatterns = true;
+                            UInt32 v[2];
+                            int yMask = (mode2 & 0x102) == 0x102 ? 1 : 0;
+                            switch (mode2) {
+                                case 0x102:
+                                case 0x112:
+                                    v[0] = (*d0 & 0xf) + (pattern << 4);
+                                    v[1] = (*d1 & 0xf) + (pattern & 0xf0);
+                                    break;
+                                case 0x302:
+                                case 0x312:
+                                    v[0] = (*d0 & 0xf0) + (pattern & 0xf);
+                                    v[1] = (*d1 & 0xf0) + (pattern >> 4);
+                                    break;
+                                case 0x103:
+                                    v[0] = (d0[1] << 8) + pattern;
+                                    v[1] = (d1[1] << 8) + (pattern >> 8);
+                                    break;
+                                case 0x303:
+                                    v[0] = d0[1] + (pattern << 8);
+                                    v[1] = d1[1] + (pattern & 0xff00);
+                                    break;
+                                case 0x113:
+                                    v[0] = (d0[1] << 8) +
+                                        (hres1bpp[pattern & 0xf] & 0xff);
+                                    v[1] = (d1[1] << 8) +
+                                        (hres1bpp[pattern >> 4] & 0xff);
+                                    break;
+                                case 0x313:
+                                    v[0] = d0[1] +
+                                        (hres1bpp[pattern & 0xf] << 8);
+                                    v[1] = d1[1] +
+                                        (hres1bpp[pattern >> 4] << 8);
+                                    break;
+                                case 0x002:
+                                case 0x012:
+                                    v[0] = (*d0 & 0xf) + (pattern << 4);
+                                    break;
+                                case 0x202:
+                                case 0x212:
+                                    v[0] = (*d0 & 0xf0) + (pattern & 0xf);
+                                    break;
+                                case 0x003:
+                                    v[0] = (d0[1] << 8) + pattern;
+                                    break;
+                                case 0x203:
+                                    v[0] = d0[1] + (pattern << 8);
+                                    break;
+                                case 0x013:
+                                    v[0] = (d0[1] << 8) +
+                                        (hres1bpp[pattern] & 0xff);
+                                    break;
+                                case 0x213:
+                                    v[0] = d0[1] + (hres1bpp[pattern] << 8);
+                                    break;
+                                default:
+                                    v[0] = pattern;
                             }
+                            v[0] = (v[0] & 0xffff) + (d0[-1] << 24);
+                            v[1] = (v[1] & 0xffff) + (d1[-1] << 24);
+
+                            for (int scanline = 0; scanline < blockHeight;
+                                ++scanline) {
+                                UInt64 rgbis = _sequencer->process(
+                                    v[scanline & yMask], _mode + phase,
+                                    _palette, scanline, false, 0);
+                                Byte* srgb = srgbLine;
+                                if (_connector == 0) {
+                                    for (int x = 0; x < blockWidth; ++x) {
+                                        Byte* p = &_rgbiPalette[3*
+                                            ((rgbis >> (x * 4)) & 0xf)];
+                                        srgb[0] = p[0];
+                                        srgb[1] = p[1];
+                                        srgb[2] = p[2];
+                                        srgb += 3;
+                                    }
+                                }
+                                else {
+                                    Byte* rgbi = rgbiLine;
+                                    for (int x = 0; x < blockWidth; ++x)
+                                        rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
+                                    Byte* ntsc = ntscLine;
+                                    for (int x = 0; x < blockWidth + 1; ++x) {
+                                        ntsc[x] = _composite.simulateCGA(
+                                            rgbi[x - 1], rgbi[x], x & 3);
+                                    }
+                                    float* yData = _decoder.yData();
+                                    float* iData = _decoder.iData();
+                                    float* qData = _decoder.qData();
+                                    for (int x = 0; x < blockWidth; x += 4) {
+                                        yData[x] = ntsc[0];
+                                        yData[x + 1] = ntsc[1];
+                                        yData[x + 2] = ntsc[2];
+                                        yData[x + 3] = ntsc[3];
+                                        iData[0] =
+                                            -static_cast<float>(ntsc[1]);
+                                        iData[1] = ntsc[3];
+                                        qData[0] = ntsc[0];
+                                        qData[1] =
+                                            -static_cast<float>(ntsc[2]);
+                                        ntsc += 4;
+                                        iData += 2;
+                                        qData += 2;
+                                    }
+                                    _decoder.decodeBlock(srgb);
+                                }
+                                srgb = srgbLine;
+                                for (int x = 0; x < blockWidth; ++x)
+                                    rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
+                            }
+                            ++pattern;
                         }
+
+                        if (r > rMin && r < rMax && g > gMin && g < gMax)
+                            b += z*2;
                     }
                     if (foundPatterns)
                         break;
@@ -1370,6 +1353,7 @@ public:
                         *d1 = bestPattern >> 8;
                         ++d0;
                         ++d1;
+                        phase ^= 0x40;
                         break;
                     case 0x113:
                     case 0x313:
@@ -1377,6 +1361,7 @@ public:
                         *d1 = hres1bpp[bestPattern >> 4];
                         ++d0;
                         ++d1;
+                        phase ^= 0x40;
                         break;
                     case 0x002:
                     case 0x012:
@@ -1391,16 +1376,21 @@ public:
                     case 0x203:
                         *d0 = bestPattern;
                         ++d0;
+                        phase ^= 0x40;
                         break;
                     case 0x013:
                     case 0x213:
                         *d0 = hres1bpp[bestPattern];
                         ++d0;
+                        phase ^= 0x40;
                         break;
                     default:
                         *d0 = bestPattern;
                         d0 += 2;
                 }
+                rgbiBlock += blockWidth;
+                ntscBlock += blockWidth;
+                srgbBlock += 3*blockWidth;
             }
 
             for (int l = 0; l < scanlines; ++l) {
@@ -1414,6 +1404,11 @@ public:
                 return;
             inputRow += blockHeight*_scaled.stride();
             errorRow += errorStride*blockHeight;
+            if ((_data->getDataByte(-16) & 1) == 0)
+                phaseRow ^= 0x40;
+            rgbiRow += rgbiStride*blockHeight;
+            ntscRow += ntscStride*blockHeight;
+            srgbRow += srgbStride*blockHeight;
         }
     }
 
@@ -1489,7 +1484,8 @@ private:
     {
         if (!_active)
             return;
-        Byte cgaRegisters[25] = { 0 };
+        Byte cgaRegistersData[25] = { 0 };
+        Byte* cgaRegisters = &cgaRegistersData[25];
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
         _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
         int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
@@ -1511,28 +1507,28 @@ private:
         }
         int verticalSyncPosition = _verticalDisplayed + 24/scanlinesPerRow;
         int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
-        cgaRegisters[0] = _logCharactersPerBank;
-        cgaRegisters[1] = (horizontalTotal - 1) >> 8;
-        cgaRegisters[2] = _horizontalDisplayed >> 8;
-        cgaRegisters[3] = horizontalSyncPosition >> 8;
-        cgaRegisters[4] = (verticalTotal - 1) >> 8;
-        cgaRegisters[5] = _verticalDisplayed >> 8;
-        cgaRegisters[6] = verticalSyncPosition >> 8;
-        cgaRegisters[7] = _mode;
-        cgaRegisters[8] = _palette;
-        cgaRegisters[9] = (horizontalTotal - 1) & 0xff;
-        cgaRegisters[10] = _horizontalDisplayed & 0xff;
-        cgaRegisters[11] = horizontalSyncPosition & 0xff;
-        cgaRegisters[12] = 10;
-        cgaRegisters[13] = (verticalTotal - 1) & 0xff;
-        cgaRegisters[14] = verticalTotalAdjust;
-        cgaRegisters[15] = _verticalDisplayed & 0xff;
-        cgaRegisters[16] = verticalSyncPosition & 0xff;
-        cgaRegisters[17] = 2;
-        cgaRegisters[18] = _scanlinesPerRow - 1;
-        cgaRegisters[19] = 6;
-        cgaRegisters[20] = 7;
-        _data->change(0, -25, 25, &cgaRegisters[0]);
+        cgaRegisters[-25] = _logCharactersPerBank;
+        cgaRegisters[-24] = (horizontalTotal - 1) >> 8;
+        cgaRegisters[-23] = _horizontalDisplayed >> 8;
+        cgaRegisters[-22] = horizontalSyncPosition >> 8;
+        cgaRegisters[-21] = (verticalTotal - 1) >> 8;
+        cgaRegisters[-20] = _verticalDisplayed >> 8;
+        cgaRegisters[-19] = verticalSyncPosition >> 8;
+        cgaRegisters[-18] = _mode;
+        cgaRegisters[-17] = _palette;
+        cgaRegisters[-16] = (horizontalTotal - 1) & 0xff;
+        cgaRegisters[-15] = _horizontalDisplayed & 0xff;
+        cgaRegisters[-14] = horizontalSyncPosition & 0xff;
+        cgaRegisters[-13] = 10;
+        cgaRegisters[-12] = (verticalTotal - 1) & 0xff;
+        cgaRegisters[-11] = verticalTotalAdjust;
+        cgaRegisters[-10] = _verticalDisplayed & 0xff;
+        cgaRegisters[-9] = verticalSyncPosition & 0xff;
+        cgaRegisters[-8] = 2;
+        cgaRegisters[-7] = _scanlinesPerRow - 1;
+        cgaRegisters[-6] = 6;
+        cgaRegisters[-5] = 7;
+        _data->change(0, -25, 25, &cgaRegistersData[0]);
         int last = _horizontalDisplayed*_verticalDisplayed*2 - 1;
         if ((_mode & 2) != 0)
             last += 2 << _logCharactersPerBank;
