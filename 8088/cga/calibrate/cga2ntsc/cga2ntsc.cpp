@@ -824,11 +824,11 @@ public:
             _linear[255] = 1.0f;
         }
     }
-    Vector3<float> linear(SRGB srgb)
+    Colour linear(SRGB srgb)
     {
-        return Vector3<float>(linear(srgb.x), linear(srgb.y), linear(srgb.z));
+        return Colour(linear(srgb.x), linear(srgb.y), linear(srgb.z));
     }
-    SRGB srgb(Vector3<float> linear)
+    SRGB srgb(Colour linear)
     {
         return SRGB(srgb(linear.x), srgb(linear.y), srgb(linear.z));
     }
@@ -1006,7 +1006,7 @@ public:
         // Populate gamut table
         int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0);
         for (UInt32 pattern = 0;; ++pattern) {
-            Vector3<float> rgb(0, 0, 0);
+            Colour rgb(0, 0, 0);
             UInt32 dataBits[2];
             int patternCount = 0x100;
             int yMask = 1;
@@ -1103,11 +1103,11 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        int errorStride = 3*(size.x + 1);
+        int errorStride = size.x + 1;
         int errorSize = errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
-            _error[x] = 0;
+            _error[x] = Colour(0, 0, 0);
         int rgbiStride = size.x + 1;
         _rgbi.ensure(rgbiStride*size.y + 1);
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
@@ -1136,7 +1136,7 @@ public:
 
         int row = 0;
         const Byte* inputRow = _scaled.data();
-        float* errorRow = &_error[3*(size.x + 2)];
+        Colour* errorRow = &_error[3*(size.x + 2)];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
         Byte* srgbRow = &_srgb[0];
@@ -1153,7 +1153,7 @@ public:
             }
 
             const Byte* inputBlock = inputRow;
-            float* errorBlock = errorRow;
+            Colour* errorBlock = errorRow;
             Byte* d0 = &_rowData[1];
             Byte* d1 = &_rowData[rowDataStride + 1];
             Byte* rgbiBlock = rgbiRow;
@@ -1164,29 +1164,24 @@ public:
                 int mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
                 float bestScore = std::numeric_limits<float>::max();
-                Vector3<float> rgb(0, 0, 0);
+                Colour rgb(0, 0, 0);
                 const Byte* inputLine = inputBlock;
-                float* errorLine = errorBlock;
+                Colour* errorLine = errorBlock;
                 Byte* rgbiLine = rgbiBlock;
                 Byte* ntscLine = ntscBlock;
                 Byte* srgbLine = srgbBlock;
 
                 // Compute average target colour for block to look up in table.
                 for (int y = 0; y < blockHeight; ++y) {
-                    auto input = reinterpret_cast<const float*>(inputLine);
-                    float* error = errorLine;
+                    auto input = reinterpret_cast<const Colour*>(inputLine);
+                    Colour* error = errorLine;
                     for (int x = 0; x < blockWidth; ++x) {
-                        rgb += Vector3<float>(input[0], input[1], input[2]);
-                        rgb += _diffusionHorizontal*
-                            Vector3<float>(error[-3], error[-2], error[-1]);
-                        rgb += _diffusionVertical*Vector3<float>(
-                            error[-errorStride], error[1 - errorStride],
-                            error[2 - errorStride]);
-                        error[0] = 0;
-                        error[1] = 0;
-                        error[2] = 0;
-                        input += 3;
-                        error += 3;
+                        rgb += *input;
+                        rgb += _diffusionHorizontal*error[-1];
+                        rgb += _diffusionVertical*error[-errorStride];
+                        *error = Colour(0, 0, 0);
+                        ++input;
+                        ++error;
                     }
                     inputLine += _scaled.stride();
                     errorLine += errorStride;
@@ -1587,8 +1582,8 @@ private:
     Array<Byte> _ntsc;
     Array<Byte> _srgb;
     Bitmap<SRGB> _input;
-    Array<float> _output;
-    Array<float> _error;
+    Array<Colour> _output;
+    Array<Colour> _error;
 };
 
 template<class T> class CGAMatcherT : public ThreadTask
@@ -2690,8 +2685,8 @@ public:
             const float* scaled = reinterpret_cast<const float*>(scaledRow);
             DWORD* output = reinterpret_cast<DWORD*>(outputRow);
             for (int x = 0; x < outputSize.x; ++x) {
-                SRGB srgb = _linearizer.srgb(
-                    Vector3<float>(scaled[0], scaled[1], scaled[2]));
+                SRGB srgb =
+                    _linearizer.srgb(Colour(scaled[0], scaled[1], scaled[2]));
                 *output = (srgb.x << 16) | (srgb.y << 8) | srgb.z;
                 ++output;
                 scaled += 3;

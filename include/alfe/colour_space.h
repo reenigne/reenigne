@@ -227,9 +227,9 @@ public:
     Colour toRgb(const Colour& xyz)
     {
         return Colour(
-             3.2410f*xyz.x - 1.5374f*xyz.y - 0.4986f*xyz.z,
-            -0.9692f*xyz.x + 1.8760f*xyz.y + 0.0416f*xyz.z,
-             0.0556f*xyz.x - 0.2040f*xyz.y + 1.0570f*xyz.z);
+             3.2406f*xyz.x - 1.5372f*xyz.y - 0.4986f*xyz.z,
+            -0.9689f*xyz.x + 1.8758f*xyz.y + 0.0415f*xyz.z,
+             0.0557f*xyz.x - 0.2040f*xyz.y + 1.0570f*xyz.z);
     }
 private:
     XYZColourSpaceBodyT() { }
@@ -283,5 +283,54 @@ LABColourSpaceBody ColourSpace::_lab;
 SRGBColourSpaceBody ColourSpace::_srgb;
 RGBColourSpaceBody ColourSpace::_rgb;
 XYZColourSpaceBody ColourSpace::_xyz;
+
+
+Colour labFromXyz(Colour xyz)
+{
+    static const Colour xyzWhite(95.047, 100, 108.883);
+    auto helper = [=](float t)
+    {
+        static const float d = 6.0f/29.0f;
+        static const float d3 = d*d*d;
+        static const float a = 1.0f/(3.0f*d*d);
+        static const float b = 4.0f/29.0f;
+        if (t > d3)
+            return pow(t, 1/3.0f);
+        return a*t + b;
+    };
+    Colour c = xyz/xyzWhite;
+    float y = helper(c.y);
+    return Colour(116.0f*y - 16.0f, 500.0f*(helper(c.x) - y),
+        200.0f*(y - helper(c.z)));
+}
+
+Colour xyzFromRgb(Colour rgb)
+{
+    return Colour(rgb.x*41.24 + rgb.y*35.76 + rgb.z*18.05,
+        rgb.x*21.26 + rgb.y*71.52 + rgb.z*7.22,
+        rgb.x*1.93 + rgb.y*11.92 + rgb.z*95.05);
+}
+
+float deltaE2(Colour rgb1, Colour rgb2)
+{
+    Colour lab1 = labFromXyz(xyzFromRgb(rgb1));
+    Colour lab2 = labFromXyz(xyzFromRgb(rgb2));
+    float c1 = sqrt(lab1.y*lab1.y + lab1.z*lab1.z);
+    float c2 = sqrt(lab2.y*lab2.y + lab2.z*lab2.z);
+    float cMean = (c1 + c2)/2.0f;
+    float c3 = cMean*cMean*cMean;
+    float c7 = c7*c7*cMean;
+    static const float twentyFive7 = 25.0f*25.0f*25.0f*25.0f*25.0f*25.0f*25.0f;
+    float d = sqrt(c7/(c7 + twentyFive7));
+    float e = 1 + (1 - d)/2.0f;
+    float a1p = lab1.y*e;
+    float a2p = lab2.y*e;
+    float c1p = sqrt(a1p*a1p + lab1.z*lab1.z);
+    float c2p = sqrt(a2p*a2p + lab2.z*lab2.z);
+    float cMeanP = (c1p + c2p)/2.0f;
+    static const float degrees = 360.0f/static_cast<float>(tau);
+    float h1p = atan2(lab1.z, a1p)*degrees;
+    float h2p = atan2(lab2.z, a2p)*degress;
+}
 
 #endif // INCLUDED_COLOUR_SPACE_H
