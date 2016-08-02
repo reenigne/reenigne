@@ -1163,7 +1163,7 @@ public:
             for (int column = 0; column < horizontalBlocks; ++column) {
                 int mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
-                float bestScore = std::numeric_limits<float>::max();
+                int bestMetric = std::numeric_limits<int>::max();
                 Colour rgb(0, 0, 0);
                 const Byte* inputLine = inputBlock;
                 Colour* errorLine = errorBlock;
@@ -1176,9 +1176,8 @@ public:
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
                     for (int x = 0; x < blockWidth; ++x) {
-                        rgb += *input;
-                        rgb += _diffusionHorizontal*error[-1];
-                        rgb += _diffusionVertical*error[-errorStride];
+                        rgb += *input + _diffusionHorizontal*error[-1] +
+                            _diffusionVertical*error[-errorStride];
                         *error = Colour(0, 0, 0);
                         ++input;
                         ++error;
@@ -1267,13 +1266,16 @@ public:
                             }
                             v[0] = (v[0] & 0xffff) + (d0[-1] << 24);
                             v[1] = (v[1] & 0xffff) + (d1[-1] << 24);
-
+                            int metric = 0;
                             for (int scanline = 0; scanline < blockHeight;
                                 ++scanline) {
                                 UInt64 rgbis = _sequencer->process(
                                     v[scanline & yMask], _mode + phase,
                                     _palette, scanline, false, 0);
                                 Byte* srgb = srgbLine;
+                                auto input =
+                                    reinterpret_cast<const Colour*>(inputLine);
+                                auto error = errorLine;
                                 if (_connector == 0) {
                                     for (int x = 0; x < blockWidth; ++x) {
                                         Byte* p = &_rgbiPalette[3*
@@ -1314,12 +1316,33 @@ public:
                                     _decoder.decodeBlock(srgb);
                                 }
                                 srgb = srgbLine;
-                                for (int x = 0; x < blockWidth; ++x)
-                                    rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
+                                for (int x = 0; x < blockWidth; ++x) {
+                                    SRGB o(srgb[0], srgb[1], srgb[2]);
+                                    Colour output = _linearizer.linear(o);
+                                    Colour target = *input +
+                                        _diffusionHorizontal*error[-1] +
+                                        _diffusionVertical*error[-errorStride];
+                                    Colour e = output - target;
+                                    *error = e;
+                                    SRGB t = _linearizer.linear(target);
+                                    // Fast colour distance metric from
+                                    // http://www.compuphase.com/cmetric.htm .
+                                    int mr = (o.x + t.x)/2;
+                                    int dr = o.x - t.x;
+                                    int dg = o.y - t.y;
+                                    int db = o.z - t.z;
+                                    metric += 4*dg*dg + (((512 + mr)*dr*dr +
+                                        (768 - mr)*db*db) >> 8);
+                                    ++input;
+                                    ++error;
+                                }
+                            }
+                            if (metric < bestMetric) {
+                                bestPattern = pattern;
+                                bestMetric = metric;
                             }
                             ++pattern;
                         }
-
                         if (r > rMin && r < rMax && g > gMin && g < gMax)
                             b += z*2;
                     }
