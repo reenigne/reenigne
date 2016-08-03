@@ -349,14 +349,13 @@ class NTSCDecoder
 public:
     void calculateBurst(Byte* burst)
     {
-        Complex<double> iq;
-        iq.x = burst[0] - burst[2];
-        iq.y = burst[1] - burst[3];
+        Complex<float> iq(static_cast<float>(burst[0] - burst[2]),
+            static_cast<float>(burst[1] - burst[3]));
         _iqAdjust =
-            -iq.conjugate()*unit((33 + 90 + _hue)/360.0)*_saturation*_contrast/
-            (iq.modulus()*16);
-        _contrast2 = _contrast/32;
-        _brightness2 = _brightness*256.0;
+            -iq.conjugate()*unit((33 + 90 + static_cast<float>(_hue))/360.0f)*
+            static_cast<float>(_saturation*_contrast)/(iq.modulus()*16);
+        _contrast2 = static_cast<float>(_contrast)/32;
+        _brightness2 = static_cast<float>(_brightness)*256;
     }
     Colour decode(int* s)
     {
@@ -406,23 +405,24 @@ public:
     {
         phase = (phase + 3) & 3;
         for (int x = 0; x < length; ++x) {
-            Vector3<int> mix = Vector3Cast<int>(srgb[0]) +
+            Vector3<UInt16> mix = Vector3Cast<int>(srgb[0]) +
                 4*Vector3Cast<int>(srgb[1]) + 7*Vector3Cast<int>(srgb[2]) +
                 8*Vector3Cast<int>(srgb[3]) + 7*Vector3Cast<int>(srgb[4]) +
                 4*Vector3Cast<int>(srgb[5]) + Vector3Cast<int>(srgb[6]);
             ++srgb;
             Colour c;
             if (_ntscPrimaries) {
-                c.x = (0.6689*mix.x + 0.2679*mix.y + 0.0323*mix.z);
-                c.y = (0.0185*mix.x + 1.0743*mix.y - 0.0603*mix.z);
-                c.z = (0.0162*mix.x + 0.0431*mix.y + 0.8551*mix.z);
+                c = Colour(
+                    0.6689f*mix.x + 0.2679f*mix.y + 0.0323f*mix.z,
+                    0.0185f*mix.x + 1.0743f*mix.y - 0.0603f*mix.z,
+                    0.0162f*mix.x + 0.0431f*mix.y + 0.8551f*mix.z);
             }
             else
                 c = Colour(mix.x, mix.y, mix.z);
-            Complex<double> iq;
-            double y = 0.299*c.x + 0.587*c.y + 0.114*c.z;
-            iq.x = 0.596*c.x - 0.275*c.y - 0.321*c.z;
-            iq.y = 0.212*c.x - 0.528*c.y + 0.311*c.z;
+            Complex<float> iq;
+            float y = 0.299f*c.x + 0.587f*c.y + 0.114f*c.z;
+            iq.x = 0.596f*c.x - 0.275f*c.y - 0.321f*c.z;
+            iq.y = 0.212f*c.x - 0.528f*c.y + 0.311f*c.z;
             iq /= (_iqAdjust*512);
             y = (y/32 - _brightness2)/(_contrast2*32);
             switch (phase) {
@@ -466,16 +466,16 @@ public:
 private:
     Colour decode(int y, Complex<int> iq)
     {
-        double y2 = y*_contrast2 + _brightness2;
-        Complex<double> iq2 = Complex<double>(iq)*_iqAdjust;
-        double r = y2 + 0.9563*iq2.x + 0.6210*iq2.y;
-        double g = y2 - 0.2721*iq2.x - 0.6474*iq2.y;
-        double b = y2 - 1.1069*iq2.x + 1.7046*iq2.y;
+        float y2 = y*_contrast2 + _brightness2;
+        Complex<float> iq2 = ComplexCast<float>(iq)*_iqAdjust;
+        float r = y2 + 0.9563f*iq2.x + 0.6210f*iq2.y;
+        float g = y2 - 0.2721f*iq2.x - 0.6474f*iq2.y;
+        float b = y2 - 1.1069f*iq2.x + 1.7046f*iq2.y;
         if (_ntscPrimaries) {
             return Colour(
-                1.5073*r -0.3725*g -0.0832*b,
-                -0.0275*r +0.9350*g +0.0670*b,
-                -0.0272*r -0.0401*g +1.1677*b);
+                1.5073f*r -0.3725f*g -0.0832f*b,
+                -0.0275f*r +0.9350f*g +0.0670f*b,
+                -0.0272f*r -0.0401f*g +1.1677f*b);
         }
         return Colour(r, g, b);
     }
@@ -487,9 +487,9 @@ private:
     double _brightness;
     double _sharpness;
 
-    Complex<double> _iqAdjust;
-    double _contrast2;
-    double _brightness2;
+    Complex<float> _iqAdjust;
+    float _contrast2;
+    float _brightness2;
 };
 
 // Similar to NTSCDecoder except that the luma and chroma bandwidths can be

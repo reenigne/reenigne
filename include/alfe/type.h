@@ -87,8 +87,10 @@ public:
     {
         return _values.end();
     }
+    void addOwned(Reference<Structure> structure) { _owned.add(structure); }
 private:
     HashTable<Identifier, Value> _values;
+    List<Reference<Structure>> _owned;
 };
 
 template<class T> class LValueT;
@@ -237,6 +239,11 @@ protected:
         {
             return ValueT<T>();
         }
+        virtual ValueT<T> valueFromAny(Any a, Structure* owner) const
+        {
+            return ValueT<T>(type(), a);
+        }
+        virtual Any anyFromValue(ValueT<T> v) const { return v.value(); }
     };
     const Body* body() const { return as<Body>(); }
 

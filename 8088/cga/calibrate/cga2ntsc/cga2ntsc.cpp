@@ -879,7 +879,8 @@ public:
         // Resample input image to desired size
         Vector size = _activeSize*Vector(1, _interlaceSync ? 2 : 1);
         if (size != _size) {
-            _scaler.setZoom(Vector2Cast<float>(size)/_input.size());
+            _scaler.setZoom(Vector2Cast<float>(size)/
+                Vector2Cast<float>(_input.size()));
             size.x = _hdotsPerChar*_horizontalDisplayed;
             _scaler.setOutputSize(size);
             _size = size;
@@ -943,7 +944,7 @@ public:
         }
 
         // Set up gamut table
-        double gDivisions = 64.0/pow(2, _quality*6);
+        float gDivisions = static_cast<float>(64.0/pow(2, _quality*6));
         Vector3<float> srgbScale;
         srgbScale.y = gDivisions/256;
         srgbScale.x = srgbScale.y*0.84f;
@@ -957,6 +958,7 @@ public:
             blockWidth = 4;
             blockHeight = _scanlinesPerRow <= 2 ? 1 : 2;
         }
+        float blockArea = static_cast<float>(blockWidth*blockHeight);
         int scanlines = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
@@ -1093,8 +1095,8 @@ public:
                 for (int x = 0; x < blockWidth; ++x)
                     rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
             }
-            SRGB srgb = _linearizer.srgb(rgb/(blockWidth*blockHeight));
-            auto s = Vector3Cast<int>(srgb*srgbScale);
+            SRGB srgb = _linearizer.srgb(rgb/blockArea);
+            auto s = Vector3Cast<int>(Vector3Cast<float>(srgb)*srgbScale);
             _table.add(pattern, s.x + srgbDiv.x*(s.y + srgbDiv.y*s.z));
         }
 
@@ -1187,8 +1189,9 @@ public:
                 }
                 inputLine = inputBlock;
                 errorLine = errorBlock;
-                SRGB srgb = _linearizer.srgb(rgb/(blockWidth*blockHeight));
-                auto s = Vector3Cast<int>(srgb*srgbScale - 0.5);
+                SRGB srgb = _linearizer.srgb(rgb/blockArea);
+                auto s = Vector3Cast<int>(
+                    Vector3Cast<float>(srgb)*srgbScale - 0.5f);
                 // Iterate through closest patterns to find the best match.
                 for (int z = 0;; ++z) {
                     bool foundPatterns = false;
@@ -1324,7 +1327,7 @@ public:
                                         _diffusionVertical*error[-errorStride];
                                     Colour e = output - target;
                                     *error = e;
-                                    SRGB t = _linearizer.linear(target);
+                                    SRGB t = _linearizer.srgb(target);
                                     // Fast colour distance metric from
                                     // http://www.compuphase.com/cmetric.htm .
                                     int mr = (o.x + t.x)/2;
@@ -1457,20 +1460,20 @@ public:
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; initData(); }
     int getInterlace() { return _interlace; }
-    void setInterlaceSync(int interlaceSync)
+    void setInterlaceSync(bool interlaceSync)
     {
         _interlaceSync = interlaceSync;
         initData();
     }
-    int getInterlaceSync() { return _interlaceSync; }
-    void setInterlacePhase(int interlacePhase)
+    bool getInterlaceSync() { return _interlaceSync; }
+    void setInterlacePhase(bool interlacePhase)
     {
         _interlacePhase = interlacePhase;
         initData();
     }
-    int getInterlacePhase() { return _interlacePhase; }
-    void setFlicker(int flicker) { _flicker = flicker; initData(); }
-    int getFlicker() { return _flicker; }
+    bool getInterlacePhase() { return _interlacePhase; }
+    void setFlicker(bool flicker) { _flicker = flicker; initData(); }
+    bool getFlicker() { return _flicker; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
@@ -2077,20 +2080,20 @@ public:
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; initData(); }
     int getInterlace() { return _interlace; }
-    void setInterlaceSync(int interlaceSync)
+    void setInterlaceSync(bool interlaceSync)
     {
         _interlaceSync = interlaceSync;
         initData();
     }
-    int getInterlaceSync() { return _interlaceSync; }
-    void setInterlacePhase(int interlacePhase)
+    bool getInterlaceSync() { return _interlaceSync; }
+    void setInterlacePhase(bool interlacePhase)
     {
         _interlacePhase = interlacePhase;
         initData();
     }
-    int getInterlacePhase() { return _interlacePhase; }
-    void setFlicker(int flicker) { _flicker = flicker; initData(); }
-    int getFlicker() { return _flicker; }
+    bool getInterlacePhase() { return _interlacePhase; }
+    void setFlicker(bool flicker) { _flicker = flicker; initData(); }
+    bool getFlicker() { return _flicker; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
@@ -2104,6 +2107,18 @@ public:
     double getBrightness() { return _brightness; }
     void setBrightness(double brightness) { _brightness = brightness; }
     void setConnector(int connector) { _connector = connector; }
+    void setRollOff(double rollOff) { _rollOff = rollOff; }
+    double getRollOff() { return _rollOff; }
+    void setChromaBandwidth(double chromaBandwidth)
+    {
+        _chromaBandwidth = chromaBandwidth;
+    }
+    double getChromaBandwidth() { return _chromaBandwidth; }
+    void setLumaBandwidth(double lumaBandwidth)
+    {
+        _lumaBandwidth = lumaBandwidth;
+    }
+    double getLumaBandwidth() { return _lumaBandwidth; }
 
 private:
     void initData()
@@ -2222,6 +2237,9 @@ private:
     double _saturation;
     double _contrast;
     double _brightness;
+    double _rollOff;
+    double _chromaBandwidth;
+    double _lumaBandwidth;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
@@ -2703,7 +2721,6 @@ public:
         Timer timerDelinearize;
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
-        linear[255] = 1.0f;
         for (int y = 0; y < outputSize.y; ++y) {
             const float* scaled = reinterpret_cast<const float*>(scaledRow);
             DWORD* output = reinterpret_cast<DWORD*>(outputRow);
@@ -3188,7 +3205,7 @@ public:
     }
     void modeSet(int value)
     {
-        static const int modes[8] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3, 0x80,
+        static const int modes[10] = {0, 1, 0x12, 2, 0x10, 0x11, 0x13, 3, 0x80,
             0x81};
         int mode = modes[value] | 8 |
             (_videoCard._registers._bw.checked() ? 4 : 0) |

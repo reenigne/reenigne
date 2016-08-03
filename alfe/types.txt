@@ -330,3 +330,19 @@ Special built-in templates:
 
 Can we implement intersection types?
 
+
+
+A structure that we can use the . operator on needs to have its representation be a Value<Structure*>, not a Value<Vector>
+  More generally, any type has two representations - the ALFE representation (dynamically typed, static type Value) and the C++ representation (statically typed, e.g. Vector)
+    Type should be responsible for converting between them
+      However, we can't have templated virtual functions, so the child class can't know about the compile-time type
+        Pass it as an Any
+      It'd be nice if we can do it in a way which doesn't break Berapa (even if we later modify Berapa to use it)
+      Who owns the Structure*? (Not the first time we've had this problem)
+        Really in this case it has to be the ConfigFile, or more generally another Structure
+          At the moment, a Structure is just a lookup table (Identifier->Value). Should we also have something in Structure to hold other Structures?
+            This needs to be optional so that Berapa Components can be contained within other Components
+              Could we separate the C++ representation from the Structure? Then a Structure would always be owned by a ConfigFile or a Structure
+      Value Type::valueFromAny(Any a, Structure* owner)
+      Any Type::anyFromValue(Value v)
+

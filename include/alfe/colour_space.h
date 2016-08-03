@@ -46,10 +46,10 @@ public:
             l = y/(d*d*d);
         else
             l = 116.0f*pow(y, 1.0f/3.0f) - 16.0f;
-        float r = x + 15f*y + 3f*z;
+        float r = x + 15*y + 3*z;
         float u;
         float v;
-        if (r < 1.0fe-5) {
+        if (r < 1.0e-5) {
             u = 13.0f*l*(4.0f - 0.2105f);
             v = 13.0f*l*(9.0f/15.0f - 0.4737f);
         }
@@ -74,7 +74,7 @@ public:
             y = (l + 16.0f)/116.0f;
             y = y*y*y;
         }
-        if (vv < 1.0fe-5)
+        if (vv < 1.0e-5)
             return SRGB(0, 0, 0);
         float x = y*(9.0f*uu)/(4.0f*vv);
         float z = y*(12.0f - 3.0f*uu - 20.0f*vv)/(4.0f*vv);

@@ -56,6 +56,16 @@ public:
     Real x, y;
 };
 
+template<class Real> class ComplexCast : public Complex<Real>
+{
+public:
+    template<class R2> ComplexCast(const Complex<R2>& other)
+      : Complex<Real>(static_cast<Real>(other.x), static_cast<Real>(other.y))
+    { }
+    template<class R2> ComplexCast(const R2& x, const R2& y)
+      : Complex<Real>(static_cast<Real>(x), static_cast<Real>(y)) { }
+};
+
 template<class Real> Complex<Real> operator*(const Real& x, const Complex<Real>& c) { return c*x; }
 template<class Real> Complex<Real> operator/(const Real& x, const Complex<Real>& c) { return Complex<Real>(x)/c; }
 template<class Real> Complex<Real> operator-(const Real& x, const Complex<Real>& c) { return Complex<Real>(x)-c; }
