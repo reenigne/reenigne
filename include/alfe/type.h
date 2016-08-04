@@ -11,6 +11,7 @@
 #include "alfe/identifier.h"
 #include "alfe/vectors.h"
 #include "alfe/rational.h"
+#include "alfe/reference.h"
 #include <type_traits>
 
 template<class T> class TemplateT;
@@ -202,6 +203,11 @@ public:
         return to.convert(value);
     }
     ValueT<T> defaultValue() const { return body()->defaultValue(); }
+    ValueT<T> valueFromAny(Any a, Structure* owner) const
+    {
+        return body()->valueFromAny(a, owner);
+    }
+    Any anyFromValue(ValueT<T> v) const { return body()->anyFromValue(v); }
 protected:
     class Body : public Tyco::Body
     {
@@ -314,9 +320,11 @@ public:
         _any = StructuredTypeT<T>::empty().convertTo(type).value();
     }
     template<class U, std::enable_if_t<!std::is_base_of<Type, U>::value>* =
-        nullptr> ValueT(const U& value,
-        Span span = Span())
-      : _type(typeFromValue(value)), _any(value), _span(span) { }
+        nullptr> ValueT(const U& value, Span span = Span(),
+        Structure* owner = 0)
+      : _type(typeFromValue(value)), _any(_type.valueFromAny(value, owner)),
+        _span(span)
+    { }
     Type type() const { return _type; }
     Any value() const { return _any; }
     bool operator==(const Value& other) const
@@ -324,7 +332,10 @@ public:
         return _type == other._type && _any == other._any;
     }
     bool operator!=(const Value& other) const { return !(*this == other); }
-    template<class U> U value() const { return _any.value<U>(); }
+    template<class U> U value() const
+    {
+        return _type.anyFromValue(*this).value<U>();
+    }
     Span span() const { return _span; }
     bool valid() const { return _type.valid(); }
     Value convertTo(const Type& to) const
@@ -367,12 +378,6 @@ private:
     Any _any;
     Span _span;
 };
-
-template<> template<> Vector ValueT<void>::value<Vector>() const
-{
-    Array<Any> sizeArray = value<List<Any>>();
-    return Vector(sizeArray[0].value<int>(), sizeArray[1].value<int>());
-}
 
 template<class T> class TemplateT : public Tyco
 {
@@ -1734,6 +1739,20 @@ public:
             vectorMembers.add(StructuredType::member<int>("x"));
             vectorMembers.add(StructuredType::member<int>("y"));
             return vectorMembers;
+        }
+        Value valueFromAny(Any a, Structure* owner) const
+        {
+            auto r = Reference<Structure>::create<Structure>();
+            Vector v = a.value<Vector>();
+            r->set("x", v.x, Span());
+            r->set("y", v.y, Span());
+            owner->addOwned(r);
+            return Value(type(), &*r);
+        }
+        virtual Any anyFromValue(Value v) const
+        {
+            auto s = v.value<Structure*>();
+            return Vector(s->get<int>("x"), s->get<int>("y"));
         }
     };
     friend class NamedNullary<StructuredType, VectorType>;

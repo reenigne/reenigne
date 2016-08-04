@@ -114,7 +114,7 @@ public:
     template<class V> ConfigOption<V> addDefaultOption(String name,
         const V& defaultValue)
     {
-        addOption(name, Value(defaultValue));
+        addOption(name, Value(defaultValue, Span(), this));
         return ConfigOption<V>(this, name);
     }
 private:
