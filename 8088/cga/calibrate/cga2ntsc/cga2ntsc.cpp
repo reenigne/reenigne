@@ -1134,7 +1134,8 @@ public:
             _decoder.setPadding((128 - blockWidth)/2);
             _decoder.calculateBurst(burst);
         }
-
+        bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
+        bool nothingChanged = true;
 
         int row = 0;
         const Byte* inputRow = _scaled.data();
@@ -1421,8 +1422,18 @@ public:
             }
 
             ++row;
-            if (row >= _verticalDisplayed)
-                return;
+            if (row >= _verticalDisplayed) {
+                row = 0;
+                inputRow = _scaled.data();
+                errorRow = &_error[3*(size.x + 2)];
+                rgbiRow = &_rgbi[1];
+                ntscRow = &_ntsc[0];
+                srgbRow = &_srgb[0];
+                horizontalBlocks = size.x/blockWidth;
+                phaseRow = _phase << 6;
+                if (!improper || nothingChanged)
+                    return;
+            }
             inputRow += blockHeight*_scaled.stride();
             errorRow += errorStride*blockHeight;
             if ((_data->getDataByte(-16) & 1) == 0)
