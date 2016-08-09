@@ -109,12 +109,14 @@ public:
     template<class V> void addDefaultOption(String name, Type type,
         const V& defaultValue)
     {
-        addOption(name, Value(type, defaultValue));
+        auto r = Reference<Structure>::create<Structure>();
+        LValue l(&*r, name);
+        addOption(name, Value(LValueType::wrap(type), l));
     }
     template<class V> ConfigOption<V> addDefaultOption(String name,
         const V& defaultValue)
     {
-        addOption(name, Value(defaultValue, Span(), this));
+        addOption(name, Value(defaultValue));
         return ConfigOption<V>(this, name);
     }
 private:
