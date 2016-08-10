@@ -109,9 +109,14 @@ public:
     template<class V> void addDefaultOption(String name, Type type,
         const V& defaultValue)
     {
-        auto r = Reference<Structure>::create<Structure>();
-        LValue l(&*r, name);
-        addOption(name, Value(LValueType::wrap(type), l));
+        StructuredType s(type);
+        if (s.valid()) {
+            auto r = Reference<Structure>::create<Structure>();
+            LValue l(&*r, name);
+            addOption(name, Value(LValueType::wrap(type), l));
+        }
+        else
+            addOption(name, Value(type, defaultValue));
     }
     template<class V> ConfigOption<V> addDefaultOption(String name,
         const V& defaultValue)

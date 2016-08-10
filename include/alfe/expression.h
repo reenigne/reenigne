@@ -486,10 +486,8 @@ private:
                 if (!t.valid())
                     this->span().throwError("Expression has no member named " +
                         _right.name());
-                StructureT<T>* p = e.
-                    template value<LValueT<T>>().
-                    rValue().template value<StructureT<T>*>();
-                e = Value(LValueTypeT<T>::wrap(t), LValue(p, _right),
+                e = Value(LValueTypeT<T>::wrap(t),
+                    e.template value<LValueT<T>>().member(_right),
                     this->span());
             }
             return e;

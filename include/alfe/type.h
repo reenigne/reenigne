@@ -115,6 +115,10 @@ public:
         return _structure == other._structure &&
             _identifier == other._identifier;
     }
+    LValue member(Identifier identifier)
+    {
+        return LValue(_structure->getValue(_identifier), identifier);
+    }
 private:
     Structure* _structure;
     Identifier _identifier;
