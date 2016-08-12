@@ -110,11 +110,8 @@ public:
         const V& defaultValue)
     {
         StructuredType s(type);
-        if (s.valid()) {
-            auto r = Reference<Structure>::create<Structure>();
-            LValue l(&*r, name);
-            addOption(name, Value(LValueType::wrap(type), l));
-        }
+        if (s.valid())
+            addOption(name, s.lValueFromRValue(defaultValue));
         else
             addOption(name, Value(type, defaultValue));
     }

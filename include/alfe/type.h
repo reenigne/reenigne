@@ -1695,6 +1695,8 @@ protected:
             return _name == o->_name && _names == o->_names &&
                 _members == o->_members;
         }
+        virtual Value lValueFromRValue(Any rValue) = 0;
+        virtual Any rValueFromLValue(Value lValue) = 0;
     private:
         bool canConvertHelper(const Type& type, const Member* to, String* why)
             const
@@ -1725,6 +1727,18 @@ public:
     {
     public:
         Body() : StructuredType::Body("Vector", members()) { }
+        Value lValueFromRValue(Any rValue, Structure* owner)
+        {
+            auto r = Reference<Structure>::create<Structure>();
+            owner->addOwned(r);
+            auto v = rValue.value<Vector>();
+            return Value(LValueType::wrap(type()), &*r);
+        }
+        Any rValueFromLValue(Value lValue)
+        {
+            auto s = lValue.value<Structure*>();
+            return Vector(s->get<int>("x"), s->get<int>("y"));
+        }
     private:
         List<StructuredType::Member> members()
         {
