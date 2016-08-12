@@ -518,3 +518,17 @@ savedSP: dw 0
   aaa
   xlatb
 
+
+
+
+
+
+  mov word[cs:patch+1],jumpdest
+  mov [cs:patch+3],cs
+  jmp $+2
+patch:
+  db 0xea,0x00,0x00,0x00,0x00
+jumpdest:
+  mov ax,0x40
+  mov ds,ax
+

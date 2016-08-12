@@ -174,15 +174,30 @@ lut: db 0x88,8
 testRoutine:
   ; Append the code to test - it should end with a "ret"
 
-
-  mov word[cs:patch+1],jumpdest
-  mov [cs:patch+3],cs
-  jmp $+2
-patch:
-  db 0xea,0x00,0x00,0x00,0x00
-jumpdest:
-  mov ax,0x40
+  mov ax,0x89ab
   mov ds,ax
+  mov ax,0x9acd
+  mov es,ax
+
+  mov ax,0x1234
+  mov bx,0x2345
+  mov cx,0x3579
+  mov dx,0x4abc
+  mov si,0x5678
+  mov di,0x6996
+  mov bp,0x7adf
+  mov [ss:bx],dx
+  mov [ss:bx+2],bx
+
+  mov bp,[ss:bx]
+  mov ax,0x1234
+  mov si,0x5678
+  db 0xc4, 0xf0    ; lds si,ax
+  db 0xc4, 0xf0    ; lds si,ax
+  db 0xc4, 0xf0    ; lds si,ax
+
+  db 0xff, 0xff
+  pop ax
 
   ret
 
