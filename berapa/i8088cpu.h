@@ -1840,11 +1840,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                 end(0);
                             break;
                         case 6:
+                        case 7:
                             push(_data, stateEndInstruction);
                             _wait += (_useMemory ? 2 : 1);
-                            break;
-                        case 7:
-                            end(0);
                             break;
                     }
                     break;

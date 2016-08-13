@@ -111,14 +111,14 @@ public:
     {
         StructuredType s(type);
         if (s.valid())
-            addOption(name, s.lValueFromRValue(defaultValue));
+            addOption(name, s.lValueFromRValue(defaultValue, this));
         else
             addOption(name, Value(type, defaultValue));
     }
     template<class V> ConfigOption<V> addDefaultOption(String name,
         const V& defaultValue)
     {
-        addOption(name, Value(defaultValue));
+        addDefaultOption(name, typeFromCompileTimeType<V>(), defaultValue);
         return ConfigOption<V>(this, name);
     }
 private:

@@ -66,7 +66,11 @@ template<class T> class StructureT
 public:
     template<class U> U get(Identifier identifier) const
     {
-        return getValue(identifier).template value<U>();
+        Value v = getValue(identifier);
+        StructuredType t(v.type().rValue());
+        if (t.valid())
+            return t.rValueFromLValue(v).template value<U>();
+        return v.template value<U>();
     }
     virtual ValueT<T> getValue(Identifier identifier) const
     {
@@ -117,7 +121,8 @@ public:
     }
     LValue member(Identifier identifier)
     {
-        return LValue(_structure->getValue(_identifier), identifier);
+        return LValue(_structure->getValue(_identifier).value<Structure*>(),
+            identifier);
     }
 private:
     Structure* _structure;
@@ -1453,6 +1458,14 @@ public:
             List<StructuredType::Member>()), HashTable<Identifier, Value>());
         return e;
     }
+    Value lValueFromRValue(Any rValue, Structure* owner) const
+    {
+        return body()->lValueFromRValue(rValue, owner);
+    }
+    Any rValueFromLValue(Value lValue) const
+    {
+        return body()->rValueFromLValue(lValue);
+    }
 protected:
     class Body : public Type::Body
     {
@@ -1695,8 +1708,14 @@ protected:
             return _name == o->_name && _names == o->_names &&
                 _members == o->_members;
         }
-        virtual Value lValueFromRValue(Any rValue) = 0;
-        virtual Any rValueFromLValue(Value lValue) = 0;
+        virtual Value lValueFromRValue(Any rValue, Structure* owner) const
+        {
+            return Value(type(), rValue);
+        }
+        virtual Any rValueFromLValue(Value lValue) const
+        {
+            return lValue.value();
+        }
     private:
         bool canConvertHelper(const Type& type, const Member* to, String* why)
             const
@@ -1727,14 +1746,16 @@ public:
     {
     public:
         Body() : StructuredType::Body("Vector", members()) { }
-        Value lValueFromRValue(Any rValue, Structure* owner)
+        Value lValueFromRValue(Any rValue, Structure* owner) const
         {
             auto r = Reference<Structure>::create<Structure>();
             owner->addOwned(r);
             auto v = rValue.value<Vector>();
+            r->set("x", v.x, Span());
+            r->set("y", v.y, Span());
             return Value(LValueType::wrap(type()), &*r);
         }
-        Any rValueFromLValue(Value lValue)
+        Any rValueFromLValue(Value lValue) const
         {
             auto s = lValue.value<Structure*>();
             return Vector(s->get<int>("x"), s->get<int>("y"));
