@@ -835,11 +835,7 @@ public:
     float linear(Byte srgb) { return _linear[srgb]; }
     Byte srgb(float linear)
     {
-        if (linear <= 0)
-            return 0;
-        if (linear >= 1)
-            return 1;
-        return _srgb[static_cast<int>(linear*_multiplier)];
+        return _srgb[clamp(0, static_cast<int>(linear*_multiplier), 6589)];
     }
 private:
     float _linear[256];
@@ -847,10 +843,10 @@ private:
     constexpr static const float _multiplier = 2*255.0f*12.92f;
 };
 
-class CGANewMatcher : public ThreadTask
+class CGAMatcher : public ThreadTask
 {
 public:
-    CGANewMatcher() : _rgbiPalette(3*0x10), _decoder(128)
+    CGAMatcher() : _rgbiPalette(3*0x10), _decoder(128)
     {
         _scaler.setProfile(4);
         _scaler.setWidth(1);
@@ -1623,10 +1619,10 @@ private:
     Array<Colour> _error;
 };
 
-template<class T> class CGAMatcherT : public ThreadTask
+template<class T> class CGAOldMatcherT : public ThreadTask
 {
 public:
-    CGAMatcherT() : _skip(256), _active(false)
+    CGAOldMatcherT() : _skip(256), _active(false)
     {
         _patterns.allocate(0x10000*8*17 + 0x100*80*5);
     }
@@ -2253,7 +2249,7 @@ private:
     double _lumaBandwidth;
 };
 
-typedef CGAMatcherT<void> CGAMatcher;
+typedef CGAOldMatcherT<void> CGAOldMatcher;
 
 template<class T> class CGAOutputT : public ThreadTask
 {
