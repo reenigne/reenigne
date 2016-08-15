@@ -846,7 +846,8 @@ private:
 class CGAMatcher : public ThreadTask
 {
 public:
-    CGAMatcher() : _rgbiPalette(3*0x10), _decoder(128)
+    CGAMatcher()
+      : _rgbiPalette(3*0x10), _decoder(128), _active(false), _size(0, 0)
     {
         _scaler.setProfile(4);
         _scaler.setWidth(1);
@@ -857,14 +858,12 @@ public:
     {
         _activeSize = activeSize;
         _input = input;
-        _size = input.size();
         _active = true;
         initData();
     }
     void setSize(Vector size)
     {
         _activeSize = size;
-        _size = size;
         initData();
     }
     void setProgram(Program* program) { _program = program; }
@@ -879,6 +878,7 @@ public:
                 Vector2Cast<float>(_input.size()));
             size.x = _hdotsPerChar*_horizontalDisplayed;
             _scaler.setOutputSize(size);
+            _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
             Vector tl = _scaler.inputTL();
@@ -921,6 +921,7 @@ public:
                     unscaled[0] = p[0];
                     unscaled[1] = p[1];
                     unscaled[2] = p[2];
+                    unscaled += 3;
                 }
                 unscaledRow += input.stride();
             }
@@ -934,13 +935,20 @@ public:
                     unscaled[0] = p[0];
                     unscaled[1] = p[1];
                     unscaled[2] = p[2];
+                    unscaled += 3;
                 }
                 unscaledRow += input.stride();
             }
+            _scaler.render();
+            _scaled = _scaler.output();
         }
+        double quality = _quality;
+        int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0);
+        if (mode1 == 0x13 || (mode1 & 0x103) == 2)
+            quality = 1;
 
         // Set up gamut table
-        float gDivisions = static_cast<float>(64.0/pow(2, _quality*6));
+        float gDivisions = static_cast<float>(64.0/pow(2, quality*6));
         Vector3<float> srgbScale;
         srgbScale.y = gDivisions/256;
         srgbScale.x = srgbScale.y*0.84f;
@@ -994,7 +1002,7 @@ public:
             _decoder.calculateBurst(burst);
             _ntscPattern.ensure(blockWidth);
         }
-        _srgbPattern.ensure(blockWidth);
+        _srgbPattern.ensure(blockWidth*3);
         static const UInt32 hres1bpp[0x10] = {
             0x00000000, 0x01010101, 0x04040404, 0x05050505,
             0x10101010, 0x11111111, 0x14141414, 0x15151515,
@@ -1002,7 +1010,6 @@ public:
             0x50505050, 0x51515151, 0x54545454, 0x55555555};
 
         // Populate gamut table
-        int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0);
         for (UInt32 pattern = 0;; ++pattern) {
             Colour rgb(0, 0, 0);
             UInt32 dataBits[2];
@@ -1134,19 +1141,21 @@ public:
         bool nothingChanged = true;
 
         int row = 0;
+        int scanline = 0;
         const Byte* inputRow = _scaled.data();
-        Colour* errorRow = &_error[3*(size.x + 2)];
+        Colour* errorRow = &_error[errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
         Byte* srgbRow = &_srgb[0];
         int horizontalBlocks = size.x/blockWidth;
         int phaseRow = _phase << 6;
+        int bankShift = _data->getDataByte(-25) + 1;
 
         // Perform matching
         while (!cancelling()) {
             for (int y = 0; y < scanlines; ++y) {
                 Array<Byte> rowData = _data->getData(row*bytesPerRow +
-                    (y << (_data->getDataByte(25) + 1)), bytesPerRow);
+                    (y << bankShift), bytesPerRow);
                 memcpy(&_rowData[1 + y*rowDataStride], &rowData[0],
                     bytesPerRow);
             }
@@ -1350,7 +1359,7 @@ public:
                         break;
                 }
                 inputBlock += blockWidth*3*sizeof(float);
-                errorBlock += blockWidth*3;
+                errorBlock += blockWidth;
 
                 switch (mode2) {
                     case 0x102:
@@ -1411,24 +1420,33 @@ public:
                 srgbBlock += 3*blockWidth;
             }
 
-            for (int l = 0; l < scanlines; ++l) {
-                _data->change(0, row*bytesPerRow +
-                    (l << (_data->getDataByte(25) + 1)), bytesPerRow,
-                    &_rowData[1 + l*rowDataStride]);
+            if ((mode1 & 0x102) == 2) {
+                _data->change(0, row*bytesPerRow + (scanline << bankShift),
+                    bytesPerRow, &_rowData[1]);
+            }
+            else {
+                for (int l = 0; l < scanlines; ++l) {
+                    _data->change(0, row*bytesPerRow + (l << bankShift),
+                        bytesPerRow, &_rowData[1 + l*rowDataStride]);
+                }
             }
 
-            ++row;
-            if (row >= _verticalDisplayed) {
-                row = 0;
-                inputRow = _scaled.data();
-                errorRow = &_error[3*(size.x + 2)];
-                rgbiRow = &_rgbi[1];
-                ntscRow = &_ntsc[0];
-                srgbRow = &_srgb[0];
-                horizontalBlocks = size.x/blockWidth;
-                phaseRow = _phase << 6;
-                if (!improper || nothingChanged)
-                    return;
+            scanline += blockHeight;
+            if (scanline == scanlines) {
+                scanline = 0;
+                ++row;
+                if (row >= _verticalDisplayed) {
+                    row = 0;
+                    inputRow = _scaled.data();
+                    errorRow = &_error[3*(size.x + 2)];
+                    rgbiRow = &_rgbi[1];
+                    ntscRow = &_ntsc[0];
+                    srgbRow = &_srgb[0];
+                    horizontalBlocks = size.x/blockWidth;
+                    phaseRow = _phase << 6;
+                    if (!improper || nothingChanged)
+                        return;
+                }
             }
             inputRow += blockHeight*_scaled.stride();
             errorRow += errorStride*blockHeight;
@@ -1515,16 +1533,18 @@ private:
         Byte cgaRegistersData[25] = { 0 };
         Byte* cgaRegisters = &cgaRegistersData[25];
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
-        _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
+        _horizontalDisplayed =
+            (_activeSize.x + _hdotsPerChar - 1)/_hdotsPerChar;
         int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
-        _verticalDisplayed = (_size.y + scanlinesPerRow - 1)/scanlinesPerRow;
+        _verticalDisplayed =
+            (_activeSize.y + scanlinesPerRow - 1)/scanlinesPerRow;
         _logCharactersPerBank = 0;
         while ((1 << _logCharactersPerBank) <
             _horizontalDisplayed*_verticalDisplayed)
             ++_logCharactersPerBank;
         int horizontalTotal = _horizontalDisplayed + 272/_hdotsPerChar;
         int horizontalSyncPosition = _horizontalDisplayed + 80/_hdotsPerChar;
-        int totalScanlines = _size.y + 62;
+        int totalScanlines = _activeSize.y + 62;
         int verticalTotal = totalScanlines/scanlinesPerRow;
         int verticalTotalAdjust =
             totalScanlines - verticalTotal*scanlinesPerRow;
@@ -3199,7 +3219,8 @@ public:
         _videoCard._registers._palette.enableWindow((mode & 0x12) == 2);
         _videoCard._registers._phase.enableWindow((mode & 1) == 1);
         _videoCard._matching._quality.enableWindow(matchMode &&
-            (((mode & 3) != 2 || scanlinesPerRow > 2)));
+            ((((mode & 3) != 2 && (mode & 0x13) != 0x13) ||
+            scanlinesPerRow > 2)));
         _videoCard._matching._characterSet.enableWindow(matchMode &&
             (mode & 2) == 0);
         _videoCard._matching._diffusionHorizontal.enableWindow(matchMode);
