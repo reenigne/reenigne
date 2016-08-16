@@ -843,10 +843,10 @@ private:
     constexpr static const float _multiplier = 2*255.0f*12.92f;
 };
 
-class CGAMatcher : public ThreadTask
+template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
-    CGAMatcher()
+    CGAMatcherT()
       : _rgbiPalette(3*0x10), _decoder(128), _active(false), _size(0, 0)
     {
         _scaler.setProfile(4);
@@ -1102,6 +1102,7 @@ public:
             auto s = Vector3Cast<int>(Vector3Cast<float>(srgb)*srgbScale);
             _table.add(pattern, s.x + srgbDiv.x*(s.y + srgbDiv.y*s.z));
         }
+        _table.finalize();
 
         // Set up data structures for matching
         int rowDataStride = 2*_horizontalDisplayed + 1;
@@ -1134,6 +1135,7 @@ public:
                 for (int x = 0; x < 63; ++x)
                     _ntsc[x + (y + 1)*ntscStride] = _ntsc[x & 3];
 
+            _decoder.setLength(128);
             _decoder.setPadding((128 - blockWidth)/2);
             _decoder.calculateBurst(burst);
         }
@@ -1350,7 +1352,7 @@ public:
                                 bestPattern = pattern;
                                 bestMetric = metric;
                             }
-                            ++pattern;
+                            ++patterns;
                         }
                         if (r > rMin && r < rMax && g > gMin && g < gMax)
                             b += z*2;
@@ -1430,6 +1432,7 @@ public:
                         bytesPerRow, &_rowData[1 + l*rowDataStride]);
                 }
             }
+            _program->updateOutput();
 
             scanline += blockHeight;
             if (scanline == scanlines) {
@@ -1638,6 +1641,8 @@ private:
     Array<Colour> _output;
     Array<Colour> _error;
 };
+
+typedef CGAMatcherT<void> CGAMatcher;
 
 template<class T> class CGAOldMatcherT : public ThreadTask
 {
