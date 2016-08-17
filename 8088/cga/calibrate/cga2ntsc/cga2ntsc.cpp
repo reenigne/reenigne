@@ -1121,6 +1121,7 @@ public:
         for (int y = 0; y < size.y; ++y)
             _rgbi[(y + 1)*rgbiStride] = overscan;
 
+        static const int decoderLength = 128;
         int padding = 0;
         if (_connector != 0)
             padding = 32;
@@ -1135,8 +1136,8 @@ public:
                 for (int x = 0; x < 63; ++x)
                     _ntsc[x + (y + 1)*ntscStride] = _ntsc[x & 3];
 
-            _decoder.setLength(128);
-            _decoder.setPadding((128 - blockWidth)/2);
+            _decoder.setLength(decoderLength);
+            _decoder.setPadding((decoderLength - blockWidth)/2);
             _decoder.calculateBurst(burst);
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
@@ -1299,17 +1300,19 @@ public:
                                 }
                                 else {
                                     Byte* rgbi = rgbiLine;
-                                    for (int x = 0; x < blockWidth; ++x)
+                                    int x;
+                                    for (x = 0; x < blockWidth; ++x)
                                         rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
-                                    Byte* ntsc = ntscLine;
-                                    for (int x = 0; x < blockWidth + 1; ++x) {
+                                    Byte* ntsc = ntscLine + 64;
+                                    for (x = 0; x < blockWidth + 1; ++x) {
                                         ntsc[x] = _composite.simulateCGA(
                                             rgbi[x - 1], rgbi[x], x & 3);
                                     }
                                     float* yData = _decoder.yData();
                                     float* iData = _decoder.iData();
                                     float* qData = _decoder.qData();
-                                    for (int x = 0; x < blockWidth; x += 4) {
+                                    ntsc = ntscLine;
+                                    for (x = 0; x < decoderLength; x += 4) {
                                         yData[x] = ntsc[0];
                                         yData[x + 1] = ntsc[1];
                                         yData[x + 2] = ntsc[2];
@@ -1347,6 +1350,8 @@ public:
                                     ++input;
                                     ++error;
                                 }
+                                inputLine += _scaled.stride();
+                                errorLine += errorStride;
                             }
                             if (metric < bestMetric) {
                                 bestPattern = pattern;

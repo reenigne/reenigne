@@ -1025,11 +1025,11 @@ mode1  mode                                   patternCount  QCE?  Repeat?  Notes
 0x?00  low-res text                           0x10000       y
 0x?01  high-res text                          0x10000       y
 0x0?2  standard graphics                      0x10
+0x1?2  graphics >2slpr                        0x100         y
 0x003  2bpp graphics high-res IMPROPER        0x100         y     y        Could in theory do this without repeating by using 2 tables
 0x?10  low-res text +1BPP     IMPROPER        0x10000       y     y
 0x?11  high-res text +1BPP    IMPROPER        0x10000       y     y
 0x013  1bpp graphics high-res IMPROPER        0x10                y        Could in theory do this without repeating by using 2 tables
-0x1?2  graphics >2slpr                        0x100         y
 0x103  2bpp graphics high-res >2slpr IMPROPER 0x10000       y     y        Using 2 tables would not be practical here since we'd have 0x100000000 patterns
 0x113  1bpp graphics high-res >2slpr IMPROPER 0x100         y     y        Could in theory do this without repeating by using 2 tables
 
