@@ -1352,6 +1352,9 @@ public:
                                 }
                                 inputLine += _scaled.stride();
                                 errorLine += errorStride;
+                                ntscLine += ntscStride;
+                                rgbiLine += rgbiStride;
+                                srgbLine += srgbStride;
                             }
                             if (metric < bestMetric) {
                                 bestPattern = pattern;
