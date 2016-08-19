@@ -793,14 +793,16 @@ private:
 class FFTNTSCDecoder
 {
 public:
-    FFTNTSCDecoder(int length = 512) : _rigor(FFTW_EXHAUSTIVE)
+    FFTNTSCDecoder(int length = 512, int outputLength = 448)
+      : _rigor(FFTW_EXHAUSTIVE)
     {
-        setLength(length);
+        setLength(length, outputLength);
     }
 
-    void setLength(int length)
+    void setLength(int length, int outputLength)
     {
         _length = length;
+        _outputLength = outputLength;
         _iTime.ensure(length);
         _qTime.ensure(length);
         _yTime.ensure(length);
@@ -882,7 +884,7 @@ public:
         _bq =  1.7046f*iqAdjust.x +1.1069f*iqAdjust.y;
     }
 
-    void decodeBlock(Byte* srgb)
+    void decodeBlock(SRGB* srgb)
     {
         int fLength = _length/2 + 1;
 
@@ -912,13 +914,13 @@ public:
             _frequency[f] *= _qResponse[f];
         _backward.execute(_frequency, _qTime);
 
-        for (int t = _padding; t < _length - _padding; ++t) {
+        for (int t = _padding; t < _padding + _outputLength; ++t) {
             float y = _yTime[t]*_contrast2 + _brightness2;
             Complex<float> iq(_iTime[t], _qTime[t]);
-            srgb[0] = byteClamp(y + _ri*iq.x + _rq*iq.y);
-            srgb[1] = byteClamp(y + _gi*iq.x + _gq*iq.y);
-            srgb[2] = byteClamp(y + _bi*iq.x + _bq*iq.y);
-            srgb += 3;
+            *srgb = SRGB(byteClamp(y + _ri*iq.x + _rq*iq.y),
+                byteClamp(y + _gi*iq.x + _gq*iq.y),
+                byteClamp(y + _bi*iq.x + _bq*iq.y));
+            ++srgb;
         }
     }
 
@@ -992,6 +994,7 @@ private:
 
     int _rigor;
     int _length;
+    int _outputLength;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H

@@ -985,7 +985,7 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(blockWidth);
+            _decoder.setLength(blockWidth, blockWidth);
             _decoder.setPadding(0);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
@@ -1002,7 +1002,7 @@ public:
             _decoder.calculateBurst(burst);
             _ntscPattern.ensure(blockWidth);
         }
-        _srgbPattern.ensure(blockWidth*3);
+        _srgbPattern.ensure(blockWidth);
         static const UInt32 hres1bpp[0x10] = {
             0x00000000, 0x01010101, 0x04040404, 0x05050505,
             0x10101010, 0x11111111, 0x14141414, 0x15151515,
@@ -1055,14 +1055,12 @@ public:
                 UInt64 rgbi = _sequencer->process(dataBits[y & yMask], _mode,
                     _palette, y, false, 0);
                 if (_connector == 0) {
-                    Byte* srgb = &_srgbPattern[0];
+                    SRGB* srgb = &_srgbPattern[0];
                     for (int x = 0; x < blockWidth; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
-                        srgb[0] = p[0];
-                        srgb[1] = p[1];
-                        srgb[2] = p[2];
-                        srgb += 3;
+                        *srgb = SRGB(p[0], p[1], p[2]);
+                        ++srgb;
                     }
                 }
                 else {
@@ -1094,9 +1092,9 @@ public:
                     }
                     _decoder.decodeBlock(&_srgbPattern[0]);
                 }
-                Byte* srgb = &_srgbPattern[0];
+                SRGB* srgb = &_srgbPattern[0];
                 for (int x = 0; x < blockWidth; ++x)
-                    rgb += _linearizer.linear(SRGB(srgb[0], srgb[1], srgb[2]));
+                    rgb += _linearizer.linear(srgb[x]);
             }
             SRGB srgb = _linearizer.srgb(rgb/blockArea);
             auto s = Vector3Cast<int>(Vector3Cast<float>(srgb)*srgbScale);
@@ -1136,8 +1134,8 @@ public:
                 for (int x = 0; x < 63; ++x)
                     _ntsc[x + (y + 1)*ntscStride] = _ntsc[x & 3];
 
-            _decoder.setLength(decoderLength);
-            _decoder.setPadding((decoderLength - blockWidth)/2);
+            _decoder.setLength(decoderLength, blockWidth);
+            _decoder.setPadding(64);
             _decoder.calculateBurst(burst);
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
@@ -1149,7 +1147,7 @@ public:
         Colour* errorRow = &_error[errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
-        Byte* srgbRow = &_srgb[0];
+        SRGB* srgbRow = &_srgb[0];
         int horizontalBlocks = size.x/blockWidth;
         int phaseRow = _phase << 6;
         int bankShift = _data->getDataByte(-25) + 1;
@@ -1169,7 +1167,7 @@ public:
             Byte* d1 = &_rowData[rowDataStride + 1];
             Byte* rgbiBlock = rgbiRow;
             Byte* ntscBlock = ntscRow;
-            Byte* srgbBlock = srgbRow;
+            SRGB* srgbBlock = srgbRow;
             int phase = phaseRow;
             for (int column = 0; column < horizontalBlocks; ++column) {
                 int mode2 = mode1 + (column << 9 & 0x200);
@@ -1178,9 +1176,6 @@ public:
                 Colour rgb(0, 0, 0);
                 const Byte* inputLine = inputBlock;
                 Colour* errorLine = errorBlock;
-                Byte* rgbiLine = rgbiBlock;
-                Byte* ntscLine = ntscBlock;
-                Byte* srgbLine = srgbBlock;
 
                 // Compute average target colour for block to look up in table.
                 for (int y = 0; y < blockHeight; ++y) {
@@ -1196,8 +1191,6 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += errorStride;
                 }
-                inputLine = inputBlock;
-                errorLine = errorBlock;
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
                 auto s = Vector3Cast<int>(
                     Vector3Cast<float>(srgb)*srgbScale - 0.5f);
@@ -1279,12 +1272,18 @@ public:
                             v[0] = (v[0] & 0xffff) + (d0[-1] << 24);
                             v[1] = (v[1] & 0xffff) + (d1[-1] << 24);
                             int metric = 0;
+                            inputLine = inputBlock;
+                            errorLine = errorBlock;
+                            Byte* rgbiLine = rgbiBlock;
+                            Byte* ntscLine = ntscBlock;
+                            SRGB* srgbLine = srgbBlock;
+
                             for (int scanline = 0; scanline < blockHeight;
                                 ++scanline) {
                                 UInt64 rgbis = _sequencer->process(
                                     v[scanline & yMask], _mode + phase,
                                     _palette, scanline, false, 0);
-                                Byte* srgb = srgbLine;
+                                SRGB* srgb = srgbLine;
                                 auto input =
                                     reinterpret_cast<const Colour*>(inputLine);
                                 auto error = errorLine;
@@ -1292,10 +1291,8 @@ public:
                                     for (int x = 0; x < blockWidth; ++x) {
                                         Byte* p = &_rgbiPalette[3*
                                             ((rgbis >> (x * 4)) & 0xf)];
-                                        srgb[0] = p[0];
-                                        srgb[1] = p[1];
-                                        srgb[2] = p[2];
-                                        srgb += 3;
+                                        *srgb = SRGB(p[0], p[1], p[2]);
+                                        ++srgb;
                                     }
                                 }
                                 else {
@@ -1331,7 +1328,7 @@ public:
                                 }
                                 srgb = srgbLine;
                                 for (int x = 0; x < blockWidth; ++x) {
-                                    SRGB o(srgb[0], srgb[1], srgb[2]);
+                                    SRGB o = *srgb;
                                     Colour output = _linearizer.linear(o);
                                     Colour target = *input +
                                         _diffusionHorizontal*error[-1] +
@@ -1427,7 +1424,7 @@ public:
                 }
                 rgbiBlock += blockWidth;
                 ntscBlock += blockWidth;
-                srgbBlock += 3*blockWidth;
+                srgbBlock += blockWidth;
             }
 
             if ((mode1 & 0x102) == 2) {
@@ -1640,11 +1637,11 @@ private:
     Array<Byte> _rgbiPalette;
 
     Array<Byte> _ntscPattern;
-    Array<Byte> _srgbPattern;
+    Array<SRGB> _srgbPattern;
     Array<Byte> _rowData;
     Array<Byte> _rgbi;
     Array<Byte> _ntsc;
-    Array<Byte> _srgb;
+    Array<SRGB> _srgb;
     Bitmap<SRGB> _input;
     Array<Colour> _output;
     Array<Colour> _error;
@@ -2641,7 +2638,7 @@ public:
                             iData += 2;
                             qData += 2;
                         }
-                        _decoder.decodeBlock(srgb);
+                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
@@ -2680,7 +2677,7 @@ public:
                             i += 2;
                             q += 2;
                         }
-                        _decoder.decodeBlock(srgb);
+                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
@@ -2717,7 +2714,7 @@ public:
                             i += 2;
                             q += 2;
                         }
-                        _decoder.decodeBlock(srgb);
+                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
