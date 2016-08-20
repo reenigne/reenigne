@@ -1283,6 +1283,8 @@ public:
                                 UInt64 rgbis = _sequencer->process(
                                     v[scanline & yMask], _mode + phase,
                                     _palette, scanline, false, 0);
+                                if ((mode2 & 0x203) == 0x202)
+                                    rgbis >>= 16;
                                 SRGB* srgb = srgbLine;
                                 auto input =
                                     reinterpret_cast<const Colour*>(inputLine);
