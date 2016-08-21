@@ -963,7 +963,7 @@ public:
             blockHeight = _scanlinesPerRow <= 2 ? 1 : 2;
         }
         float blockArea = static_cast<float>(blockWidth*blockHeight);
-        int scanlines = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
+        int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
         if (_connector == 0) {
@@ -1142,7 +1142,7 @@ public:
         bool nothingChanged = true;
 
         int row = 0;
-        int scanline = 0;
+        int bank = 0;
         const Byte* inputRow = _scaled.data();
         Colour* errorRow = &_error[errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
@@ -1154,10 +1154,10 @@ public:
 
         // Perform matching
         while (!cancelling()) {
-            for (int y = 0; y < scanlines; ++y) {
+            for (int bank = 0; bank < banks; ++bank) {
                 Array<Byte> rowData = _data->getData(row*bytesPerRow +
-                    (y << bankShift), bytesPerRow);
-                memcpy(&_rowData[1 + y*rowDataStride], &rowData[0],
+                    (bank << bankShift), bytesPerRow);
+                memcpy(&_rowData[1 + bank*rowDataStride], &rowData[0],
                     bytesPerRow);
             }
 
@@ -1178,7 +1178,7 @@ public:
                 Colour* errorLine = errorBlock;
 
                 // Compute average target colour for block to look up in table.
-                for (int y = 0; y < blockHeight; ++y) {
+                for (int scanline = 0; scanline < blockHeight; ++scanline) {
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
                     for (int x = 0; x < blockWidth; ++x) {
@@ -1429,21 +1429,24 @@ public:
                 srgbBlock += blockWidth;
             }
 
-            if ((mode1 & 0x102) == 2) {
-                _data->change(0, row*bytesPerRow + (scanline << bankShift),
-                    bytesPerRow, &_rowData[1]);
+            if ((mode1 & 0x102) == 0x102) {
+                // Graphics mode with more than 2 scanlines per row
+                _data->change(0, row*bytesPerRow, bytesPerRow, &_rowData[1]);
+                _data->change(0, row*bytesPerRow + (1 << bankShift),
+                    bytesPerRow, &_rowData[1 + rowDataStride]);
+                ++bank;
             }
             else {
-                for (int l = 0; l < scanlines; ++l) {
-                    _data->change(0, row*bytesPerRow + (l << bankShift),
-                        bytesPerRow, &_rowData[1 + l*rowDataStride]);
-                }
+                // Text mode (bank == 0) and graphics modes with 2 scanlines
+                // per row or fewer.
+                _data->change(0, row*bytesPerRow + (bank << bankShift),
+                    bytesPerRow, &_rowData[1]);
             }
             _program->updateOutput();
 
-            scanline += blockHeight;
-            if (scanline == scanlines) {
-                scanline = 0;
+            ++bank;
+            if (bank == banks) {
+                bank = 0;
                 ++row;
                 if (row >= _verticalDisplayed) {
                     row = 0;
