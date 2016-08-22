@@ -872,11 +872,12 @@ public:
     void run()
     {
         // Resample input image to desired size
-        Vector size = _activeSize*Vector(1, _interlaceSync ? 2 : 1);
+        Vector size(_hdotsPerChar*_horizontalDisplayed,
+            _scanlinesPerRow*_verticalDisplayed);
         if (size != _size) {
-            _scaler.setZoom(Vector2Cast<float>(size)/
+            _scaler.setZoom(Vector2Cast<float>(_activeSize*
+                Vector(1, _interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
-            size.x = _hdotsPerChar*_horizontalDisplayed;
             _scaler.setOutputSize(size);
             _scaler.init();
             _size = size;
@@ -956,20 +957,22 @@ public:
         Vector3<int> srgbDiv = Vector3Cast<int>(255.0f*srgbScale) + 1;
         int entries = srgbDiv.x*srgbDiv.y*srgbDiv.z;
         _table.setSize(entries);
-        int blockHeight = _scanlinesPerRow;
-        int blockWidth = (_mode & 1) != 0 ? 8 : 16;
+        _blockHeight = _scanlinesPerRow;
+        _blockWidth = (_mode & 1) != 0 ? 8 : 16;
         if ((_mode & 2) != 0) {
-            blockWidth = 4;
-            blockHeight = _scanlinesPerRow <= 2 ? 1 : 2;
+            _blockWidth = 4;
+            _blockHeight = _scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow;
         }
-        float blockArea = static_cast<float>(blockWidth*blockHeight);
+        float blockArea = static_cast<float>(_blockWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
         if (_connector == 0) {
             Byte levels[4];
-            for (int i = 0; i < 4; ++i)
-                levels[i] = byteClamp(2.55*_brightness + 0.85*i*_contrast);
+            for (int i = 0; i < 4; ++i) {
+                levels[i] = byteClamp(2.55*_brightness + 0.85*i*_contrast +
+                    0.5);
+            }
             int palette[3*0x10] = {
                 0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
                 2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
@@ -985,7 +988,7 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(blockWidth, blockWidth);
+            _decoder.setLength(_blockWidth, _blockWidth);
             _decoder.setPadding(0);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
@@ -1000,14 +1003,15 @@ public:
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
             _decoder.calculateBurst(burst);
-            _ntscPattern.ensure(blockWidth);
+            _ntscPattern.ensure(_blockWidth);
         }
-        _srgbPattern.ensure(blockWidth);
+        _srgbPattern.ensure(_blockWidth);
         static const UInt32 hres1bpp[0x10] = {
             0x00000000, 0x01010101, 0x04040404, 0x05050505,
             0x10101010, 0x11111111, 0x14141414, 0x15151515,
             0x40404040, 0x41414141, 0x44444444, 0x45454545,
             0x50505050, 0x51515151, 0x54545454, 0x55555555};
+        memcpy(_hres1bpp, hres1bpp, 0x10*sizeof(UInt32));
 
         // Populate gamut table
         for (UInt32 pattern = 0;; ++pattern) {
@@ -1027,8 +1031,8 @@ public:
                     patternCount = 0x10000;
                     break;
                 case 0x113:
-                    dataBits[0] = hres1bpp[pattern & 0xf];
-                    dataBits[1] = hres1bpp[pattern >> 4];
+                    dataBits[0] = _hres1bpp[pattern & 0xf];
+                    dataBits[1] = _hres1bpp[pattern >> 4];
                     break;
                 case 0x002:
                 case 0x012:
@@ -1041,22 +1045,26 @@ public:
                     yMask = 0;
                     break;
                 case 0x013:
-                    dataBits[0] = hres1bpp[pattern];
+                    dataBits[0] = _hres1bpp[pattern];
                     yMask = 0;
                     patternCount = 0x10;
                     break;
                 default:
                     dataBits[0] = pattern * 0x00010001;
+                    patternCount = 0x10000;
                     yMask = 0;
             }
             if (pattern == patternCount)
                 break;
-            for (int y = 0; y < blockHeight; ++y) {
+            int blockLines = _blockHeight;
+            if ((_mode & 2) == 2)
+                blockLines = _scanlinesPerRow <= 2 ? 1 : 2;
+            for (int y = 0; y < blockLines; ++y) {
                 UInt64 rgbi = _sequencer->process(dataBits[y & yMask], _mode,
                     _palette, y, false, 0);
                 if (_connector == 0) {
                     SRGB* srgb = &_srgbPattern[0];
-                    for (int x = 0; x < blockWidth; ++x) {
+                    for (int x = 0; x < _blockWidth; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
                         *srgb = SRGB(p[0], p[1], p[2]);
@@ -1066,7 +1074,7 @@ public:
                 else {
                     Byte* ntsc = &_ntscPattern[0];
                     int x;
-                    for (x = 0; x < blockWidth - 1; ++x) {
+                    for (x = 0; x < _blockWidth - 1; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                             (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
                         ++ntsc;
@@ -1077,7 +1085,7 @@ public:
                     float* yData = _decoder.yData();
                     float* iData = _decoder.iData();
                     float* qData = _decoder.qData();
-                    for (int i = 0; i < blockWidth; i += 4) {
+                    for (int i = 0; i < _blockWidth; i += 4) {
                         yData[i] = ntsc[0];
                         yData[i + 1] = ntsc[1];
                         yData[i + 2] = ntsc[2];
@@ -1093,7 +1101,7 @@ public:
                     _decoder.decodeBlock(&_srgbPattern[0]);
                 }
                 SRGB* srgb = &_srgbPattern[0];
-                for (int x = 0; x < blockWidth; ++x)
+                for (int x = 0; x < _blockWidth; ++x)
                     rgb += _linearizer.linear(srgb[x]);
             }
             SRGB srgb = _linearizer.srgb(rgb/blockArea);
@@ -1107,35 +1115,40 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        int errorStride = size.x + 1;
-        int errorSize = errorStride*(size.y + 1);
+        _errorStride = size.x + 1;
+        int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
             _error[x] = Colour(0, 0, 0);
-        int rgbiStride = size.x + 1;
-        _rgbi.ensure(rgbiStride*size.y + 1);
+        _rgbiStride = size.x + 1;
+        _rgbi.ensure(_rgbiStride*size.y + 1);
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
-        _rgbi[0] = overscan;
-        for (int y = 0; y < size.y; ++y)
-            _rgbi[(y + 1)*rgbiStride] = overscan;
+        for (int y = -1; y < size.y; ++y)
+            _rgbi[(y + 1)*_rgbiStride] = overscan;
 
-        static const int decoderLength = 128;
+        _decoderLength = 128;
         int padding = 0;
         if (_connector != 0)
             padding = 32;
-        int srgbStride = 2*padding + size.x;
-        _srgb.ensure(size.y*srgbStride);
-        int ntscStride = size.x + 64;
+        _srgbStride = 2*padding + size.x;
+        _srgb.ensure(size.y*_srgbStride);
+        _ntscStride = size.x + 64;
         if (_connector != 0) {
-            _ntsc.ensure(64 + size.y*ntscStride);
+            _ntsc.ensure(64 + size.y*_ntscStride);
             for (int x = 0; x < 63; ++x)
                 _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
-            for (int y = 0; y < size.y; ++y)
+            for (int y = 0; y < size.y; ++y) {
+                for (int x = 0; x < size.x + 1; ++x) {
+                    _ntsc[x + 63 + y*_ntscStride] = _composite.simulateCGA(
+                        _rgbi[x + y*_rgbiStride], _rgbi[x + 1 + y*_rgbiStride],
+                        (x - 1) & 3);
+                }
                 for (int x = 0; x < 63; ++x)
-                    _ntsc[x + (y + 1)*ntscStride] = _ntsc[x & 3];
+                    _ntsc[x + (y + 1)*_ntscStride] = _ntsc[x & 3];
+            }
 
-            _decoder.setLength(decoderLength, blockWidth);
-            _decoder.setPadding(64);
+            _decoder.setLength(_decoderLength, _blockWidth);
+            _decoder.setPadding(62);
             _decoder.calculateBurst(burst);
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
@@ -1144,11 +1157,11 @@ public:
         int row = 0;
         int bank = 0;
         const Byte* inputRow = _scaled.data();
-        Colour* errorRow = &_error[errorStride + 1];
+        Colour* errorRow = &_error[_errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
         SRGB* srgbRow = &_srgb[0];
-        int horizontalBlocks = size.x/blockWidth;
+        int horizontalBlocks = size.x/_blockWidth;
         int phaseRow = _phase << 6;
         int bankShift = _data->getDataByte(-25) + 1;
 
@@ -1161,35 +1174,35 @@ public:
                     bytesPerRow);
             }
 
-            const Byte* inputBlock = inputRow;
-            Colour* errorBlock = errorRow;
-            Byte* d0 = &_rowData[1];
-            Byte* d1 = &_rowData[rowDataStride + 1];
-            Byte* rgbiBlock = rgbiRow;
-            Byte* ntscBlock = ntscRow;
-            SRGB* srgbBlock = srgbRow;
-            int phase = phaseRow;
+            _d0 = &_rowData[1];
+            _d1 = &_rowData[rowDataStride + 1];
+            _inputBlock = inputRow;
+            _errorBlock = errorRow;
+            _rgbiBlock = rgbiRow;
+            _ntscBlock = ntscRow;
+            _srgbBlock = srgbRow;
+            _phaseBlock = phaseRow;
             for (int column = 0; column < horizontalBlocks; ++column) {
-                int mode2 = mode1 + (column << 9 & 0x200);
+                _mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
                 int bestMetric = std::numeric_limits<int>::max();
                 Colour rgb(0, 0, 0);
-                const Byte* inputLine = inputBlock;
-                Colour* errorLine = errorBlock;
+                const Byte* inputLine = _inputBlock;
+                Colour* errorLine = _errorBlock;
 
                 // Compute average target colour for block to look up in table.
-                for (int scanline = 0; scanline < blockHeight; ++scanline) {
+                for (int scanline = 0; scanline < _blockHeight; ++scanline) {
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
-                    for (int x = 0; x < blockWidth; ++x) {
-                        rgb += *input + _diffusionHorizontal*error[-1] +
-                            _diffusionVertical*error[-errorStride];
+                    for (int x = 0; x < _blockWidth; ++x) {
+                        rgb += *input - _diffusionHorizontal*error[-1] -
+                            _diffusionVertical*error[-_errorStride];
                         *error = Colour(0, 0, 0);
                         ++input;
                         ++error;
                     }
                     inputLine += _scaled.stride();
-                    errorLine += errorStride;
+                    errorLine += _errorStride;
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
                 auto s = Vector3Cast<int>(
@@ -1198,236 +1211,98 @@ public:
                 for (int z = 0;; ++z) {
                     bool foundPatterns = false;
                     int rMin = max(s.x - z, 0);
-                    int rMax = min(s.x + 1 + z, srgbDiv.x - 1);
+                    int rMax = min(s.x + z, srgbDiv.x - 1);
                     int gMin = max(s.y - z, 0);
-                    int gMax = min(s.y + 1 + z, srgbDiv.y - 1);
+                    int gMax = min(s.y + z, srgbDiv.y - 1);
                     int bMin = max(s.z - z, 0);
-                    int bMax = min(s.z + 1 + z, srgbDiv.z - 1);
-                    for (int r = rMin; r <= rMax; ++r)
-                        for (int g = gMin; g <= gMax; ++g)
-                        for (int b = bMin; b <= bMax; ++b) {
-                        Word* patterns;
-                        int n = _table.get(r + srgbDiv.x*(g + srgbDiv.y*b),
-                            &patterns);
-                        for (int i = 0; i < n; ++i) {
-                            int pattern = *patterns;
-                            foundPatterns = true;
-                            UInt32 v[2];
-                            int yMask = (mode2 & 0x102) == 0x102 ? 1 : 0;
-                            switch (mode2) {
-                                case 0x102:
-                                case 0x112:
-                                    v[0] = (*d0 & 0xf) + (pattern << 4);
-                                    v[1] = (*d1 & 0xf) + (pattern & 0xf0);
-                                    break;
-                                case 0x302:
-                                case 0x312:
-                                    v[0] = (*d0 & 0xf0) + (pattern & 0xf);
-                                    v[1] = (*d1 & 0xf0) + (pattern >> 4);
-                                    break;
-                                case 0x103:
-                                    v[0] = (d0[1] << 8) + pattern;
-                                    v[1] = (d1[1] << 8) + (pattern >> 8);
-                                    break;
-                                case 0x303:
-                                    v[0] = d0[1] + (pattern << 8);
-                                    v[1] = d1[1] + (pattern & 0xff00);
-                                    break;
-                                case 0x113:
-                                    v[0] = (d0[1] << 8) +
-                                        (hres1bpp[pattern & 0xf] & 0xff);
-                                    v[1] = (d1[1] << 8) +
-                                        (hres1bpp[pattern >> 4] & 0xff);
-                                    break;
-                                case 0x313:
-                                    v[0] = d0[1] +
-                                        (hres1bpp[pattern & 0xf] << 8);
-                                    v[1] = d1[1] +
-                                        (hres1bpp[pattern >> 4] << 8);
-                                    break;
-                                case 0x002:
-                                case 0x012:
-                                    v[0] = (*d0 & 0xf) + (pattern << 4);
-                                    break;
-                                case 0x202:
-                                case 0x212:
-                                    v[0] = (*d0 & 0xf0) + (pattern & 0xf);
-                                    break;
-                                case 0x003:
-                                    v[0] = (d0[1] << 8) + pattern;
-                                    break;
-                                case 0x203:
-                                    v[0] = d0[1] + (pattern << 8);
-                                    break;
-                                case 0x013:
-                                    v[0] = (d0[1] << 8) +
-                                        (hres1bpp[pattern] & 0xff);
-                                    break;
-                                case 0x213:
-                                    v[0] = d0[1] + (hres1bpp[pattern] << 8);
-                                    break;
-                                default:
-                                    v[0] = pattern;
-                            }
-                            v[0] = (v[0] & 0xffff) + (d0[-1] << 24);
-                            v[1] = (v[1] & 0xffff) + (d1[-1] << 24);
-                            int metric = 0;
-                            inputLine = inputBlock;
-                            errorLine = errorBlock;
-                            Byte* rgbiLine = rgbiBlock;
-                            Byte* ntscLine = ntscBlock;
-                            SRGB* srgbLine = srgbBlock;
-
-                            for (int scanline = 0; scanline < blockHeight;
-                                ++scanline) {
-                                UInt64 rgbis = _sequencer->process(
-                                    v[scanline & yMask], _mode + phase,
-                                    _palette, scanline, false, 0);
-                                if ((mode2 & 0x203) == 0x202)
-                                    rgbis >>= 16;
-                                SRGB* srgb = srgbLine;
-                                auto input =
-                                    reinterpret_cast<const Colour*>(inputLine);
-                                auto error = errorLine;
-                                if (_connector == 0) {
-                                    for (int x = 0; x < blockWidth; ++x) {
-                                        Byte* p = &_rgbiPalette[3*
-                                            ((rgbis >> (x * 4)) & 0xf)];
-                                        *srgb = SRGB(p[0], p[1], p[2]);
-                                        ++srgb;
+                    int bMax = min(s.z + z, srgbDiv.z - 1);
+                    for (int r = rMin; r <= rMax; ++r) {
+                        for (int g = gMin; g <= gMax; ++g) {
+                            for (int b = bMin; b <= bMax; ++b) {
+                                Word* patterns;
+                                int n = _table.get(r +
+                                    srgbDiv.x*(g + srgbDiv.y*b), &patterns);
+                                for (int i = 0; i < n; ++i) {
+                                    int pattern = *patterns;
+                                    foundPatterns = true;
+                                    int metric = tryPattern(pattern);
+                                    if (metric < bestMetric) {
+                                        bestPattern = pattern;
+                                        bestMetric = metric;
                                     }
+                                    ++patterns;
                                 }
-                                else {
-                                    Byte* rgbi = rgbiLine;
-                                    int x;
-                                    for (x = 0; x < blockWidth; ++x)
-                                        rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
-                                    Byte* ntsc = ntscLine + 64;
-                                    for (x = 0; x < blockWidth + 1; ++x) {
-                                        ntsc[x] = _composite.simulateCGA(
-                                            rgbi[x - 1], rgbi[x], x & 3);
-                                    }
-                                    float* yData = _decoder.yData();
-                                    float* iData = _decoder.iData();
-                                    float* qData = _decoder.qData();
-                                    ntsc = ntscLine;
-                                    for (x = 0; x < decoderLength; x += 4) {
-                                        yData[x] = ntsc[0];
-                                        yData[x + 1] = ntsc[1];
-                                        yData[x + 2] = ntsc[2];
-                                        yData[x + 3] = ntsc[3];
-                                        iData[0] =
-                                            -static_cast<float>(ntsc[1]);
-                                        iData[1] = ntsc[3];
-                                        qData[0] = ntsc[0];
-                                        qData[1] =
-                                            -static_cast<float>(ntsc[2]);
-                                        ntsc += 4;
-                                        iData += 2;
-                                        qData += 2;
-                                    }
-                                    _decoder.decodeBlock(srgb);
-                                }
-                                srgb = srgbLine;
-                                for (int x = 0; x < blockWidth; ++x) {
-                                    SRGB o = *srgb;
-                                    Colour output = _linearizer.linear(o);
-                                    Colour target = *input +
-                                        _diffusionHorizontal*error[-1] +
-                                        _diffusionVertical*error[-errorStride];
-                                    Colour e = output - target;
-                                    *error = e;
-                                    SRGB t = _linearizer.srgb(target);
-                                    // Fast colour distance metric from
-                                    // http://www.compuphase.com/cmetric.htm .
-                                    int mr = (o.x + t.x)/2;
-                                    int dr = o.x - t.x;
-                                    int dg = o.y - t.y;
-                                    int db = o.z - t.z;
-                                    metric += 4*dg*dg + (((512 + mr)*dr*dr +
-                                        (768 - mr)*db*db) >> 8);
-                                    ++input;
-                                    ++error;
-                                }
-                                inputLine += _scaled.stride();
-                                errorLine += errorStride;
-                                ntscLine += ntscStride;
-                                rgbiLine += rgbiStride;
-                                srgbLine += srgbStride;
+                                if (r > rMin && r < rMax && g > gMin &&
+                                    g < gMax)
+                                    b += z*2;
                             }
-                            if (metric < bestMetric) {
-                                bestPattern = pattern;
-                                bestMetric = metric;
-                            }
-                            ++patterns;
                         }
-                        if (r > rMin && r < rMax && g > gMin && g < gMax)
-                            b += z*2;
                     }
                     if (foundPatterns)
                         break;
                 }
-                inputBlock += blockWidth*3*sizeof(float);
-                errorBlock += blockWidth;
+                tryPattern(bestPattern);
 
-                switch (mode2) {
+                switch (_mode2) {
                     case 0x102:
                     case 0x112:
-                        *d0 = (*d0 & 0xf) + (bestPattern << 4);
-                        *d1 = (*d1 & 0xf) + (bestPattern & 0xf0);
+                        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
+                        *_d1 = (*_d1 & 0xf) + (bestPattern & 0xf0);
                         break;
                     case 0x302:
                     case 0x312:
-                        *d0 = (*d0 & 0xf0) + (bestPattern & 0xf);
-                        *d1 = (*d1 & 0xf0) + (bestPattern >> 4);
-                        ++d0;
-                        ++d1;
+                        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
+                        *_d1 = (*_d1 & 0xf0) + (bestPattern >> 4);
+                        ++_d0;
+                        ++_d1;
                         break;
                     case 0x103:
                     case 0x303:
-                        *d0 = bestPattern;
-                        *d1 = bestPattern >> 8;
-                        ++d0;
-                        ++d1;
-                        phase ^= 0x40;
+                        *_d0 = bestPattern;
+                        *_d1 = bestPattern >> 8;
+                        ++_d0;
+                        ++_d1;
+                        _phaseBlock ^= 0x40;
                         break;
                     case 0x113:
                     case 0x313:
-                        *d0 = hres1bpp[bestPattern & 0xf];
-                        *d1 = hres1bpp[bestPattern >> 4];
-                        ++d0;
-                        ++d1;
-                        phase ^= 0x40;
+                        *_d0 = _hres1bpp[bestPattern & 0xf];
+                        *_d1 = _hres1bpp[bestPattern >> 4];
+                        ++_d0;
+                        ++_d1;
+                        _phaseBlock ^= 0x40;
                         break;
                     case 0x002:
                     case 0x012:
-                        *d0 = (*d0 & 0xf) + (bestPattern << 4);
+                        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
                         break;
                     case 0x202:
                     case 0x212:
-                        *d0 = (*d0 & 0xf0) + (bestPattern & 0xf);
-                        ++d0;
+                        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
+                        ++_d0;
                         break;
                     case 0x003:
                     case 0x203:
-                        *d0 = bestPattern;
-                        ++d0;
-                        phase ^= 0x40;
+                        *_d0 = bestPattern;
+                        ++_d0;
+                        _phaseBlock ^= 0x40;
                         break;
                     case 0x013:
                     case 0x213:
-                        *d0 = hres1bpp[bestPattern];
-                        ++d0;
-                        phase ^= 0x40;
+                        *_d0 = _hres1bpp[bestPattern];
+                        ++_d0;
+                        _phaseBlock ^= 0x40;
                         break;
                     default:
-                        *d0 = bestPattern;
-                        d0 += 2;
+                        *_d0 = bestPattern;
+                        _d0 += 2;
                 }
-                rgbiBlock += blockWidth;
-                ntscBlock += blockWidth;
-                srgbBlock += blockWidth;
-            }
+                _inputBlock += _blockWidth*3*sizeof(float);
+                _errorBlock += _blockWidth;
+                _rgbiBlock += _blockWidth;
+                _ntscBlock += _blockWidth;
+                _srgbBlock += _blockWidth;
+            } // column
 
             if ((mode1 & 0x102) == 0x102) {
                 // Graphics mode with more than 2 scanlines per row
@@ -1455,20 +1330,20 @@ public:
                     rgbiRow = &_rgbi[1];
                     ntscRow = &_ntsc[0];
                     srgbRow = &_srgb[0];
-                    horizontalBlocks = size.x/blockWidth;
+                    horizontalBlocks = size.x/_blockWidth;
                     phaseRow = _phase << 6;
                     if (!improper || nothingChanged)
                         return;
                 }
             }
-            inputRow += blockHeight*_scaled.stride();
-            errorRow += errorStride*blockHeight;
+            inputRow += _blockHeight*_scaled.stride();
+            errorRow += _errorStride*_blockHeight;
             if ((_data->getDataByte(-16) & 1) == 0)
                 phaseRow ^= 0x40;
-            rgbiRow += rgbiStride*blockHeight;
-            ntscRow += ntscStride*blockHeight;
-            srgbRow += srgbStride*blockHeight;
-        }
+            rgbiRow += _rgbiStride*_blockHeight;
+            ntscRow += _ntscStride*_blockHeight;
+            srgbRow += _srgbStride*_blockHeight;
+        } // while (!cancelling())
     }
 
     void setDiffusionHorizontal(double diffusionHorizontal)
@@ -1539,6 +1414,140 @@ public:
     double getRollOff() { return _rollOff; }
 
 private:
+    int tryPattern(int pattern)
+    {
+        int metric = 0;
+        UInt32 v[2];
+        int yMask = (_mode2 & 0x102) == 0x102 ? 1 : 0;
+        switch (_mode2) {
+            case 0x102:
+            case 0x112:
+                v[0] = (*_d0 & 0xf) + (pattern << 4);
+                v[1] = (*_d1 & 0xf) + (pattern & 0xf0);
+                break;
+            case 0x302:
+            case 0x312:
+                v[0] = (*_d0 & 0xf0) + (pattern & 0xf);
+                v[1] = (*_d1 & 0xf0) + (pattern >> 4);
+                break;
+            case 0x103:
+                v[0] = (_d0[1] << 8) + pattern;
+                v[1] = (_d1[1] << 8) + (pattern >> 8);
+                break;
+            case 0x303:
+                v[0] = _d0[1] + (pattern << 8);
+                v[1] = _d1[1] + (pattern & 0xff00);
+                break;
+            case 0x113:
+                v[0] = (_d0[1] << 8) + (_hres1bpp[pattern & 0xf] & 0xff);
+                v[1] = (_d1[1] << 8) + (_hres1bpp[pattern >> 4] & 0xff);
+                break;
+            case 0x313:
+                v[0] = _d0[1] + (_hres1bpp[pattern & 0xf] << 8);
+                v[1] = _d1[1] + (_hres1bpp[pattern >> 4] << 8);
+                break;
+            case 0x002:
+            case 0x012:
+                v[0] = (*_d0 & 0xf) + (pattern << 4);
+                break;
+            case 0x202:
+            case 0x212:
+                v[0] = (*_d0 & 0xf0) + (pattern & 0xf);
+                break;
+            case 0x003:
+                v[0] = (_d0[1] << 8) + pattern;
+                break;
+            case 0x203:
+                v[0] = _d0[1] + (pattern << 8);
+                break;
+            case 0x013:
+                v[0] = (_d0[1] << 8) + (_hres1bpp[pattern] & 0xff);
+                break;
+            case 0x213:
+                v[0] = _d0[1] + (_hres1bpp[pattern] << 8);
+                break;
+            default:
+                v[0] = pattern;
+        }
+        v[0] = (v[0] & 0xffff) + (_d0[-1] << 24);
+        v[1] = (v[1] & 0xffff) + (_d1[-1] << 24);
+        const Byte* inputLine = _inputBlock;
+        Colour* errorLine = _errorBlock;
+        Byte* rgbiLine = _rgbiBlock;
+        Byte* ntscLine = _ntscBlock;
+        SRGB* srgbLine = _srgbBlock;
+        for (int scanline = 0; scanline < _blockHeight; ++scanline) {
+            UInt64 rgbis = _sequencer->process(v[scanline & yMask],
+                _mode + _phaseBlock, _palette, scanline, false, 0);
+            if ((_mode2 & 0x203) == 0x202)
+                rgbis >>= 16;
+            SRGB* srgb = srgbLine;
+            auto input = reinterpret_cast<const Colour*>(inputLine);
+            auto error = errorLine;
+            if (_connector == 0) {
+                for (int x = 0; x < _blockWidth; ++x) {
+                    Byte* p = &_rgbiPalette[3*((rgbis >> (x * 4)) & 0xf)];
+                    *srgb = SRGB(p[0], p[1], p[2]);
+                    ++srgb;
+                }
+            }
+            else {
+                Byte* rgbi = rgbiLine;
+                int x;
+                for (x = 0; x < _blockWidth; ++x)
+                    rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
+                Byte* ntsc = ntscLine + 63;
+                for (x = -1; x < _blockWidth; ++x) {
+                    ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
+                        x & 3);
+                }
+                float* yData = _decoder.yData();
+                float* iData = _decoder.iData();
+                float* qData = _decoder.qData();
+                ntsc = ntscLine;
+                for (x = 0; x < _decoderLength; x += 4) {
+                    yData[x] = ntsc[0];
+                    yData[x + 1] = ntsc[1];
+                    yData[x + 2] = ntsc[2];
+                    yData[x + 3] = ntsc[3];
+                    iData[0] = -static_cast<float>(ntsc[1]);
+                    iData[1] = ntsc[3];
+                    qData[0] = ntsc[0];
+                    qData[1] = -static_cast<float>(ntsc[2]);
+                    ntsc += 4;
+                    iData += 2;
+                    qData += 2;
+                }
+                _decoder.decodeBlock(srgb);
+            }
+            srgb = srgbLine;
+            for (int x = 0; x < _blockWidth; ++x) {
+                SRGB o = *srgb;
+                Colour output = _linearizer.linear(o);
+                Colour target = *input - _diffusionHorizontal*error[-1] -
+                    _diffusionVertical*error[-_errorStride];
+                *error = output - target;
+                SRGB t = _linearizer.srgb(target);
+                // Fast colour distance metric from
+                // http://www.compuphase.com/cmetric.htm .
+                int mr = (o.x + t.x)/2;
+                int dr = o.x - t.x;
+                int dg = o.y - t.y;
+                int db = o.z - t.z;
+                metric += 4*dg*dg + (((512 + mr)*dr*dr +
+                    (768 - mr)*db*db) >> 8);
+                ++input;
+                ++error;
+                ++srgb;
+            }
+            inputLine += _scaled.stride();
+            errorLine += _errorStride;
+            ntscLine += _ntscStride;
+            rgbiLine += _rgbiStride;
+            srgbLine += _srgbStride;
+        }
+        return metric;
+    }
     void initData()
     {
         if (!_active)
@@ -1650,6 +1659,24 @@ private:
     Bitmap<SRGB> _input;
     Array<Colour> _output;
     Array<Colour> _error;
+
+    int _mode2;
+    Byte* _d0;
+    Byte* _d1;
+    UInt32 _hres1bpp[0x10];
+    const Byte* _inputBlock;
+    Colour* _errorBlock;
+    Byte* _rgbiBlock;
+    Byte* _ntscBlock;
+    SRGB* _srgbBlock;
+    int _blockWidth;
+    int _blockHeight;
+    int _phaseBlock;
+    int _decoderLength;
+    int _errorStride;
+    int _ntscStride;
+    int _rgbiStride;
+    int _srgbStride;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
