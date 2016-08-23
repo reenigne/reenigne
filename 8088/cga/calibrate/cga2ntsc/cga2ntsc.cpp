@@ -748,8 +748,10 @@ public:
     {
         _table.ensure(entries);
         _entries = entries;
-        for (int i = 0; i < _entries; ++i)
+        for (int i = 0; i < _entries; ++i) {
             _table[i]._count = 0;
+            _table[i]._pattern = 1;
+        }
     }
 
     void add(Word pattern, int position)
@@ -764,6 +766,10 @@ public:
         int p = 0;
         for (int i = 0; i < _entries; ++i) {
             int c = _table[i]._count;
+            if (c == 0 && _table[i]._pattern != 1)
+                c = 0x10000;
+            if (c == 0)
+                continue;
             int pattern = _table[i]._pattern;
             _table[i]._pattern = p;
             for (int j = 0; j < c; ++j) {
@@ -777,6 +783,8 @@ public:
     {
         Entry* e = &_table[position];
         *p = &_patterns[e->_pattern];
+        if (e->_count == 0 && e->_pattern != 1)
+            return 0x10000;
         return e->_count;
     }
 private:
@@ -847,7 +855,8 @@ template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
     CGAMatcherT()
-      : _rgbiPalette(3*0x10), _decoder(128), _active(false), _size(0, 0)
+      : _rgbiPalette(3*0x10), _decoder(128), _active(false), _size(0, 0),
+        _skip(0x100)
     {
         _scaler.setProfile(4);
         _scaler.setWidth(1);
@@ -962,6 +971,80 @@ public:
         if ((_mode & 2) != 0) {
             _blockWidth = 4;
             _blockHeight = _scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow;
+            for (int i = 0; i < 0x100; ++i)
+                _skip[i] = false;
+        }
+        else {
+            bool blink = ((_mode & 0x20) != 0);
+            auto cgaROM = _sequencer->romData();
+            int lines = _scanlinesPerRow;
+            for (int i = 0; i < 0x100; ++i) {
+                _skip[i] = false;
+                if (_characterSet == 0) {
+                    _skip[i] = (i != 0xdd);
+                    continue;
+                }
+                if (_characterSet == 1) {
+                    _skip[i] = (i != 0x13 && i != 0x55);
+                    continue;
+                }
+                if (_characterSet == 2) {
+                    _skip[i] =
+                        (i != 0x13 && i != 0x55 && i != 0xb0 && i != 0xb1);
+                    continue;
+                }
+                if (_characterSet == 4) {
+                    _skip[i] = (i != 0xb1);
+                    continue;
+                }
+                if (_characterSet == 5) {
+                    _skip[i] = (i != 0xb0 && i != 0xb1);
+                    continue;
+                }
+                if (_characterSet == 6) {
+                    _skip[i] = (i != 0x06 && i != 0x13 && i != 0x19 &&
+                        i != 0x22 && i != 0x27 && i != 0x55 && i != 0x57 &&
+                        i != 0x60 && i != 0xb6 && i != 0xdd);
+                }
+                if ((_mode & 0x10) != 0)
+                    continue;
+                bool isBackground = true;
+                bool isForeground = true;
+                for (int y = 0; y < lines; ++y) {
+                    Byte b = cgaROM[i*8 + y];
+                    if (b != 0x00)
+                        isBackground = false;
+                    if (b != 0xff)
+                        isForeground = false;
+                }
+                if (isBackground || (isForeground && blink)) {
+                    _skip[i] = true;
+                    continue;
+                }
+                int j;
+                for (j = 0; j < i; ++j) {
+                    int y;
+                    for (y = 0; y < lines; ++y)
+                        if (cgaROM[i*8 + y] != cgaROM[j*8 + y])
+                            break;
+                    if (y == lines)
+                        break;
+                }
+                if (j != i)
+                    _skip[i] = true;
+                if (blink)
+                    continue;
+                for (j = 0; j < i; ++j) {
+                    int y;
+                    for (y = 0; y < lines; ++y)
+                        if (cgaROM[i*8 + y] != (cgaROM[j*8 + y]^0xff))
+                            break;
+                    if (y == lines)
+                        break;
+                }
+                if (j != i)
+                    _skip[i] = true;
+            }
         }
         float blockArea = static_cast<float>(_blockWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
@@ -1014,6 +1097,7 @@ public:
         memcpy(_hres1bpp, hres1bpp, 0x10*sizeof(UInt32));
 
         // Populate gamut table
+        int skipSolidColour = 0xf00;
         for (UInt32 pattern = 0;; ++pattern) {
             Colour rgb(0, 0, 0);
             UInt32 dataBits[2];
@@ -1056,6 +1140,16 @@ public:
             }
             if (pattern == patternCount)
                 break;
+            if ((_mode & 2) == 0) {
+                if (_skip[pattern & 0xff])
+                    continue;
+                int foreground = pattern & 0xf00;
+                if (foreground == ((pattern >> 4) & 0x0f00)) {
+                    if (foreground == skipSolidColour)
+                        continue;
+                    skipSolidColour = foreground;
+                }
+            }
             int blockLines = _blockHeight;
             if ((_mode & 2) == 2)
                 blockLines = _scanlinesPerRow <= 2 ? 1 : 2;
@@ -1295,6 +1389,7 @@ public:
                         break;
                     default:
                         *_d0 = bestPattern;
+                        _d0[1] = bestPattern >> 8;
                         _d0 += 2;
                 }
                 _inputBlock += _blockWidth*3*sizeof(float);
@@ -1526,6 +1621,9 @@ private:
                 Colour output = _linearizer.linear(o);
                 Colour target = *input - _diffusionHorizontal*error[-1] -
                     _diffusionVertical*error[-_errorStride];
+                target.x = clamp(0.0f, target.x, 1.0f);
+                target.y = clamp(0.0f, target.y, 1.0f);
+                target.z = clamp(0.0f, target.z, 1.0f);
                 *error = output - target;
                 SRGB t = _linearizer.srgb(target);
                 // Fast colour distance metric from
@@ -1649,6 +1747,7 @@ private:
     int _logCharactersPerBank;
 
     Array<Byte> _rgbiPalette;
+    Array<bool> _skip;
 
     Array<Byte> _ntscPattern;
     Array<SRGB> _srgbPattern;
@@ -3181,6 +3280,11 @@ public:
             _matcher->getScanlinesRepeat() - 1);
         _videoCard._registers._phase.setCheckState(_matcher->getPhase() == 0);
         _videoCard._registers._interlace.set(_matcher->getInterlace());
+        _videoCard._registers._interlaceSync.setCheckState(
+            _matcher->getInterlaceSync());
+        _videoCard._registers._interlacePhase.setCheckState(
+            _matcher->getInterlacePhase());
+        _videoCard._registers._flicker.setCheckState(_matcher->getFlicker());
         bool matchMode = _program->getMatchMode();
         _videoCard._matching._matchMode.setCheckState(matchMode);
         if (!matchMode)
@@ -3812,7 +3916,7 @@ private:
                 add(&_interlacePhase);
                 _flicker.setClicked(
                     [&](bool value) { _host->flickerSet(value); });
-                _interlacePhase.setText("Flicker");
+                _flicker.setText("Flicker");
                 add(&_flicker);
             }
             void layout()
@@ -3832,15 +3936,11 @@ private:
                 r = max(r, _scanlinesRepeat.right());
                 _phase.setTopLeft(_scanlinesPerRow.bottomLeft() + vSpace);
                 _interlace.setTopLeft(_phase.topRight() + hSpace);
-                _interlaceSync.setTopLeft(_interlace.bottomLeft() + vSpace);
-                r = max(r, _interlaceSync.right());
-                _interlacePhase.setTopLeft(
-                    _interlaceSync.bottomLeft() + vSpace);
-                r = max(r, _interlacePhase.right());
-                _flicker.setTopLeft(_interlacePhase.bottomLeft() + vSpace);
+                _interlaceSync.setTopLeft(_phase.bottomLeft() + vSpace);
+                _interlacePhase.setTopLeft(_interlaceSync.topRight() + hSpace);
+                _flicker.setTopLeft(_interlacePhase.topRight() + hSpace);
                 r = max(r, _flicker.right());
-                setInnerSize(Vector(r, _flicker.bottom()) +
-                    _host->groupBR());
+                setInnerSize(Vector(r, _flicker.bottom()) + _host->groupBR());
             }
             CGA2NTSCWindow* _host;
             CaptionedDropDownList _mode;
@@ -4181,53 +4281,55 @@ public:
 
         CGAOutput output(&_data, &_sequencer, &_window);
         _output = &output;
-        _matcher.setProgram(this);
-        _matcher.setData(&_data);
-        _matcher.setSequencer(&_sequencer);
+        CGAMatcher matcher;
+        _matcher = &matcher;
+        matcher.setProgram(this);
+        matcher.setData(&_data);
+        matcher.setSequencer(&_sequencer);
         _window.setConfig(&configFile);
-        _window.setMatcher(&_matcher);
+        _window.setMatcher(_matcher);
         _window.setOutput(&output);
         _window.setProgram(this);
 
-        _matcher.setDiffusionHorizontal(
+        matcher.setDiffusionHorizontal(
             configFile.get<double>("horizontalDiffusion"));
-        _matcher.setDiffusionVertical(
+        matcher.setDiffusionVertical(
             configFile.get<double>("verticalDiffusion"));
-        _matcher.setDiffusionTemporal(
+        matcher.setDiffusionTemporal(
             configFile.get<double>("temporalDiffusion"));
-        _matcher.setQuality(configFile.get<double>("quality"));
-        _matcher.setInterlace(configFile.get<int>("interlaceMode"));
-        _matcher.setInterlaceSync(configFile.get<bool>("interlaceSync"));
-        _matcher.setInterlacePhase(configFile.get<bool>("interlacePhase"));
-        _matcher.setFlicker(configFile.get<bool>("flicker"));
-        _matcher.setCharacterSet(configFile.get<int>("characterSet"));
-        _matcher.setMode(configFile.get<int>("mode"));
-        _matcher.setPalette(configFile.get<int>("palette"));
-        _matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
+        matcher.setQuality(configFile.get<double>("quality"));
+        matcher.setInterlace(configFile.get<int>("interlaceMode"));
+        matcher.setInterlaceSync(configFile.get<bool>("interlaceSync"));
+        matcher.setInterlacePhase(configFile.get<bool>("interlacePhase"));
+        matcher.setFlicker(configFile.get<bool>("flicker"));
+        matcher.setCharacterSet(configFile.get<int>("characterSet"));
+        matcher.setMode(configFile.get<int>("mode"));
+        matcher.setPalette(configFile.get<int>("palette"));
+        matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         int scanlinesRepeat = configFile.get<int>("scanlinesRepeat");
-        _matcher.setScanlinesRepeat(scanlinesRepeat);
+        matcher.setScanlinesRepeat(scanlinesRepeat);
         _sequencer.setROM(
             File(configFile.get<String>("cgaROM"), config.parent()));
 
         double brightness = configFile.get<double>("brightness");
         output.setBrightness(brightness);
-        _matcher.setBrightness(brightness);
+        matcher.setBrightness(brightness);
         double saturation = configFile.get<double>("saturation");
         output.setSaturation(saturation);
-        _matcher.setSaturation(saturation);
+        matcher.setSaturation(saturation);
         double hue = configFile.get<double>("hue");
         output.setHue(hue);
-        _matcher.setHue(hue);
+        matcher.setHue(hue);
         double contrast = configFile.get<double>("contrast");
         output.setContrast(contrast);
-        _matcher.setContrast(contrast);
+        matcher.setContrast(contrast);
         output.setShowClipping(configFile.get<bool>("showClipping"));
         output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
         output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
         output.setRollOff(configFile.get<double>("rollOff"));
         int connector = configFile.get<int>("connector");
         output.setConnector(connector);
-        _matcher.setConnector(connector);
+        matcher.setConnector(connector);
         output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
         output.setZoom(configFile.get<double>("zoom"));
@@ -4237,7 +4339,7 @@ public:
         output.setCombFilter(configFile.get<int>("combFilter"));
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
-        _matcher.setInput(input, configFile.get<Vector>("activeSize"));
+        matcher.setInput(input, configFile.get<Vector>("activeSize"));
         bool isPNG = bitmapValue.isPNG();
         String inputName = bitmapValue.name();
         setMatchMode(isPNG);
@@ -4246,13 +4348,13 @@ public:
             if (endsIn(inputName, ".cgad")) {
                 _data.load(file);
                 Array<Byte> data = _data.getData(-25, 25);
-                _matcher.setMode(data[25 -18]);
-                _matcher.setPalette(data[25 -17]);
-                _matcher.setScanlinesPerRow(1 + data[25 -7]);
+                matcher.setMode(data[25 -18]);
+                matcher.setPalette(data[25 -17]);
+                matcher.setScanlinesPerRow(1 + data[25 -7]);
             }
             else {
                 _data.loadVRAM(file);
-                _matcher.setSize(Vector(640, 200));
+                matcher.setSize(Vector(640, 200));
             }
         }
 
@@ -4265,8 +4367,8 @@ public:
             WindowProgram::run();
 
         if (!_matchMode)
-            _matcher.cancel();
-        _matcher.join();
+            matcher.cancel();
+        matcher.join();
 
         String inputFileName = bitmapValue.name();
         int i;
@@ -4302,13 +4404,13 @@ public:
     void beginConvert()
     {
         if (_matchMode)
-            _matcher.restart();
+            _matcher->restart();
         else
             _output->restart();
     }
 private:
     CGAData _data;
-    CGAMatcher _matcher;
+    CGAMatcher* _matcher;
     CGASequencer _sequencer;
     CGAOutput* _output;
     bool _matchMode;
