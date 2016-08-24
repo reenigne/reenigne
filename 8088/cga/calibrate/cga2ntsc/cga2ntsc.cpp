@@ -845,6 +845,8 @@ public:
     {
         return _srgb[clamp(0, static_cast<int>(linear*_multiplier), 6589)];
     }
+    //float linear(Byte srgb) { return srgb/255.0f; }
+    //Byte srgb(float linear) { return byteClamp(linear*255.0f); }
 private:
     float _linear[256];
     Byte _srgb[6590];
@@ -880,6 +882,7 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
+        int blockLap = (_connector == 0 ? 0 : 2);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_verticalDisplayed);
@@ -887,7 +890,7 @@ public:
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
                 Vector(1, _interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
-            _scaler.setOutputSize(size);
+            _scaler.setOutputSize(size + Vector(2*blockLap, 0));
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
@@ -967,9 +970,9 @@ public:
         int entries = srgbDiv.x*srgbDiv.y*srgbDiv.z;
         _table.setSize(entries);
         _blockHeight = _scanlinesPerRow;
-        _blockWidth = (_mode & 1) != 0 ? 8 : 16;
+        _blockDistance = (_mode & 1) != 0 ? 8 : 16;
         if ((_mode & 2) != 0) {
-            _blockWidth = 4;
+            _blockDistance = 4;
             _blockHeight = _scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow;
             for (int i = 0; i < 0x100; ++i)
                 _skip[i] = false;
@@ -1046,6 +1049,7 @@ public:
                     _skip[i] = true;
             }
         }
+        _blockWidth = _blockDistance + 2*blockLap;
         float blockArea = static_cast<float>(_blockWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
@@ -1071,7 +1075,7 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(_blockWidth, _blockWidth);
+            _decoder.setLength(_blockDistance, _blockDistance);
             _decoder.setPadding(0);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
@@ -1086,9 +1090,9 @@ public:
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
             _decoder.calculateBurst(burst);
-            _ntscPattern.ensure(_blockWidth);
+            _ntscPattern.ensure(_blockDistance);
         }
-        _srgbPattern.ensure(_blockWidth);
+        _srgbPattern.ensure(_blockDistance);
         static const UInt32 hres1bpp[0x10] = {
             0x00000000, 0x01010101, 0x04040404, 0x05050505,
             0x10101010, 0x11111111, 0x14141414, 0x15151515,
@@ -1158,7 +1162,7 @@ public:
                     _palette, y, false, 0);
                 if (_connector == 0) {
                     SRGB* srgb = &_srgbPattern[0];
-                    for (int x = 0; x < _blockWidth; ++x) {
+                    for (int x = 0; x < _blockDistance; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
                         *srgb = SRGB(p[0], p[1], p[2]);
@@ -1168,7 +1172,7 @@ public:
                 else {
                     Byte* ntsc = &_ntscPattern[0];
                     int x;
-                    for (x = 0; x < _blockWidth - 1; ++x) {
+                    for (x = 0; x < _blockDistance - 1; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                             (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
                         ++ntsc;
@@ -1179,7 +1183,7 @@ public:
                     float* yData = _decoder.yData();
                     float* iData = _decoder.iData();
                     float* qData = _decoder.qData();
-                    for (int i = 0; i < _blockWidth; i += 4) {
+                    for (int i = 0; i < _blockDistance; i += 4) {
                         yData[i] = ntsc[0];
                         yData[i + 1] = ntsc[1];
                         yData[i + 2] = ntsc[2];
@@ -1195,7 +1199,7 @@ public:
                     _decoder.decodeBlock(&_srgbPattern[0]);
                 }
                 SRGB* srgb = &_srgbPattern[0];
-                for (int x = 0; x < _blockWidth; ++x)
+                for (int x = 0; x < _blockDistance; ++x)
                     rgb += _linearizer.linear(srgb[x]);
             }
             SRGB srgb = _linearizer.srgb(rgb/blockArea);
@@ -1255,7 +1259,7 @@ public:
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
         SRGB* srgbRow = &_srgb[0];
-        int horizontalBlocks = size.x/_blockWidth;
+        int horizontalBlocks = size.x/_blockDistance;
         int phaseRow = _phase << 6;
         int bankShift = _data->getDataByte(-25) + 1;
 
@@ -1288,7 +1292,7 @@ public:
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
-                    for (int x = 0; x < _blockWidth; ++x) {
+                    for (int x = 0; x < _blockDistance; ++x) {
                         rgb += *input - _diffusionHorizontal*error[-1] -
                             _diffusionVertical*error[-_errorStride];
                         *error = Colour(0, 0, 0);
@@ -1392,11 +1396,11 @@ public:
                         _d0[1] = bestPattern >> 8;
                         _d0 += 2;
                 }
-                _inputBlock += _blockWidth*3*sizeof(float);
-                _errorBlock += _blockWidth;
-                _rgbiBlock += _blockWidth;
-                _ntscBlock += _blockWidth;
-                _srgbBlock += _blockWidth;
+                _inputBlock += _blockDistance*3*sizeof(float);
+                _errorBlock += _blockDistance;
+                _rgbiBlock += _blockDistance;
+                _ntscBlock += _blockDistance;
+                _srgbBlock += _blockDistance;
             } // column
 
             if ((mode1 & 0x102) == 0x102) {
@@ -1425,7 +1429,7 @@ public:
                     rgbiRow = &_rgbi[1];
                     ntscRow = &_ntsc[0];
                     srgbRow = &_srgb[0];
-                    horizontalBlocks = size.x/_blockWidth;
+                    horizontalBlocks = size.x/_blockDistance;
                     phaseRow = _phase << 6;
                     if (!improper || nothingChanged)
                         return;
@@ -1589,10 +1593,10 @@ private:
             else {
                 Byte* rgbi = rgbiLine;
                 int x;
-                for (x = 0; x < _blockWidth; ++x)
+                for (x = 0; x < _blockDistance; ++x)
                     rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
                 Byte* ntsc = ntscLine + 63;
-                for (x = -1; x < _blockWidth; ++x) {
+                for (x = -1; x < _blockDistance; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
                 }
@@ -1769,6 +1773,7 @@ private:
     Byte* _ntscBlock;
     SRGB* _srgbBlock;
     int _blockWidth;
+    int _blockDistance;
     int _blockHeight;
     int _phaseBlock;
     int _decoderLength;
