@@ -882,7 +882,7 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
-        int blockLap = (_connector == 0 ? 0 : 2);
+        int blockLap = (_connector == 0 ? 0 : 4);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_verticalDisplayed);
@@ -894,8 +894,8 @@ public:
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
-            Vector tl = _scaler.inputTL();
-            Vector br = _scaler.inputBR();
+            Vector tl = _scaler.inputTL() - Vector(blockLap, 0);
+            Vector br = _scaler.inputBR() - Vector(blockLap, 0);
             Byte* unscaledRow = input.data() - tl.y*input.stride();
             Byte* inputRow = _input.data();
             for (int y = 0; y < _input.size().y; ++y) {
@@ -1213,7 +1213,7 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        _errorStride = size.x + 1;
+        _errorStride = size.x + 1 + 2*blockLap;
         int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
@@ -1228,7 +1228,7 @@ public:
         int padding = 0;
         if (_connector != 0)
             padding = 32;
-        _srgbStride = 2*padding + size.x;
+        _srgbStride = 2*padding + size.x + 2*blockLap;
         _srgb.ensure(size.y*_srgbStride);
         _ntscStride = size.x + 64;
         if (_connector != 0) {
@@ -1246,7 +1246,7 @@ public:
             }
 
             _decoder.setLength(_decoderLength, _blockWidth);
-            _decoder.setPadding(62);
+            _decoder.setPadding((128 - _blockWidth)/2);
             _decoder.calculateBurst(burst);
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
@@ -1293,8 +1293,12 @@ public:
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
                     for (int x = 0; x < _blockDistance; ++x) {
-                        rgb += *input - _diffusionHorizontal*error[-1] -
-                            _diffusionVertical*error[-_errorStride];
+                        Colour target = *input - _diffusionHorizontal*error[-1]
+                            - _diffusionVertical*error[-_errorStride];
+                        target.x = clamp(0.0f, target.x, 1.0f);
+                        target.y = clamp(0.0f, target.y, 1.0f);
+                        target.z = clamp(0.0f, target.z, 1.0f);
+                        rgb += target;
                         *error = Colour(0, 0, 0);
                         ++input;
                         ++error;
@@ -1308,12 +1312,15 @@ public:
                 // Iterate through closest patterns to find the best match.
                 for (int z = 0;; ++z) {
                     bool foundPatterns = false;
+                    // Always search at least a 2x2x2 region of the gamut in
+                    // case we're on the boundary between two entries on any
+                    // given access.
                     int rMin = max(s.x - z, 0);
-                    int rMax = min(s.x + z, srgbDiv.x - 1);
+                    int rMax = min(s.x + 1 + z, srgbDiv.x - 1);
                     int gMin = max(s.y - z, 0);
-                    int gMax = min(s.y + z, srgbDiv.y - 1);
+                    int gMax = min(s.y + 1 + z, srgbDiv.y - 1);
                     int bMin = max(s.z - z, 0);
-                    int bMax = min(s.z + z, srgbDiv.z - 1);
+                    int bMax = min(s.z + 1 + z, srgbDiv.z - 1);
                     for (int r = rMin; r <= rMax; ++r) {
                         for (int g = gMin; g <= gMax; ++g) {
                             for (int b = bMin; b <= bMax; ++b) {
@@ -1425,7 +1432,7 @@ public:
                 if (row >= _verticalDisplayed) {
                     row = 0;
                     inputRow = _scaled.data();
-                    errorRow = &_error[3*(size.x + 2)];
+                    errorRow = &_error[_errorStride + 1];
                     rgbiRow = &_rgbi[1];
                     ntscRow = &_ntsc[0];
                     srgbRow = &_srgb[0];
@@ -1595,7 +1602,7 @@ private:
                 int x;
                 for (x = 0; x < _blockDistance; ++x)
                     rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
-                Byte* ntsc = ntscLine + 63;
+                Byte* ntsc = ntscLine + 64;
                 for (x = -1; x < _blockDistance; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
@@ -1603,7 +1610,7 @@ private:
                 float* yData = _decoder.yData();
                 float* iData = _decoder.iData();
                 float* qData = _decoder.qData();
-                ntsc = ntscLine;
+                ntsc = ntscLine + 1;
                 for (x = 0; x < _decoderLength; x += 4) {
                     yData[x] = ntsc[0];
                     yData[x + 1] = ntsc[1];
