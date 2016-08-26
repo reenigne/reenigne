@@ -882,7 +882,7 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
-        int blockLap = (_connector == 0 ? 0 : 4);
+        int blockLap = 0; //(_connector == 0 ? 0 : 4);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_verticalDisplayed);
@@ -1081,7 +1081,7 @@ public:
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
             _decoder.setChromaNotch(true);
-            _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
+            _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4) - 90);
             _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
             double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
             _decoder.setContrast(c);
@@ -1220,6 +1220,8 @@ public:
             _error[x] = Colour(0, 0, 0);
         _rgbiStride = size.x + 1;
         _rgbi.ensure(_rgbiStride*size.y + 1);
+        for (int i = 0; i < _rgbiStride*size.y + 1; ++i)
+            _rgbi[i] = 0;
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
         for (int y = -1; y < size.y; ++y)
             _rgbi[(y + 1)*_rgbiStride] = overscan;
@@ -1246,11 +1248,10 @@ public:
             }
 
             _decoder.setLength(_decoderLength, _blockWidth);
-            _decoder.setPadding((128 - _blockWidth)/2);
+            _decoder.setPadding(64); //(128 - _blockWidth)/2);
             _decoder.calculateBurst(burst);
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
-        bool nothingChanged = true;
 
         int row = 0;
         int bank = 0;
@@ -1265,6 +1266,7 @@ public:
 
         // Perform matching
         while (!cancelling()) {
+            bool nothingChanged = true;
             for (int bank = 0; bank < banks; ++bank) {
                 Array<Byte> rowData = _data->getData(row*bytesPerRow +
                     (bank << bankShift), bytesPerRow);
@@ -1412,6 +1414,27 @@ public:
 
             if ((mode1 & 0x102) == 0x102) {
                 // Graphics mode with more than 2 scanlines per row
+                if (nothingChanged) {
+                    Array<Byte> rowData = _data->getData(row*bytesPerRow,
+                        bytesPerRow);
+                    for (int i = 0; i < bytesPerRow; ++i) {
+                        if (rowData[i] != _rowData[1 + i]) {
+                            nothingChanged = false;
+                            break;
+                        }
+                    }
+                }
+                if (nothingChanged) {
+                    Array<Byte> rowData = _data->getData(row*bytesPerRow +
+                        (1 << bankShift), bytesPerRow);
+                    for (int i = 0; i < bytesPerRow; ++i) {
+                        if (rowData[i] != _rowData[1 + rowDataStride + i]) {
+                            nothingChanged = false;
+                            break;
+                        }
+                    }
+                }
+
                 _data->change(0, row*bytesPerRow, bytesPerRow, &_rowData[1]);
                 _data->change(0, row*bytesPerRow + (1 << bankShift),
                     bytesPerRow, &_rowData[1 + rowDataStride]);
@@ -1420,12 +1443,29 @@ public:
             else {
                 // Text mode (bank == 0) and graphics modes with 2 scanlines
                 // per row or fewer.
+                if (nothingChanged) {
+                    Array<Byte> rowData = _data->getData(row*bytesPerRow +
+                        (bank << bankShift), bytesPerRow);
+                    for (int i = 0; i < bytesPerRow; ++i) {
+                        if (rowData[i] != _rowData[1 + i]) {
+                            nothingChanged = false;
+                            break;
+                        }
+                    }
+                }
                 _data->change(0, row*bytesPerRow + (bank << bankShift),
                     bytesPerRow, &_rowData[1]);
             }
             _program->updateOutput();
 
             ++bank;
+            inputRow += _blockHeight*_scaled.stride();
+            errorRow += _errorStride*_blockHeight;
+            if ((_data->getDataByte(-16) & 1) == 0)
+                phaseRow ^= 0x40;
+            rgbiRow += _rgbiStride*_blockHeight;
+            ntscRow += _ntscStride*_blockHeight;
+            srgbRow += _srgbStride*_blockHeight;
             if (bank == banks) {
                 bank = 0;
                 ++row;
@@ -1438,17 +1478,10 @@ public:
                     srgbRow = &_srgb[0];
                     horizontalBlocks = size.x/_blockDistance;
                     phaseRow = _phase << 6;
-                    if (!improper || nothingChanged)
+                    if ((!improper && _connector == 0) || nothingChanged)
                         return;
                 }
             }
-            inputRow += _blockHeight*_scaled.stride();
-            errorRow += _errorStride*_blockHeight;
-            if ((_data->getDataByte(-16) & 1) == 0)
-                phaseRow ^= 0x40;
-            rgbiRow += _rgbiStride*_blockHeight;
-            ntscRow += _ntscStride*_blockHeight;
-            srgbRow += _srgbStride*_blockHeight;
         } // while (!cancelling())
     }
 
@@ -1610,7 +1643,7 @@ private:
                 float* yData = _decoder.yData();
                 float* iData = _decoder.iData();
                 float* qData = _decoder.qData();
-                ntsc = ntscLine + 1;
+                ntsc = ntscLine;
                 for (x = 0; x < _decoderLength; x += 4) {
                     yData[x] = ntsc[0];
                     yData[x + 1] = ntsc[1];
@@ -1791,638 +1824,6 @@ private:
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
-
-template<class T> class CGAOldMatcherT : public ThreadTask
-{
-public:
-    CGAOldMatcherT() : _skip(256), _active(false)
-    {
-        _patterns.allocate(0x10000*8*17 + 0x100*80*5);
-    }
-    void setInput(Bitmap<SRGB> input, Vector activeSize)
-    {
-        _input = input;
-        _size = input.size();
-        _input2 = Bitmap<SRGB>(_size + Vector(11, 0));
-        _input2.fill(SRGB(0, 0, 0));
-        _input2.subBitmap(Vector(5, 0), _size).copyFrom(_input);
-        _configs.allocate(_size.y);
-        _active = true;
-        initData();
-    }
-    void setSize(Vector size)
-    {
-        _size = size;
-        initData();
-    }
-    void setProgram(Program* program) { _program = program; }
-    void setSequencer(CGASequencer* sequencer) { _sequencer = sequencer; }
-    void setData(CGAData* data) { _data = data; }
-    static void filterHF(const Byte* input, SInt16* output, int n)
-    {
-        for (int x = 0; x < n; ++x)
-            output[x] = (-input[x] + input[x+1]*2 + input[x+2]*6 + input[x+3]*2
-                -input[x+4]);
-    }
-    void run()
-    {
-        _composite.setBW((_mode & 4) != 0);
-        bool newCGA = _connector == 2;
-        _composite.setNewCGA(newCGA);
-        _composite.initChroma();
-        double black = _composite.black();
-        double white = _composite.white();
-        _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4));
-        _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
-        double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
-        _decoder.setContrast(c);
-        _decoder.setBrightness((-black*c +
-            _brightness*5 + (newCGA ? -50 : 0))/256.0);
-
-        Byte burst[4];
-        for (int i = 0; i < 4; ++i)
-            burst[i] = _composite.simulateCGA(6, 6, i);
-        _decoder.calculateBurst(burst);
-        _block.y = _scanlinesPerRow * _scanlinesRepeat;
-        if ((_mode & 2) != 0) {
-            // In graphics modes, the data for the second scanline of the row
-            // is independent of the data for the first scanline, so we can
-            // pretend there's one scanline per row for matching purposes.
-            if (_scanlinesPerRow == 2)
-                _block.y = _scanlinesRepeat;
-            for (int i = 0; i < 256; ++i)
-                _skip[i] = false;
-        }
-        else {
-            auto cgaROM = _sequencer->romData();
-            int lines = _scanlinesPerRow;
-            for (int i = 0; i < 256; ++i) {
-                _skip[i] = false;
-                if (_characterSet == 0) {
-                    _skip[i] = (i != 0xdd);
-                    continue;
-                }
-                if (_characterSet == 1) {
-                    _skip[i] = (i != 0x13 && i != 0x55);
-                    continue;
-                }
-                if (_characterSet == 2) {
-                    _skip[i] =
-                        (i != 0x13 && i != 0x55 && i != 0xb0 && i != 0xb1);
-                    continue;
-                }
-                if (_characterSet == 4) {
-                    _skip[i] = (i != 0xb1);
-                    continue;
-                }
-                if (_characterSet == 5) {
-                    _skip[i] = (i != 0xb0 && i != 0xb1);
-                    continue;
-                }
-                if (_characterSet == 6) {
-                    _skip[i] = (i != 0x06 && i != 0x13 && i != 0x19 &&
-                        i != 0x22 && i != 0x27 && i != 0x55 && i != 0x57 &&
-                        i != 0x60 && i != 0xb6 && i != 0xdd);
-                }
-                bool isBackground = true;
-                bool isForeground = true;
-                for (int y = 0; y < lines; ++y) {
-                    Byte b = cgaROM[i*8 + y];
-                    if (b != 0x00)
-                        isBackground = false;
-                    if (b != 0xff)
-                        isForeground = false;
-                }
-                if (isBackground || isForeground) {
-                    _skip[i] = true;
-                    continue;
-                }
-                int j;
-                for (j = 0; j < i; ++j) {
-                    int y;
-                    for (y = 0; y < lines; ++y)
-                        if (cgaROM[i*8 + y] != cgaROM[j*8 + y])
-                            break;
-                    if (y == lines)
-                        break;
-                }
-                if (j != i)
-                    _skip[i] = true;
-                for (j = 0; j < i; ++j) {
-                    int y;
-                    for (y = 0; y < lines; ++y)
-                        if (cgaROM[i*8 + y] != (cgaROM[j*8 + y]^0xff))
-                            break;
-                    if (y == lines)
-                        break;
-                }
-                if (j != i)
-                    _skip[i] = true;
-            }
-        }
-
-        _ntscInput = Bitmap<SInt16>(_size + Vector(1, 0));
-        Byte* ntscRow = _ntscInput.data();
-        const Byte* srgbRow = _input2.data();
-        Array<Byte> ntscTemp(_size.x + 5);
-        for (int y = 0; y < _size.y; ++y) {
-            _decoder.encodeLine(&ntscTemp[0],
-                reinterpret_cast<const SRGB*>(srgbRow), _size.x + 5, 2);
-            filterHF(&ntscTemp[0], reinterpret_cast<SInt16*>(ntscRow),
-                _size.x + 1);
-            ntscRow += _ntscInput.stride();
-            srgbRow += _input2.stride();
-        }
-
-        // Convert from _mode/_palette to config
-        switch (_mode & 0x13) {
-            case 0:
-                _startConfig = 0x50;
-                break;
-            case 1:
-                _startConfig = 0xd0;
-                break;
-            case 0x12:
-                _startConfig = 0x40 + (_palette & 0x0f);
-                break;
-            case 2:
-                _startConfig = _palette;
-                break;
-            case 0x10:
-                _startConfig = 0x51;
-                break;
-            case 0x11:
-                _startConfig = 0xd1;
-                break;
-            case 0x13:
-                _startConfig = 0xc0 + (_palette & 0x0f);
-                break;
-            case 3:
-                _startConfig = 0x80 + _palette;
-                break;
-        }
-        _endConfig = _startConfig + 1;
-        if (_palette == 0xff) {
-            switch (_mode & 0x13) {
-                case 0x12:
-                    _startConfig = 0x40;
-                    _endConfig = 0x50;
-                    break;
-                case 2:
-                    _startConfig = 0x00;
-                    _endConfig = 0x40;
-                    break;
-                case 0x13:
-                    _startConfig = 0xc0;
-                    _endConfig = 0xd0;
-                    break;
-                case 3:
-                    _startConfig = 0x80;
-                    _endConfig = 0xc0;
-                    break;
-            }
-        }
-        if ((_mode & 0x80) != 0) {
-            _startConfig = (_mode & 1) == 0 ? 0 : 0x80;
-            _endConfig = _startConfig + 0x51;
-        }
-
-        for (_config = _startConfig; _config < _endConfig; ++_config) {
-            SInt16* p = &_patterns[(_config & 0x7f)*5*256];
-            config();
-            Array<Byte> rgbi(_block.x + 6);
-            ntscTemp.allocate(_block.x + 5);
-            int w = _block.x + 1;
-            for (int pattern = 0; pattern < _patternCount; ++pattern) {
-                for (int line = 0; line < _block.y; ++line) {
-                    plotPattern(&rgbi[3], pattern, line);
-                    rgbi[0] = rgbi[_block.x];
-                    rgbi[1] = rgbi[1 + _block.x];
-                    rgbi[2] = rgbi[2 + _block.x];
-                    rgbi[3 + _block.x] = rgbi[3];
-                    rgbi[4 + _block.x] = rgbi[4];
-                    rgbi[5 + _block.x] = rgbi[5];
-                    _composite.simulateLine(&rgbi[0], &ntscTemp[0],
-                        _block.x + 5, 0);
-                    filterHF(&ntscTemp[0], &p[(pattern*_block.y + line)*w], w);
-                }
-            }
-        }
-
-        int overscan = (_mode & 0x10) == 0 ? _palette & 0x0f : 0;
-        int y = 0;
-        _inputRow = _ntscInput.data();
-        _error = Bitmap<int>(_size + Vector(4, 1));
-        _error.fill(0);
-        _errorRow = _error.data();
-        _testError = Bitmap<int>(_block + Vector(4, 1));
-        _config = _startConfig;
-        _testConfig = (_startConfig + 1 != _endConfig);
-        _configScore = 0x7fffffffffffffffUL;
-        _rowData.ensure(2*_horizontalDisplayed);
-        while (true) {
-            int w = _block.x + 1;
-            Vector errorLineSize(_size.x + 4, 1);
-            Bitmap<int> savedError(errorLineSize);
-            if (_testConfig)
-                savedError.copyFrom(_error.subBitmap(Vector(0, y),
-                    errorLineSize));
-            config();
-            SInt16* p = &_patterns[(_config & 0x7f)*5*256];
-            UInt64 lineScore = 0;
-
-            for (int x = 0; x < (_size.x & -_hdotsPerChar); x += _block.x) {
-                int bestPattern = 0;
-                int bestScore = 0x7fffffff;
-                int skipSolidColour = 0xf00;
-                for (int pattern = 0; pattern < _patternCount; ++pattern) {
-                    if ((_mode & 2) == 0) {
-                        if (_skip[pattern & 0xff])
-                            continue;
-                        if ((pattern & 0x0f00) == ((pattern >> 4) & 0x0f00)) {
-                            if ((pattern & 0xf00) == skipSolidColour)
-                                continue;
-                            skipSolidColour = (pattern & 0xf00);
-                        }
-                    }
-                    int score = 0;
-                    const Byte* inputRow2 = _inputRow;
-                    Byte* errorRow2 = _errorRow;
-                    _testError.fill(0);
-                    for (int yy = 0; yy < _block.y; ++yy) {
-                        const SInt16* inputPixel =
-                            reinterpret_cast<const SInt16*>(inputRow2) + x;
-                        const int* errorPixel =
-                            reinterpret_cast<const int*>(errorRow2) + x;
-                        for (int xx = 0; xx < w; ++xx) {
-                            int test = p[(pattern*_block.y + yy)*w + xx];
-                            Vector p(xx, yy);
-                            int target = inputPixel[xx] +
-                                (errorPixel[xx] + _testError[p])/4;
-                            int d = target - test;
-                            int weight = (xx == 0 || xx == _block.x ? 1 : 2);
-                            score += weight*d*d;
-                            int error = weight*d;
-                            _testError[p + Vector(4, 0)] +=
-                                (error*_diffusionHorizontal)/256;
-                            _testError[p + Vector(0, 1)] +=
-                                (error*_diffusionVertical)/256;
-                        }
-                        inputRow2 += _ntscInput.stride();
-                        errorRow2 += _error.stride();
-                    }
-                    if (score < bestScore) {
-                        bestScore = score;
-                        bestPattern = pattern;
-                    }
-                }
-
-                if ((_mode & 2) == 0) {
-                    int address = 2*(x/_hdotsPerChar);
-                    _rowData[address] = bestPattern & 0xff;
-                    _rowData[address + 1] = bestPattern >> 8;
-                }
-                else {
-                    int address = x/8;
-                    int bit = (x & 4) ^ 4;
-                    _rowData[address] = (_rowData[address] & ~(15 << bit)) |
-                        (bestPattern << bit);
-                }
-
-                const Byte* inputRow2 = _inputRow;
-                Byte* errorRow2 = _errorRow;
-                for (int yy = 0; yy < _block.y; ++yy) {
-                    const SInt16* inputPixel =
-                        reinterpret_cast<const SInt16*>(inputRow2) + x;
-                    int* errorPixel = reinterpret_cast<int*>(errorRow2) + x;
-                    for (int xx = 0; xx < w; ++xx) {
-                        int test = p[(bestPattern*_block.y + yy)*w + xx];
-                        int target = inputPixel[xx] + errorPixel[xx]/4;
-                        int d = target - test;
-                        int weight = (xx == 0 || xx == _block.x ? 1 : 2);
-                        lineScore += weight*d*d;
-                        int error = weight*d;
-                        errorPixel[xx + 4] += (error*_diffusionHorizontal)/256;
-                        reinterpret_cast<int*>(errorRow2 + _error.stride())[
-                            x + xx] += (error*_diffusionVertical/256);
-                    }
-                    inputRow2 += _ntscInput.stride();
-                    errorRow2 += _error.stride();
-                }
-            }
-            int address;
-            if ((_mode & 2) != 0 && _scanlinesPerRow == 2) {
-                address = ((y & 1) << (_logCharactersPerBank + 1)) +
-                    (y >> 1)*_horizontalDisplayed*2;
-            }
-            else
-                address = (y/_block.y)*_horizontalDisplayed*2;
-            _data->change(0, address, _horizontalDisplayed*2, &_rowData[0]);
-            _program->updateOutput();
-            bool advance = false;
-            if (_testConfig) {
-                if (lineScore < _configScore) {
-                    _configScore = lineScore;
-                    _bestConfig = _config;
-                }
-                ++_config;
-                if (_config == _endConfig) {
-                    _config = _bestConfig;
-                    _configs[y] = _bestConfig;
-                    _testConfig = false;
-                    _configScore = 0x7fffffffffffffffUL;
-                }
-                else {
-                    savedError.copyTo(_error.subBitmap(Vector(0, y),
-                        errorLineSize));
-                    _error.subBitmap(Vector(0, y + 1), errorLineSize).fill(0);
-                }
-            }
-            else {
-                advance = true;
-                _testConfig = (_startConfig + 1 != _endConfig);
-                _config = _startConfig;
-            }
-            if (advance) {
-                _inputRow += _ntscInput.stride() * _block.y;
-                _errorRow += _error.stride() * _block.y;
-                y += _block.y;
-                if (y >= _size.y + 1 - _block.y)
-                    return;
-            }
-            if (cancelling())
-                return;
-        }
-    }
-    void config()
-    {
-        switch (_config) {
-            case 0x50:
-            case 0x51:
-                _block.x = 16;
-                _patternCount = 0x10000;
-                break;
-            case 0xd0:
-            case 0xd1:
-                _block.x = 8;
-                _patternCount = 0x10000;
-                break;
-            default:
-                _block.x = 4;
-                _patternCount = 16;
-                break;
-        }
-        if ((_config & 0x80) == 0)
-            _hdotsPerChar = 16;
-        else
-            _hdotsPerChar = 8;
-    }
-    void savePalettes(String outputFileName)
-    {
-        if (_startConfig + 1 == _endConfig)
-            return;
-        FileStream stream = File(outputFileName, true).openWrite();
-        for (int y = 0; y < _size.y; ++y) {
-            int c = _configs[y];
-            if ((_mode & 0x80) != 0)
-                stream.write<Byte>(c == 80 ? 0x08 : (c < 64 ? 0x0a : 0x1a));
-            if (c == 80)
-                stream.write<Byte>(0);
-            else
-                if (c >= 64)
-                    stream.write<Byte>(c & 0x0f);
-                else
-                    if (c >= 16 && c < 48)
-                        stream.write<Byte>(c ^ 0x30);
-                    else
-                        stream.write<Byte>(c);
-        }
-    }
-    void plotPattern(Byte* rgbi, int pattern, int line)
-    {
-        int modeAndPalette = modeAndPaletteFromConfig(_config);
-        if ((modeAndPalette & 3) == 2)
-            pattern <<= 4;
-        UInt64 r = _sequencer->process(pattern, modeAndPalette & 0xff,
-            modeAndPalette >> 8, line / _scanlinesRepeat, false, 0);
-        int hdots = 8;
-        if ((modeAndPalette & 3) == 0) {
-            // For -HRES-GRPH need 16 hdots
-            hdots = 16;
-        }
-        for (int x = 0; x < hdots; ++x)
-            rgbi[x] = (r >> (x * 4)) & 0x0f;
-    }
-    int modeAndPaletteFromConfig(int config)
-    {
-        int b = _mode & 0x24;
-        if (config < 0x40)
-            return (config << 8) | 0x0a | b;
-        if (config < 0x50)
-            return ((config & 0x0f) << 8) | 0x1a | b;
-        if (config == 0x50)
-            return 0x08 | b;
-        if (config == 0x51)
-            return 0x18 | b;
-        if (config < 0xc0)
-            return ((config & 0x3f) << 8) | 0x0b | b;
-        if (config < 0xd0)
-            return ((config & 0x0f) << 8) | 0x1b | b;
-        if (config == 0xd0)
-            return 0x09 | b;
-        return 0x19 | b;
-    }
-
-    void setDiffusionHorizontal(double diffusionHorizontal)
-    {
-        _diffusionHorizontal = static_cast<int>(diffusionHorizontal*256);
-    }
-    double getDiffusionHorizontal() { return _diffusionHorizontal/256.0; }
-    void setDiffusionVertical(double diffusionVertical)
-    {
-        _diffusionVertical = static_cast<int>(diffusionVertical*256);
-    }
-    double getDiffusionVertical() { return _diffusionVertical/256.0; }
-    void setDiffusionTemporal(double diffusionTemporal)
-    {
-        _diffusionTemporal = static_cast<int>(diffusionTemporal*256);
-    }
-    double getDiffusionTemporal() { return _diffusionTemporal/256.0; }
-    void setMode(int mode) { _mode = mode; initData(); }
-    int getMode() { return _mode; }
-    void setPalette(int palette) { _palette = palette; initData(); }
-    int getPalette() { return _palette; }
-    void setScanlinesPerRow(int v) { _scanlinesPerRow = v; initData(); }
-    int getScanlinesPerRow() { return _scanlinesPerRow; }
-    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; initData(); }
-    int getScanlinesRepeat() { return _scanlinesRepeat; }
-    void setPhase(int phase) { _phase = phase; initData(); }
-    int getPhase() { return _phase; }
-    void setInterlace(int interlace) { _interlace = interlace; initData(); }
-    int getInterlace() { return _interlace; }
-    void setInterlaceSync(bool interlaceSync)
-    {
-        _interlaceSync = interlaceSync;
-        initData();
-    }
-    bool getInterlaceSync() { return _interlaceSync; }
-    void setInterlacePhase(bool interlacePhase)
-    {
-        _interlacePhase = interlacePhase;
-        initData();
-    }
-    bool getInterlacePhase() { return _interlacePhase; }
-    void setFlicker(bool flicker) { _flicker = flicker; initData(); }
-    bool getFlicker() { return _flicker; }
-    void setQuality(double quality) { _quality = quality; }
-    double getQuality() { return _quality; }
-    void setCharacterSet(int characterSet) { _characterSet = characterSet; }
-    int getCharacterSet() { return _characterSet; }
-    double getHue() { return _hue; }
-    void setHue(double hue) { _hue = hue; }
-    double getSaturation() { return _saturation; }
-    void setSaturation(double saturation) { _saturation = saturation; }
-    double getContrast() { return _contrast; }
-    void setContrast(double contrast) { _contrast = contrast; }
-    double getBrightness() { return _brightness; }
-    void setBrightness(double brightness) { _brightness = brightness; }
-    void setConnector(int connector) { _connector = connector; }
-    void setRollOff(double rollOff) { _rollOff = rollOff; }
-    double getRollOff() { return _rollOff; }
-    void setChromaBandwidth(double chromaBandwidth)
-    {
-        _chromaBandwidth = chromaBandwidth;
-    }
-    double getChromaBandwidth() { return _chromaBandwidth; }
-    void setLumaBandwidth(double lumaBandwidth)
-    {
-        _lumaBandwidth = lumaBandwidth;
-    }
-    double getLumaBandwidth() { return _lumaBandwidth; }
-
-private:
-    void initData()
-    {
-        if (!_active)
-            return;
-        Byte cgaRegisters[25] = { 0 };
-        _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
-        _horizontalDisplayed = (_size.x + _hdotsPerChar - 1)/_hdotsPerChar;
-        int scanlinesPerRow = _scanlinesPerRow*_scanlinesRepeat;
-        int rows = (_size.y + scanlinesPerRow - 1)/scanlinesPerRow;
-        _logCharactersPerBank = 0;
-        while ((1 << _logCharactersPerBank) < _horizontalDisplayed*rows)
-            ++_logCharactersPerBank;
-        int horizontalTotal = _horizontalDisplayed + 272/_hdotsPerChar;
-        int horizontalSyncPosition = _horizontalDisplayed + 80/_hdotsPerChar;
-        int totalScanlines = _size.y + 62;
-        int verticalTotal = totalScanlines/scanlinesPerRow;
-        int verticalTotalAdjust =
-            totalScanlines - verticalTotal*scanlinesPerRow;
-        if (verticalTotal > 128 &&
-            verticalTotal < (32 - verticalTotalAdjust)/scanlinesPerRow + 128) {
-            verticalTotalAdjust += (verticalTotal - 128)*scanlinesPerRow;
-            verticalTotal = 128;
-        }
-        int verticalSyncPosition = rows + 24/scanlinesPerRow;
-        int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
-        cgaRegisters[0] = _logCharactersPerBank;
-        cgaRegisters[1] = (horizontalTotal - 1) >> 8;
-        cgaRegisters[2] = _horizontalDisplayed >> 8;
-        cgaRegisters[3] = horizontalSyncPosition >> 8;
-        cgaRegisters[4] = (verticalTotal - 1) >> 8;
-        cgaRegisters[5] = rows >> 8;
-        cgaRegisters[6] = verticalSyncPosition >> 8;
-        cgaRegisters[7] = _mode;
-        cgaRegisters[8] = _palette;
-        cgaRegisters[9] = (horizontalTotal - 1) & 0xff;
-        cgaRegisters[10] = _horizontalDisplayed & 0xff;
-        cgaRegisters[11] = horizontalSyncPosition & 0xff;
-        cgaRegisters[12] = 10;
-        cgaRegisters[13] = (verticalTotal - 1) & 0xff;
-        cgaRegisters[14] = verticalTotalAdjust;
-        cgaRegisters[15] = rows & 0xff;
-        cgaRegisters[16] = verticalSyncPosition & 0xff;
-        cgaRegisters[17] = 2;
-        cgaRegisters[18] = _scanlinesPerRow - 1;
-        cgaRegisters[19] = 6;
-        cgaRegisters[20] = 7;
-        _data->change(0, -25, 25, &cgaRegisters[0]);
-        int last = _horizontalDisplayed*rows*2 - 1;
-        if ((_mode & 2) != 0)
-            last += 2 << _logCharactersPerBank;
-        _data->change(0, last, 0);
-        _data->setTotals(hdotsPerScanline*totalScanlines, hdotsPerScanline - 2,
-            static_cast<int>((hdotsPerScanline - 2)*(totalScanlines + 0.5)));
-    }
-
-    bool _active;
-    int _phase;
-    int _mode;
-    int _palette;
-    int _scanlinesPerRow;
-    int _scanlinesRepeat;
-    int _connector;
-    Vector _size;
-    Bitmap<SRGB> _input;
-    CGAComposite _composite;
-    NTSCDecoder _decoder;
-    Program* _program;
-    CGAData* _data;
-    CGASequencer* _sequencer;
-    Array<SInt16> _patterns;
-    Bitmap<SRGB> _input2;
-    const Byte* _inputRow;
-    Byte* _errorRow;
-    int _y;
-    Bitmap<SInt16> _ntscInput;
-    int _patternCount;
-    Bitmap<int> _error;
-    Bitmap<int> _testError;
-    Vector _block;
-    int _diffusionHorizontal;
-    int _diffusionVertical;
-    int _diffusionTemporal;
-    int _interlace;
-    bool _interlaceSync;
-    bool _interlacePhase;
-    bool _flicker;
-    double _quality;
-    int _characterSet;
-    UInt64 _configScore;
-    Array<bool> _skip;
-    int _horizontalDisplayed;
-    int _hdotsPerChar;
-    int _logCharactersPerBank;
-    Array<Byte> _rowData;
-
-    // a config is a mode/palette combination suitable for auto testing
-    // The configs are:
-    //   0x00..0x3f = 2bpp (background in low 4 bits)
-    //   0x40..0x4f = 1bpp
-    //   0x50       = 40-column text
-    //   0x51       = 40-column text with 1bpp graphics
-    //   0x80..0xbf = high-res 2bpp
-    //   0xc0..0xcf = 1bpp odd bits ignored
-    //   0xd0       = 80-column text
-    //   0xd1       = 80-column text with 1bpp graphics
-    Array<int> _configs;
-    int _startConfig;
-    int _endConfig;
-    int _config;
-    bool _testConfig;
-    int _bestConfig;
-
-    double _hue;
-    double _saturation;
-    double _contrast;
-    double _brightness;
-    double _rollOff;
-    double _chromaBandwidth;
-    double _lumaBandwidth;
-};
-
-typedef CGAOldMatcherT<void> CGAOldMatcher;
 
 template<class T> class CGAOutputT : public ThreadTask
 {
