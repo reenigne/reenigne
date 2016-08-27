@@ -290,9 +290,8 @@ public:
                         // We need to use an unaligned load here because we
                         // need it to be possible for any input position to
                         // affect any output position. We could do this by
-                        // duplicating each input position eight times, but
-                        // this would probably be slower than the unaligned
-                        // loads.
+                        // duplicating each input position four times, but this
+                        // would probably be slower than the unaligned loads.
                         total = _mm_add_ps(total, _mm_mul_ps(*kernel,
                             _mm_loadu_ps(reinterpret_cast<float*>(inputRow +
                                 *offsets))));

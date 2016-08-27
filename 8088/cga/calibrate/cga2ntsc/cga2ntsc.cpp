@@ -882,7 +882,7 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
-        int blockLap = 0; //(_connector == 0 ? 0 : 4);
+        int blockLap = (_connector == 0 ? 0 : 3);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_verticalDisplayed);
@@ -1248,7 +1248,7 @@ public:
             }
 
             _decoder.setLength(_decoderLength, _blockWidth);
-            _decoder.setPadding(64); //(128 - _blockWidth)/2);
+            _decoder.setPadding(64 - blockLap);
             _decoder.calculateBurst(burst);
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
@@ -1668,7 +1668,45 @@ private:
                 target.x = clamp(0.0f, target.x, 1.0f);
                 target.y = clamp(0.0f, target.y, 1.0f);
                 target.z = clamp(0.0f, target.z, 1.0f);
-                *error = output - target;
+                //if (target.x < 0.0f) {
+                //    float scale = 0.5f/(0.5f - target.x);
+                //    target.x = 0.0f;
+                //    target.y = 0.5f + (target.y - 0.5f)*scale;
+                //    target.z = 0.5f + (target.z - 0.5f)*scale;
+                //}
+                //if (target.x > 1.0f) {
+                //    float scale = 0.5f/(target.x - 0.5f);
+                //    target.x = 1.0f;
+                //    target.y = 0.5f + (target.y - 0.5f)*scale;
+                //    target.z = 0.5f + (target.z - 0.5f)*scale;
+                //}
+                //if (target.y < 0.0f) {
+                //    float scale = 0.5f/(0.5f - target.y);
+                //    target.x = 0.5f + (target.x - 0.5f)*scale;
+                //    target.y = 0.0f;
+                //    target.z = 0.5f + (target.z - 0.5f)*scale;
+                //}
+                //if (target.y > 1.0f) {
+                //    float scale = 0.5f/(target.y - 0.5f);
+                //    target.x = 0.5f + (target.x - 0.5f)*scale;
+                //    target.y = 1.0f;
+                //    target.z = 0.5f + (target.z - 0.5f)*scale;
+                //}
+                //if (target.z < 0.0f) {
+                //    float scale = 0.5f/(0.5f - target.z);
+                //    target.x = 0.5f + (target.x - 0.5f)*scale;
+                //    target.y = 0.5f + (target.y - 0.5f)*scale;
+                //    target.z = 0.0f;
+                //}
+                //if (target.z > 1.0f) {
+                //    float scale = 0.5f/(target.z - 0.5f);
+                //    target.x = 0.5f + (target.x - 0.5f)*scale;
+                //    target.y = 0.5f + (target.y - 0.5f)*scale;
+                //    target.z = 1.0f;
+                //}
+                Colour e = output - target;
+                *error = e;
+
                 SRGB t = _linearizer.srgb(target);
                 // Fast colour distance metric from
                 // http://www.compuphase.com/cmetric.htm .
@@ -1678,6 +1716,10 @@ private:
                 int db = o.z - t.z;
                 metric += 4*dg*dg + (((512 + mr)*dr*dr +
                     (768 - mr)*db*db) >> 8);
+
+                //metric += static_cast<int>(1000.0f*e.modulus2());
+
+                //metric += dr*dr+dg*dg+db*db;
                 ++input;
                 ++error;
                 ++srgb;

@@ -631,3 +631,44 @@ private:
 typedef CGAOldMatcherT<void> CGAOldMatcher;
 
 
+
+
+
+
+                if (target.x < -1.0f) {
+                    float scale = 1.5f/(0.5f - target.x);
+                    target.x = -1.0f;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.x > 2.0f) {
+                    float scale = 1.5f/(target.x - 0.5f);
+                    target.x = 2.0f;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.y < -1.0f) {
+                    float scale = 1.5f/(0.5f - target.y);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = -1.0f;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.y > 2.0f) {
+                    float scale = 1.5f/(target.y - 0.5f);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 2.0f;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.z < -1.0f) {
+                    float scale = 1.5f/(0.5f - target.z);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = -1.0f;
+                }
+                if (target.z > 2.0f) {
+                    float scale = 1.5f/(target.z - 0.5f);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 2.0f;
+                }
+

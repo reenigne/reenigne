@@ -997,4 +997,252 @@ private:
     int _outputLength;
 };
 
+// Similar to FFTNTSCDecoder except that it uses FIR filters so operates
+// efficiently with a small number of samples at once.
+class MatchingNTSCDecoder
+{
+public:
+    //MatchingNTSCDecoder(int length = 512, int outputLength = 448)
+    //{
+    //    setLength(length, outputLength);
+    //}
+
+    //void setLength(int length, int outputLength)
+    //{
+    //    _length = length;
+    //    _outputLength = outputLength;
+    //    _iTime.ensure(length);
+    //    _qTime.ensure(length);
+    //    _yTime.ensure(length);
+    //    int fLength = length/2 + 1;
+    //    _frequency.ensure(fLength);
+    //    _lumaForward =
+    //        FFTWPlanDFTR2C1D<float>(length, _yTime, _frequency, _rigor);
+    //    _chromaForward =
+    //        FFTWPlanDFTR2C1D<float>(length / 2, _yTime, _frequency, _rigor);
+    //    _backward =
+    //        FFTWPlanDFTC2R1D<float>(length, _frequency, _yTime, _rigor);
+    //    _yResponse.ensure(fLength);
+    //    _iResponse.ensure(fLength);
+    //    _qResponse.ensure(fLength);
+    //}
+    void calculateBurst(Byte* burst)
+    {
+        //_output.ensure(_outputSize.x*3*sizeof(UInt16), _outputSize.y);
+
+        //static const float inputChannelPositions[8] =
+        //{0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
+        //static const float outputChannelPositions[3] = {0, 0, 0};
+        //float kernelRadius = 16;
+        //_filter.generate(_outputSize, 8, inputChannelPositions, 3,
+        //    outputChannelPositions, kernelRadius,
+        //    [=](float distance, int inputChannel, int outputChannel)
+        //{
+        //    if ((inputChannel & 1) == 0) {
+        //        // Luma
+        //        float y;
+        //        float lumaHigh = _lumaBandwidth;
+        //        float chromaLow = (4 - _chromaBandwidth) / 4;
+        //        float chromaHigh = (4 + _chromaBandwidth) / 4;
+        //        if (lumaHigh < chromaHigh) {
+        //            if (lumaHigh < chromaLow)
+        //                y = lumaHigh*sinc(distance*lumaHigh);
+        //            else
+        //                y = chromaLow*sinc(distance*chromaLow);
+        //        }
+        //        else {
+        //            y = lumaHigh*sinc(distance*lumaHigh)
+        //                - chromaHigh*sinc(distance*chromaHigh)
+        //                + chromaLow*sinc(distance*chromaLow);
+        //        }
+        //        return y*_contrast2/4.0f;
+        //    }
+        //    // Chroma
+        //    Complex<float> iq = 0;
+        //    switch (inputChannel) {
+        //    case 1: iq.y = 1; break;
+        //    case 3: iq.x = -1; break;
+        //    case 5: iq.y = -1; break;
+        //    case 7: iq.x = 1; break;
+        //    }
+        //    iq *= sinc(distance*_chromaBandwidth/4.0f);
+        //    iq *= _iqAdjust*_chromaBandwidth/16.0f;
+        //    switch (outputChannel) {
+        //    case 0: return 0.9563f*iq.x + 0.6210f*iq.y;
+        //    case 1: return -0.2721f*iq.x - 0.6474f*iq.y;
+        //    case 2: return -1.1069f*iq.x + 1.7046f*iq.y;
+        //    }
+        //    assert(false);
+        //    return 0.0f;
+        //},
+        //    &_inputLeft, &_inputRight, 4, 0);
+
+        //_input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16),
+        //    _outputSize.y);
+
+        //_filter.setBuffers(_input, _output);
+
+
+    //    Complex<float> iq;
+    //    iq.x = static_cast<float>(burst[0] - burst[2]);
+    //    iq.y = static_cast<float>(burst[1] - burst[3]);
+    //    Complex<float> iqAdjust =
+    //        -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
+    //        _contrast/iq.modulus()/static_cast<float>(_length);
+    //    _contrast2 = _contrast/_length;
+    //    _brightness2 = _brightness*256.0f;
+    //    int fLength = _length/2 + 1;
+    //    float lumaHigh = _lumaBandwidth / 2;
+    //    float chromaLow = (4 - _chromaBandwidth) / 8;
+    //    float chromaHigh = (4 + _chromaBandwidth) / 8;
+    //    float lumaCutoff = min(lumaHigh, chromaLow);
+    //    float rollOff = _rollOff / 4;
+    //    float chromaCutoff = _chromaBandwidth / 8;
+
+    //    for (int t = 0; t < fLength; ++t) {
+    //        float d = static_cast<float>(t);
+    //        float r;
+    //        if (_rollOff == 0)
+    //            r = 1;
+    //        else
+    //            r = sinc(d*rollOff);
+    //        if (lumaHigh < chromaHigh)
+    //            r *= lumaCutoff*sinc(d*lumaCutoff);
+    //        else {
+    //            r *= lumaHigh*sinc(d*lumaHigh)
+    //                - chromaHigh*sinc(d*chromaHigh)
+    //                + chromaLow*sinc(d*chromaLow);
+    //        }
+    //        _yTime[t] = r;
+    //        if (t > 0)
+    //            _yTime[_length - t] = r;
+    //    }
+    //    _lumaForward.execute(_yTime, _frequency);
+    //    for (int f = 0; f < fLength; ++f)
+    //        _yResponse[f] = _frequency[f].x;
+
+    //    for (int t = 0; t < fLength; ++t) {
+    //        float d = static_cast<float>(t);
+    //        float r;
+    //        if (_rollOff == 0)
+    //            r = 1;
+    //        else
+    //            r = sinc(d*rollOff);
+    //        r *= chromaCutoff*sinc(d*chromaCutoff);
+    //        _yTime[t] = r;
+    //        if (t > 0)
+    //            _yTime[_length - t] = r;
+    //    }
+    //    _lumaForward.execute(_yTime, _frequency);
+    //    for (int f = 0; f < fLength; ++f) {
+    //        _iResponse[f] = _frequency[f].x * unit(f/512.0f);
+    //        _qResponse[f] = _frequency[f].x;
+    //    }
+
+    //    _ri =  0.9563f*iqAdjust.x +0.6210f*iqAdjust.y;
+    //    _rq =  0.6210f*iqAdjust.x -0.9563f*iqAdjust.y;
+    //    _gi = -0.2721f*iqAdjust.x -0.6474f*iqAdjust.y;
+    //    _gq = -0.6474f*iqAdjust.x +0.2721f*iqAdjust.y;
+    //    _bi = -1.1069f*iqAdjust.x +1.7046f*iqAdjust.y;
+    //    _bq =  1.7046f*iqAdjust.x +1.1069f*iqAdjust.y;
+    }
+
+    void decodeBlock(Byte* ntsc, SRGB* srgb)
+    {
+        float* input = reinterpret_cast<float*>(_input.data());
+        for (int i = 0; i < _inputLength; ++i)
+            input[i] = ntsc[i];
+        _filter.execute();
+        Colour* output = reinterpret_cast<Colour*>(_output.data());
+        for (int i = 0; i < _outputLength; ++i) {
+            Colour c = output[i];
+            srgb[i] = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
+        }
+
+    //    int fLength = _length/2 + 1;
+
+    //    // Filter Y
+    //    _lumaForward.execute(_yTime, _frequency);
+    //    for (int f = 0; f < fLength; ++f)
+    //        _frequency[f] *= _yResponse[f];
+    //    _backward.execute(_frequency, _yTime);
+
+    //    // Filter I
+    //    _chromaForward.execute(_iTime, _frequency);
+    //    for (int f = 0; f < fLength/2; ++f) {
+    //        _frequency[f + fLength/2 + 1] =
+    //            _frequency[fLength/2 - 1 - f].conjugate();
+    //    }
+    //    for (int f = 0; f < fLength; ++f)
+    //        _frequency[f] *= _iResponse[f];
+    //    _backward.execute(_frequency, _iTime);
+
+    //    // Filter Q
+    //    _chromaForward.execute(_qTime, _frequency);
+    //    for (int f = 0; f < fLength/2; ++f) {
+    //        _frequency[f + fLength/2 + 1] =
+    //            _frequency[fLength/2 - 1 - f].conjugate();
+    //    }
+    //    for (int f = 0; f < fLength; ++f)
+    //        _frequency[f] *= _qResponse[f];
+    //    _backward.execute(_frequency, _qTime);
+
+    //    for (int t = _padding; t < _padding + _outputLength; ++t) {
+    //        float y = _yTime[t]*_contrast2 + _brightness2;
+    //        Complex<float> iq(_iTime[t], _qTime[t]);
+    //        *srgb = SRGB(byteClamp(y + _ri*iq.x + _rq*iq.y),
+    //            byteClamp(y + _gi*iq.x + _gq*iq.y),
+    //            byteClamp(y + _bi*iq.x + _bq*iq.y));
+    //        ++srgb;
+    //    }
+    }
+
+    double getHue() { return _hue; }
+    void setHue(double hue) { _hue = static_cast<float>(hue); }
+    double getSaturation() { return _saturation; }
+    void setSaturation(double saturation)
+    {
+        _saturation = static_cast<float>(saturation);
+    }
+    double getContrast() { return _contrast; }
+    void setContrast(double contrast)
+    {
+        _contrast = static_cast<float>(contrast);
+    }
+    double getBrightness() { return _brightness; }
+    void setBrightness(double brightness)
+    {
+        _brightness = static_cast<float>(brightness);
+    }
+    double getChromaBandwidth() { return _chromaBandwidth; }
+    void setChromaBandwidth(double chromaBandwidth)
+    {
+        _chromaBandwidth = static_cast<float>(chromaBandwidth);
+    }
+    double getLumaBandwidth() { return _lumaBandwidth; }
+    void setLumaBandwidth(double lumaBandwidth)
+    {
+        _lumaBandwidth = static_cast<float>(lumaBandwidth);
+    }
+    double getRollOff() { return _rollOff; }
+    void setRollOff(double rollOff)
+    {
+        _rollOff = static_cast<float>(rollOff);
+    }
+private:
+    float _hue;
+    float _saturation;
+    float _contrast;
+    float _brightness;
+    float _chromaBandwidth;
+    float _lumaBandwidth;
+    float _rollOff;
+
+    ImageFilterHorizontal _filter;
+    AlignedBuffer _input;
+    AlignedBuffer _output;
+    int _inputLength;
+    int _outputLength;
+};
+
 #endif // INCLUDED_NTSC_DECODE_H
