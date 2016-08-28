@@ -1233,7 +1233,12 @@ public:
         _srgbStride = 2*padding + size.x + 2*blockLap;
         _srgb.ensure(size.y*_srgbStride);
         _ntscStride = size.x + 64;
-        if (_connector != 0) {
+        _weights.ensure(_blockWidth);
+        if (_connector == 0) {
+            for (int i = 0; i < _blockWidth; ++i)
+                _weights[i] = 1;
+        }
+        else {
             _ntsc.ensure(64 + size.y*_ntscStride);
             for (int x = 0; x < 63; ++x)
                 _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
@@ -1250,6 +1255,43 @@ public:
             _decoder.setLength(_decoderLength, _blockWidth);
             _decoder.setPadding(64 - blockLap);
             _decoder.calculateBurst(burst);
+
+            _ntscPattern.ensure(_decoderLength);
+            for (int x = 0; x < 63; ++x)
+                _ntscPattern[x] = _composite.simulateCGA(0, 0, x & 3);
+            _ntscPattern[63] = _composite.simulateCGA(0, 15, 3);
+            for (int x = 0; x < _blockDistance - 1; ++x)
+                _ntscPattern[x + 64] = _composite.simulateCGA(15, 15, x & 3);
+            _ntscPattern[_blockDistance + 64] =
+                _composite.simulateCGA(15, 0, 3);
+            for (int x = _blockDistance; x < _decoderLength - 64; ++x)
+                _ntscPattern[x + 64] = _composite.simulateCGA(0, 0, x & 15);
+
+            Byte* ntsc = &_ntscPattern[0];
+            float* yData = _decoder.yData();
+            float* iData = _decoder.iData();
+            float* qData = _decoder.qData();
+            ntsc = ntscLine;
+            for (x = 0; x < _decoderLength; x += 4) {
+                yData[x] = ntsc[0];
+                yData[x + 1] = ntsc[1];
+                yData[x + 2] = ntsc[2];
+                yData[x + 3] = ntsc[3];
+                iData[0] = 0;
+                iData[1] = 0;
+                qData[0] = 0;
+                qData[1] = 0;
+                ntsc += 4;
+                iData += 2;
+                qData += 2;
+            }
+
+            _srgbPattern.ensure(_blockWidth);
+            SRGB* srgb = &_srgbPattern[0];
+            _decoder.decodeBlock(srgb);
+            int l0 = srgb->x;
+            for (int x = 0; x < _blockWidth; ++x)
+                _weights[x] = srgb[x].x - l0;
         }
         bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
 
@@ -1285,7 +1327,7 @@ public:
             for (int column = 0; column < horizontalBlocks; ++column) {
                 _mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
-                int bestMetric = std::numeric_limits<int>::max();
+                float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
                 const Byte* inputLine = _inputBlock;
                 Colour* errorLine = _errorBlock;
@@ -1332,7 +1374,7 @@ public:
                                 for (int i = 0; i < n; ++i) {
                                     int pattern = *patterns;
                                     foundPatterns = true;
-                                    int metric = tryPattern(pattern);
+                                    float metric = tryPattern(pattern);
                                     if (metric < bestMetric) {
                                         bestPattern = pattern;
                                         bestMetric = metric;
@@ -1553,9 +1595,9 @@ public:
     double getRollOff() { return _rollOff; }
 
 private:
-    int tryPattern(int pattern)
+    float tryPattern(int pattern)
     {
-        int metric = 0;
+        float metric = 0;
         UInt32 v[2];
         int yMask = (_mode2 & 0x102) == 0x102 ? 1 : 0;
         switch (_mode2) {
@@ -1710,12 +1752,12 @@ private:
                 SRGB t = _linearizer.srgb(target);
                 // Fast colour distance metric from
                 // http://www.compuphase.com/cmetric.htm .
-                int mr = (o.x + t.x)/2;
-                int dr = o.x - t.x;
-                int dg = o.y - t.y;
-                int db = o.z - t.z;
-                metric += 4*dg*dg + (((512 + mr)*dr*dr +
-                    (768 - mr)*db*db) >> 8);
+                float mr = (o.x + t.x)/512.0f;
+                float dr = o.x - t.x;
+                float dg = o.y - t.y;
+                float db = o.z - t.z;
+                metric += _weights[x]*(
+                    4.0f*dg*dg + (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
 
                 //metric += static_cast<int>(1000.0f*e.modulus2());
 
@@ -1863,6 +1905,7 @@ private:
     int _ntscStride;
     int _rgbiStride;
     int _srgbStride;
+    Array<float> _weights;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
