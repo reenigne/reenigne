@@ -890,7 +890,7 @@ public:
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
                 Vector(1, _interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
-            _scaler.setOutputSize(size + Vector(2*blockLap, 0));
+            _scaler.setOutputSize(size + Vector(4 + 2*blockLap, 0));
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
@@ -956,8 +956,9 @@ public:
             _scaled = _scaler.output();
         }
         double quality = _quality;
-        int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0);
-        if (mode1 == 0x13 || (mode1 & 0x103) == 2)
+        int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0) +
+            (_connector == 0 ? 0x400 : 0);
+        if (mode1 == 0x13 || (mode1 & 0x503) == 2)
             quality = 1;
 
         // Set up gamut table
@@ -973,11 +974,13 @@ public:
         _blockDistance = (_mode & 1) != 0 ? 8 : 16;
         if ((_mode & 2) != 0) {
             _blockDistance = 4;
+            _blockWidth = (_connector == 0 ? 4 : 8 + 2*blockLap);
             _blockHeight = _scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow;
             for (int i = 0; i < 0x100; ++i)
                 _skip[i] = false;
         }
         else {
+            _blockWidth = _blockDistance + 2*blockLap;
             bool blink = ((_mode & 0x20) != 0);
             auto cgaROM = _sequencer->romData();
             int lines = _scanlinesPerRow;
@@ -1049,7 +1052,6 @@ public:
                     _skip[i] = true;
             }
         }
-        _blockWidth = _blockDistance + 2*blockLap;
         float blockArea = static_cast<float>(_blockWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
@@ -1093,12 +1095,9 @@ public:
             _ntscPattern.ensure(_blockDistance);
         }
         _srgbPattern.ensure(_blockDistance);
-        static const UInt32 hres1bpp[0x10] = {
-            0x00000000, 0x01010101, 0x04040404, 0x05050505,
-            0x10101010, 0x11111111, 0x14141414, 0x15151515,
-            0x40404040, 0x41414141, 0x44444444, 0x45454545,
-            0x50505050, 0x51515151, 0x54545454, 0x55555555};
-        memcpy(_hres1bpp, hres1bpp, 0x10*sizeof(UInt32));
+        static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
+            0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
+        memcpy(_hres1bpp, hres1bpp, 0x10);
 
         // Populate gamut table
         int skipSolidColour = 0xf00;
@@ -1113,14 +1112,28 @@ public:
                     dataBits[0] = (pattern & 0xf) * 0x1111;
                     dataBits[1] = (pattern >> 4) * 0x1111;
                     break;
+                case 0x502:
+                case 0x512:
+                    dataBits[0] = (pattern & 0xff) * 0x0101;
+                    dataBits[1] = (pattern >> 8) * 0x0101;
+                    patternCount = 0x10000;
+                    break;
                 case 0x103:
+                case 0x503:
                     dataBits[0] = (pattern & 0xff) * 0x01010101;
                     dataBits[1] = (pattern >> 8) * 0x01010101;
                     patternCount = 0x10000;
                     break;
                 case 0x113:
-                    dataBits[0] = _hres1bpp[pattern & 0xf];
-                    dataBits[1] = _hres1bpp[pattern >> 4];
+                    dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
+                    dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
+                    break;
+                case 0x513:
+                    dataBits[0] = (_hres1bpp[pattern & 0xf] +
+                        (_hres1bpp[(pattern >> 4) & 0xf] << 8))*0x00010001;
+                    dataBits[1] = (_hres1bpp[(pattern >> 8) & 0xf] +
+                        (_hres1bpp[(pattern >> 12) & 0xf] << 8))*0x00010001;
+                    patternCount = 0x10000;
                     break;
                 case 0x002:
                 case 0x012:
@@ -1128,14 +1141,29 @@ public:
                     yMask = 0;
                     patternCount = 0x10;
                     break;
+                case 0x402:
+                case 0x412:
+                    dataBits[0] = pattern * 0x0101;
+                    yMask = 0;
+                    break;
                 case 0x003:
                     dataBits[0] = pattern * 0x01010101;
                     yMask = 0;
                     break;
+                case 0x403:
+                    dataBits[0] = pattern * 0x00010001;
+                    yMask = 0;
+                    patternCount = 0x10000;
+                    break;
                 case 0x013:
-                    dataBits[0] = _hres1bpp[pattern];
+                    dataBits[0] = _hres1bpp[pattern]*0x01010101;
                     yMask = 0;
                     patternCount = 0x10;
+                    break;
+                case 0x413:
+                    dataBits[0] = (_hres1bpp[pattern & 0xf] +
+                        (_hres1bpp[(pattern >> 4) & 0xf] << 8))*0x00010001;
+                    yMask = 0;
                     break;
                 default:
                     dataBits[0] = pattern * 0x00010001;
@@ -1262,17 +1290,17 @@ public:
             _ntscPattern[63] = _composite.simulateCGA(0, 15, 3);
             for (int x = 0; x < _blockDistance - 1; ++x)
                 _ntscPattern[x + 64] = _composite.simulateCGA(15, 15, x & 3);
-            _ntscPattern[_blockDistance + 64] =
+            _ntscPattern[_blockDistance + 63] =
                 _composite.simulateCGA(15, 0, 3);
             for (int x = _blockDistance; x < _decoderLength - 64; ++x)
-                _ntscPattern[x + 64] = _composite.simulateCGA(0, 0, x & 15);
+                _ntscPattern[x + 64] = _composite.simulateCGA(0, 0, x & 3);
 
             Byte* ntsc = &_ntscPattern[0];
             float* yData = _decoder.yData();
             float* iData = _decoder.iData();
             float* qData = _decoder.qData();
-            ntsc = ntscLine;
-            for (x = 0; x < _decoderLength; x += 4) {
+            ntsc = &_ntscPattern[0];
+            for (int x = 0; x < _decoderLength; x += 4) {
                 yData[x] = ntsc[0];
                 yData[x + 1] = ntsc[1];
                 yData[x + 2] = ntsc[2];
@@ -1289,7 +1317,7 @@ public:
             _srgbPattern.ensure(_blockWidth);
             SRGB* srgb = &_srgbPattern[0];
             _decoder.decodeBlock(srgb);
-            int l0 = srgb->x;
+            int l0 = 0; // srgb->x;
             for (int x = 0; x < _blockWidth; ++x)
                 _weights[x] = srgb[x].x - l0;
         }
@@ -1707,45 +1735,45 @@ private:
                 Colour output = _linearizer.linear(o);
                 Colour target = *input - _diffusionHorizontal*error[-1] -
                     _diffusionVertical*error[-_errorStride];
-                target.x = clamp(0.0f, target.x, 1.0f);
-                target.y = clamp(0.0f, target.y, 1.0f);
-                target.z = clamp(0.0f, target.z, 1.0f);
-                //if (target.x < 0.0f) {
-                //    float scale = 0.5f/(0.5f - target.x);
-                //    target.x = 0.0f;
-                //    target.y = 0.5f + (target.y - 0.5f)*scale;
-                //    target.z = 0.5f + (target.z - 0.5f)*scale;
-                //}
-                //if (target.x > 1.0f) {
-                //    float scale = 0.5f/(target.x - 0.5f);
-                //    target.x = 1.0f;
-                //    target.y = 0.5f + (target.y - 0.5f)*scale;
-                //    target.z = 0.5f + (target.z - 0.5f)*scale;
-                //}
-                //if (target.y < 0.0f) {
-                //    float scale = 0.5f/(0.5f - target.y);
-                //    target.x = 0.5f + (target.x - 0.5f)*scale;
-                //    target.y = 0.0f;
-                //    target.z = 0.5f + (target.z - 0.5f)*scale;
-                //}
-                //if (target.y > 1.0f) {
-                //    float scale = 0.5f/(target.y - 0.5f);
-                //    target.x = 0.5f + (target.x - 0.5f)*scale;
-                //    target.y = 1.0f;
-                //    target.z = 0.5f + (target.z - 0.5f)*scale;
-                //}
-                //if (target.z < 0.0f) {
-                //    float scale = 0.5f/(0.5f - target.z);
-                //    target.x = 0.5f + (target.x - 0.5f)*scale;
-                //    target.y = 0.5f + (target.y - 0.5f)*scale;
-                //    target.z = 0.0f;
-                //}
-                //if (target.z > 1.0f) {
-                //    float scale = 0.5f/(target.z - 0.5f);
-                //    target.x = 0.5f + (target.x - 0.5f)*scale;
-                //    target.y = 0.5f + (target.y - 0.5f)*scale;
-                //    target.z = 1.0f;
-                //}
+                //target.x = clamp(0.0f, target.x, 1.0f);
+                //target.y = clamp(0.0f, target.y, 1.0f);
+                //target.z = clamp(0.0f, target.z, 1.0f);
+                if (target.x < 0.0f) {
+                    float scale = 0.5f/(0.5f - target.x);
+                    target.x = 0.0f;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.x > 1.0f) {
+                    float scale = 0.5f/(target.x - 0.5f);
+                    target.x = 1.0f;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.y < 0.0f) {
+                    float scale = 0.5f/(0.5f - target.y);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 0.0f;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.y > 1.0f) {
+                    float scale = 0.5f/(target.y - 0.5f);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 1.0f;
+                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                }
+                if (target.z < 0.0f) {
+                    float scale = 0.5f/(0.5f - target.z);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 0.0f;
+                }
+                if (target.z > 1.0f) {
+                    float scale = 0.5f/(target.z - 0.5f);
+                    target.x = 0.5f + (target.x - 0.5f)*scale;
+                    target.y = 0.5f + (target.y - 0.5f)*scale;
+                    target.z = 1.0f;
+                }
                 Colour e = output - target;
                 *error = e;
 

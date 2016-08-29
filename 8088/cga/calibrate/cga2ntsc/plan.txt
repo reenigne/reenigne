@@ -1033,3 +1033,18 @@ mode1  mode                                   patternCount  QCE?  Repeat?  Notes
 0x103  2bpp graphics high-res >2slpr IMPROPER 0x10000       y     y        Using 2 tables would not be practical here since we'd have 0x100000000 patterns  1                 _scanlinesPerRow
 0x113  1bpp graphics high-res >2slpr IMPROPER 0x100         y     y        Could in theory do this without repeating by using 2 tables                      1                 _scanlinesPerRow
 
+
+
+There's a tension between:
+  A) Take into account rightwards data in order to maxmimize match fitness
+  B) Don't take into account rightwards data in order to avoid requiring iteration and potentially falling into local minima
+
+Plan X: With FIR filtering, eliminate dependence of output on future blocks
+  X1: Use an average value
+  X2: Use actual input (con: hard to reconcile with partial ntsc sample)
+  X3: Increase coefficient to compensate for missing data (con: lying, will probably cause other artifacts)
+  X4: Reuse from 4 hdots earlier (con: lying, will probably cause other artifacts)
+  Can we decode without filtering (or filter minimally?)
+    We would like to retain the ability to do higher-resolution matching with no chroma bandwidth
+
+
