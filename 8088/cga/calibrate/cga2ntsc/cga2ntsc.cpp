@@ -957,7 +957,7 @@ public:
         }
         double quality = _quality;
         int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0) +
-            (_connector == 0 ? 0x400 : 0);
+            (_connector != 0 ? 0x400 : 0);
         if (mode1 == 0x13 || (mode1 & 0x503) == 2)
             quality = 1;
 
@@ -971,16 +971,16 @@ public:
         int entries = srgbDiv.x*srgbDiv.y*srgbDiv.z;
         _table.setSize(entries);
         _blockHeight = _scanlinesPerRow;
-        _blockDistance = (_mode & 1) != 0 ? 8 : 16;
         if ((_mode & 2) != 0) {
-            _blockDistance = 4;
-            _blockWidth = (_connector == 0 ? 4 : 8 + 2*blockLap);
+            _incrementWidth = 4;
+            _rgbiWidth = ((_connector == 0 || (_mode & 1) != 0) ? 4 : 8);
             _blockHeight = _scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow;
             for (int i = 0; i < 0x100; ++i)
                 _skip[i] = false;
         }
         else {
-            _blockWidth = _blockDistance + 2*blockLap;
+            _incrementWidth = (_mode & 1) != 0 ? 8 : 16;
+            _rgbiWidth = _incrementWidth;
             bool blink = ((_mode & 0x20) != 0);
             auto cgaROM = _sequencer->romData();
             int lines = _scanlinesPerRow;
@@ -1052,10 +1052,13 @@ public:
                     _skip[i] = true;
             }
         }
-        float blockArea = static_cast<float>(_blockWidth*_blockHeight);
+        _compareWidth = _rgbiWidth + 2*blockLap;
+        float blockArea = static_cast<float>(_compareWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
+        bool newCGA = _connector == 2;
+        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/200;
         if (_connector == 0) {
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1072,19 +1075,18 @@ public:
         }
         else {
             _composite.setBW((_mode & 4) != 0);
-            bool newCGA = _connector == 2;
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(_blockDistance, _blockDistance);
+            _decoder.setLength(_rgbiWidth, _rgbiWidth);
             _decoder.setPadding(0);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
             _decoder.setChromaNotch(true);
             _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4) - 90);
-            _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/200);
+            _decoder.setSaturation(saturation);
             double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
             _decoder.setContrast(c);
             _decoder.setBrightness(
@@ -1092,9 +1094,9 @@ public:
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
             _decoder.calculateBurst(burst);
-            _ntscPattern.ensure(_blockDistance);
+            _ntscPattern.ensure(_rgbiWidth);
         }
-        _srgbPattern.ensure(_blockDistance);
+        _srgbPattern.ensure(_rgbiWidth);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
             0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
         memcpy(_hres1bpp, hres1bpp, 0x10);
@@ -1107,34 +1109,7 @@ public:
             int patternCount = 0x100;
             int yMask = 1;
             switch (mode1) {
-                case 0x102:
-                case 0x112:
-                    dataBits[0] = (pattern & 0xf) * 0x1111;
-                    dataBits[1] = (pattern >> 4) * 0x1111;
-                    break;
-                case 0x502:
-                case 0x512:
-                    dataBits[0] = (pattern & 0xff) * 0x0101;
-                    dataBits[1] = (pattern >> 8) * 0x0101;
-                    patternCount = 0x10000;
-                    break;
-                case 0x103:
-                case 0x503:
-                    dataBits[0] = (pattern & 0xff) * 0x01010101;
-                    dataBits[1] = (pattern >> 8) * 0x01010101;
-                    patternCount = 0x10000;
-                    break;
-                case 0x113:
-                    dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
-                    dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
-                    break;
-                case 0x513:
-                    dataBits[0] = (_hres1bpp[pattern & 0xf] +
-                        (_hres1bpp[(pattern >> 4) & 0xf] << 8))*0x00010001;
-                    dataBits[1] = (_hres1bpp[(pattern >> 8) & 0xf] +
-                        (_hres1bpp[(pattern >> 12) & 0xf] << 8))*0x00010001;
-                    patternCount = 0x10000;
-                    break;
+                // -HRES+GRPH
                 case 0x002:
                 case 0x012:
                     dataBits[0] = pattern * 0x1111;
@@ -1146,25 +1121,43 @@ public:
                     dataBits[0] = pattern * 0x0101;
                     yMask = 0;
                     break;
+                case 0x102:
+                case 0x112:
+                    dataBits[0] = (pattern & 0xf) * 0x1111;
+                    dataBits[1] = (pattern >> 4) * 0x1111;
+                    break;
+                case 0x502:
+                case 0x512:
+                    dataBits[0] = (pattern & 0xff) * 0x0101;
+                    dataBits[1] = (pattern >> 8) * 0x0101;
+                    patternCount = 0x10000;
+                    break;
+
+                //  +HRES+GRPH
+                case 0x103:
+                case 0x503:
+                    dataBits[0] = (pattern & 0xff) * 0x01010101;
+                    dataBits[1] = (pattern >> 8) * 0x01010101;
+                    patternCount = 0x10000;
+                    break;
+                case 0x113:
+                case 0x513:
+                    dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
+                    dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
+                    break;
                 case 0x003:
+                case 0x403:
                     dataBits[0] = pattern * 0x01010101;
                     yMask = 0;
                     break;
-                case 0x403:
-                    dataBits[0] = pattern * 0x00010001;
-                    yMask = 0;
-                    patternCount = 0x10000;
-                    break;
                 case 0x013:
+                case 0x413:
                     dataBits[0] = _hres1bpp[pattern]*0x01010101;
                     yMask = 0;
                     patternCount = 0x10;
                     break;
-                case 0x413:
-                    dataBits[0] = (_hres1bpp[pattern & 0xf] +
-                        (_hres1bpp[(pattern >> 4) & 0xf] << 8))*0x00010001;
-                    yMask = 0;
-                    break;
+
+                // -GRPH
                 default:
                     dataBits[0] = pattern * 0x00010001;
                     patternCount = 0x10000;
@@ -1190,7 +1183,7 @@ public:
                     _palette, y, false, 0);
                 if (_connector == 0) {
                     SRGB* srgb = &_srgbPattern[0];
-                    for (int x = 0; x < _blockDistance; ++x) {
+                    for (int x = 0; x < _rgbiWidth; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
                         *srgb = SRGB(p[0], p[1], p[2]);
@@ -1200,34 +1193,17 @@ public:
                 else {
                     Byte* ntsc = &_ntscPattern[0];
                     int x;
-                    for (x = 0; x < _blockDistance - 1; ++x) {
+                    for (x = 0; x < _rgbiWidth - 1; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                             (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
                         ++ntsc;
                     }
                     *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
                         rgbi & 0xf, x & 3);
-                    ntsc = &_ntscPattern[0];
-                    float* yData = _decoder.yData();
-                    float* iData = _decoder.iData();
-                    float* qData = _decoder.qData();
-                    for (int i = 0; i < _blockDistance; i += 4) {
-                        yData[i] = ntsc[0];
-                        yData[i + 1] = ntsc[1];
-                        yData[i + 2] = ntsc[2];
-                        yData[i + 3] = ntsc[3];
-                        iData[0] = -static_cast<float>(ntsc[1]);
-                        iData[1] = ntsc[3];
-                        qData[0] = ntsc[0];
-                        qData[1] = -static_cast<float>(ntsc[2]);
-                        ntsc += 4;
-                        iData += 2;
-                        qData += 2;
-                    }
-                    _decoder.decodeBlock(&_srgbPattern[0]);
+                    _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
                 }
                 SRGB* srgb = &_srgbPattern[0];
-                for (int x = 0; x < _blockDistance; ++x)
+                for (int x = 0; x < _rgbiWidth; ++x)
                     rgb += _linearizer.linear(srgb[x]);
             }
             SRGB srgb = _linearizer.srgb(rgb/blockArea);
@@ -1248,11 +1224,41 @@ public:
             _error[x] = Colour(0, 0, 0);
         _rgbiStride = size.x + 1;
         _rgbi.ensure(_rgbiStride*size.y + 1);
-        for (int i = 0; i < _rgbiStride*size.y + 1; ++i)
-            _rgbi[i] = 0;
+        int row = 0;
+        int scanline = 0;
+        int horizontalBlocks = size.x/_incrementWidth;
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
-        for (int y = -1; y < size.y; ++y)
-            _rgbi[(y + 1)*_rgbiStride] = overscan;
+        Byte* rgbi = &_rgbi[0];
+        int phaseRow = _phase << 6;
+        for (int y = 0;; ++y) {
+            *rgbi = overscan;
+            if (y == size.y)
+                break;
+            int bank = y & 1;
+            if ((_mode & 2) == 0)
+                bank = 0;
+            Array<Byte> rowData = _data->getData(row*bytesPerRow, bytesPerRow);
+            memcpy(&_rowData[1], &rowData[0], bytesPerRow);
+            Byte* p = &_rowData[1];
+            int phase = phaseRow;
+            for (int x = 0; x < size.x; x += _hdotsPerChar) {
+                UInt64 rgbis = _sequencer->process(
+                    p[0] + (p[1] << 8) + (p[-1] << 24), _mode + phase,
+                    _palette, scanline, false, 0);
+                for (int xx = 0; xx < _hdotsPerChar; ++xx) {
+                    *rgbi = (rgbis >> (xx * 4)) & 0xf;
+                    ++rgbi;
+                }
+                phase ^= 0x40;
+            }
+            ++scanline;
+            if (scanline == _scanlinesPerRow) {
+                scanline = 0;
+                ++row;
+                if ((_data->getDataByte(-16) & 1) == 0)
+                    phaseRow ^= 0x40;
+            }
+        }
 
         _decoderLength = 128;
         int padding = 0;
@@ -1261,9 +1267,9 @@ public:
         _srgbStride = 2*padding + size.x + 2*blockLap;
         _srgb.ensure(size.y*_srgbStride);
         _ntscStride = size.x + 64;
-        _weights.ensure(_blockWidth);
+        _weights.ensure(_compareWidth);
         if (_connector == 0) {
-            for (int i = 0; i < _blockWidth; ++i)
+            for (int i = 0; i < _compareWidth; ++i)
                 _weights[i] = 1;
         }
         else {
@@ -1280,68 +1286,59 @@ public:
                     _ntsc[x + (y + 1)*_ntscStride] = _ntsc[x & 3];
             }
 
-            _decoder.setLength(_decoderLength, _blockWidth);
+            _decoder.setLength(_decoderLength, _compareWidth);
             _decoder.setPadding(64 - blockLap);
+            _decoder.setSaturation(0);
             _decoder.calculateBurst(burst);
 
+            int weightWidth = _rgbiWidth;
             _ntscPattern.ensure(_decoderLength);
-            for (int x = 0; x < 63; ++x)
+            for (int x = 0; x < _decoderLength; ++x)
                 _ntscPattern[x] = _composite.simulateCGA(0, 0, x & 3);
+            _srgbPattern.ensure(_compareWidth);
+            _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
+            for (int x = 0; x < _compareWidth; ++x)
+                _weights[x] = static_cast<float>(-_srgbPattern[x].x);
+
             _ntscPattern[63] = _composite.simulateCGA(0, 15, 3);
-            for (int x = 0; x < _blockDistance - 1; ++x)
+            for (int x = 0; x < weightWidth - 1; ++x)
                 _ntscPattern[x + 64] = _composite.simulateCGA(15, 15, x & 3);
-            _ntscPattern[_blockDistance + 63] =
+            _ntscPattern[weightWidth + 63] =
                 _composite.simulateCGA(15, 0, 3);
-            for (int x = _blockDistance; x < _decoderLength - 64; ++x)
-                _ntscPattern[x + 64] = _composite.simulateCGA(0, 0, x & 3);
+            _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
+            for (int x = 0; x < _compareWidth; ++x)
+                _weights[x] += static_cast<float>(_srgbPattern[x].x);
 
-            Byte* ntsc = &_ntscPattern[0];
-            float* yData = _decoder.yData();
-            float* iData = _decoder.iData();
-            float* qData = _decoder.qData();
-            ntsc = &_ntscPattern[0];
-            for (int x = 0; x < _decoderLength; x += 4) {
-                yData[x] = ntsc[0];
-                yData[x + 1] = ntsc[1];
-                yData[x + 2] = ntsc[2];
-                yData[x + 3] = ntsc[3];
-                iData[0] = 0;
-                iData[1] = 0;
-                qData[0] = 0;
-                qData[1] = 0;
-                ntsc += 4;
-                iData += 2;
-                qData += 2;
-            }
-
-            _srgbPattern.ensure(_blockWidth);
-            SRGB* srgb = &_srgbPattern[0];
-            _decoder.decodeBlock(srgb);
-            int l0 = 0; // srgb->x;
-            for (int x = 0; x < _blockWidth; ++x)
-                _weights[x] = srgb[x].x - l0;
+            _decoder.setSaturation(saturation);
+            _decoder.calculateBurst(burst);
         }
-        bool improper = (_mode & 3) == 3 || (_mode & 0x12) == 0x10;
 
-        int row = 0;
-        int bank = 0;
         const Byte* inputRow = _scaled.data();
         Colour* errorRow = &_error[_errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
         SRGB* srgbRow = &_srgb[0];
-        int horizontalBlocks = size.x/_blockDistance;
-        int phaseRow = _phase << 6;
+        phaseRow = _phase << 6;
         int bankShift = _data->getDataByte(-25) + 1;
+        int bank = 0;
 
         // Perform matching
         while (!cancelling()) {
-            bool nothingChanged = true;
-            for (int bank = 0; bank < banks; ++bank) {
-                Array<Byte> rowData = _data->getData(row*bytesPerRow +
-                    (bank << bankShift), bytesPerRow);
-                memcpy(&_rowData[1 + bank*rowDataStride], &rowData[0],
+            if ((mode1 & 0x102) == 0x102) {
+                // Graphics mode with more than 2 scanlines per row
+                Array<Byte> rowData = _data->getData(row*bytesPerRow,
                     bytesPerRow);
+                memcpy(&_rowData[1], &rowData[0], bytesPerRow);
+                rowData = _data->getData(row*bytesPerRow + (1 << bankShift),
+                    bytesPerRow);
+                memcpy(&_rowData[1 + rowDataStride], &rowData[0], bytesPerRow);
+            }
+            else {
+                // Text mode (bank == 0) and graphics modes with 2 scanlines
+                // per row or fewer.
+                Array<Byte> rowData = _data->getData(
+                    row*bytesPerRow + (bank << bankShift), bytesPerRow);
+                memcpy(&_rowData[1], &rowData[0], bytesPerRow);
             }
 
             _d0 = &_rowData[1];
@@ -1364,7 +1361,7 @@ public:
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
-                    for (int x = 0; x < _blockDistance; ++x) {
+                    for (int x = 0; x < _rgbiWidth; ++x) {
                         Colour target = *input - _diffusionHorizontal*error[-1]
                             - _diffusionVertical*error[-_errorStride];
                         target.x = clamp(0.0f, target.x, 1.0f);
@@ -1421,8 +1418,27 @@ public:
                 tryPattern(bestPattern);
 
                 switch (_mode2) {
+                    // -HRES+GRPH
+                    case 0x002:
+                    case 0x012:
+                        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
+                        break;
+                    case 0x202:
+                    case 0x212:
+                        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
+                        ++_d0;
+                        break;
+                    case 0x402:
+                    case 0x412:
+                        *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
+                        break;
+                    case 0x602:
+                    case 0x612:
+                        *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
+                        ++_d0;
+                        break;
                     case 0x102:
-                    case 0x112:
+                        case 0x112:
                         *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
                         *_d1 = (*_d1 & 0xf) + (bestPattern & 0xf0);
                         break;
@@ -1433,8 +1449,40 @@ public:
                         ++_d0;
                         ++_d1;
                         break;
+                    case 0x502:
+                    case 0x512:
+                        *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
+                        *_d1 = (*_d1 & 0xf) + ((bestPattern >> 8) & 0xf0);
+                        break;
+                    case 0x702:
+                    case 0x712:
+                        *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
+                        *_d1 = (*_d1 & 0xf0) + ((bestPattern >> 12) & 0xf);
+                        ++_d0;
+                        ++_d1;
+                        break;
+
+                    // +HRES+GRPH
+                    case 0x003:
+                    case 0x203:
+                    case 0x403:
+                    case 0x603:
+                        *_d0 = bestPattern;
+                        ++_d0;
+                        _phaseBlock ^= 0x40;
+                        break;
+                    case 0x013:
+                    case 0x213:
+                    case 0x413:
+                    case 0x613:
+                        *_d0 = _hres1bpp[bestPattern];
+                        ++_d0;
+                        _phaseBlock ^= 0x40;
+                        break;
                     case 0x103:
                     case 0x303:
+                    case 0x503:
+                    case 0x703:
                         *_d0 = bestPattern;
                         *_d1 = bestPattern >> 8;
                         ++_d0;
@@ -1443,68 +1491,30 @@ public:
                         break;
                     case 0x113:
                     case 0x313:
+                    case 0x513:
+                    case 0x713:
                         *_d0 = _hres1bpp[bestPattern & 0xf];
                         *_d1 = _hres1bpp[bestPattern >> 4];
                         ++_d0;
                         ++_d1;
                         _phaseBlock ^= 0x40;
                         break;
-                    case 0x002:
-                    case 0x012:
-                        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
-                        break;
-                    case 0x202:
-                    case 0x212:
-                        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
-                        ++_d0;
-                        break;
-                    case 0x003:
-                    case 0x203:
-                        *_d0 = bestPattern;
-                        ++_d0;
-                        _phaseBlock ^= 0x40;
-                        break;
-                    case 0x013:
-                    case 0x213:
-                        *_d0 = _hres1bpp[bestPattern];
-                        ++_d0;
-                        _phaseBlock ^= 0x40;
-                        break;
+
+                    // -GRPH
                     default:
                         *_d0 = bestPattern;
                         _d0[1] = bestPattern >> 8;
                         _d0 += 2;
                 }
-                _inputBlock += _blockDistance*3*sizeof(float);
-                _errorBlock += _blockDistance;
-                _rgbiBlock += _blockDistance;
-                _ntscBlock += _blockDistance;
-                _srgbBlock += _blockDistance;
+                _inputBlock += _incrementWidth*3*sizeof(float);
+                _errorBlock += _incrementWidth;
+                _rgbiBlock += _incrementWidth;
+                _ntscBlock += _incrementWidth;
+                _srgbBlock += _incrementWidth;
             } // column
 
             if ((mode1 & 0x102) == 0x102) {
                 // Graphics mode with more than 2 scanlines per row
-                if (nothingChanged) {
-                    Array<Byte> rowData = _data->getData(row*bytesPerRow,
-                        bytesPerRow);
-                    for (int i = 0; i < bytesPerRow; ++i) {
-                        if (rowData[i] != _rowData[1 + i]) {
-                            nothingChanged = false;
-                            break;
-                        }
-                    }
-                }
-                if (nothingChanged) {
-                    Array<Byte> rowData = _data->getData(row*bytesPerRow +
-                        (1 << bankShift), bytesPerRow);
-                    for (int i = 0; i < bytesPerRow; ++i) {
-                        if (rowData[i] != _rowData[1 + rowDataStride + i]) {
-                            nothingChanged = false;
-                            break;
-                        }
-                    }
-                }
-
                 _data->change(0, row*bytesPerRow, bytesPerRow, &_rowData[1]);
                 _data->change(0, row*bytesPerRow + (1 << bankShift),
                     bytesPerRow, &_rowData[1 + rowDataStride]);
@@ -1513,16 +1523,6 @@ public:
             else {
                 // Text mode (bank == 0) and graphics modes with 2 scanlines
                 // per row or fewer.
-                if (nothingChanged) {
-                    Array<Byte> rowData = _data->getData(row*bytesPerRow +
-                        (bank << bankShift), bytesPerRow);
-                    for (int i = 0; i < bytesPerRow; ++i) {
-                        if (rowData[i] != _rowData[1 + i]) {
-                            nothingChanged = false;
-                            break;
-                        }
-                    }
-                }
                 _data->change(0, row*bytesPerRow + (bank << bankShift),
                     bytesPerRow, &_rowData[1]);
             }
@@ -1539,18 +1539,8 @@ public:
             if (bank == banks) {
                 bank = 0;
                 ++row;
-                if (row >= _verticalDisplayed) {
-                    row = 0;
-                    inputRow = _scaled.data();
-                    errorRow = &_error[_errorStride + 1];
-                    rgbiRow = &_rgbi[1];
-                    ntscRow = &_ntsc[0];
-                    srgbRow = &_srgb[0];
-                    horizontalBlocks = size.x/_blockDistance;
-                    phaseRow = _phase << 6;
-                    if ((!improper && _connector == 0) || nothingChanged)
-                        return;
-                }
+                if (row >= _verticalDisplayed)
+                    return;
             }
         } // while (!cancelling())
     }
@@ -1629,50 +1619,70 @@ private:
         UInt32 v[2];
         int yMask = (_mode2 & 0x102) == 0x102 ? 1 : 0;
         switch (_mode2) {
+            // -HRES+GRPH
+            case 0x002:
+            case 0x012:
+            case 0x202:
+            case 0x212:
+                v[0] = pattern << 4;
+                break;
+            case 0x402:
+            case 0x412:
+            case 0x602:
+            case 0x612:
+                v[0] = pattern;
+                break;
             case 0x102:
             case 0x112:
-                v[0] = (*_d0 & 0xf) + (pattern << 4);
-                v[1] = (*_d1 & 0xf) + (pattern & 0xf0);
-                break;
             case 0x302:
             case 0x312:
-                v[0] = (*_d0 & 0xf0) + (pattern & 0xf);
-                v[1] = (*_d1 & 0xf0) + (pattern >> 4);
+                v[0] = pattern << 4;
+                v[1] = pattern & 0xf0;
                 break;
+            case 0x502:
+            case 0x512:
+            case 0x702:
+            case 0x712:
+                v[0] = pattern;
+                v[1] = pattern >> 8;
+                break;
+
+            // +HRES+GRPH
             case 0x103:
+            case 0x503:
                 v[0] = (_d0[1] << 8) + pattern;
                 v[1] = (_d1[1] << 8) + (pattern >> 8);
                 break;
             case 0x303:
+            case 0x703:
                 v[0] = _d0[1] + (pattern << 8);
                 v[1] = _d1[1] + (pattern & 0xff00);
                 break;
             case 0x113:
-                v[0] = (_d0[1] << 8) + (_hres1bpp[pattern & 0xf] & 0xff);
-                v[1] = (_d1[1] << 8) + (_hres1bpp[pattern >> 4] & 0xff);
+            case 0x513:
+                v[0] = (_d0[1] << 8) + _hres1bpp[pattern & 0xf];
+                v[1] = (_d1[1] << 8) + _hres1bpp[pattern >> 4];
                 break;
             case 0x313:
+            case 0x713:
                 v[0] = _d0[1] + (_hres1bpp[pattern & 0xf] << 8);
                 v[1] = _d1[1] + (_hres1bpp[pattern >> 4] << 8);
                 break;
-            case 0x002:
-            case 0x012:
-                v[0] = (*_d0 & 0xf) + (pattern << 4);
-                break;
-            case 0x202:
-            case 0x212:
-                v[0] = (*_d0 & 0xf0) + (pattern & 0xf);
-                break;
+
             case 0x003:
+            case 0x403:
                 v[0] = (_d0[1] << 8) + pattern;
                 break;
             case 0x203:
+            case 0x603:
                 v[0] = _d0[1] + (pattern << 8);
                 break;
             case 0x013:
-                v[0] = (_d0[1] << 8) + (_hres1bpp[pattern] & 0xff);
+            case 0x413:
+                v[0] = (_d0[1] << 8) + _hres1bpp[pattern];
                 break;
             case 0x213:
+            case 0x613:
                 v[0] = _d0[1] + (_hres1bpp[pattern] << 8);
                 break;
             default:
@@ -1688,13 +1698,11 @@ private:
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             UInt64 rgbis = _sequencer->process(v[scanline & yMask],
                 _mode + _phaseBlock, _palette, scanline, false, 0);
-            if ((_mode2 & 0x203) == 0x202)
-                rgbis >>= 16;
             SRGB* srgb = srgbLine;
             auto input = reinterpret_cast<const Colour*>(inputLine);
             auto error = errorLine;
             if (_connector == 0) {
-                for (int x = 0; x < _blockWidth; ++x) {
+                for (int x = 0; x < _rgbiWidth; ++x) {
                     Byte* p = &_rgbiPalette[3*((rgbis >> (x * 4)) & 0xf)];
                     *srgb = SRGB(p[0], p[1], p[2]);
                     ++srgb;
@@ -1703,34 +1711,17 @@ private:
             else {
                 Byte* rgbi = rgbiLine;
                 int x;
-                for (x = 0; x < _blockDistance; ++x)
+                for (x = 0; x < _rgbiWidth; ++x)
                     rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
                 Byte* ntsc = ntscLine + 64;
-                for (x = -1; x < _blockDistance; ++x) {
+                for (x = -1; x < _rgbiWidth; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
                 }
-                float* yData = _decoder.yData();
-                float* iData = _decoder.iData();
-                float* qData = _decoder.qData();
-                ntsc = ntscLine;
-                for (x = 0; x < _decoderLength; x += 4) {
-                    yData[x] = ntsc[0];
-                    yData[x + 1] = ntsc[1];
-                    yData[x + 2] = ntsc[2];
-                    yData[x + 3] = ntsc[3];
-                    iData[0] = -static_cast<float>(ntsc[1]);
-                    iData[1] = ntsc[3];
-                    qData[0] = ntsc[0];
-                    qData[1] = -static_cast<float>(ntsc[2]);
-                    ntsc += 4;
-                    iData += 2;
-                    qData += 2;
-                }
-                _decoder.decodeBlock(srgb);
+                _decoder.decodeNTSC(ntscLine, srgb);
             }
             srgb = srgbLine;
-            for (int x = 0; x < _blockWidth; ++x) {
+            for (int x = 0; x < _compareWidth; ++x) {
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
                 Colour target = *input - _diffusionHorizontal*error[-1] -
@@ -1781,9 +1772,9 @@ private:
                 // Fast colour distance metric from
                 // http://www.compuphase.com/cmetric.htm .
                 float mr = (o.x + t.x)/512.0f;
-                float dr = o.x - t.x;
-                float dg = o.y - t.y;
-                float db = o.z - t.z;
+                float dr = static_cast<float>(o.x - t.x);
+                float dg = static_cast<float>(o.y - t.y);
+                float db = static_cast<float>(o.z - t.z);
                 metric += _weights[x]*(
                     4.0f*dg*dg + (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
 
@@ -1924,8 +1915,9 @@ private:
     Byte* _rgbiBlock;
     Byte* _ntscBlock;
     SRGB* _srgbBlock;
-    int _blockWidth;
-    int _blockDistance;
+    int _rgbiWidth;
+    int _compareWidth;
+    int _incrementWidth;
     int _blockHeight;
     int _phaseBlock;
     int _decoderLength;
@@ -2278,24 +2270,8 @@ public:
                             ntscBlock = &_ntsc[j];
                             srgb = &_srgb[3*j];
                         }
-                        Byte* ntsc = ntscBlock;
-                        float* yData = _decoder.yData();
-                        float* iData = _decoder.iData();
-                        float* qData = _decoder.qData();
-                        for (int i = 0; i < fftLength; i += 4) {
-                            yData[i] = ntsc[0];
-                            yData[i + 1] = ntsc[1];
-                            yData[i + 2] = ntsc[2];
-                            yData[i + 3] = ntsc[3];
-                            iData[0] = -static_cast<float>(ntsc[1]);
-                            iData[1] = ntsc[3];
-                            qData[0] = ntsc[0];
-                            qData[1] = -static_cast<float>(ntsc[2]);
-                            ntsc += 4;
-                            iData += 2;
-                            qData += 2;
-                        }
-                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
+                        _decoder.decodeNTSC(ntscBlock,
+                            reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
@@ -2890,15 +2866,15 @@ public:
         _videoCard._registers._blink.enableWindow((mode & 2) == 0);
         _videoCard._registers._palette.enableWindow((mode & 0x12) == 2);
         _videoCard._registers._phase.enableWindow((mode & 1) == 1);
+        bool composite = (_output->getConnector() != 0);
         _videoCard._matching._quality.enableWindow(matchMode &&
-            ((((mode & 3) != 2 && (mode & 0x13) != 0x13) ||
+            (((((mode & 3) != 2 || composite) && (mode & 0x13) != 0x13) ||
             scanlinesPerRow > 2)));
         _videoCard._matching._characterSet.enableWindow(matchMode &&
             (mode & 2) == 0);
         _videoCard._matching._diffusionHorizontal.enableWindow(matchMode);
         _videoCard._matching._diffusionVertical.enableWindow(matchMode);
         _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
-        bool composite = (_output->getConnector() != 0);
         _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);

@@ -634,7 +634,7 @@ Can both of these happen at once?
 
 Problem 1: affects 4 hdots out of 16. Each byte affects 4-12 hdots (less bad than -LRES text)
 Problem 2 -HRES: Each byte affects 16-32 hdots
-Problem 2 +HRES: Each byte affects 8-24 hdots
+Problem 2 +HRES: Each byte affects 8-16 hdots
 
 
 

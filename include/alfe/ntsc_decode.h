@@ -961,6 +961,27 @@ public:
     float* yData() { return &_yTime[0]; }
     float* iData() { return &_iTime[0]; }
     float* qData() { return &_qTime[0]; }
+
+    void decodeNTSC(Byte* ntsc, SRGB* srgb)
+    {
+        float* yData = &_yTime[0];
+        float* iData = &_iTime[0];
+        float* qData = &_qTime[0];
+        for (int x = 0; x < _length; x += 4) {
+            yData[x] = ntsc[0];
+            yData[x + 1] = ntsc[1];
+            yData[x + 2] = ntsc[2];
+            yData[x + 3] = ntsc[3];
+            iData[0] = -static_cast<float>(ntsc[1]);
+            iData[1] = ntsc[3];
+            qData[0] = ntsc[0];
+            qData[1] = -static_cast<float>(ntsc[2]);
+            ntsc += 4;
+            iData += 2;
+            qData += 2;
+        }
+        decodeBlock(srgb);
+    }
 private:
     float _hue;
     float _saturation;
