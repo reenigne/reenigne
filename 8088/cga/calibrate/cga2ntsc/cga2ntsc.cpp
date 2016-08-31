@@ -402,7 +402,8 @@ private:
                     _state |= 8;
                     _hSync = 0;
                 }
-                latch();
+                if (_state == 0)
+                    latch();
             }
         }
         Byte dat(int address) { return _data[address - _startAddress]; }
@@ -802,36 +803,13 @@ private:
 class Linearizer
 {
 public:
-    Linearizer()
-    {
-        for (int i = 0; i < 256; ++i) {
-            float t = i/255.0f;
-            if (t <= 0.04045f)
-                _linear[i] = t/12.92f;
-            else
-                _linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
-        }
-        for (int i = 0; i < 6590; ++i) {
-            float l = i/_multiplier;
-            float s;
-            if (l <= 0.0031308)
-                s = 12.92f*l;
-            else
-                s = 1.055f*pow(l, 1/2.4f) - 0.055f;
-            _srgb[i] = static_cast<int>(0.5f + 255.0f*s);
-        }
-    }
+    Linearizer() : _gamma(0), _showClipping(false) { init(); }
     void setShowClipping(bool showClipping)
     {
-        if (showClipping) {
-            _linear[0] = 1.0f;
-            _linear[255] = 0.0f;
-        }
-        else {
-            _linear[0] = 0.0f;
-            _linear[255] = 1.0f;
-        }
+        _showClipping = showClipping;
+        init();
     }
+    void setGamma(float gamma) { _gamma = gamma; init(); }
     Colour linear(SRGB srgb)
     {
         return Colour(linear(srgb.x), linear(srgb.y), linear(srgb.z));
@@ -845,11 +823,49 @@ public:
     {
         return _srgb[clamp(0, static_cast<int>(linear*_multiplier), 6589)];
     }
-    //float linear(Byte srgb) { return srgb/255.0f; }
-    //Byte srgb(float linear) { return byteClamp(linear*255.0f); }
 private:
+    void init()
+    {
+        if (_gamma == 0) {
+            for (int i = 1; i < 255; ++i) {
+                float t = i/255.0f;
+                if (t <= 0.04045f)
+                    _linear[i] = t/12.92f;
+                else
+                    _linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
+            }
+            for (int i = 0; i < 6590; ++i) {
+                float l = i/_multiplier;
+                float s;
+                if (l <= 0.0031308)
+                    s = 12.92f*l;
+                else
+                    s = 1.055f*pow(l, 1/2.4f) - 0.055f;
+                _srgb[i] = byteClamp(0.5f + 255.0f*s);
+            }
+        }
+        else {
+            for (int i = 1; i < 255; ++i)
+                _linear[i] = pow(i/255.0f, _gamma);
+            for (int i = 0; i < 6590; ++i) {
+                _srgb[i] = byteClamp(0.5f +
+                    255.0f*pow(i/_multiplier, 1/_gamma));
+            }
+        }
+        if (_showClipping) {
+            _linear[0] = 1.0f;
+            _linear[255] = 0.0f;
+        }
+        else {
+            _linear[0] = 0.0f;
+            _linear[255] = 1.0f;
+        }
+    }
+
     float _linear[256];
     Byte _srgb[6590];
+    float _gamma;
+    bool _showClipping;
     constexpr static const float _multiplier = 2*255.0f*12.92f;
 };
 
@@ -886,6 +902,7 @@ public:
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_verticalDisplayed);
+        _linearizer.setGamma(static_cast<float>(_gamma));
         if (size != _size) {
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
                 Vector(1, _interlaceSync ? 2 : 1))/
@@ -899,57 +916,36 @@ public:
             Byte* unscaledRow = input.data() - tl.y*input.stride();
             Byte* inputRow = _input.data();
             for (int y = 0; y < _input.size().y; ++y) {
-                float* unscaled = reinterpret_cast<float*>(unscaledRow);
-                Byte* p = inputRow;
+                Colour* unscaled = reinterpret_cast<Colour*>(unscaledRow);
+                SRGB* p = reinterpret_cast<SRGB*>(inputRow);
                 for (int x = 0; x < -tl.x; ++x) {
-                    unscaled[0] = _linearizer.linear(p[0]);
-                    unscaled[1] = _linearizer.linear(p[1]);
-                    unscaled[2] = _linearizer.linear(p[2]);
-                    unscaled += 3;
+                    *unscaled = _linearizer.linear(*p);
+                    ++unscaled;
                 }
                 for (int x = 0; x < _input.size().x; ++x) {
-                    unscaled[0] = _linearizer.linear(p[0]);
-                    unscaled[1] = _linearizer.linear(p[1]);
-                    unscaled[2] = _linearizer.linear(p[2]);
-                    unscaled += 3;
-                    p += 3;
+                    *unscaled = _linearizer.linear(*p);
+                    ++unscaled;
+                    ++p;
                 }
-                p -= 3;
+                --p;
                 for (int x = 0; x < br.x - _input.size().x; ++x) {
-                    unscaled[0] = _linearizer.linear(p[0]);
-                    unscaled[1] = _linearizer.linear(p[1]);
-                    unscaled[2] = _linearizer.linear(p[2]);
-                    unscaled += 3;
+                    *unscaled = _linearizer.linear(*p);
+                    ++unscaled;
                 }
                 unscaledRow += input.stride();
                 inputRow += _input.stride();
             }
             unscaledRow = input.data();
-            float* pp =
-                reinterpret_cast<float*>(input.data() - tl.y*input.stride());
+            Byte* pp = input.data() - tl.y*input.stride();
             for (int y = 0; y < -tl.y; ++y) {
-                float* unscaled = reinterpret_cast<float*>(unscaledRow);
-                float* p = pp;
-                for (int x = 0; x < br.x - tl.x; ++x) {
-                    unscaled[0] = p[0];
-                    unscaled[1] = p[1];
-                    unscaled[2] = p[2];
-                    unscaled += 3;
-                }
+                memcpy(unscaledRow, pp, (br.x - tl.x)*sizeof(Colour));
                 unscaledRow += input.stride();
             }
             unscaledRow =
                 input.data() + (_input.size().y - tl.y)*input.stride();
-            pp = reinterpret_cast<float*>(unscaledRow - input.stride());
+            pp = unscaledRow - input.stride();
             for (int y = 0; y < br.y - _input.size().y; ++y) {
-                float* unscaled = reinterpret_cast<float*>(unscaledRow);
-                float* p = pp;
-                for (int x = 0; x < br.x - tl.x; ++x) {
-                    unscaled[0] = p[0];
-                    unscaled[1] = p[1];
-                    unscaled[2] = p[2];
-                    unscaled += 3;
-                }
+                memcpy(unscaledRow, pp, (br.x - tl.x)*sizeof(Colour));
                 unscaledRow += input.stride();
             }
             _scaler.render();
@@ -1058,7 +1054,7 @@ public:
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
         bool newCGA = _connector == 2;
-        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/200;
+        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
         if (_connector == 0) {
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1291,7 +1287,7 @@ public:
             _decoder.setSaturation(0);
             _decoder.calculateBurst(burst);
 
-            int weightWidth = _rgbiWidth;
+            int weightWidth = _incrementWidth; // _rgbiWidth;
             _ntscPattern.ensure(_decoderLength);
             for (int x = 0; x < _decoderLength; ++x)
                 _ntscPattern[x] = _composite.simulateCGA(0, 0, x & 3);
@@ -1321,6 +1317,7 @@ public:
         phaseRow = _phase << 6;
         int bankShift = _data->getDataByte(-25) + 1;
         int bank = 0;
+        row = 0;
 
         // Perform matching
         while (!cancelling()) {
@@ -1588,6 +1585,12 @@ public:
     bool getFlicker() { return _flicker; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
+    void setGamma(double gamma) { _gamma = gamma; _size = Vector(0, 0); }
+    double getGamma() { return _gamma; }
+    void setClipping(int clipping) { _clipping = clipping; }
+    int getClipping() { return _clipping; }
+    void setMetric(int metric) { _metric = metric; }
+    int getMetric() { return _metric; }
     void setCharacterSet(int characterSet) { _characterSet = characterSet; }
     int getCharacterSet() { return _characterSet; }
     double getHue() { return _hue; }
@@ -1726,61 +1729,73 @@ private:
                 Colour output = _linearizer.linear(o);
                 Colour target = *input - _diffusionHorizontal*error[-1] -
                     _diffusionVertical*error[-_errorStride];
-                //target.x = clamp(0.0f, target.x, 1.0f);
-                //target.y = clamp(0.0f, target.y, 1.0f);
-                //target.z = clamp(0.0f, target.z, 1.0f);
-                if (target.x < 0.0f) {
-                    float scale = 0.5f/(0.5f - target.x);
-                    target.x = 0.0f;
-                    target.y = 0.5f + (target.y - 0.5f)*scale;
-                    target.z = 0.5f + (target.z - 0.5f)*scale;
+                switch (_clipping) {
+                    case 1:
+                        target.x = clamp(0.0f, target.x, 1.0f);
+                        target.y = clamp(0.0f, target.y, 1.0f);
+                        target.z = clamp(0.0f, target.z, 1.0f);
+                        break;
+                    case 2:
+                        if (target.x < 0.0f) {
+                            float scale = 0.5f/(0.5f - target.x);
+                            target.x = 0.0f;
+                            target.y = 0.5f + (target.y - 0.5f)*scale;
+                            target.z = 0.5f + (target.z - 0.5f)*scale;
+                        }
+                        if (target.x > 1.0f) {
+                            float scale = 0.5f/(target.x - 0.5f);
+                            target.x = 1.0f;
+                            target.y = 0.5f + (target.y - 0.5f)*scale;
+                            target.z = 0.5f + (target.z - 0.5f)*scale;
+                        }
+                        if (target.y < 0.0f) {
+                            float scale = 0.5f/(0.5f - target.y);
+                            target.x = 0.5f + (target.x - 0.5f)*scale;
+                            target.y = 0.0f;
+                            target.z = 0.5f + (target.z - 0.5f)*scale;
+                        }
+                        if (target.y > 1.0f) {
+                            float scale = 0.5f/(target.y - 0.5f);
+                            target.x = 0.5f + (target.x - 0.5f)*scale;
+                            target.y = 1.0f;
+                            target.z = 0.5f + (target.z - 0.5f)*scale;
+                        }
+                        if (target.z < 0.0f) {
+                            float scale = 0.5f/(0.5f - target.z);
+                            target.x = 0.5f + (target.x - 0.5f)*scale;
+                            target.y = 0.5f + (target.y - 0.5f)*scale;
+                            target.z = 0.0f;
+                        }
+                        if (target.z > 1.0f) {
+                            float scale = 0.5f/(target.z - 0.5f);
+                            target.x = 0.5f + (target.x - 0.5f)*scale;
+                            target.y = 0.5f + (target.y - 0.5f)*scale;
+                            target.z = 1.0f;
+                        }
+                        break;
                 }
-                if (target.x > 1.0f) {
-                    float scale = 0.5f/(target.x - 0.5f);
-                    target.x = 1.0f;
-                    target.y = 0.5f + (target.y - 0.5f)*scale;
-                    target.z = 0.5f + (target.z - 0.5f)*scale;
-                }
-                if (target.y < 0.0f) {
-                    float scale = 0.5f/(0.5f - target.y);
-                    target.x = 0.5f + (target.x - 0.5f)*scale;
-                    target.y = 0.0f;
-                    target.z = 0.5f + (target.z - 0.5f)*scale;
-                }
-                if (target.y > 1.0f) {
-                    float scale = 0.5f/(target.y - 0.5f);
-                    target.x = 0.5f + (target.x - 0.5f)*scale;
-                    target.y = 1.0f;
-                    target.z = 0.5f + (target.z - 0.5f)*scale;
-                }
-                if (target.z < 0.0f) {
-                    float scale = 0.5f/(0.5f - target.z);
-                    target.x = 0.5f + (target.x - 0.5f)*scale;
-                    target.y = 0.5f + (target.y - 0.5f)*scale;
-                    target.z = 0.0f;
-                }
-                if (target.z > 1.0f) {
-                    float scale = 0.5f/(target.z - 0.5f);
-                    target.x = 0.5f + (target.x - 0.5f)*scale;
-                    target.y = 0.5f + (target.y - 0.5f)*scale;
-                    target.z = 1.0f;
-                }
+
                 Colour e = output - target;
                 *error = e;
 
-                SRGB t = _linearizer.srgb(target);
-                // Fast colour distance metric from
-                // http://www.compuphase.com/cmetric.htm .
-                float mr = (o.x + t.x)/512.0f;
-                float dr = static_cast<float>(o.x - t.x);
-                float dg = static_cast<float>(o.y - t.y);
-                float db = static_cast<float>(o.z - t.z);
-                metric += _weights[x]*(
-                    4.0f*dg*dg + (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
+                if (_metric == 1)
+                    metric += e.modulus2();
+                else {
+                    SRGB t = _linearizer.srgb(target);
+                    float dr = static_cast<float>(o.x - t.x);
+                    float dg = static_cast<float>(o.y - t.y);
+                    float db = static_cast<float>(o.z - t.z);
+                    if (_metric == 0)
+                        metric += dr*dr + dg*dg + db*db;
+                    else {
+                        // Fast colour distance metric from
+                        // http://www.compuphase.com/cmetric.htm .
+                        float mr = (o.x + t.x)/512.0f;
+                        metric += _weights[x]*(4.0f*dg*dg +
+                            (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
+                    }
+                }
 
-                //metric += static_cast<int>(1000.0f*e.modulus2());
-
-                //metric += dr*dr+dg*dg+db*db;
                 ++input;
                 ++error;
                 ++srgb;
@@ -1874,6 +1889,9 @@ private:
     bool _interlacePhase;
     bool _flicker;
     double _quality;
+    double _gamma;
+    int _clipping;
+    int _metric;
     int _characterSet;
     double _hue;
     double _saturation;
@@ -2798,6 +2816,9 @@ public:
         _videoCard._matching._diffusionTemporal.setValue(
             _matcher->getDiffusionTemporal());
         _videoCard._matching._quality.setValue(_matcher->getQuality());
+        _videoCard._matching._gamma.setValue(_matcher->getGamma());
+        _videoCard._matching._clipping.set(_matcher->getClipping());
+        _videoCard._matching._metric.set(_matcher->getMetric());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
         setInnerSize(Vector(0, 0));
         _outputWindow.setInnerSize(_output->requiredSize());
@@ -2848,6 +2869,7 @@ public:
         _videoCard._matching._diffusionVertical.setConfig(config);
         _videoCard._matching._diffusionTemporal.setConfig(config);
         _videoCard._matching._quality.setConfig(config);
+        _videoCard._matching._gamma.setConfig(config);
     }
     void setMatcher(CGAMatcher* matcher) { _matcher = matcher; }
     void setOutput(CGAOutput* output) { _output = output; }
@@ -2870,6 +2892,9 @@ public:
         _videoCard._matching._quality.enableWindow(matchMode &&
             (((((mode & 3) != 2 || composite) && (mode & 0x13) != 0x13) ||
             scanlinesPerRow > 2)));
+        _videoCard._matching._gamma.enableWindow(matchMode);
+        _videoCard._matching._clipping.enableWindow(matchMode);
+        _videoCard._matching._metric.enableWindow(matchMode);
         _videoCard._matching._characterSet.enableWindow(matchMode &&
             (mode & 2) == 0);
         _videoCard._matching._diffusionHorizontal.enableWindow(matchMode);
@@ -2939,6 +2964,21 @@ public:
     void qualitySet(double value)
     {
         _matcher->setQuality(value);
+        beginConvert();
+    }
+    void gammaSet(double value)
+    {
+        _matcher->setGamma(value);
+        beginConvert();
+    }
+    void clippingSet(int value)
+    {
+        _matcher->setClipping(value);
+        beginConvert();
+    }
+    void metricSet(int value)
+    {
+        _matcher->setMetric(value);
         beginConvert();
     }
     void scanlineWidthSet(double value) { _output->setScanlineWidth(value); }
@@ -3495,7 +3535,35 @@ private:
                     [&](double value) { _host->qualitySet(value); });
                 _quality.setText("Quality: ");
                 _quality.setRange(0, 1);
+                _quality.setCaptionWidth(0);
                 add(&_quality);
+                _gamma.setSliders(sliders);
+                _gamma.setValueSet(
+                    [&](double value) { _host->gammaSet(value); });
+                _gamma.setText("Gamma: ");
+                _gamma.setRange(0, 3);
+                _gamma.setCaptionWidth(0);
+                add(&_gamma);
+                _clipping.setChanged(
+                    [&](int value) { _host->clippingSet(value); });
+                _clipping.setText("Clipping: ");
+                _clipping.add("None");
+                _clipping.add("Separate");
+                _clipping.add("Project");
+                _clipping.set(2);
+                add(&_clipping);
+                _metric.setChanged(
+                    [&](int value) { _host->metricSet(value); });
+                _metric.setText("Metric: ");
+                _metric.add("sRGB");
+                _metric.add("linear");
+                _metric.add("fast");
+                _metric.add("Luv");
+                _metric.add("CIE76");
+                _metric.add("CIE94");
+                _metric.add("CIEDE2000");
+                _metric.set(2);
+                add(&_metric);
                 _characterSet.setChanged(
                     [&](int value) { _host->characterSetSet(value); });
                 _characterSet.setText("Character set: ");
@@ -3524,7 +3592,12 @@ private:
                 r = max(r, _diffusionTemporal.right());
                 _quality.setTopLeft(
                     _diffusionHorizontal.bottomLeft() + vSpace);
+                _gamma.setTopLeft(_quality.topRight() + hSpace);
+                _clipping.setTopLeft(_gamma.topRight() + hSpace);
+                _metric.setTopLeft(_clipping.topRight() + hSpace);
+                r = max(r, _metric.right());
                 _characterSet.setTopLeft(_quality.bottomLeft() + vSpace);
+                r = max(r, _characterSet.right());
                 setInnerSize(Vector(r, _characterSet.bottom()) +
                     _host->groupBR());
             }
@@ -3534,6 +3607,9 @@ private:
             KnobSlider _diffusionVertical;
             KnobSlider _diffusionTemporal;
             KnobSlider _quality;
+            KnobSlider _gamma;
+            CaptionedDropDownList _clipping;
+            CaptionedDropDownList _metric;
             CaptionedDropDownList _characterSet;
         };
         MatchingGroup _matching;
@@ -3733,6 +3809,9 @@ public:
         configFile.addDefaultOption("verticalDiffusion", 0.5);
         configFile.addDefaultOption("temporalDiffusion", 0.0);
         configFile.addDefaultOption("quality", 0.5);
+        configFile.addDefaultOption("gamma", 0.0);
+        configFile.addDefaultOption("clipping", 2);
+        configFile.addDefaultOption("metric", 2);
         configFile.addDefaultOption("connector", 1);
         configFile.addDefaultOption("characterSet", 3);
         configFile.addDefaultOption("cgaROM", String("5788005.u33"));
@@ -3800,6 +3879,9 @@ public:
         matcher.setDiffusionTemporal(
             configFile.get<double>("temporalDiffusion"));
         matcher.setQuality(configFile.get<double>("quality"));
+        matcher.setGamma(configFile.get<double>("gamma"));
+        matcher.setClipping(configFile.get<int>("clipping"));
+        matcher.setMetric(configFile.get<int>("metric"));
         matcher.setInterlace(configFile.get<int>("interlaceMode"));
         matcher.setInterlaceSync(configFile.get<bool>("interlaceSync"));
         matcher.setInterlacePhase(configFile.get<bool>("interlacePhase"));
