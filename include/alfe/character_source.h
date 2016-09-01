@@ -318,4 +318,27 @@ private:
     Location _location;
 };
 
+String enquote(String s)
+{
+    String r = "\"";
+    CharacterSource source(s);
+    int startOffset = source.offset();
+    do {
+        int offset = source.offset();
+        int c = source.get();
+        switch (c) {
+        case -1:
+            return r + source.subString(startOffset, offset) + "\"";
+        case '\"':
+            r += source.subString(startOffset, offset) + "\\\"";
+            startOffset = source.offset();
+            break;
+        case '\\':
+            r += source.subString(startOffset, offset) + "\\\\";
+            startOffset = source.offset();
+            break;
+        }
+    } while (true);
+}
+
 #endif // INCLUDED_CHARACTER_SOURCE_H

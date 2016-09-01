@@ -47,51 +47,51 @@ public:
     void output(int t, int n, Byte* rgbi, CGASequencer* sequencer, int phase)
     {
         Lock lock(&_mutex);
-        static const int startAddress = -25;
 
         State state;
         state._n = n;
         state._rgbi = rgbi;
         state._t = t;
-        state._startAddress = startAddress;
-        state._addresses = _endAddress - startAddress;
+        state._addresses = _endAddress - registerLogCharactersPerBank;
         state._data.allocate(state._addresses);
         state._sequencer = sequencer;
         state._phase = phase != 0 ? 0x40 : 0;
         for (const auto& c : _root._changes)
-            c.getData(&state._data, 0, startAddress, state._addresses, 0);
+            c.getData(&state._data, 0, registerLogCharactersPerBank,
+                state._addresses, 0);
         state.reset();
         if (_root._right != 0)
             _root._right->output(0, 0, _total, &state);
         state.runTo(t + n);
     }
-    // Addresses:
-    // -25: log(characters per bank)/log(2)
-    // -24: Horizontal Total high
-    // -23: Horizontal Displayed high
-    // -22: Horizontal Sync Position high
-    // -21: Vertical Total high
-    // -20: Vertical Displayed high
-    // -19: Vertical Sync Position high
-    // -18: CGA mode register (port 0x3d8)
-    // -17: CGA palette register (port 0x3d9)
-    // -16: Horizontal Total (CRTC register 0x00)
-    // -15: Horizontal Displayed (CRTC register 0x01)
-    // -14: Horizontal Sync Position (CRTC register 0x02)
-    // -13: Horizontal Sync Width (CRTC register 0x03)
-    // -12: Vertical Total (CRTC register 0x04)
-    // -11: Vertical Total Adjust (CRTC register 0x05)
-    // -10: Vertical Displayed (CRTC register 0x06)
-    //  -9: Vertical Sync Position (CRTC register 0x07)
-    //  -8: Interlace Mode (CRTC register 0x08)
-    //  -7: Maximum Scan Line Address (CRTC register 0x09)
-    //  -6: Cursor Start (CRTC register 0x0a)
-    //  -5: Cursor End (CRTC register 0x0b)
-    //  -4: Start Address High (CRTC register 0x0c)
-    //  -3: Start Address Low (CRTC register 0x0d)
-    //  -2: Cursor Address High (CRTC register 0x0e)
-    //  -1: Cursor Address Low (CRTC register 0x0f)
-    //   0 onwards: VRAM
+    enum {
+        registerLogCharactersPerBank = -26,  // log(characters per bank)/log(2)
+        registerScanlinesRepeat,
+        registerHorizontalTotalHigh,
+        registerHorizontalDisplayedHigh,
+        registerHorizontalSyncPositionHigh,
+        registerVerticalTotalHigh,
+        registerVerticalDisplayedHigh,
+        registerVerticalSyncPositionHigh,
+        registerMode,                        // port 0x3d8
+        registerPalette,                     // port 0x3d9
+        registerHorizontalTotal,             // CRTC register 0x00
+        registerHorizontalDisplayed,         // CRTC register 0x01
+        registerHorizontalSyncPosition,      // CRTC register 0x02
+        registerHorizontalSyncWidth,         // CRTC register 0x03
+        registerVerticalTotal,               // CRTC register 0x04
+        registerVerticalTotalAdjust,         // CRTC register 0x05
+        registerVerticalDisplayed,           // CRTC register 0x06
+        registerVerticalSyncPosition,        // CRTC register 0x07
+        registerInterlaceMode,               // CRTC register 0x08
+        registerMaximumScanline,             // CRTC register 0x09
+        registerCursorStart,                 // CRTC register 0x0a
+        registerCursorEnd,                   // CRTC register 0x0b
+        registerStartAddressHigh,            // CRTC register 0x0c
+        registerStartAddressLow,             // CRTC register 0x0d
+        registerCursorAddressHigh,           // CRTC register 0x0e
+        registerCursorAddressLow             // CRTC register 0x0f
+    };                                       // 0 onwards: VRAM
     void change(int t, int address, Byte data)
     {
         change(t, address, 1, &data);
@@ -196,7 +196,7 @@ private:
         _root.change(t, address, count, data, 0, _total);
         if (address + count > _endAddress) {
             _endAddress = address + count;
-            _root.ensureAddresses(-25, _endAddress);
+            _root.ensureAddresses(registerLogCharactersPerBank, _endAddress);
         }
     }
     int deserialize(Array<Byte>* data, int offset)
@@ -242,8 +242,8 @@ private:
         void latch()
         {
             int vRAMAddress = _memoryAddress << 1;
-            int bytesPerBank = 2 << dat(-25);
-            if ((dat(-18) & 2) != 0) {
+            int bytesPerBank = 2 << dat(registerLogCharactersPerBank);
+            if ((dat(registerMode) & 2) != 0) {
                 if ((_rowAddress & 1) != 0)
                     vRAMAddress |= bytesPerBank;
                 else
@@ -255,7 +255,8 @@ private:
         }
         void startOfFrame()
         {
-            _memoryAddress = (dat(-4) << 8) + dat(-3);
+            _memoryAddress = (dat(registerStartAddressHigh) << 8) +
+                dat(registerStartAddressLow);
             _leftMemoryAddress = _memoryAddress;
             _rowAddress = 0;
             _row = 0;
@@ -270,13 +271,13 @@ private:
         }
         void runTo(int t)
         {
-            Byte mode = dat(-18);
+            Byte mode = dat(registerMode);
             int hdots = (mode & 1) != 0 ? 8 : 16;
             while (_t < t) {
                 int c = min(hdots, _hdot + t - _t);
                 if (_state == 0) {
                     UInt64 r = _sequencer->process(_latch, mode | _phase,
-                        dat(-17), _rowAddress, false, 0);
+                        dat(registerPalette), _rowAddress, false, 0);
                     for (; _hdot < c; ++_hdot) {
                         *_rgbi = (r >> (_hdot * 4)) & 0x0f;
                         ++_rgbi;
@@ -284,8 +285,10 @@ private:
                 }
                 else {
                     int v = 0;
-                    if ((_state & 0x18) == 0)
-                        v = (mode & 0x10) != 0 ? 0 : dat(-17) & 0xf;
+                    if ((_state & 0x18) == 0) {
+                        v = (mode & 0x10) != 0 ? 0 :
+                            dat(registerPalette) & 0xf;
+                    }
                     else {
                         v = (_state & 0x10) + ((_state & 0x20) >> 1);
                         static Byte sync[48] = {
@@ -317,8 +320,8 @@ private:
                 _hdot = 0;
 
                 // Emulate CRTC
-                if (_character == dat(-16) + (dat(-24) << 8)) {
-                    // End of scanline
+                if (_character == dat(registerHorizontalTotal) +
+                    (dat(registerHorizontalTotalHigh) << 8)) {
                     _state &= ~1;
                     _character = 0;
                     if ((_state & 0x10) != 0) {
@@ -329,23 +332,23 @@ private:
                             _state &= ~0x30;
                         }
                     }
-                    if (_rowAddress == dat(-7)) {
+                    if (_rowAddress == dat(registerMaximumScanline)) {
                         // End of row
                         _rowAddress = 0;
-                        if (_row == dat(-12) + (dat(-21) << 8)) {
-                            // Start of vertical total adjust
+                        if (_row == dat(registerVerticalTotal) +
+                            (dat(registerVerticalTotalHigh) << 8)) {
                             _state |= 4;
                             _adjust = 0;
                             _latch = 0;
                         }
                         ++_row;
-                        if (_row == dat(-10) + (dat(-20) << 8)) {
-                            // Start of vertical overscan
+                        if (_row == dat(registerVerticalDisplayed) +
+                            (dat(registerVerticalDisplayedHigh) << 8)) {
                             _state |= 2;
                             _latch = 0;
                         }
-                        if (_row == dat(-9) + (dat(-19) << 8)) {
-                            // Start of vertical sync
+                        if (_row == dat(registerVerticalSyncPosition) +
+                            (dat(registerVerticalSyncPositionHigh) << 8)) {
                             _state |= 0x10;
                             _vSync = 0;
                         }
@@ -358,8 +361,7 @@ private:
                     }
                     if ((_state & 4) != 0) {
                         // Vertical total adjust active
-                        if (_adjust == dat(-11)) {
-                            // End of vertical total adjust
+                        if (_adjust == dat(registerVerticalTotalAdjust)) {
                             startOfFrame();
                             _state &= ~4;
                         }
@@ -372,8 +374,8 @@ private:
                     ++_memoryAddress;
                 }
                 _phase ^= 0x40;
-                if (_character == dat(-15) + (dat(-23) << 8)) {
-                    // Start of horizontal overscan
+                if (_character == dat(registerHorizontalDisplayed) +
+                    (dat(registerHorizontalDisplayedHigh) << 8)) {
                     _state |= 1;
                     _nextRowMemoryAddress = _memoryAddress;
                     _latch = 0;
@@ -392,13 +394,11 @@ private:
                                 _state &= ~0x20;
                         }
                     }
-                    if ((_hSync & 0x0f) == dat(-13)) {
-                        // End of horizontal sync
+                    if ((_hSync & 0x0f) == dat(registerHorizontalSyncWidth))
                         _state &= ~8;
-                    }
                 }
-                if (_character == dat(-14) + (dat(-22) << 8)) {
-                    // Start of horizontal sync
+                if (_character == dat(registerHorizontalSyncPosition) +
+                    (dat(registerHorizontalSyncPositionHigh) << 8)) {
                     _state |= 8;
                     _hSync = 0;
                 }
@@ -406,7 +406,10 @@ private:
                     latch();
             }
         }
-        Byte dat(int address) { return _data[address - _startAddress]; }
+        Byte dat(int address)
+        {
+            return _data[address - registerLogCharactersPerBank];
+        }
 
         int _memoryAddress;
         int _leftMemoryAddress;
@@ -421,7 +424,6 @@ private:
         int _n;
         int _t;
         int _phase;
-        int _startAddress;
         int _addresses;
 
         // _state bits:
@@ -705,7 +707,7 @@ private:
             }
             state->runTo(t);
             for (const auto& c : _changes) {
-                c.getData(&state->_data, 0, state->_startAddress,
+                c.getData(&state->_data, 0, registerLogCharactersPerBank,
                     state->_addresses, 0);
             }
             if (_right != 0) {
@@ -1226,6 +1228,8 @@ public:
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
         Byte* rgbi = &_rgbi[0];
         int phaseRow = _phase << 6;
+        int phaseRowFlip =
+            (_data->getDataByte(CGAData::registerHorizontalTotal) & 1) << 6;
         for (int y = 0;; ++y) {
             *rgbi = overscan;
             if (y == size.y)
@@ -1251,8 +1255,7 @@ public:
             if (scanline == _scanlinesPerRow) {
                 scanline = 0;
                 ++row;
-                if ((_data->getDataByte(-16) & 1) == 0)
-                    phaseRow ^= 0x40;
+                phaseRow ^= phaseRowFlip;
             }
         }
 
@@ -1315,7 +1318,8 @@ public:
         Byte* ntscRow = &_ntsc[0];
         SRGB* srgbRow = &_srgb[0];
         phaseRow = _phase << 6;
-        int bankShift = _data->getDataByte(-25) + 1;
+        int bankShift =
+            _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
         row = 0;
 
@@ -1528,8 +1532,7 @@ public:
             ++bank;
             inputRow += _blockHeight*_scaled.stride();
             errorRow += _errorStride*_blockHeight;
-            if ((_data->getDataByte(-16) & 1) == 0)
-                phaseRow ^= 0x40;
+            phaseRow ^= phaseRowFlip;
             rgbiRow += _rgbiStride*_blockHeight;
             ntscRow += _ntscStride*_blockHeight;
             srgbRow += _srgbStride*_blockHeight;
@@ -1773,6 +1776,11 @@ private:
                             target.z = 1.0f;
                         }
                         break;
+                    case 3:
+                        target.x = clamp(-1.0f, target.x, 2.0f);
+                        target.y = clamp(-1.0f, target.y, 2.0f);
+                        target.z = clamp(-1.0f, target.z, 2.0f);
+                        break;
                 }
 
                 Colour e = output - target;
@@ -1812,8 +1820,9 @@ private:
     {
         if (!_active)
             return;
-        Byte cgaRegistersData[25] = { 0 };
-        Byte* cgaRegisters = &cgaRegistersData[25];
+        static const int regs = -CGAData::registerLogCharactersPerBank;
+        Byte cgaRegistersData[regs] = { 0 };
+        Byte* cgaRegisters = &cgaRegistersData[regs];
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
         _horizontalDisplayed =
             (_activeSize.x + _hdotsPerChar - 1)/_hdotsPerChar;
@@ -1837,28 +1846,43 @@ private:
         }
         int verticalSyncPosition = _verticalDisplayed + 24/scanlinesPerRow;
         int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
-        cgaRegisters[-25] = _logCharactersPerBank;
-        cgaRegisters[-24] = (horizontalTotal - 1) >> 8;
-        cgaRegisters[-23] = _horizontalDisplayed >> 8;
-        cgaRegisters[-22] = horizontalSyncPosition >> 8;
-        cgaRegisters[-21] = (verticalTotal - 1) >> 8;
-        cgaRegisters[-20] = _verticalDisplayed >> 8;
-        cgaRegisters[-19] = verticalSyncPosition >> 8;
-        cgaRegisters[-18] = _mode;
-        cgaRegisters[-17] = _palette;
-        cgaRegisters[-16] = (horizontalTotal - 1) & 0xff;
-        cgaRegisters[-15] = _horizontalDisplayed & 0xff;
-        cgaRegisters[-14] = horizontalSyncPosition & 0xff;
-        cgaRegisters[-13] = 10;
-        cgaRegisters[-12] = (verticalTotal - 1) & 0xff;
-        cgaRegisters[-11] = verticalTotalAdjust;
-        cgaRegisters[-10] = _verticalDisplayed & 0xff;
-        cgaRegisters[-9] = verticalSyncPosition & 0xff;
-        cgaRegisters[-8] = 2;
-        cgaRegisters[-7] = _scanlinesPerRow - 1;
-        cgaRegisters[-6] = 6;
-        cgaRegisters[-5] = 7;
-        _data->change(0, -25, 25, &cgaRegistersData[0]);
+        cgaRegisters[CGAData::registerLogCharactersPerBank] =
+            _logCharactersPerBank;
+        cgaRegisters[CGAData::registerScanlinesRepeat] = _scanlinesRepeat;
+        cgaRegisters[CGAData::registerHorizontalTotalHigh] =
+            (horizontalTotal - 1) >> 8;
+        cgaRegisters[CGAData::registerHorizontalDisplayedHigh] =
+            _horizontalDisplayed >> 8;
+        cgaRegisters[CGAData::registerHorizontalSyncPositionHigh] =
+            horizontalSyncPosition >> 8;
+        cgaRegisters[CGAData::registerVerticalTotalHigh] =
+            (verticalTotal - 1) >> 8;
+        cgaRegisters[CGAData::registerVerticalDisplayedHigh] =
+            _verticalDisplayed >> 8;
+        cgaRegisters[CGAData::registerVerticalSyncPositionHigh] =
+            verticalSyncPosition >> 8;
+        cgaRegisters[CGAData::registerMode] = _mode;
+        cgaRegisters[CGAData::registerPalette] = _palette;
+        cgaRegisters[CGAData::registerHorizontalTotal] =
+            (horizontalTotal - 1) & 0xff;
+        cgaRegisters[CGAData::registerHorizontalDisplayed] =
+            _horizontalDisplayed & 0xff;
+        cgaRegisters[CGAData::registerHorizontalSyncPosition] =
+            horizontalSyncPosition & 0xff;
+        cgaRegisters[CGAData::registerHorizontalSyncWidth] = 10;
+        cgaRegisters[CGAData::registerVerticalTotal] =
+            (verticalTotal - 1) & 0xff;
+        cgaRegisters[CGAData::registerVerticalTotalAdjust] =
+            verticalTotalAdjust;
+        cgaRegisters[CGAData::registerVerticalDisplayed] =
+            _verticalDisplayed & 0xff;
+        cgaRegisters[CGAData::registerVerticalSyncPosition] =
+            verticalSyncPosition & 0xff;
+        cgaRegisters[CGAData::registerInterlaceMode] = 2;
+        cgaRegisters[CGAData::registerMaximumScanline] = _scanlinesPerRow - 1;
+        cgaRegisters[CGAData::registerCursorStart] = 6;
+        cgaRegisters[CGAData::registerCursorEnd] = 7;
+        _data->change(0, -regs, regs, &cgaRegistersData[0]);
         int last = _horizontalDisplayed*_verticalDisplayed*2 - 1;
         if ((_mode & 2) != 0)
             last += 2 << _logCharactersPerBank;
@@ -1986,7 +2010,7 @@ public:
             overscan = static_cast<float>(_overscan);
             zoom = _zoom;
             aspectRatio = _aspectRatio;
-            Byte mode = _data->getDataByte(-18);
+            Byte mode = _data->getDataByte(CGAData::registerMode);
             _composite.setBW((mode & 4) != 0);
             bool newCGA = connector == 2;
             _composite.setNewCGA(newCGA);
@@ -3550,6 +3574,7 @@ private:
                 _clipping.add("None");
                 _clipping.add("Separate");
                 _clipping.add("Project");
+                _clipping.add("Wide");
                 _clipping.set(2);
                 add(&_clipping);
                 _metric.setChanged(
@@ -3646,13 +3671,14 @@ public:
     void load(String filename)
     {
         _name = filename;
+        _file = File(filename, true);
         // We parse the filename relative to the current directory here instead
         // of relative to the config file path because the filename usually
         // comes from the command line.
         Vector size(0, 0);
         _isPNG = endsIn(filename, ".png");
         if (_isPNG) {
-            _bitmap = PNGFileFormat<SRGB>().load(File(filename, true));
+            _bitmap = PNGFileFormat<SRGB>().load(_file);
             size = _bitmap.size();
         }
         _size.set("x", size.x, Span());
@@ -3671,10 +3697,12 @@ public:
         return _name == other._name;
     }
     bool isPNG() { return _isPNG; }
+    File file() { return _file; }
 private:
     bool _isPNG;
     Structure _size;
     String _name;
+    File _file;
     Bitmap<SRGB> _bitmap;
 };
 
@@ -3788,6 +3816,7 @@ public:
         BitmapType bitmapType(&bitmapValue);
 
         ConfigFile configFile;
+        configFile.addType(VectorType());
         configFile.addOption("inputPicture", bitmapType);
         configFile.addDefaultOption("mode", 0x1a);
         configFile.addDefaultOption("palette", 0x0f);
@@ -3805,8 +3834,8 @@ public:
         configFile.addDefaultOption("chromaBandwidth", 1.0);
         configFile.addDefaultOption("lumaBandwidth", 1.0);
         configFile.addDefaultOption("rollOff", 0.0);
-        configFile.addDefaultOption("horizontalDiffusion", 0.5);
-        configFile.addDefaultOption("verticalDiffusion", 0.5);
+        configFile.addDefaultOption("horizontalDiffusion", 0.647565);
+        configFile.addDefaultOption("verticalDiffusion", 0.352435);
         configFile.addDefaultOption("temporalDiffusion", 0.0);
         configFile.addDefaultOption("quality", 0.5);
         configFile.addDefaultOption("gamma", 0.0);
@@ -3857,8 +3886,8 @@ public:
         File config(configPath, true);
         configFile.load(config);
 
-        FFTWWisdom<float> wisdom(
-            File(configFile.get<String>("fftWisdom"), config.parent()));
+        String fftWisdomFile = configFile.get<String>("fftWisdom");
+        FFTWWisdom<float> wisdom(File(fftWisdomFile, config.parent()));
 
         CGAOutput output(&_data, &_sequencer, &_window);
         _output = &output;
@@ -3892,8 +3921,8 @@ public:
         matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
         int scanlinesRepeat = configFile.get<int>("scanlinesRepeat");
         matcher.setScanlinesRepeat(scanlinesRepeat);
-        _sequencer.setROM(
-            File(configFile.get<String>("cgaROM"), config.parent()));
+        String cgaROM = configFile.get<String>("cgaROM");
+        _sequencer.setROM(File(cgaROM, config.parent()));
 
         double brightness = configFile.get<double>("brightness");
         output.setBrightness(brightness);
@@ -3919,11 +3948,13 @@ public:
         output.setZoom(configFile.get<double>("zoom"));
         output.setScanlineBleeding(configFile.get<int>("scanlineBleeding"));
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
-        output.setOverscan(configFile.get<double>("overscan"));
+        double overscan = configFile.get<double>("overscan");
+        output.setOverscan(overscan);
         output.setCombFilter(configFile.get<int>("combFilter"));
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
-        matcher.setInput(input, configFile.get<Vector>("activeSize"));
+        Vector activeSize = configFile.get<Vector>("activeSize");
+        matcher.setInput(input, activeSize);
         bool isPNG = bitmapValue.isPNG();
         String inputName = bitmapValue.name();
         setMatchMode(isPNG);
@@ -3931,10 +3962,12 @@ public:
             File file(inputName, true);
             if (endsIn(inputName, ".cgad")) {
                 _data.load(file);
-                Array<Byte> data = _data.getData(-25, 25);
-                matcher.setMode(data[25 -18]);
-                matcher.setPalette(data[25 -17]);
-                matcher.setScanlinesPerRow(1 + data[25 -7]);
+                int regs = -CGAData::registerLogCharactersPerBank;
+                Array<Byte> data = _data.getData(-regs, regs);
+                matcher.setMode(data[CGAData::registerMode]);
+                matcher.setPalette(data[CGAData::registerPalette]);
+                matcher.setScanlinesPerRow(1 +
+                    data[CGAData::registerMaximumScanline]);
             }
             else {
                 _data.loadVRAM(file);
@@ -3966,6 +3999,60 @@ public:
         _data.save(File(inputFileName + "_out.cgad", true));
         _data.saveVRAM(File(inputFileName + "_out.dat", true));
         output.saveRGBI(File(inputFileName + "_out.rgbi", true));
+        String s;
+        s = "inputPicture = " + enquote(bitmapValue.file().path()) + ";\n";
+        s += "cgaROM = " + enquote(cgaROM) + ";\n";
+        s += "activeSize = Vector(" + decimal(activeSize.x) + ", " +
+            decimal(activeSize.y) + ");\n";
+        s += "mode = " + hex(matcher.getMode(), 2) + ";\n";
+        s += "palette = " + hex(matcher.getPalette(), 2) + ";\n";
+        s += "scanlinesPerRow = " + decimal(matcher.getScanlinesPerRow()) +
+            ";\n";
+        s += "scanlinesRepeat = " + decimal(matcher.getScanlinesRepeat()) +
+            ";\n";
+        s += "interlaceMode = " + decimal(matcher.getInterlace()) + ";\n";
+        s += "interlaceSync = " + String::Boolean(matcher.getInterlaceSync()) +
+            ";\n";
+        s += "interlacePhase = " +
+            String::Boolean(matcher.getInterlacePhase()) + ";\n";
+        s += "flicker = " + String::Boolean(matcher.getFlicker()) + ";\n";
+        s += "phase = " + decimal(matcher.getPhase()) + ";\n";
+        s += "characterSet = " + decimal(matcher.getCharacterSet()) + ";\n";
+        s += "quality = " + format("%6f", matcher.getQuality()) + ";\n";
+        s += "horizontalDiffusion = " +
+            format("%6f", matcher.getDiffusionHorizontal()) + ";\n";
+        s += "verticalDiffusion = " +
+            format("%6f", matcher.getDiffusionVertical()) + ";\n";
+        s += "temporalDiffusion = " +
+            format("%6f", matcher.getDiffusionTemporal()) + ";\n";
+        s += "gamma = " + format("%6f", matcher.getGamma()) + ";\n";
+        s += "clipping = " + decimal(matcher.getClipping()) + ";\n";
+        s += "metric = " + decimal(matcher.getMetric()) + ";\n";
+        s += "connector = " + decimal(output.getConnector()) + ";\n";
+        s += "contrast = " + format("%6f", matcher.getContrast()) + ";\n";
+        s += "brightness = " + format("%6f", matcher.getBrightness()) + ";\n";
+        s += "saturation = " + format("%6f", matcher.getSaturation()) + ";\n";
+        s += "hue = " + format("%6f", matcher.getHue()) + ";\n";
+        s += "chromaBandwidth = " +
+            format("%6f", matcher.getChromaBandwidth()) + ";\n";
+        s += "lumaBandwidth = " + format("%6f", matcher.getLumaBandwidth()) +
+            ";\n";
+        s += "rollOff = " + format("%6f", matcher.getRollOff()) + ";\n";
+        s += "showClipping = " + String::Boolean(output.getShowClipping()) +
+            ";\n";
+        s += "combFilter = " + decimal(output.getCombFilter()) + ";\n";
+        s += "aspectRatio = " + format("%6f", output.getAspectRatio()) + ";\n";
+        s += "scanlineWidth = " + format("%6f", output.getScanlineWidth()) +
+            ";\n";
+        s += "overscan = " + format("%6f", overscan) + ";\n";
+        s += "scanlineProfile = " + decimal(output.getScanlineProfile()) +
+            ";\n";
+        s += "scanlineBleeding = " + decimal(output.getScanlineBleeding()) +
+            ";\n";
+        s += "zoom = " + format("%6f", output.getZoom()) + ";\n";
+        s += "interactive = " + String::Boolean(interactive) + ";\n";
+        s += "fftWisdom = " + enquote(fftWisdomFile) + ";\n";
+        File(inputFileName + "_out.config", true).save(s);
 
         if (!interactive)
             timer.output("Elapsed time");
