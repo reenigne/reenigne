@@ -97,10 +97,12 @@
     <ClInclude Include="..\..\..\..\include\alfe\colour_space.h" />
     <ClInclude Include="..\..\..\..\include\alfe\complex.h" />
     <ClInclude Include="..\..\..\..\include\alfe\config_file.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\double_functions.h" />
     <ClInclude Include="..\..\..\..\include\alfe\exception.h" />
     <ClInclude Include="..\..\..\..\include\alfe\expression.h" />
     <ClInclude Include="..\..\..\..\include\alfe\fft.h" />
     <ClInclude Include="..\..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\function.h" />
     <ClInclude Include="..\..\..\..\include\alfe\hash_table.h" />
     <ClInclude Include="..\..\..\..\include\alfe\identifier.h" />
     <ClInclude Include="..\..\..\..\include\alfe\integer_functions.h" />
