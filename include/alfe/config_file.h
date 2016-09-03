@@ -16,6 +16,7 @@
 #include "alfe/concrete_functions.h"
 #include "alfe/array_functions.h"
 #include "alfe/boolean_functions.h"
+#include "alfe/double_functions.h"
 
 template<class T> class ConfigFileT;
 typedef ConfigFileT<void> ConfigFile;
@@ -96,6 +97,24 @@ public:
         addFunco(LessThanOrEqualToIntegerInteger());
         addFunco(GreaterThanOrEqualToIntegerInteger());
         addFunco(NegativeInteger());
+        addFunco(AddDoubleDouble());
+        addFunco(AddDoubleRational());
+        addFunco(AddRationalDouble());
+        addFunco(SubtractDoubleDouble());
+        addFunco(SubtractDoubleRational());
+        addFunco(SubtractRationalDouble());
+        addFunco(MultiplyDoubleDouble());
+        addFunco(MultiplyDoubleRational());
+        addFunco(MultiplyRationalDouble());
+        addFunco(DivideDoubleDouble());
+        addFunco(DivideDoubleRational());
+        addFunco(DivideRationalDouble());
+        addFunco(PowerDoubleDouble());
+        addFunco(PowerDoubleRational());
+        addFunco(PowerRationalDouble());
+        addFunco(ShiftLeftDoubleInteger());
+        addFunco(ShiftRightDoubleInteger());
+        addFunco(NegativeDouble());
     }
     template<class V> ConfigOption<V> addOption(String name)
     {
@@ -248,8 +267,13 @@ public:
                     func.evaluate(arguments, span);
                 }
             }
-            else
-                p.set(v.convertTo(type), span);
+            else {
+                StructuredType s(type);
+                if (s.valid())
+                    s.setLValue(p, v);
+                else
+                    p.set(v.convertTo(type), span);
+            }
         } while (true);
         for (auto i : *this) {
             if (!i.value().valid())

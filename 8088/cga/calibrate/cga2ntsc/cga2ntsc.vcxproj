@@ -103,6 +103,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\fft.h" />
     <ClInclude Include="..\..\..\..\include\alfe\file.h" />
     <ClInclude Include="..\..\..\..\include\alfe\function.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\handle.h" />
     <ClInclude Include="..\..\..\..\include\alfe\hash_table.h" />
     <ClInclude Include="..\..\..\..\include\alfe\identifier.h" />
     <ClInclude Include="..\..\..\..\include\alfe\integer_functions.h" />

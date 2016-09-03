@@ -368,8 +368,14 @@
   <Type Name="IntegerType::Body">
     <DisplayString>Integer</DisplayString>
   </Type>
+  <Type Name="DoubleType::Body">
+    <DisplayString>Double</DisplayString>
+  </Type>
   <Type Name="BooleanType::Body">
     <DisplayString>Boolean</DisplayString>
+  </Type>
+  <Type Name="RationalType::Body">
+    <DisplayString>Rational</DisplayString>
   </Type>
   <Type Name="WordType::Body">
     <DisplayString>Word</DisplayString>

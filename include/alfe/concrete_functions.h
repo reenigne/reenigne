@@ -142,8 +142,8 @@ public:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> r;
-            r.add(RationalType());
             r.add(ConcreteTyco());
+            r.add(RationalType());
             return r;
         }
     };
@@ -177,8 +177,8 @@ public:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> r;
-            r.add(ConcreteTyco());
             r.add(RationalType());
+            r.add(ConcreteTyco());
             return r;
         }
     };
@@ -247,8 +247,8 @@ public:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> r;
-            r.add(RationalType());
             r.add(ConcreteTyco());
+            r.add(RationalType());
             return r;
         }
     };
@@ -281,8 +281,8 @@ public:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> r;
-            r.add(ConcreteTyco());
             r.add(RationalType());
+            r.add(ConcreteTyco());
             return r;
         }
     };
@@ -319,8 +319,8 @@ public:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> r;
-            r.add(IntegerType());
             r.add(ConcreteTyco());
+            r.add(IntegerType());
             return r;
         }
     };
@@ -357,8 +357,8 @@ public:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> r;
-            r.add(IntegerType());
             r.add(ConcreteTyco());
+            r.add(IntegerType());
             return r;
         }
     };

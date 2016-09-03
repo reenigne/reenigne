@@ -680,8 +680,8 @@ private:
             List<Tyco> parameterTycos() const
             {
                 List<Tyco> r;
-                r.add(typename ConnectorT<T>::Type());
                 r.add(LValueType(_component->type()));
+                r.add(typename ConnectorT<T>::Type());
                 return r;
             }
         private:

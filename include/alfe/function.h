@@ -58,8 +58,6 @@ protected:
             }
             return r;
         }
-        // For the convenience of FunctionType, parameterTycos() returns a list
-        // of tycos in right-to-left order.
         virtual List<Tyco> parameterTycos() const = 0;
         virtual String toString() const { return type().toString(); }
     };
@@ -86,6 +84,7 @@ class Function : public Funco
 {
 public:
     Function(const Handle& other) : Funco(other) { }
+    Function(const Funco& other) : Funco(to<Body>(other)) { }
 protected:
     class Body : public Funco::Body
     {
@@ -97,11 +96,7 @@ protected:
         List<Tyco> parameterTycos() const
         {
             List<Tyco> tycos;
-            FunctionType t = type();
-            while (!t.isNullary()) {
-                tycos.add(t.lastArgumentType());
-                t = t.parent();
-            }
+            type().addParameterTycos(&tycos);
             return tycos;
         }
     };
@@ -161,8 +156,28 @@ template<class T> class OverloadedFunctionSetT : public Handle
             // be equivalent, but some may be more optimal. For now we'll just
             // choose the first one, but later we may want to try to figure out
             // which one is most optimal.
-            auto i = bestCandidates.begin();
-            return i->evaluate(arguments, span);
+            auto i = *bestCandidates.begin();
+
+            List<Value> convertedArguments;
+            if (Function(i).valid()) {
+                List<Tyco> parameterTycos = i.parameterTycos();
+                auto ii = parameterTycos.begin();
+                for (auto a : arguments) {
+                    Type type = *ii;
+                    if (!type.valid()) {
+                        a.span().throwError("Function parameter's type "
+                            "constructor is not a type.");
+                    }
+                    convertedArguments.add(a.convertTo(type));
+                    ++ii;
+                }
+            }
+            else {
+                // Funcos that are not functions don't get their arguments
+                // converted.
+                convertedArguments = arguments;
+            }
+            return i.evaluate(convertedArguments, span);
         }
     private:
         String argumentTypesString(List<::Type> argumentTypes) const

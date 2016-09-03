@@ -1210,15 +1210,18 @@ public:
             instantiate(argumentType2)) { }
     bool argumentsMatch(List<Type>::Iterator argumentTypes) const
     {
-        return body()->argumentsMatch(argumentTypes);
+        return body()->argumentsMatch(&argumentTypes) && argumentTypes.end();
     }
     Tyco instantiate(const Tyco& argument) const
     {
         return body()->instantiate(argument);
     }
     bool isNullary() const { return body()->isNullary(); }
-    Type lastArgumentType() const { return body()->lastArgumentType(); }
     FunctionType parent() const { return body()->parent(); }
+    void addParameterTycos(List<Tyco>* list) const
+    {
+        body()->addParameterTycos(list);
+    }
 private:
     class Body : public Tyco::Body
     {
@@ -1246,10 +1249,8 @@ private:
             _instantiations.add(argument, t);
             return t;
         }
-        virtual bool argumentsMatch(List<Type>::Iterator i) const = 0;
-        virtual bool isNullary() const = 0;
-        virtual Type lastArgumentType() const = 0;
-        virtual FunctionType parent() const = 0;
+        virtual bool argumentsMatch(List<Type>::Iterator* i) const = 0;
+        virtual void addParameterTycos(List<Tyco>* list) const = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -1267,10 +1268,8 @@ private:
             return o != 0 && _returnType != o->_returnType;
         }
         Hash hash() const { return Body::hash().mixin(_returnType.hash()); }
-        bool argumentsMatch(List<Type>::Iterator i) const { return i.end(); }
-        bool isNullary() const { return true; }
-        Type lastArgumentType() const { return Type(); }
-        FunctionType parent() const { return FunctionType(Tyco()); }
+        bool argumentsMatch(List<Type>::Iterator* i) const { return true; }
+        virtual void addParameterTycos(List<Tyco>* list) const { }
     private:
         Type _returnType;
     };
@@ -1298,16 +1297,22 @@ private:
             return Body::hash().mixin(_parent.hash()).
                 mixin(_argumentType.hash());
         }
-        bool argumentsMatch(List<Type>::Iterator i) const
+        bool argumentsMatch(List<Type>::Iterator* i) const
         {
-            if (i.end() || !i->canConvertTo(_argumentType))
+            if (!_parent.body()->argumentsMatch(i))
                 return false;
-            ++i;
-            return _parent.argumentsMatch(i);
+            if (i->end())
+                return false;
+            if (!(*i)->canConvertTo(_argumentType))
+                return false;
+            ++*i;
+            return true;
         }
-        bool isNullary() const { return false; }
-        Type lastArgumentType() const { return _argumentType; }
-        FunctionType parent() const { return _parent; }
+        virtual void addParameterTycos(List<Tyco>* list) const
+        {
+            _parent.addParameterTycos(list);
+            list->add(_argumentType);
+        }
     private:
         FunctionTypeT<T> _parent;
         Type _argumentType;
@@ -1465,6 +1470,14 @@ public:
     Any rValueFromLValue(Value lValue) const
     {
         return body()->rValueFromLValue(lValue);
+    }
+    Value constructValue(Value value) const
+    {
+        return body()->constructValue(value);
+    }
+    void setLValue(Structure* s, Value rValue) const
+    {
+        return body()->setLValue(s, rValue);
     }
 protected:
     class Body : public Type::Body
@@ -1716,6 +1729,10 @@ protected:
         {
             return lValue.value();
         }
+        virtual Value constructValue(Value value) const { return value; }
+        void setLValue(Structure* s, Value rValue) const
+        {
+        }
     private:
         bool canConvertHelper(const Type& type, const Member* to, String* why)
             const
@@ -1750,15 +1767,29 @@ public:
         {
             auto r = Reference<Structure>::create<Structure>();
             owner->addOwned(r);
-            auto v = rValue.value<Vector>();
-            r->set("x", v.x, Span());
-            r->set("y", v.y, Span());
+            setLValue(&*r, Value(type(), rValue));
             return Value(LValueType::wrap(type()), &*r);
+        }
+        void setLValue(Structure* s, Value rValue) const
+        {
+            auto v = rValue.value<Vector>();
+            s->set("x", v.x, Span());
+            s->set("y", v.y, Span());
         }
         Any rValueFromLValue(Value lValue) const
         {
             auto s = lValue.value<Structure*>();
             return Vector(s->get<int>("x"), s->get<int>("y"));
+        }
+        virtual Value constructValue(Value value) const
+        {
+            auto s = value.value<List<Any>>();
+            auto i = s.begin();
+            Vector v;
+            v.x = i->value<int>();
+            ++i;
+            v.y = i->value<int>();
+            return Value(v, value.span());
         }
     private:
         List<StructuredType::Member> members()

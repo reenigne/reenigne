@@ -134,6 +134,12 @@ public:
     {
         return Handle(new B(std::forward<Args>(args)...), false);
     }
+    template<class T> static Handle to(const Handle& other)
+    {
+        Handle r;
+        r.set(dynamic_cast<const T*>(other._body));
+        return r;
+    }
 protected:
     class Body : public ConstHandle::Body
     {
@@ -149,6 +155,8 @@ protected:
     Body* body() { return const_cast<ConstHandle::Body*>(_body)->as<Body>(); }
     template<class T> const T* as() const { return ConstHandle::as<T>(); }
     template<class T> T* as() { return body()->as<T>(); }
+    template<class T> const T* to() const { return ConstHandle::to<T>(); }
+    template<class T> T* to() { return body()->to<T>(); }
 private:
     Handle(Body* body, bool acquire) { set(body, acquire); }
     friend class ConstHandle::Body;

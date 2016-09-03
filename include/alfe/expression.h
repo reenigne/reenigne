@@ -742,8 +742,20 @@ public:
                 l = Value(LValueTypeT<T>::wrap(p->getValue(i).type()),
                     LValue(p, i), this->span());
             }
-            return l.template value<Function>().evaluate(arguments,
-                this->span());
+            List<Value> convertedArguments;
+            Function f = l.template value<Function>();
+            List<Tyco> parameterTycos = f.parameterTycos();
+            auto ii = parameterTycos.begin();
+            for (auto a : arguments) {
+                Type type = *ii;
+                if (!type.valid()) {
+                    a.span().throwError("Function parameter's type "
+                        "constructor is not a type.");
+                }
+                convertedArguments.add(a.convertTo(type));
+                ++ii;
+            }
+            return f.evaluate(convertedArguments, this->span());
         }
     private:
         Expression _function;
@@ -782,7 +794,7 @@ public:
                 span += value.span();
                 ++ai;
             }
-            return Value(type, values, span);
+            return type.constructValue(Value(type, values, span));
         }
     private:
         TycoSpecifier _type;
