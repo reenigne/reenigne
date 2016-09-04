@@ -260,6 +260,7 @@ private:
             _leftMemoryAddress = _memoryAddress;
             _rowAddress = 0;
             _row = 0;
+            _scanlineIteration = 0;
         }
         void reset()
         {
@@ -332,33 +333,39 @@ private:
                             _state &= ~0x30;
                         }
                     }
-                    if (_rowAddress == dat(registerMaximumScanline)) {
-                        // End of row
-                        _rowAddress = 0;
-                        if (_row == dat(registerVerticalTotal) +
-                            (dat(registerVerticalTotalHigh) << 8)) {
-                            _state |= 4;
-                            _adjust = 0;
-                            _latch = 0;
+                    ++_scanlineIteration;
+                    if (_scanlineIteration == dat(registerScanlinesRepeat)) {
+                        _scanlineIteration = 0;
+                        if (_rowAddress == dat(registerMaximumScanline)) {
+                            // End of row
+                            _rowAddress = 0;
+                            if (_row == dat(registerVerticalTotal) +
+                                (dat(registerVerticalTotalHigh) << 8)) {
+                                _state |= 4;
+                                _adjust = 0;
+                                _latch = 0;
+                            }
+                            ++_row;
+                            if (_row == dat(registerVerticalDisplayed) +
+                                (dat(registerVerticalDisplayedHigh) << 8)) {
+                                _state |= 2;
+                                _latch = 0;
+                            }
+                            if (_row == dat(registerVerticalSyncPosition) +
+                                (dat(registerVerticalSyncPositionHigh) << 8)) {
+                                _state |= 0x10;
+                                _vSync = 0;
+                            }
+                            _memoryAddress = _nextRowMemoryAddress;
+                            _leftMemoryAddress = _nextRowMemoryAddress;
                         }
-                        ++_row;
-                        if (_row == dat(registerVerticalDisplayed) +
-                            (dat(registerVerticalDisplayedHigh) << 8)) {
-                            _state |= 2;
-                            _latch = 0;
+                        else {
+                            ++_rowAddress;
+                            _memoryAddress = _leftMemoryAddress;
                         }
-                        if (_row == dat(registerVerticalSyncPosition) +
-                            (dat(registerVerticalSyncPositionHigh) << 8)) {
-                            _state |= 0x10;
-                            _vSync = 0;
-                        }
-                        _memoryAddress = _nextRowMemoryAddress;
-                        _leftMemoryAddress = _nextRowMemoryAddress;
                     }
-                    else {
-                        ++_rowAddress;
+                    else
                         _memoryAddress = _leftMemoryAddress;
-                    }
                     if ((_state & 4) != 0) {
                         // Vertical total adjust active
                         if (_adjust == dat(registerVerticalTotalAdjust)) {
@@ -425,6 +432,7 @@ private:
         int _t;
         int _phase;
         int _addresses;
+        int _scanlineIteration;
 
         // _state bits:
         //    0 = we are in horizontal overscan
@@ -903,7 +911,7 @@ public:
         int blockLap = (_connector == 0 ? 0 : 3);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
-            _scanlinesPerRow*_verticalDisplayed);
+            _scanlinesPerRow*_scanlinesRepeat*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(_gamma));
         if (size != _size) {
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
@@ -968,11 +976,12 @@ public:
         Vector3<int> srgbDiv = Vector3Cast<int>(255.0f*srgbScale) + 1;
         int entries = srgbDiv.x*srgbDiv.y*srgbDiv.z;
         _table.setSize(entries);
-        _blockHeight = _scanlinesPerRow;
+        _blockHeight = _scanlinesPerRow*_scanlinesRepeat;
         if ((_mode & 2) != 0) {
             _incrementWidth = 4;
             _rgbiWidth = ((_connector == 0 || (_mode & 1) != 0) ? 4 : 8);
-            _blockHeight = _scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow;
+            _blockHeight = (_scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow)*
+                _scanlinesRepeat;
             for (int i = 0; i < 0x100; ++i)
                 _skip[i] = false;
         }
@@ -981,7 +990,7 @@ public:
             _rgbiWidth = _incrementWidth;
             bool blink = ((_mode & 0x20) != 0);
             auto cgaROM = _sequencer->romData();
-            int lines = _scanlinesPerRow;
+            int lines = _scanlinesPerRow*_scanlinesRepeat;
             for (int i = 0; i < 0x100; ++i) {
                 _skip[i] = false;
                 if (_characterSet == 0) {
@@ -1215,7 +1224,7 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        _errorStride = size.x + 1 + 2*blockLap;
+        _errorStride = size.x + 1 + 2*blockLap + _rgbiWidth - _incrementWidth;
         int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
@@ -1224,6 +1233,7 @@ public:
         _rgbi.ensure(_rgbiStride*size.y + 1);
         int row = 0;
         int scanline = 0;
+        int scanlineIteration = 0;
         int horizontalBlocks = size.x/_incrementWidth;
         int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
         Byte* rgbi = &_rgbi[0];
@@ -1251,11 +1261,15 @@ public:
                 }
                 phase ^= 0x40;
             }
-            ++scanline;
-            if (scanline == _scanlinesPerRow) {
-                scanline = 0;
-                ++row;
-                phaseRow ^= phaseRowFlip;
+            ++scanlineIteration;
+            if (scanlineIteration == _scanlinesPerRow) {
+                scanlineIteration = 0;
+                ++scanline;
+                if (scanline == _scanlinesPerRow) {
+                    scanline = 0;
+                    ++row;
+                    phaseRow ^= phaseRowFlip;
+                }
             }
         }
 
@@ -1702,8 +1716,9 @@ private:
         Byte* ntscLine = _ntscBlock;
         SRGB* srgbLine = _srgbBlock;
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
-            UInt64 rgbis = _sequencer->process(v[scanline & yMask],
-                _mode + _phaseBlock, _palette, scanline, false, 0);
+            int s = scanline / _scanlinesRepeat;
+            UInt64 rgbis = _sequencer->process(v[s & yMask],
+                _mode + _phaseBlock, _palette, s, false, 0);
             SRGB* srgb = srgbLine;
             auto input = reinterpret_cast<const Colour*>(inputLine);
             auto error = errorLine;
@@ -3839,7 +3854,7 @@ public:
         configFile.addDefaultOption("temporalDiffusion", 0.0);
         configFile.addDefaultOption("quality", 0.5);
         configFile.addDefaultOption("gamma", 0.0);
-        configFile.addDefaultOption("clipping", 2);
+        configFile.addDefaultOption("clipping", 1);
         configFile.addDefaultOption("metric", 2);
         configFile.addDefaultOption("connector", 1);
         configFile.addDefaultOption("characterSet", 3);

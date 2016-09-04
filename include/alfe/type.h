@@ -1475,9 +1475,9 @@ public:
     {
         return body()->constructValue(value);
     }
-    void setLValue(Structure* s, Value rValue) const
+    void setLValue(LValue l, Value rValue) const
     {
-        return body()->setLValue(s, rValue);
+        return body()->setLValue(l, rValue);
     }
 protected:
     class Body : public Type::Body
@@ -1730,7 +1730,7 @@ protected:
             return lValue.value();
         }
         virtual Value constructValue(Value value) const { return value; }
-        void setLValue(Structure* s, Value rValue) const
+        void setLValue(LValue l, Value rValue) const
         {
         }
     private:
@@ -1767,14 +1767,16 @@ public:
         {
             auto r = Reference<Structure>::create<Structure>();
             owner->addOwned(r);
-            setLValue(&*r, Value(type(), rValue));
+            auto v = rValue.value<Vector>();
+            r->set("x", v.x, Span());
+            r->set("y", v.y, Span());
             return Value(LValueType::wrap(type()), &*r);
         }
-        void setLValue(Structure* s, Value rValue) const
+        void setLValue(LValue l, Value rValue) const
         {
             auto v = rValue.value<Vector>();
-            s->set("x", v.x, Span());
-            s->set("y", v.y, Span());
+            l.member("x").set(v.x, Span());
+            l.member("y").set(v.y, Span());
         }
         Any rValueFromLValue(Value lValue) const
         {

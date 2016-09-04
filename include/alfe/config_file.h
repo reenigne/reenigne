@@ -270,7 +270,7 @@ public:
             else {
                 StructuredType s(type);
                 if (s.valid())
-                    s.setLValue(p, v);
+                    s.setLValue(p, v.convertTo(type));
                 else
                     p.set(v.convertTo(type), span);
             }
