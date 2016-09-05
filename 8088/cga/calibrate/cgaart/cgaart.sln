@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cga2ntsc", "cga2ntsc.vcxproj", "{2148EFFA-4014-454C-B7EB-BEF663B42D38}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cgaart", "cgaart.vcxproj", "{2148EFFA-4014-454C-B7EB-BEF663B42D38}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9A2909B9-8E75-4E3E-8A0E-31548D3A4698}"
 EndProject

@@ -480,7 +480,7 @@ What should we do about the "auto" combo members?
     Auto mode -HRES
     Auto palette/background (not in -GRPH)
     Does make any sense to have auto mode but not auto palette?
-      Not massively but let's allow it anyway - cga2ntsc is permissive
+      Not massively but let's allow it anyway - cgaart is permissive
 //   0x08 = 40-column text                        1 palette
 //   0x0a = 2bpp graphics                        64 palettes
 //   0x18 = 40-column text with 1bpp graphics     1 palette
@@ -793,8 +793,8 @@ Think about how to do temporal diffusion
 
 
       CGAOutput just reads/writes bitmaps
-      CGAOutput <-> Program <-> CGA2NTSCWindow <-> OutputWindow
-        Actually CGA2NTSCWindow can have a pointer to CGAOutput to simplify UI interactions
+      CGAOutput <-> Program <-> CGAArtWindow <-> OutputWindow
+        Actually CGAArtWindow can have a pointer to CGAOutput to simplify UI interactions
       We want to display a subBitmap of the output bitmap
         So, make draw() copy the relevant part of the output bitmap to the paint bitmap
           Why do we need this complicated setNextBitmap() business?
@@ -820,7 +820,7 @@ e has type LValue<Bitmap> and value (ConfigFile*, "inputPicture")
                   Also we'd like to able to continue to use the existing Structure* stuff, we don't want to force Structures to be owned by ConfigFiles
                   Really Structure must either always be owned by ConfigFile or never owned by ConfigFile, and we've already chosen never
                     So how can we keep track of our Bitmaps?
-                      For the purpose of cga2ntsc we can have a single one, but it would be nice to be a little more general
+                      For the purpose of cgaart we can have a single one, but it would be nice to be a little more general
                         Perhaps it would be better to have ConfigFile own all the Structures
                         Why did we do it this way in the first place?
                           Because for Berapa we didn't want the ConfigFile to have an active role after construction

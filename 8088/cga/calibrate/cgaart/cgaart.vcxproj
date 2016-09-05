@@ -13,7 +13,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{2148EFFA-4014-454C-B7EB-BEF663B42D38}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>cga2ntsc</RootNamespace>
+    <RootNamespace>cgaart</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -84,7 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="cga2ntsc.cpp" />
+    <ClCompile Include="cgaart.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\include\alfe\any.h" />

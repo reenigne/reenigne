@@ -12,8 +12,8 @@
 #include "alfe/image_filter.h"
 #include "alfe/wrap.h"
 
-template<class T> class CGA2NTSCWindowT;
-typedef CGA2NTSCWindowT<void> CGA2NTSCWindow;
+template<class T> class CGAArtWindowT;
+typedef CGAArtWindowT<void> CGAArtWindow;
 
 class CGAData : Uncopyable
 {
@@ -1990,7 +1990,7 @@ typedef CGAMatcherT<void> CGAMatcher;
 template<class T> class CGAOutputT : public ThreadTask
 {
 public:
-    CGAOutputT(CGAData* data, CGASequencer* sequencer, CGA2NTSCWindow* window)
+    CGAOutputT(CGAData* data, CGASequencer* sequencer, CGAArtWindow* window)
       : _data(data), _sequencer(sequencer), _window(window), _zoom(0),
         _aspectRatio(1), _inputTL(0, 0), _outputSize(0, 0), _active(false)
     { }
@@ -2036,9 +2036,8 @@ public:
             _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
             contrast = static_cast<float>(_contrast/100);
             static const double combDivisors[3] = {1, 2, 4};
-            double c = _contrast*256*(newCGA ? 1.2 : 1)/
-                (combDivisors[combFilter]*(white - black)*100);
-            _decoder.setContrast(c);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/((white - black)*100);
+            _decoder.setContrast(c/combDivisors[combFilter]);
             brightness = static_cast<float>(_brightness/100);
             _decoder.setBrightness((-black*c +
                 _brightness*5 + (newCGA ? -50 : 0))/256.0);
@@ -2691,7 +2690,8 @@ public:
         if (button) {
             if (!_dragging) {
                 _dragStart = position;
-                _dragStartInputPosition = inputForOutput(position);
+                _dragStartInputPosition = _inputTL +
+                    Vector2Cast<float>(position)/scale();
             }
             _inputTL =
                 _dragStartInputPosition - Vector2Cast<float>(position)/scale();
@@ -2711,14 +2711,6 @@ private:
     {
         return Vector2<float>(static_cast<float>(_aspectRatio)/2.0f, 1.0f)*
             static_cast<float>(_zoom);
-    }
-    Vector2<float> inputForOutput(Vector output)
-    {
-        return _inputTL + Vector2Cast<float>(output)/scale();
-    }
-    Vector2<float> outputForInput(Vector2<float> input)
-    {
-        return (input - _inputTL)*scale();
     }
 
     CGAData* _data;
@@ -2753,7 +2745,7 @@ private:
     CGAComposite _composite;
     FFTNTSCDecoder _decoder;
     Linearizer _linearizer;
-    CGA2NTSCWindow* _window;
+    CGAArtWindow* _window;
     Mutex _mutex;
 
     ScanlineRenderer _scaler;
@@ -2773,12 +2765,12 @@ private:
 
 typedef CGAOutputT<void> CGAOutput;
 
-template<class T> class CGA2NTSCWindowT : public RootWindow
+template<class T> class CGAArtWindowT : public RootWindow
 {
 public:
-    CGA2NTSCWindowT() : _outputWindow(this), _monitor(this), _videoCard(this)
+    CGAArtWindowT() : _outputWindow(this), _monitor(this), _videoCard(this)
     {
-        setText("CGA to NTSC");
+        setText("CGA Art");
         add(&_outputWindow);
         add(&_monitor);
         add(&_videoCard);
@@ -3149,7 +3141,7 @@ private:
     class OutputWindow : public BitmapWindow
     {
     public:
-        OutputWindow(CGA2NTSCWindow* host) : _host(host) { }
+        OutputWindow(CGAArtWindow* host) : _host(host) { }
         bool mouseInput(Vector position, int buttons, int wheel)
         {
             bool lButton = (buttons & MK_LBUTTON) != 0;
@@ -3160,12 +3152,12 @@ private:
         }
         void innerSizeSet(Vector size) { _host->_output->setOutputSize(size); }
     private:
-        CGA2NTSCWindow* _host;
+        CGAArtWindow* _host;
     };
     OutputWindow _outputWindow;
     struct MonitorGroup : public GroupBox
     {
-        MonitorGroup(CGA2NTSCWindow* host)
+        MonitorGroup(CGAArtWindow* host)
           : _host(host), _colour(host), _filter(host),
             _scanlines(host), _scaling(host)
         {
@@ -3202,7 +3194,7 @@ private:
         CaptionedDropDownList _connector;
         struct ColourGroup : public GroupBox
         {
-            ColourGroup(CGA2NTSCWindow* host) : _host(host)
+            ColourGroup(CGAArtWindow* host) : _host(host)
             {
                 KnobSliders* sliders = &host->_knobSliders;
                 setText("Colour");
@@ -3250,7 +3242,7 @@ private:
                 setInnerSize(
                     Vector(r, _showClipping.bottom()) + _host->groupBR());
             }
-            CGA2NTSCWindow* _host;
+            CGAArtWindow* _host;
             KnobSlider _brightness;
             KnobSlider _saturation;
             KnobSlider _contrast;
@@ -3260,7 +3252,7 @@ private:
         ColourGroup _colour;
         struct FilterGroup : public GroupBox
         {
-            FilterGroup(CGA2NTSCWindow* host) : _host(host)
+            FilterGroup(CGAArtWindow* host) : _host(host)
             {
                 KnobSliders* sliders = &host->_knobSliders;
                 setText("Filter");
@@ -3307,7 +3299,7 @@ private:
                 r = max(r, _rollOff.right());
                 setInnerSize(Vector(r, _rollOff.bottom()) + _host->groupBR());
             }
-            CGA2NTSCWindow* _host;
+            CGAArtWindow* _host;
             KnobSlider _chromaBandwidth;
             KnobSlider _lumaBandwidth;
             CaptionedDropDownList _combFilter;
@@ -3316,7 +3308,7 @@ private:
         FilterGroup _filter;
         struct ScanlinesGroup : public GroupBox
         {
-            ScanlinesGroup(CGA2NTSCWindow* host) : _host(host)
+            ScanlinesGroup(CGAArtWindow* host) : _host(host)
             {
                 setText("Scanlines");
                 _profile.setChanged(
@@ -3353,7 +3345,7 @@ private:
                 r = max(r, _bleeding.right());
                 setInnerSize(Vector(r, _bleeding.bottom()) + _host->groupBR());
             }
-            CGA2NTSCWindow* _host;
+            CGAArtWindow* _host;
             CaptionedDropDownList _profile;
             KnobSlider _width;
             CaptionedDropDownList _bleeding;
@@ -3361,7 +3353,7 @@ private:
         ScanlinesGroup _scanlines;
         struct ScalingGroup : public GroupBox
         {
-            ScalingGroup(CGA2NTSCWindow* host) : _host(host)
+            ScalingGroup(CGAArtWindow* host) : _host(host)
             {
                 KnobSliders* sliders = &host->_knobSliders;
                 setText("Scaling");
@@ -3390,17 +3382,17 @@ private:
                 setInnerSize(Vector(r, _aspectRatio.bottom()) +
                     _host->groupBR());
             }
-            CGA2NTSCWindow* _host;
+            CGAArtWindow* _host;
             KnobSlider _zoom;
             KnobSlider _aspectRatio;
         };
         ScalingGroup _scaling;
-        CGA2NTSCWindow* _host;
+        CGAArtWindow* _host;
     };
     MonitorGroup _monitor;
     struct VideoCardGroup : public GroupBox
     {
-        VideoCardGroup(CGA2NTSCWindow* host)
+        VideoCardGroup(CGAArtWindow* host)
           : _host(host), _registers(host), _matching(host)
         {
             setText("Video card");
@@ -3419,7 +3411,7 @@ private:
         }
         struct RegistersGroup : public GroupBox
         {
-            RegistersGroup(CGA2NTSCWindow* host) : _host(host)
+            RegistersGroup(CGAArtWindow* host) : _host(host)
             {
                 setText("Registers");
                 _mode.setChanged([&](int value) { _host->modeSet(value); });
@@ -3523,7 +3515,7 @@ private:
                 r = max(r, _flicker.right());
                 setInnerSize(Vector(r, _flicker.bottom()) + _host->groupBR());
             }
-            CGA2NTSCWindow* _host;
+            CGAArtWindow* _host;
             CaptionedDropDownList _mode;
             CheckBox _bw;
             CheckBox _blink;
@@ -3540,7 +3532,7 @@ private:
         RegistersGroup _registers;
         struct MatchingGroup : public GroupBox
         {
-            MatchingGroup(CGA2NTSCWindow* host) : _host(host)
+            MatchingGroup(CGAArtWindow* host) : _host(host)
             {
                 KnobSliders* sliders = &host->_knobSliders;
                 setText("Matching");
@@ -3641,7 +3633,7 @@ private:
                 setInnerSize(Vector(r, _characterSet.bottom()) +
                     _host->groupBR());
             }
-            CGA2NTSCWindow* _host;
+            CGAArtWindow* _host;
             ToggleButton _matchMode;
             KnobSlider _diffusionHorizontal;
             KnobSlider _diffusionVertical;
@@ -3653,7 +3645,7 @@ private:
             CaptionedDropDownList _characterSet;
         };
         MatchingGroup _matching;
-        CGA2NTSCWindow* _host;
+        CGAArtWindow* _host;
     };
     VideoCardGroup _videoCard;
     KnobSliders _knobSliders;
@@ -3822,7 +3814,7 @@ public:
     };
 };
 
-class Program : public WindowProgram<CGA2NTSCWindow>
+class Program : public WindowProgram<CGAArtWindow>
 {
 public:
     void run()

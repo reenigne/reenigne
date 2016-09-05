@@ -826,7 +826,7 @@ public:
         Complex<float> iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
             _contrast/iq.modulus()/static_cast<float>(_length);
-        _contrast2 = _contrast/_length;
+        float contrast = _contrast/_length;
         _brightness2 = _brightness*256.0f;
         int fLength = _length/2 + 1;
         float lumaHigh = _lumaBandwidth / 2;
@@ -839,10 +839,7 @@ public:
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
             float r;
-            if (_rollOff == 0)
-                r = 1;
-            else
-                r = sinc(d*rollOff);
+            r = sinc(d*rollOff);
             if (lumaHigh < chromaHigh)
                 r *= lumaCutoff*sinc(d*lumaCutoff);
             else {
@@ -856,15 +853,12 @@ public:
         }
         _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f)
-            _yResponse[f] = _frequency[f].x;
+            _yResponse[f] = _frequency[f].x*contrast;
 
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
             float r;
-            if (_rollOff == 0)
-                r = 1;
-            else
-                r = sinc(d*rollOff);
+            r = sinc(d*rollOff);
             r *= chromaCutoff*sinc(d*chromaCutoff);
             _yTime[t] = r;
             if (t > 0)
@@ -915,7 +909,7 @@ public:
         _backward.execute(_frequency, _qTime);
 
         for (int t = _padding; t < _padding + _outputLength; ++t) {
-            float y = _yTime[t]*_contrast2 + _brightness2;
+            float y = _yTime[t] + _brightness2;
             Complex<float> iq(_iTime[t], _qTime[t]);
             *srgb = SRGB(byteClamp(y + _ri*iq.x + _rq*iq.y),
                 byteClamp(y + _gi*iq.x + _gq*iq.y),
@@ -998,7 +992,6 @@ private:
     float _rq;
     float _gq;
     float _bq;
-    float _contrast2;
     float _brightness2;
     int _padding;
 
@@ -1110,7 +1103,7 @@ public:
     //    Complex<float> iqAdjust =
     //        -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
     //        _contrast/iq.modulus()/static_cast<float>(_length);
-    //    _contrast2 = _contrast/_length;
+    //    float contrast = _contrast/_length;
     //    _brightness2 = _brightness*256.0f;
     //    int fLength = _length/2 + 1;
     //    float lumaHigh = _lumaBandwidth / 2;
@@ -1123,10 +1116,7 @@ public:
     //    for (int t = 0; t < fLength; ++t) {
     //        float d = static_cast<float>(t);
     //        float r;
-    //        if (_rollOff == 0)
-    //            r = 1;
-    //        else
-    //            r = sinc(d*rollOff);
+//            r = sinc(d*rollOff);
     //        if (lumaHigh < chromaHigh)
     //            r *= lumaCutoff*sinc(d*lumaCutoff);
     //        else {
@@ -1140,15 +1130,12 @@ public:
     //    }
     //    _lumaForward.execute(_yTime, _frequency);
     //    for (int f = 0; f < fLength; ++f)
-    //        _yResponse[f] = _frequency[f].x;
+    //        _yResponse[f] = _frequency[f].x*contrast;
 
     //    for (int t = 0; t < fLength; ++t) {
     //        float d = static_cast<float>(t);
     //        float r;
-    //        if (_rollOff == 0)
-    //            r = 1;
-    //        else
-    //            r = sinc(d*rollOff);
+//            r = sinc(d*rollOff);
     //        r *= chromaCutoff*sinc(d*chromaCutoff);
     //        _yTime[t] = r;
     //        if (t > 0)
@@ -1209,7 +1196,7 @@ public:
     //    _backward.execute(_frequency, _qTime);
 
     //    for (int t = _padding; t < _padding + _outputLength; ++t) {
-    //        float y = _yTime[t]*_contrast2 + _brightness2;
+    //        float y = _yTime[t] + _brightness2;
     //        Complex<float> iq(_iTime[t], _qTime[t]);
     //        *srgb = SRGB(byteClamp(y + _ri*iq.x + _rq*iq.y),
     //            byteClamp(y + _gi*iq.x + _gq*iq.y),

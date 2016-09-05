@@ -1,3 +1,586 @@
+class Particle
+{
+public:
+    void plot(Bitmap<DWORD> bitmap, Vector rPosition)
+    {
+        Vector size = bitmap.size();
+        Byte* buffer = bitmap.data();
+        int byteWidth = bitmap.stride();
+        double zOffset = rPosition.x*0.01;
+        double scale = rPosition.y*0.01;
+        double x = _position.x/(_position.z + zOffset)*scale;
+        double y = _position.y/(_position.z + zOffset)*scale;
+        int x0 = static_cast<int>(size.x*x/5.0 + size.x/2);
+        int y0 = static_cast<int>(size.x*y/5.0 + size.y/2);
+        int r = byteClamp(_colour.x);
+        int g = byteClamp(_colour.y);
+        int b = byteClamp(_colour.z);
+        DWord c = (r << 16) | (g << 8) | b;
+        plot(bitmap, Vector(x0,     y0    ), c);
+        if (!_big) {
+            if (r < 16 && g < 16 && b < 16) {
+                c = 0xffffff;
+                plot(bitmap, Vector(x0 - 1, y0 - 1), c);
+                plot(bitmap, Vector(x0 + 1, y0 - 1), c);
+                plot(bitmap, Vector(x0 - 1, y0 + 1), c);
+                plot(bitmap, Vector(x0 + 1, y0 + 1), c);
+            }
+            return;
+        }
+        plot(bitmap, Vector(x0 - 1, y0 - 2), c);
+        plot(bitmap, Vector(x0,     y0 - 2), c);
+        plot(bitmap, Vector(x0 + 1, y0 - 2), c);
+        plot(bitmap, Vector(x0 - 2, y0 - 1), c);
+        plot(bitmap, Vector(x0 - 1, y0 - 1), c);
+        plot(bitmap, Vector(x0,     y0 - 1), c);
+        plot(bitmap, Vector(x0 + 1, y0 - 1), c);
+        plot(bitmap, Vector(x0 + 2, y0 - 1), c);
+        plot(bitmap, Vector(x0 - 2, y0    ), c);
+        plot(bitmap, Vector(x0 - 1, y0    ), c);
+        plot(bitmap, Vector(x0 + 1, y0    ), c);
+        plot(bitmap, Vector(x0 + 2, y0    ), c);
+        plot(bitmap, Vector(x0 - 2, y0 + 1), c);
+        plot(bitmap, Vector(x0 - 1, y0 + 1), c);
+        plot(bitmap, Vector(x0,     y0 + 1), c);
+        plot(bitmap, Vector(x0 + 1, y0 + 1), c);
+        plot(bitmap, Vector(x0 + 2, y0 + 1), c);
+        plot(bitmap, Vector(x0 - 1, y0 + 2), c);
+        plot(bitmap, Vector(x0,     y0 + 2), c);
+        plot(bitmap, Vector(x0 + 1, y0 + 2), c);
+        if (r < 16 && g < 16 && b < 16) {
+            c = 0xffffff;
+            plot(bitmap, Vector(x0 - 1, y0 - 3), c);
+            plot(bitmap, Vector(x0,     y0 - 3), c);
+            plot(bitmap, Vector(x0 + 1, y0 - 3), c);
+            plot(bitmap, Vector(x0 - 1, y0 + 3), c);
+            plot(bitmap, Vector(x0,     y0 + 3), c);
+            plot(bitmap, Vector(x0 + 1, y0 + 3), c);
+            plot(bitmap, Vector(x0 - 2, y0 - 2), c);
+            plot(bitmap, Vector(x0 + 2, y0 - 2), c);
+            plot(bitmap, Vector(x0 - 3, y0 - 1), c);
+            plot(bitmap, Vector(x0 + 3, y0 - 1), c);
+            plot(bitmap, Vector(x0 - 3, y0    ), c);
+            plot(bitmap, Vector(x0 + 3, y0    ), c);
+            plot(bitmap, Vector(x0 - 3, y0 + 1), c);
+            plot(bitmap, Vector(x0 + 3, y0 + 1), c);
+            plot(bitmap, Vector(x0 - 2, y0 + 2), c);
+            plot(bitmap, Vector(x0 + 2, y0 + 2), c);
+        }
+    }
+    void plot(Bitmap<DWORD> bitmap, Vector p, DWord c)
+    {
+        if (p.inside(bitmap.size()))
+            bitmap[p] = c;
+    }
+    bool operator<(const Particle& other) const { return _position.z > other._position.z; }
+    void transform(double* matrix)
+    {
+        Vector3<double> c = (_colour - Vector3<double>(128.0, 128.0, 128.0))/128.0;
+        _position.x = c.x*matrix[0] + c.y*matrix[1] + c.z*matrix[2];
+        _position.y = c.x*matrix[3] + c.y*matrix[4] + c.z*matrix[5];
+        _position.z = c.x*matrix[6] + c.y*matrix[7] + c.z*matrix[8];
+    }
+
+    Colour _colour;
+    Vector3<double> _position;
+    bool _big;
+};
+
+class GamutWindow : public BitmapWindow
+{
+public:
+    GamutWindow()
+      : _lButton(false), _rButton(false), _rPosition(1000, 1000), _particle(0),
+        _delta(0, 0)
+    {
+        _matrix[0] = 1; _matrix[1] = 0; _matrix[2] = 0;
+        _matrix[3] = 0; _matrix[4] = 1; _matrix[5] = 0;
+        _matrix[6] = 0; _matrix[7] = 0; _matrix[8] = 1;
+        setInnerSize(Vector(640, 480));
+    }
+    void create()
+    {
+        BitmapWindow::create();
+        reset();
+        draw();
+        invalidate();
+    }
+    void setAnimated(AnimatedWindow* animated) { _animated = animated; }
+    void paint()
+    {
+        _animated->restart();
+    }
+    void draw()
+    {
+        if (_delta.modulus2() >= 0.000001)
+            animate();
+        else
+            _animated->stop();
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(Vector(640, 480));
+        _bitmap.fill(0);
+        for (int i = 0; i < _particle; ++i)
+            _particles[i].transform(_matrix);
+        std::sort(&_particles[0], &_particles[_particle]);
+        for (int i = 0; i < _particle; ++i)
+            _particles[i].plot(_bitmap, _rPosition);
+        _bitmap = setNextBitmap(_bitmap);
+    }
+    void line(Colour c1, Colour c2)
+    {
+        for (int i = 0; i < 101; ++i)
+            add(c1*(i*0.01) + c2*((100-i)*0.01), false);
+    }
+    void reset()
+    {
+        _particle = 0;
+        line(Colour(0, 0, 0), Colour(255, 0, 0));
+        line(Colour(0, 0, 0), Colour(0, 255, 0));
+        line(Colour(0, 0, 0), Colour(0, 0, 255));
+        line(Colour(255, 0, 0), Colour(255, 255, 0));
+        line(Colour(255, 0, 0), Colour(255, 0, 255));
+        line(Colour(0, 255, 0), Colour(255, 255, 0));
+        line(Colour(0, 255, 0), Colour(0, 255, 255));
+        line(Colour(0, 0, 255), Colour(0, 255, 255));
+        line(Colour(0, 0, 255), Colour(255, 0, 255));
+        line(Colour(255, 255, 0), Colour(255, 255, 255));
+        line(Colour(255, 0, 255), Colour(255, 255, 255));
+        line(Colour(0, 255, 255), Colour(255, 255, 255));
+    }
+    void add(Colour c, bool big = true)
+    {
+        Particle p;
+        p._colour = c;
+        p._big = big;
+        if (_particle >= _particles.count())
+            _particles.append(p);
+        else
+            _particles[_particle] = p;
+        ++_particle;
+    }
+    bool mouseInput(Vector position, int buttons)
+    {
+        bool oldLButton = _lButton;
+        bool mouseDown = false;
+        if ((buttons & MK_LBUTTON) != 0 && !_lButton) {
+            _lButton = true;
+            mouseDown = true;
+            _lastPosition = position;
+        }
+        if ((buttons & MK_LBUTTON) == 0)
+            _lButton = false;
+        if ((buttons & MK_RBUTTON) != 0 && !_rButton) {
+            _rButton = true;
+            mouseDown = true;
+            _lastPosition = position;
+        }
+        if ((buttons & MK_RBUTTON) == 0)
+            _rButton = false;
+        if (_lButton) {
+            _delta = Vector2Cast<double>(position - _lastPosition)*0.01;
+            if (position != _lastPosition)
+                update();
+            _lastPosition = position;
+        }
+        else
+            if (oldLButton && _delta.modulus2() >= 0.000001)
+                _animated->start();
+        if (_rButton && position != _lastPosition) {
+            _rPosition += (position - _lastPosition);
+            _lastPosition = position;
+        }
+
+        return mouseDown;
+    }
+    void animate()
+    {
+        _rotor =
+            Rotor3<double>::yz(-_delta.y)*Rotor3<double>::zx(_delta.x)*_rotor;
+        _rotor.toMatrix(_matrix);
+        _delta *= 0.95;
+    }
+    void update()
+    {
+        animate();
+        invalidate();
+    }
+
+    Rotor3<double> _rotor;
+    double _matrix[9];
+    AppendableArray<Particle> _particles;
+    Vector _lastPosition;
+    Vector _rPosition;
+    bool _lButton;
+    bool _rButton;
+    Vector2<double> _delta;
+    AnimatedWindow* _animated;
+    Bitmap<DWORD> _bitmap;
+
+    int _particle;
+};
+
+//template<class T> class AutoBrightnessButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGAArtWindow* host) { _host = host; }
+//    void clicked() { _host->autoBrightnessPressed(); }
+//    void create()
+//    {
+//        setText("Auto");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGAArtWindow* _host;
+//};
+//typedef AutoBrightnessButtonWindowT<void> AutoBrightnessButtonWindow;
+//
+//template<class T> class AutoContrastClipButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGAArtWindow* host) { _host = host; }
+//    void clicked() { _host->autoContrastClipPressed(); }
+//    void create()
+//    {
+//        setText("No clipping");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGAArtWindow* _host;
+//};
+//typedef AutoContrastClipButtonWindowT<void>
+//    AutoContrastClipButtonWindow;
+//
+//template<class T> class AutoSaturationButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGAArtWindow* host) { _host = host; }
+//    void clicked() { _host->autoSaturationPressed(); }
+//    void create()
+//    {
+//        setText("Auto");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGAArtWindow* _host;
+//};
+//typedef AutoSaturationButtonWindowT<void> AutoSaturationButtonWindow;
+//
+//template<class T> class AutoContrastMonoButtonWindowT
+//  : public ToggleButton
+//{
+//public:
+//    void setHost(CGAArtWindow* host) { _host = host; }
+//    void clicked() { _host->autoContrastMonoPressed(); }
+//    void create()
+//    {
+//        setText("Fix black and white");
+//        ToggleButton::create();
+//    }
+//private:
+//    CGAArtWindow* _host;
+//};
+//typedef AutoContrastMonoButtonWindowT<void>
+//    AutoContrastMonoButtonWindow;
+//
+
+      //: _autoBrightnessFlag(false), _autoSaturationFlag(false),
+      //  _autoContrastClipFlag(false), _autoContrastMonoFlag(false),
+      //  _updating(true)
+
+        //add2(&_autoBrightness);
+        //add2(&_autoSaturation);
+        //add2(&_autoContrastClip);
+        //add2(&_autoContrastMono);
+        //add(&_blackText);
+        //add(&_whiteText);
+        //add(&_mostSaturatedText);
+        //add(&_clippedColoursText);
+        //add(&_gamut);
+        //add(&_animated);
+
+        //_animated.setDrawWindow(&_gamut);
+        //_gamut.setAnimated(&_animated);
+
+        //setInnerSize(Vector(_brightness.right() + 20, _gamut.bottom() + 20));
+
+        //_updating = false;
+        //update();
+        //uiUpdate();
+
+        //int w = max(_outputWindow.right(), _gamut.right()) + 20;
+        //_gamut.setPosition(Vector(20, _outputWindow.bottom() + 20));
+        //_autoBrightness.setPosition(_brightness.bottomLeft() + vSpace);
+        //_saturation.setPositionAndSize(_autoBrightness.bottomLeft() + 2*vSpace,
+        //    Vector(301, 24));
+        //_autoSaturation.setPosition(_saturation.bottomLeft() + vSpace);
+        //_contrast.setPositionAndSize(_autoSaturation.bottomLeft() + 2*vSpace,
+        //    Vector(301, 24));
+        //_autoContrastClip.setPosition(_contrast.bottomLeft() + vSpace);
+        //_autoContrastMono.setPosition(_autoContrastClip.topRight() +
+        //    Vector(20, 0));
+        //_hue.setPositionAndSize(_autoContrastClip.bottomLeft() + 2*vSpace,
+        //    Vector(301, 24));
+        //_blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
+        //_whiteText.setPosition(_blackText.bottomLeft());
+        //_mostSaturatedText.setPosition(_whiteText.bottomLeft());
+        //_clippedColoursText.setPosition(_mostSaturatedText.bottomLeft());
+        //_matchMode.setPosition(_clippedColoursText.bottomLeft() + 2*vSpace);
+    //void uiUpdate()
+    //{
+    //    _updating = true;
+    //    _whiteText.setText(format("White level: %f", _white));
+    //    _whiteText.layout();
+    //    _blackText.setText(format("Black level: %f", _black));
+    //    _blackText.layout();
+        //_blackText.setPosition(_newCGA.bottomLeft() + 2*vSpace);
+        //_whiteText.setPosition(_blackText.bottomLeft());
+        //_mostSaturatedText.setPosition(_whiteText.bottomLeft());
+        //_clippedColoursText.setPosition(_mostSaturatedText.bottomLeft());
+
+    //    _mostSaturatedText.setText(
+    //        format("Most saturated: %f", _maxSaturation));
+    //    _mostSaturatedText.layout();
+    //    _clippedColoursText.setText(format("%i colours clipped", _clips));
+    //    _clippedColoursText.layout();
+    //    _outputWindow.draw();
+    //    _outputWindow.invalidate();
+    //    _gamut.invalidate();
+    //    _updating = false;
+    //}
+    //Colour colourFromSeq(UInt64 seq)
+    //{
+    //    Byte ntsc[7];
+    //    int phase = (seq >> 32) & 3;
+    //    for (int x = 0; x < 7; ++x) {
+    //        ntsc[x] = _composite.simulateCGA(seq & 15, (seq >> 4) & 15,
+    //            (x + phase) & 3);
+    //        seq >>= 4;
+    //    }
+    //    return _decoder->decode(ntsc, phase);
+    //}
+    //void update()
+    //{
+    //    if (_updating)
+    //        return;
+    //    _composite.initChroma();
+    //    Byte burst[4];
+    //    for (int i = 0; i < 4; ++i)
+    //        burst[i] = _composite.simulateCGA(6, 6, i);
+    //    _decoder->calculateBurst(burst);
+    //    int s[4];
+    //    _composite.decode(0, s);
+    //    Colour black = _decoder->decode(s);
+    //    _black = 0.299*black.x + 0.587*black.y + 0.114*black.z;
+    //    _composite.decode(0xffff, s);
+    //    Colour white = _decoder->decode(s);
+    //    _white = 0.299*white.x + 0.587*white.y + 0.114*white.z;
+    //    _clips = 0;
+    //    _maxSaturation = 0;
+    //    _gamut.reset();
+    //    for (auto i : _colours) {
+    //        Colour c = colourFromSeq(i);
+    //        double r = c.x;
+    //        double g = c.y;
+    //        double b = c.z;
+    //        if (r < 0 || r >= 256 || g < 0 || g >= 256 || b < 0 || b >= 256) {
+    //            ++_clips;
+    //            _clipped = i;
+    //        }
+    //        double y = 0.299*r + 0.587*g + 0.114*b;
+    //        _maxSaturation =
+    //            max(_maxSaturation, (c - Colour(y, y, y)).modulus());
+    //        _gamut.add(c);
+    //    }
+    //    _gamut.draw();
+    //    _gamut.invalidate();
+    //}
+        //if (!_updating) {
+        //    update();
+        //    uiUpdate();
+        //}
+        //if (!_updating) {
+        //    update();
+        //    autoContrastClip();
+        //    uiUpdate();
+        //}
+        //if (!_updating) {
+        //    update();
+        //    autoBrightness();
+        //    autoSaturation();
+        //    uiUpdate();
+        //}
+        //if (!_updating) {
+        //    update();
+        //    allAutos();
+        //    uiUpdate();
+        //}
+        //if (!_updating) {
+        //    update();
+        //    uiUpdate();
+        //}
+        //if (!_updating) {
+        //    update();
+        //    uiUpdate();
+        //}
+        //_composite.setNewCGA(newCGA);
+        //update();
+        //allAutos();
+        //uiUpdate();
+    //void autoContrastClipPressed()
+    //{
+    //    _autoContrastClipFlag = _autoContrastClip.checked();
+    //    if (_autoContrastClipFlag) {
+    //        _autoContrastMono.uncheck();
+    //        _autoContrastMonoFlag = false;
+    //    }
+    //    autoContrastClip();
+    //    uiUpdate();
+    //}
+    //void autoContrastMonoPressed()
+    //{
+    //    _autoContrastMonoFlag = _autoContrastMono.checked();
+    //    if (_autoContrastMonoFlag) {
+    //        _autoContrastClip.uncheck();
+    //        _autoContrastClipFlag = false;
+    //    }
+    //    autoContrastMono();
+    //    autoBrightness();
+    //    uiUpdate();
+    //}
+    //void autoBrightnessPressed()
+    //{
+    //    _autoBrightnessFlag = _autoBrightness.checked();
+    //    autoContrastMono();
+    //    autoBrightness();
+    //    uiUpdate();
+    //}
+    //void autoSaturationPressed()
+    //{
+    //    _autoSaturationFlag = _autoSaturation.checked();
+    //    autoSaturation();
+    //    uiUpdate();
+    //}
+        //update();
+        //allAutos();
+        //uiUpdate();
+    //void allAutos()
+    //{
+    //    autoSaturation();
+    //    autoContrastClip();
+    //    autoContrastMono();
+    //    autoBrightness();
+    //}
+    //void autoBrightness(bool force = false)
+    //{
+    //    if (!false && !_autoBrightnessFlag)
+    //        return;
+    //    _brightness.setValue(_brightness.getValue() +
+    //        (256 - (_black + _white))/512);
+    //    update();
+    //}
+    //void autoSaturation()
+    //{
+    //    if (!_autoSaturationFlag)
+    //        return;
+    //    _saturation.setValue(_output->getSaturation()*sqrt(3.0)*
+    //        (_white - _black)/(2*_maxSaturation));
+    //    update();
+    //}
+    //void autoContrastClip()
+    //{
+    //    if (!_autoContrastClipFlag)
+    //        return;
+    //    double minContrast = 0;
+    //    double maxContrast = 2;
+    //    double contrast;
+    //    do {
+    //        contrast = (maxContrast + minContrast)/2;
+    //        setContrast(contrast);
+    //        update();
+    //        autoBrightness();
+    //        if (_clips == 1 || (maxContrast - minContrast) < 0.000001)
+    //            break;
+    //        else
+    //            if (_clips == 0)
+    //                minContrast = contrast;
+    //            else
+    //                maxContrast = contrast;
+    //    } while (true);
+    //    double midPoint = (_white + _black)/2;
+    //    double fudge = 0.99999;
+    //    for (int i = 0; i < 3; ++i) {
+    //        Colour c = colourFromSeq(_clipped);
+    //        double r = c.x;
+    //        double g = c.y;
+    //        double b = c.z;
+    //        bool found = false;
+    //        if (r < 0) {
+    //            contrast *= fudge*midPoint/(midPoint - r);
+    //            found = true;
+    //        }
+    //        if (!found && r >= 256) {
+    //            contrast *= fudge*midPoint/(r - midPoint);
+    //            found = true;
+    //        }
+    //        if (!found && g < 0) {
+    //            contrast *= fudge*midPoint/(midPoint - g);
+    //            found = true;
+    //        }
+    //        if (!found && g >= 256) {
+    //            contrast *= fudge*midPoint/(g - midPoint);
+    //            found = true;
+    //        }
+    //        if (!found && b < 0) {
+    //            contrast *= fudge*midPoint/(midPoint - b);
+    //            found = true;
+    //        }
+    //        if (!found && b >= 256)
+    //            contrast *= fudge*midPoint/(b - midPoint);
+    //        setContrast(contrast);
+    //        update();
+    //        autoBrightness();
+    //        autoSaturation();
+    //        if (_clips == 0)
+    //            break;
+    //    }
+    //}
+    //void autoContrastMono()
+    //{
+    //    if (!_autoContrastMonoFlag)
+    //        return;
+    //    _contrast.setValue(_output->getContrast() * 256/(_white - _black));
+    //    update();
+    //}
+    //void resetColours() { _colours = Set<UInt64>(); }
+    //void addColour(UInt64 seq) { _colours.add(seq); }
+
+    //AnimatedWindow _animated;
+    //AutoBrightnessButtonWindow _autoBrightness;
+    //AutoSaturationButtonWindow _autoSaturation;
+    //AutoContrastClipButtonWindow _autoContrastClip;
+    //AutoContrastMonoButtonWindow _autoContrastMono;
+    //TextWindow _blackText;
+    //TextWindow _whiteText;
+    //TextWindow _mostSaturatedText;
+    //TextWindow _clippedColoursText;
+    //GamutWindow _gamut;
+    //CGAComposite _composite;
+    //double _black;
+    //double _white;
+    //Set<UInt64> _colours;
+    //int _clips;
+    //double _maxSaturation;
+    //UInt64 _clipped;
+    //bool _autoBrightnessFlag;
+    //bool _autoSaturationFlag;
+    //bool _autoContrastClipFlag;
+    //bool _autoContrastMonoFlag;
+    //bool _updating;
+
+
 template<class T> class CGAOldMatcherT : public ThreadTask
 {
 public:
