@@ -8,6 +8,77 @@
 typedef Vector3<float> Colour;
 typedef Vector3<UInt8> SRGB;
 
+Colour labFromXyz(Colour xyz)
+{
+    static const Colour xyzWhite(95.047, 100, 108.883);
+    auto helper = [=](float t)
+    {
+        static const float d = 6.0f/29.0f;
+        static const float d3 = d*d*d;
+        static const float a = 1.0f/(3.0f*d*d);
+        static const float b = 4.0f/29.0f;
+        if (t > d3)
+            return pow(t, 1/3.0f);
+        return a*t + b;
+    };
+    Colour c = xyz/xyzWhite;
+    float y = helper(c.y);
+    return Colour(116.0f*y - 16.0f, 500.0f*(helper(c.x) - y),
+        200.0f*(y - helper(c.z)));
+}
+
+Colour xyzFromRgb(Colour rgb)
+{
+    return Colour(rgb.x*41.24 + rgb.y*35.76 + rgb.z*18.05,
+        rgb.x*21.26 + rgb.y*71.52 + rgb.z*7.22,
+        rgb.x*1.93 + rgb.y*11.92 + rgb.z*95.05);
+}
+
+Colour labFromRgb(Colour rgb) { return labFromXyz(xyzFromRgb(rgb)); }
+
+float deltaE2(Colour rgb1, Colour rgb2)
+{
+    Colour lab1 = labFromRgb(rgb1);
+    Colour lab2 = labFromRgb(rgb2);
+    float c1 = sqrt(lab1.y*lab1.y + lab1.z*lab1.z);
+    float c2 = sqrt(lab2.y*lab2.y + lab2.z*lab2.z);
+    float meanC = (c1 + c2)/2.0f;
+    float c3 = meanC*meanC*meanC;
+    float c7 = c3*c3*meanC;
+    static const float twentyFive7 = 25.0f*25.0f*25.0f*25.0f*25.0f*25.0f*25.0f;
+    float d = sqrt(c7/(c7 + twentyFive7));
+    float e = 1 + (1 - d)/2.0f;
+    float a1p = lab1.y*e;
+    float a2p = lab2.y*e;
+    float c1p = sqrt(a1p*a1p + lab1.z*lab1.z);
+    float c2p = sqrt(a2p*a2p + lab2.z*lab2.z);
+    float meanCp = (c1p + c2p)/2.0f;
+    static const float tauf = static_cast<float>(tau);
+    static const float degrees = 360.0f/tauf;
+    static const float pi = tauf/2;
+    float meanHp = (atan2(-lab1.z - lab2.z, -a1p - a2p) + pi);
+    float deltaHp = 2*sqrt(c1p*c2p)*
+        sin(atan2(lab2.z*a1p - a2p*lab1.z, a2p*a1p + lab2.z*lab1.z)/2);
+    static const float p1 = -30/degrees;
+    static const float p3 = 6/degrees;
+    static const float p4 = -63/degrees;
+    float t = 1 - 0.17*cos(meanHp + p1) + 0.24*cos(2*meanHp)
+        + 0.32*cos(3*meanHp + p3) - 0.20*cos(4*meanHp + p4);
+    float meanL = (lab1.x + lab2.x)/2 - 50;
+    float meanL2 = meanL*meanL;
+    float sL = 1 + 0.015f*meanL2/sqrt(20 + meanL2);
+    float f = (meanHp*degrees - 275)/25;
+    static const float g = 60/degrees;
+    float deltaL = lab2.x - lab1.x;
+    float deltaCp = c2p - c1p;
+    float l = deltaL/sL;
+    float sC = 1 + 0.045*meanCp;
+    float c = deltaCp/sC;
+    float sH = 1 + 0.015*meanCp*t;
+    float h = deltaHp/sH;
+    return l*l + c*c + h*h + -2*d*sin(g*exp(-f*f))*deltaCp*deltaHp/(sC*sH);
+}
+
 class ColourSpaceBody
 {
 public:
@@ -99,15 +170,7 @@ public:
     {
         return ColourSpace::rgb().toSrgb(toRgb(lab));
     }
-    Colour fromRgb(const Colour& rgb)
-    {
-        Colour xyz = ColourSpace::xyz().fromRgb(rgb);
-        float y = labFromXyzHelper(xyz.y);
-        return Colour(
-            116.0f*y - 16.0f,
-            500.0f*(labFromXyzHelper(xyz.x) - y),
-            200.0f*(y - labFromXyzHelper(xyz.z)));
-    }
+    Colour fromRgb(const Colour& rgb) { return labFromRgb(rgb); }
     Colour toRgb(const Colour& lab)
     {
         float y = (lab.x + 16.0f)/116.0f;
@@ -123,11 +186,6 @@ private:
         return t > d ? pow(t, 3.0f) : (t - 4.0f/29.0f)*3.0f*d*d;
     }
 
-    float labFromXyzHelper(float t)
-    {
-        static const float d = 6.0f/29.0f;
-        return t > d*d*d ? pow(t, 1.0f/3.0f) : t/(3.0f*d*d) + 4.0f/29.0f;
-    }
     LABColourSpaceBodyT() { }
     friend class ColourSpaceT<T>;
 };
