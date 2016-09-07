@@ -27,16 +27,43 @@ Colour labFromXyz(Colour xyz)
         200.0f*(y - helper(c.z)));
 }
 
+Colour luvFromXyz(Colour xyz)
+{
+    float x = xyz.x;
+    float y = xyz.y;
+    float z = xyz.z;
+    static const float d = 3.0f/29.0f;
+    static const float d2 = d*2.0f;
+    float l;
+    if (y <= d2*d2*d2)
+        l = y/(d*d*d);
+    else
+        l = 116.0f*pow(y, 1.0f/3.0f) - 16.0f;
+    float r = x + 15*y + 3*z;
+    float u;
+    float v;
+    if (r < 1.0e-5) {
+        u = 13.0f*l*(4.0f - 0.2105f);
+        v = 13.0f*l*(9.0f/15.0f - 0.4737f);
+    }
+    else {
+        u = 13.0f*l*(4.0f*x/r - 0.2105f);
+        v = 13.0f*l*(9.0f*y/r - 0.4737f);
+    }
+    return Colour(l, u, v);
+}
+
 Colour xyzFromRgb(Colour rgb)
 {
-    return Colour(rgb.x*41.24 + rgb.y*35.76 + rgb.z*18.05,
-        rgb.x*21.26 + rgb.y*71.52 + rgb.z*7.22,
-        rgb.x*1.93 + rgb.y*11.92 + rgb.z*95.05);
+    return Colour(rgb.x*41.24f + rgb.y*35.76f + rgb.z*18.05f,
+        rgb.x*21.26f + rgb.y*71.52f + rgb.z*7.22f,
+        rgb.x*1.93f + rgb.y*11.92f + rgb.z*95.05f);
 }
 
 Colour labFromRgb(Colour rgb) { return labFromXyz(xyzFromRgb(rgb)); }
+Colour luvFromRgb(Colour rgb) { return luvFromXyz(xyzFromRgb(rgb)); }
 
-float deltaE2(Colour rgb1, Colour rgb2)
+float deltaE2CIEDE2000(Colour rgb1, Colour rgb2)
 {
     Colour lab1 = labFromRgb(rgb1);
     Colour lab2 = labFromRgb(rgb2);
@@ -62,8 +89,8 @@ float deltaE2(Colour rgb1, Colour rgb2)
     static const float p1 = -30/degrees;
     static const float p3 = 6/degrees;
     static const float p4 = -63/degrees;
-    float t = 1 - 0.17*cos(meanHp + p1) + 0.24*cos(2*meanHp)
-        + 0.32*cos(3*meanHp + p3) - 0.20*cos(4*meanHp + p4);
+    float t = 1 - 0.17f*cos(meanHp + p1) + 0.24f*cos(2*meanHp)
+        + 0.32f*cos(3*meanHp + p3) - 0.20f*cos(4*meanHp + p4);
     float meanL = (lab1.x + lab2.x)/2 - 50;
     float meanL2 = meanL*meanL;
     float sL = 1 + 0.015f*meanL2/sqrt(20 + meanL2);
@@ -72,11 +99,36 @@ float deltaE2(Colour rgb1, Colour rgb2)
     float deltaL = lab2.x - lab1.x;
     float deltaCp = c2p - c1p;
     float l = deltaL/sL;
-    float sC = 1 + 0.045*meanCp;
+    float sC = 1 + 0.045f*meanCp;
     float c = deltaCp/sC;
-    float sH = 1 + 0.015*meanCp*t;
+    float sH = 1 + 0.015f*meanCp*t;
     float h = deltaHp/sH;
     return l*l + c*c + h*h + -2*d*sin(g*exp(-f*f))*deltaCp*deltaHp/(sC*sH);
+}
+
+float deltaE2Luv(Colour rgb1, Colour rgb2)
+{
+    return (luvFromRgb(rgb1) - luvFromRgb(rgb2)).modulus2();
+}
+
+float deltaE2CIE76(Colour rgb1, Colour rgb2)
+{
+    return (labFromRgb(rgb1) - labFromRgb(rgb2)).modulus2();
+}
+
+float deltaE2CIE94(Colour rgb1, Colour rgb2)
+{
+    Colour lab1 = labFromRgb(rgb1);
+    Colour lab2 = labFromRgb(rgb2);
+    float deltaL = lab1.x - lab2.x;
+    float c1 = sqrt(lab1.y*lab1.y + lab1.z*lab1.z);
+    float deltaC = c1 - sqrt(lab2.y*lab2.y + lab2.z*lab2.z);
+    float deltaa = lab1.y - lab2.y;
+    float deltab = lab1.z - lab2.z;
+    float c = deltaC/(1 + 0.045f*c1);
+    float sH = 1 + 0.015f*c1;
+    return deltaL*deltaL + c*c +
+        (deltaa*deltaa + deltab*deltab - deltaC*deltaC)/(sH*sH);
 }
 
 class ColourSpaceBody
@@ -104,32 +156,7 @@ public:
     {
         return ColourSpace::rgb().toSrgb(toRgb(luv));
     }
-    Colour fromRgb(const Colour& rgb)
-    {
-        Colour xyz = ColourSpace::xyz().fromRgb(rgb);
-        float x = xyz.x;
-        float y = xyz.y;
-        float z = xyz.z;
-        static const float d = 3.0f/29.0f;
-        static const float d2 = d*2.0f;
-        float l;
-        if (y <= d2*d2*d2)
-            l = y/(d*d*d);
-        else
-            l = 116.0f*pow(y, 1.0f/3.0f) - 16.0f;
-        float r = x + 15*y + 3*z;
-        float u;
-        float v;
-        if (r < 1.0e-5) {
-            u = 13.0f*l*(4.0f - 0.2105f);
-            v = 13.0f*l*(9.0f/15.0f - 0.4737f);
-        }
-        else {
-            u = 13.0f*l*(4.0f*x/r - 0.2105f);
-            v = 13.0f*l*(9.0f*y/r - 0.4737f);
-        }
-        return Colour(l, u, v);
-    }
+    Colour fromRgb(const Colour& rgb) { return luvFromRgb(rgb); }
     Colour toRgb(const Colour& luv)
     {
         float l = luv.x;
@@ -218,9 +245,6 @@ class RGBColourSpaceBody : public ColourSpaceBody
 public:
     Colour fromSrgb(const Colour& srgb)
     {
-        //return Colour(_lFromS[clamp(0, static_cast<int>(srgb.x+100), 255+200)],
-        //    _lFromS[clamp(0, static_cast<int>(srgb.y+100), 255+200)],
-        //    _lFromS[clamp(0, static_cast<int>(srgb.z+100), 255+200)]);
         return Colour(
             rgbFromSrgbHelper(srgb.x),
             rgbFromSrgbHelper(srgb.y),
@@ -228,9 +252,6 @@ public:
     }
     Colour toSrgb(const Colour& rgb)
     {
-        //return Colour(_sFromL[clamp(0, static_cast<int>(rgb.x*582.0+100), 582+200)],
-        //    _sFromL[clamp(0, static_cast<int>(rgb.y*582.0+100), 582+200)],
-        //    _sFromL[clamp(0, static_cast<int>(rgb.z*582.0+100), 582+200)]);
         return Colour(
             srgbFromRgbHelper(rgb.x),
             srgbFromRgbHelper(rgb.y),
@@ -249,17 +270,6 @@ private:
         t /= 256.0f;
         return t <= 0.04045f ? t/12.92f : pow((t + 0.055f)/(1 + 0.055f), 2.4f);
     }
-
-    //RGBColourSpaceBody()
-    //{
-    //    for (int s = 0; s < 256+200; ++s)
-    //        _lFromS[s] = rgbFromSrgbHelper(s-100);
-    //    for (int l = 0; l < 583+200; ++l)
-    //        _sFromL[l] = srgbFromRgbHelper(static_cast<float>(l-100)/582.0);
-    //}
-
-    //float _sFromL[583+200];
-    //float _lFromS[256+200];
 
     friend class ColourSpaceT<void>;
 };

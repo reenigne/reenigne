@@ -1801,22 +1801,40 @@ private:
                 Colour e = output - target;
                 *error = e;
 
-                if (_metric == 1)
-                    metric += e.modulus2();
-                else {
-                    SRGB t = _linearizer.srgb(target);
-                    float dr = static_cast<float>(o.x - t.x);
-                    float dg = static_cast<float>(o.y - t.y);
-                    float db = static_cast<float>(o.z - t.z);
-                    if (_metric == 0)
-                        metric += dr*dr + dg*dg + db*db;
-                    else {
-                        // Fast colour distance metric from
-                        // http://www.compuphase.com/cmetric.htm .
-                        float mr = (o.x + t.x)/512.0f;
-                        metric += _weights[x]*(4.0f*dg*dg +
-                            (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
-                    }
+                switch (_metric) {
+                    case 1:
+                        metric += e.modulus2();
+                        break;
+                    case 0:
+                    case 2:
+                        {
+                            SRGB t = _linearizer.srgb(target);
+                            float dr = static_cast<float>(o.x - t.x);
+                            float dg = static_cast<float>(o.y - t.y);
+                            float db = static_cast<float>(o.z - t.z);
+                            if (_metric == 0)
+                                metric += dr*dr + dg*dg + db*db;
+                            else {
+                                // Fast colour distance metric from
+                                // http://www.compuphase.com/cmetric.htm .
+                                float mr = (o.x + t.x)/512.0f;
+                                metric += _weights[x]*(4.0f*dg*dg +
+                                    (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
+                            }
+                        }
+                        break;
+                    case 3:
+                        metric += deltaE2Luv(output, target);
+                        break;
+                    case 4:
+                        metric += deltaE2CIE76(output, target);
+                        break;
+                    case 5:
+                        metric += deltaE2CIE94(output, target);
+                        break;
+                    case 6:
+                        metric += deltaE2CIEDE2000(output, target);
+                        break;
                 }
 
                 ++input;
