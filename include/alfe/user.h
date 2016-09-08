@@ -1151,6 +1151,35 @@ private:
     double _pos;
 };
 
+class ProgressBar : public WindowsWindow
+{
+public:
+    ProgressBar() : _pos(0)
+    {
+        setClassName(PROGRESS_CLASS);
+        setStyle(WS_CHILD | WS_VISIBLE | PBS_SMOOTH);
+    }
+    virtual void valueSet(double value) { }
+    void create()
+    {
+        WindowsWindow::create();
+        SendMessage(_hWnd, PBM_SETRANGE, static_cast<WPARAM>(TRUE),
+            static_cast<LPARAM>(MAKELONG(0, 16384)));
+        setValue(_pos);
+    }
+    void setValue(float pos)
+    {
+        _pos = pos;
+        if (_hWnd != NULL) {
+            int iPos = static_cast<int>(pos*16384 + 0.5);
+            SendMessage(_hWnd, PBM_SETPOS, static_cast<WPARAM>(iPos),
+                static_cast<LPARAM>(0));
+        }
+    }
+private:
+    float _pos;
+};
+
 template<class T> class NumericSliderWindow
 {
 public:

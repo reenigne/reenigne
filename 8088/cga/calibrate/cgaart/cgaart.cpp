@@ -908,6 +908,7 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
+        _program->setProgress(0);
         int blockLap = (_connector == 0 ? 0 : 3);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
@@ -1542,6 +1543,8 @@ public:
                     bytesPerRow, &_rowData[1]);
             }
             _program->updateOutput();
+            _program->setProgress(static_cast<float>(row*banks + bank)/
+                (_verticalDisplayed*banks));
 
             ++bank;
             inputRow += _blockHeight*_scaled.stride();
@@ -1554,9 +1557,10 @@ public:
                 bank = 0;
                 ++row;
                 if (row >= _verticalDisplayed)
-                    return;
+                    break;
             }
         } // while (!cancelling())
+        _program->setProgress(-1);
     }
 
     void setDiffusionHorizontal(double diffusionHorizontal)
@@ -3148,6 +3152,12 @@ public:
         return Vector(point.x, point.y) -
             _outputWindow.clientToScreen(Vector(0, 0));
     }
+    void setProgress(float progress)
+    {
+        _videoCard._matching._progressBar.show(
+            progress >= 0 ? SW_SHOW : SW_HIDE);
+        _videoCard._matching._progressBar.setValue(progress);
+    }
 private:
     Vector vSpace() { return Vector(0, 15); }
     Vector hSpace() { return Vector(15, 0); }
@@ -3558,6 +3568,8 @@ private:
                     [&](bool value) { _host->matchModeSet(value); });
                 _matchMode.setText("Match");
                 add(&_matchMode);
+                _progressBar.setText("Progress");
+                add(&_progressBar);
                 _diffusionHorizontal.setSliders(sliders);
                 _diffusionHorizontal.setValueSet(
                     [&](double value) {
@@ -3650,9 +3662,13 @@ private:
                 r = max(r, _characterSet.right());
                 setInnerSize(Vector(r, _characterSet.bottom()) +
                     _host->groupBR());
+                _progressBar.setTopLeft(_matchMode.topRight() + hSpace);
+                _progressBar.setInnerSize(Vector(r - _progressBar.topLeft().x,
+                    _matchMode.outerSize().y));
             }
             CGAArtWindow* _host;
             ToggleButton _matchMode;
+            ProgressBar _progressBar;
             KnobSlider _diffusionHorizontal;
             KnobSlider _diffusionVertical;
             KnobSlider _diffusionTemporal;
@@ -4089,6 +4105,7 @@ public:
         _updateNeeded = true;
         _interruptMessageLoop.signal();
     }
+    void setProgress(float progress) { _window.setProgress(progress); }
     bool idle()
     {
         if (_updateNeeded) {
