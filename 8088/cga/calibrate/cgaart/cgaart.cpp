@@ -2068,8 +2068,18 @@ public:
             _decoder.setRollOff(_rollOff);
             _decoder.setChromaNotch(combFilter == 0);
             _scaler.setProfile(_scanlineProfile);
+            _scaler.setHorizontalProfile(_horizontalProfile);
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
             _scaler.setBleeding(_scanlineBleeding);
+            _scaler.setHorizontalBleeding(_horizontalBleeding);
+            _scaler.setHorizontalRollOff(
+                static_cast<float>(_horizontalRollOff));
+            _scaler.setVerticalRollOff(static_cast<float>(_verticalRollOff));
+            _scaler.setSubPixelSeparation(
+                static_cast<float>(_subPixelSeparation));
+            _scaler.setPhosphor(_phosphor);
+            _scaler.setMask(_mask);
+            _scaler.setMaskSize(static_cast<float>(_maskSize));
             _scaler.setZoom(scale());
         }
 
@@ -2223,7 +2233,7 @@ public:
         activeSize -= Vector2<float>(272, 62);
 
         if (outputSize.zeroArea()) {
-            inputTL = Vector2<float>(160, 38.25f) - overscan*activeSize;
+            inputTL = Vector2<float>(160, 38) - overscan*activeSize;
             double o = 1 + 2*overscan;
             double y = zoom*activeSize.y*o;
             double x = zoom*activeSize.x*o*aspectRatio/2;
@@ -2520,6 +2530,15 @@ public:
         restart();
     }
     int getScanlineProfile() { return _scanlineProfile; }
+    void setHorizontalProfile(int profile)
+    {
+        {
+            Lock lock(&_mutex);
+            _horizontalProfile = profile;
+        }
+        restart();
+    }
+    int getHorizontalProfile() { return _horizontalProfile; }
     void setScanlineWidth(double width)
     {
         {
@@ -2538,6 +2557,15 @@ public:
         restart();
     }
     int getScanlineBleeding() { return _scanlineBleeding; }
+    void setHorizontalBleeding(int bleeding)
+    {
+        {
+            Lock lock(&_mutex);
+            _horizontalBleeding = bleeding;
+        }
+        restart();
+    }
+    int getHorizontalBleeding() { return _horizontalBleeding; }
     void setZoom(double zoom)
     {
         if (zoom == 0)
@@ -2561,6 +2589,60 @@ public:
         restart();
     }
     double getZoom() { return _zoom; }
+    void setHorizontalRollOff(double rollOff)
+    {
+        {
+            Lock lock(&_mutex);
+            _horizontalRollOff = rollOff;
+        }
+        restart();
+    }
+    double getHorizontalRollOff() { return _horizontalRollOff; }
+    void setVerticalRollOff(double rollOff)
+    {
+        {
+            Lock lock(&_mutex);
+            _verticalRollOff = rollOff;
+        }
+        restart();
+    }
+    double getVerticalRollOff() { return _verticalRollOff; }
+    void setSubPixelSeparation(double separation)
+    {
+        {
+            Lock lock(&_mutex);
+            _subPixelSeparation = separation;
+        }
+        restart();
+    }
+    double getSubPixelSeparation() { return _subPixelSeparation; }
+    void setPhosphor(int phosphor)
+    {
+        {
+            Lock lock(&_mutex);
+            _phosphor = phosphor;
+        }
+        restart();
+    }
+    int getPhosphor() { return _phosphor; }
+    void setMask(int mask)
+    {
+        {
+            Lock lock(&_mutex);
+            _mask = mask;
+        }
+        restart();
+    }
+    int getMask() { return _mask; }
+    void setMaskSize(double size)
+    {
+        {
+            Lock lock(&_mutex);
+            _maskSize = size;
+        }
+        restart();
+    }
+    double getMaskSize() { return _maskSize; }
     void setAspectRatio(double ratio)
     {
         if (ratio == 0)
@@ -2744,8 +2826,16 @@ private:
     int _connector;
     int _phase;
     int _scanlineProfile;
+    int _horizontalProfile;
     double _scanlineWidth;
     int _scanlineBleeding;
+    int _horizontalBleeding;
+    double _horizontalRollOff;
+    double _verticalRollOff;
+    double _subPixelSeparation;
+    int _phosphor;
+    int _mask;
+    double _maskSize;
     double _zoom;
     double _aspectRatio;
     double _overscan;
@@ -2812,9 +2902,19 @@ public:
         _monitor._filter._lumaBandwidth.setValue(_output->getLumaBandwidth());
         _monitor._filter._rollOff.setValue(_output->getRollOff());
         _monitor._filter._combFilter.set(_output->getCombFilter());
+        _monitor._phosphors._phosphor.set(_output->getPhosphor());
+        _monitor._phosphors._mask.set(_output->getMask());
+        _monitor._phosphors._maskSize.setValue(_output->getMaskSize());
+        _monitor._horizontal._profile.set(_output->getHorizontalProfile());
+        _monitor._horizontal._bleeding.set(_output->getHorizontalBleeding());
+        _monitor._horizontal._rollOff.setValue(
+            _output->getHorizontalRollOff());
+        _monitor._horizontal._subPixelSeparation.setValue(
+            _output->getSubPixelSeparation());
         _monitor._scanlines._profile.set(_output->getScanlineProfile());
         _monitor._scanlines._width.setValue(_output->getScanlineWidth());
         _monitor._scanlines._bleeding.set(_output->getScanlineBleeding());
+        _monitor._scanlines._rollOff.setValue(_output->getVerticalRollOff());
         _monitor._scaling._zoom.setValue(_output->getZoom());
         _monitor._scaling._aspectRatio.setValue(_output->getAspectRatio());
         int mode = _matcher->getMode();
@@ -2892,13 +2992,13 @@ public:
     }
     void layout()
     {
-        Vector pad(20, 20);
-        _outputWindow.setTopLeft(pad);
+        Vector p = pad();
+        _outputWindow.setTopLeft(p);
         int r = _outputWindow.right();
-        _videoCard.setTopLeft(_outputWindow.bottomLeft() + Vector(0, pad.y));
+        _videoCard.setTopLeft(_outputWindow.bottomLeft() + Vector(0, p.y));
         r = max(r, _videoCard.right());
-        _monitor.setTopLeft(_outputWindow.topRight() + Vector(pad.x, 0));
-        setInnerSize(pad + Vector(_monitor.right(),
+        _monitor.setTopLeft(_outputWindow.topRight() + Vector(p.x, 0));
+        setInnerSize(p + Vector(_monitor.right(),
             max(_videoCard.bottom(), _monitor.bottom())));
     }
     void keyboardCharacter(int character)
@@ -2915,7 +3015,11 @@ public:
         _monitor._filter._chromaBandwidth.setConfig(config);
         _monitor._filter._lumaBandwidth.setConfig(config);
         _monitor._filter._rollOff.setConfig(config);
+        _monitor._phosphors._maskSize.setConfig(config);
+        _monitor._horizontal._rollOff.setConfig(config);
+        _monitor._horizontal._subPixelSeparation.setConfig(config);
         _monitor._scanlines._width.setConfig(config);
+        _monitor._scanlines._rollOff.setConfig(config);
         _monitor._scaling._zoom.setConfig(config);
         _monitor._scaling._aspectRatio.setConfig(config);
         _videoCard._matching._diffusionHorizontal.setConfig(config);
@@ -3041,6 +3145,29 @@ public:
     {
         _output->setScanlineBleeding(value);
     }
+    void verticalRollOffsetSet(double value)
+    {
+        _output->setVerticalRollOff(value);
+    }
+    void horizontalProfileSet(int value)
+    {
+        _output->setHorizontalProfile(value);
+    }
+    void horizontalBleedingSet(int value)
+    {
+        _output->setHorizontalBleeding(value);
+    }
+    void horizontalRollOffsetSet(double value)
+    {
+        _output->setHorizontalRollOff(value);
+    }
+    void subPixelSeparationSet(double value)
+    {
+        _output->setSubPixelSeparation(value);
+    }
+    void phosphorSet(int value) { _output->setPhosphor(value); }
+    void maskSet(int value) { _output->setMask(value); }
+    void maskSizeSet(double value) { _output->setMaskSize(value); }
     void aspectRatioSet(double value) { _output->setAspectRatio(value); }
     void combFilterSet(int value) { _output->setCombFilter(value); }
     void bwSet(bool value)
@@ -3165,6 +3292,7 @@ private:
     Vector groupBR() { return Vector(15, 15); }
     Vector pad() { return Vector(20, 20); }
     Vector groupVSpace() { return Vector(0, 10); }
+    Vector groupHSpace() { return Vector(10, 0); }
 
     class OutputWindow : public BitmapWindow
     {
@@ -3186,8 +3314,8 @@ private:
     struct MonitorGroup : public GroupBox
     {
         MonitorGroup(CGAArtWindow* host)
-          : _host(host), _colour(host), _filter(host),
-            _scanlines(host), _scaling(host)
+          : _host(host), _colour(host), _filter(host), _scanlines(host),
+            _horizontal(host), _phosphors(host), _scaling(host)
         {
             setText("Monitor");
             _connector.setChanged(
@@ -3200,24 +3328,33 @@ private:
             add(&_connector);
             add(&_colour);
             add(&_filter);
+            add(&_phosphors);
+            add(&_horizontal);
             add(&_scanlines);
             add(&_scaling);
         }
         void layout()
         {
             Vector vSpace = _host->vSpace();
+            Vector gv = _host->groupVSpace();
             _connector.setTopLeft(_host->groupTL());
             int r = _connector.right();
-            _colour.setTopLeft(_connector.bottomLeft() + _host->groupVSpace());
+            _colour.setTopLeft(_connector.bottomLeft() + gv);
             r = max(r, _colour.right());
-            _filter.setTopLeft(_colour.bottomLeft() + _host->groupVSpace());
+            _filter.setTopLeft(_colour.bottomLeft() + gv);
             r = max(r, _filter.right());
-            _scanlines.setTopLeft(_filter.bottomLeft() + _host->groupVSpace());
+            _phosphors.setTopLeft(_filter.bottomLeft() + gv);
+            r = max(r, _phosphors.right());
+            _horizontal.setTopLeft(
+                Vector(r, _colour.top()) + _host->groupHSpace());
+            r = _horizontal.right();
+            _scanlines.setTopLeft(_horizontal.bottomLeft() + gv);
             r = max(r, _scanlines.right());
-            _scaling.setTopLeft(
-                _scanlines.bottomLeft() + _host->groupVSpace());
+            _scaling.setTopLeft(_scanlines.bottomLeft() + gv);
             r = max(r, _scaling.right());
-            setInnerSize(Vector(r, _scaling.bottom()) + _host->groupBR());
+            setInnerSize(
+                Vector(r, max(_phosphors.bottom(), _scaling.bottom())) +
+                _host->groupBR());
         }
         CaptionedDropDownList _connector;
         struct ColourGroup : public GroupBox
@@ -3334,6 +3471,117 @@ private:
             KnobSlider _rollOff;
         };
         FilterGroup _filter;
+        struct PhosphorsGroup : public GroupBox
+        {
+            PhosphorsGroup(CGAArtWindow* host) : _host(host)
+            {
+                setText("Phosphors");
+                _phosphor.setChanged(
+                    [&](int value) { _host->phosphorSet(value); });
+                _phosphor.setText("Colour: ");
+                _phosphor.add("RGB");
+                _phosphor.add("green");
+                _phosphor.add("amber");
+                _phosphor.add("white");
+                _phosphor.add("blue");
+                add(&_phosphor);
+                _mask.setChanged([&](int value) { _host->maskSet(value); });
+                _mask.setText("Mask: ");
+                _mask.add("shadow mask");
+                _mask.add("aperture grille");
+                add(&_mask);
+                _maskSize.setSliders(&_host->_knobSliders);
+                _maskSize.setValueSet(
+                    [&](double value) { _host->maskSizeSet(value); });
+                _maskSize.setText("Size: ");
+                _maskSize.setRange(0, 2);
+                add(&_maskSize);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                _phosphor.setTopLeft(_host->groupTL());
+                int r = _phosphor.right();
+                _mask.setTopLeft(_phosphor.bottomLeft() + vSpace);
+                r = max(r, _mask.right());
+                _maskSize.setTopLeft(_mask.bottomLeft() + vSpace);
+                r = max(r, _maskSize.right());
+                setInnerSize(Vector(r, _maskSize.bottom()) + _host->groupBR());
+            }
+            CGAArtWindow* _host;
+            CaptionedDropDownList _phosphor;
+            CaptionedDropDownList _mask;
+            KnobSlider _maskSize;
+        };
+        PhosphorsGroup _phosphors;
+        struct ProfileDropDown : public CaptionedDropDownList
+        {
+            ProfileDropDown()
+            {
+                setText("Profile: ");
+                add("rectangle");
+                add("triangle");
+                add("circle");
+                add("gaussian");
+                add("sinc");
+                add("box");
+            }
+        };
+        struct BleedingDropDown : public CaptionedDropDownList
+        {
+            BleedingDropDown()
+            {
+                setText("Bleeding: ");
+                add("none");
+                add("down");
+                add("symmetrical");
+            }
+        };
+        struct HorizontalGroup : public GroupBox
+        {
+            HorizontalGroup(CGAArtWindow* host) : _host(host)
+            {
+                setText("Horizontal");
+                _profile.setChanged(
+                    [&](int value) { _host->horizontalProfileSet(value); });
+                add(&_profile);
+                _bleeding.setChanged(
+                    [&](int value) { _host->horizontalBleedingSet(value); });
+                add(&_bleeding);
+                _rollOff.setSliders(&_host->_knobSliders);
+                _rollOff.setValueSet(
+                    [&](double value) { _host->rollOffSet(value); });
+                _rollOff.setText("Roll-off: ");
+                _rollOff.setRange(0, 1);
+                add(&_rollOff);
+                _subPixelSeparation.setSliders(&_host->_knobSliders);
+                _subPixelSeparation.setValueSet([&](double value) {
+                    _host->subPixelSeparationSet(value); });
+                _subPixelSeparation.setText("Sub-pixel separation: ");
+                _subPixelSeparation.setRange(-1, 1);
+                add(&_subPixelSeparation);
+            }
+            void layout()
+            {
+                Vector vSpace = _host->vSpace();
+                _profile.setTopLeft(_host->groupTL());
+                int r = _profile.right();
+                _bleeding.setTopLeft(_profile.bottomLeft() + vSpace);
+                r = max(r, _bleeding.right());
+                _rollOff.setTopLeft(_bleeding.bottomLeft() + vSpace);
+                r = max(r, _rollOff.right());
+                _subPixelSeparation.setTopLeft(_rollOff.bottomLeft() + vSpace);
+                r = max(r, _subPixelSeparation.right());
+                setInnerSize(Vector(r,
+                    _subPixelSeparation.bottom()) + _host->groupBR());
+            }
+            CGAArtWindow* _host;
+            ProfileDropDown _profile;
+            BleedingDropDown _bleeding;
+            KnobSlider _rollOff;
+            KnobSlider _subPixelSeparation;
+        };
+        HorizontalGroup _horizontal;
         struct ScanlinesGroup : public GroupBox
         {
             ScanlinesGroup(CGAArtWindow* host) : _host(host)
@@ -3341,12 +3589,6 @@ private:
                 setText("Scanlines");
                 _profile.setChanged(
                     [&](int value) { _host->scanlineProfileSet(value); });
-                _profile.setText("Profile: ");
-                _profile.add("rectangle");
-                _profile.add("triangle");
-                _profile.add("circle");
-                _profile.add("gaussian");
-                _profile.add("sinc");
                 add(&_profile);
                 _width.setSliders(&_host->_knobSliders);
                 _width.setValueSet(
@@ -3356,11 +3598,13 @@ private:
                 add(&_width);
                 _bleeding.setChanged(
                     [&](int value) { _host->scanlineBleedingSet(value); });
-                _bleeding.setText("Bleeding: ");
-                _bleeding.add("none");
-                _bleeding.add("down");
-                _bleeding.add("symmetrical");
                 add(&_bleeding);
+                _rollOff.setSliders(&_host->_knobSliders);
+                _rollOff.setValueSet(
+                    [&](double value) { _host->rollOffSet(value); });
+                _rollOff.setText("Roll-off: ");
+                _rollOff.setRange(0, 1);
+                add(&_rollOff);
             }
             void layout()
             {
@@ -3371,12 +3615,14 @@ private:
                 r = max(r, _width.right());
                 _bleeding.setTopLeft(_width.bottomLeft() + vSpace);
                 r = max(r, _bleeding.right());
-                setInnerSize(Vector(r, _bleeding.bottom()) + _host->groupBR());
+                _rollOff.setTopLeft(_bleeding.bottomLeft() + vSpace);
+                setInnerSize(Vector(r, _rollOff.bottom()) + _host->groupBR());
             }
             CGAArtWindow* _host;
-            CaptionedDropDownList _profile;
+            ProfileDropDown _profile;
             KnobSlider _width;
-            CaptionedDropDownList _bleeding;
+            BleedingDropDown _bleeding;
+            KnobSlider _rollOff;
         };
         ScanlinesGroup _scanlines;
         struct ScalingGroup : public GroupBox
@@ -3888,8 +4134,16 @@ public:
         configFile.addDefaultOption("aspectRatio", 5.0/6.0);
         configFile.addDefaultOption("scanlineWidth", 0.5);
         configFile.addDefaultOption("scanlineProfile", 0);
+        configFile.addDefaultOption("horizontalProfile", 0);
         configFile.addDefaultOption("scanlineBleeding", 2);
+        configFile.addDefaultOption("horizontalBleeding", 2);
         configFile.addDefaultOption("zoom", 2.0);
+        configFile.addDefaultOption("horizontalRollOff", 0.0);
+        configFile.addDefaultOption("verticalRollOff", 0.0);
+        configFile.addDefaultOption("subPixelSeparation", 1.0);
+        configFile.addDefaultOption("phosphor", 0);
+        configFile.addDefaultOption("mask", 0);
+        configFile.addDefaultOption("maskSize", 0.0);
         configFile.addDefaultOption("overscan", 0.1);
         configFile.addDefaultOption("phase", 1);
         configFile.addDefaultOption("interactive", true);
@@ -3986,8 +4240,19 @@ public:
         matcher.setConnector(connector);
         output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
+        output.setHorizontalProfile(configFile.get<int>("horizontalProfile"));
         output.setZoom(configFile.get<double>("zoom"));
         output.setScanlineBleeding(configFile.get<int>("scanlineBleeding"));
+        output.setHorizontalBleeding(
+            configFile.get<int>("horizontalBleeding"));
+        output.setHorizontalRollOff(
+            configFile.get<double>("horizontalRollOff"));
+        output.setVerticalRollOff(configFile.get<double>("verticalRollOff"));
+        output.setSubPixelSeparation(
+            configFile.get<double>("subPixelSeparation"));
+        output.setPhosphor(configFile.get<int>("phosphor"));
+        output.setMask(configFile.get<int>("mask"));
+        output.setMaskSize(configFile.get<double>("maskSize"));
         output.setAspectRatio(configFile.get<double>("aspectRatio"));
         double overscan = configFile.get<double>("overscan");
         output.setOverscan(overscan);
@@ -4088,9 +4353,22 @@ public:
         s += "overscan = " + format("%6f", overscan) + ";\n";
         s += "scanlineProfile = " + decimal(output.getScanlineProfile()) +
             ";\n";
+        s += "horizontalProfile = " + decimal(output.getHorizontalProfile()) +
+            ";\n";
         s += "scanlineBleeding = " + decimal(output.getScanlineBleeding()) +
             ";\n";
+        s += "horizontalBleeding = " +
+            decimal(output.getHorizontalBleeding()) + ";\n";
         s += "zoom = " + format("%6f", output.getZoom()) + ";\n";
+        s += "horizontalRollOff = " +
+            format("%6f", output.getHorizontalRollOff()) + ";\n";
+        s += "verticalRollOff = " +
+            format("%6f", output.getVerticalRollOff()) + ";\n";
+        s += "subPixelSeparation = " + format("%6f",
+            output.getSubPixelSeparation()) + ";\n";
+        s += "phosphor = " + decimal(output.getPhosphor()) + ";\n";
+        s += "mask = " + decimal(output.getMask()) + ";\n";
+        s += "maskSize = " + format("%6f", output.getMaskSize()) + ";\n";
         s += "interactive = " + String::Boolean(interactive) + ";\n";
         s += "fftWisdom = " + enquote(fftWisdomFile) + ";\n";
         File(inputFileName + "_out.config", true).save(s);

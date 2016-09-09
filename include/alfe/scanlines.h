@@ -50,86 +50,20 @@ float sinint(float x)
 class ScanlineRenderer
 {
 public:
+    ScanlineRenderer()
+      : _profile(4), _horizontalProfile(4), _width(1), _bleeding(2),
+        _horizontalBleeding(2), _horizontalRollOff(0), _verticalRollOff(0),
+        _subPixelSeparation(0), _phosphor(0), _mask(0), _maskSize(0)
+    { }
     void init()
     {
         float kernelRadiusVertical = 16;
-        std::function<float(float)> verticalKernel;
-        switch (_profile) {
-            case 0:
-                // Rectangle
-                {
-                    float a = 2.0f/(static_cast<float>(tau)*_width);
-                    float b = 0.5f*_zoom.y*static_cast<float>(tau)*_width/2.0f;
-                    float c = 0.5f*_zoom.y*static_cast<float>(tau);
-                    verticalKernel = [=](float d)
-                    {
-                        return a*(sinint(b + c*d) + sinint(b - c*d));
-                    };
-                }
-                break;
-            case 1:
-                // Triangle
-                verticalKernel = [=](float distance)
-                {
-                    float b = 0.5f*_zoom.y;
-                    float w = 0.5f*_width;
-                    float f = distance;
-                    float t = static_cast<float>(tau);
-                    return (
-                        +2*t*(f-w)*b*sinint(t*(f-w)*b)
-                        +2*t*(f+w)*b*sinint(t*(f+w)*b)
-                        -4*t*f*b*sinint(t*f*b)
-                        +2*cos(b*t*(f-w))
-                        +2*cos(b*t*(f+w))
-                        -4*cos(b*t*f)
-                        )/(t*t*w*w*b);
-                };
-                break;
-            case 2:
-                // Circle
-                {
-                    float b = 4.0f/(_width*_width);
-                    float a = 2.0f*b*_width/static_cast<float>(tau);
-                    float c = _width/2.0f;
-                    verticalKernel = [=](float distance)
-                    {
-                        if (distance < -c || distance > c)
-                            return 0.0f;
-                        return a*sqrt(1 - b*distance*distance);
-                    };
-                }
-                break;
-            case 3:
-                // Gaussian
-                {
-                    float a = -8/(_width*_width);
-                    float b = 4/(sqrt(static_cast<float>(tau))*_width);
-                    verticalKernel = [=](float distance)
-                    {
-                        return b*exp(a*distance*distance);
-                    };
-                }
-                break;
-            case 4:
-                // Sinc
-                {
-                    float bandLimit = min(1.0f, _zoom.y)/_width;
-                    if (_width == 0)
-                        bandLimit = 10000;
-                    verticalKernel = [=](float distance)
-                    {
-                        return bandLimit*sinc(distance*bandLimit);
-                    };
-                }
-                break;
-
-        }
-
         _output.ensure(_size.x*3*sizeof(float), _size.y);
 
         Timer timerVerticalGenerate;
-        _vertical.generate(_size, 3, kernelRadiusVertical, verticalKernel,
-            &_inputTL.y, &_inputBR.y, _zoom.y, _offset.y);
+        _vertical.generate(_size, 3, kernelRadiusVertical,
+            kernel(_profile, _zoom.y, _width), &_inputTL.y, &_inputBR.y,
+            _zoom.y, _offset.y);
         timerVerticalGenerate.output("vertical generate");
 
         int inputHeight = _inputBR.y - _inputTL.y;
@@ -138,11 +72,12 @@ public:
         _vertical.setBuffers(_intermediate, _output);
 
         static const float inputChannelPositions[3] = {0, 0, 0};
-        static const float outputChannelPositions[3] = {0, 1.0f/3, 2.0f/3};
+        float outputChannelPositions[3] =
+            {-_subPixelSeparation/3, 0, _subPixelSeparation/3};
 
         float kernelRadiusHorizontal = 16;
         Timer timerHorizontalGenerate;
-        float bandLimit = min(1.0f, _zoom.x);
+        auto channelKernel = kernel(_horizontalProfile, _zoom.x, 1);
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
@@ -150,7 +85,7 @@ public:
             {
                 if (inputChannel != outputChannel)
                     return 0.0f;
-                return bandLimit*sinc(distance*bandLimit);
+                return channelKernel(distance);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
         timerHorizontalGenerate.output("horizontal generate");
@@ -167,7 +102,7 @@ public:
         Timer timerHorizontalBleeding;
         Byte* d = _intermediate.data();
         for (int y = 0; y < _inputBR.y - _inputTL.y; ++y) {
-            bleed(d, 12, Vector(3, _size.x));
+            bleed(d, 12, Vector(3, _size.x), _horizontalBleeding);
             d += _intermediate.stride();
         }
         timerHorizontalBleeding.output("horizontal bleeding");
@@ -175,7 +110,7 @@ public:
         _vertical.execute();
         timerVerticalExecute.output("vertical execute");
         Timer timerBleeding;
-        bleed(_output.data(), _output.stride(), _size*Vector(3, 1));
+        bleed(_output.data(), _output.stride(), _size*Vector(3, 1), _bleeding);
         timerBleeding.output("bleeding");
     }
     int getProfile() { return _profile; }
@@ -184,6 +119,28 @@ public:
     void setWidth(float width) { _width = width; }
     int getBleeding() { return _bleeding; }
     void setBleeding(int bleeding) { _bleeding = bleeding; }
+    int getHorizontalProfile() { return _horizontalProfile; }
+    void setHorizontalProfile(int profile) { _horizontalProfile = profile; }
+    int getHorizontalBleeding() { return _horizontalBleeding; }
+    void setHorizontalBleeding(int bleeding)
+    {
+        _horizontalBleeding = bleeding;
+    }
+    float getVerticalRollOff() { return _verticalRollOff; }
+    void setVerticalRollOff(float rollOff) { _verticalRollOff = rollOff; }
+    float getHorizontalRollOff() { return _horizontalRollOff; }
+    void setHorizontalRollOff(float rollOff) { _horizontalRollOff = rollOff; }
+    float getSubPixelSeparation() { return _subPixelSeparation; }
+    void setSubPixelSeparation(float separation)
+    {
+        _subPixelSeparation = separation;
+    }
+    int getPhosphor() { return _phosphor; }
+    void setPhosphor(int phosphor) { _phosphor = phosphor; }
+    int getMask() { return _mask; }
+    void setMask(int mask) { _mask = mask; }
+    float getMaskSize() { return _maskSize; }
+    void setMaskSize(float maskSize) { _maskSize = maskSize; }
     void setZoom(Vector2<float> zoom) { _zoom = zoom; }
     void setOffset(Vector2<float> offset) { _offset = offset; }
     void setOutputSize(Vector size) { _size = size; }
@@ -193,9 +150,90 @@ public:
     AlignedBuffer output() { return _output; }
 
 private:
-    void bleed(Byte* data, int s, Vector size)
+    std::function<float(float)> kernel(int profile, float zoom, float width)
     {
-        if (_bleeding == 1) {
+        switch (_profile) {
+            case 0:
+                // Rectangle
+                {
+                    float a = 2.0f/(static_cast<float>(tau)*width);
+                    float b = 0.5f*zoom*static_cast<float>(tau)*width/2.0f;
+                    float c = 0.5f*zoom*static_cast<float>(tau);
+                    return [=](float d)
+                    {
+                        return a*(sinint(b + c*d) + sinint(b - c*d));
+                    };
+                }
+                break;
+            case 1:
+                // Triangle
+                return [=](float distance)
+                {
+                    float b = 0.5f*zoom;
+                    float w = 0.5f*width;
+                    float f = distance;
+                    float t = static_cast<float>(tau);
+                    return (
+                        +2*t*(f-w)*b*sinint(t*(f-w)*b)
+                        +2*t*(f+w)*b*sinint(t*(f+w)*b)
+                        -4*t*f*b*sinint(t*f*b)
+                        +2*cos(b*t*(f-w))
+                        +2*cos(b*t*(f+w))
+                        -4*cos(b*t*f)
+                        )/(t*t*w*w*b);
+                };
+                break;
+            case 2:
+                // Circle
+                {
+                    float b = 4.0f/(width*width);
+                    float a = 2.0f*b*width/static_cast<float>(tau);
+                    float c = width/2.0f;
+                    return [=](float distance)
+                    {
+                        if (distance < -c || distance > c)
+                            return 0.0f;
+                        return a*sqrt(1 - b*distance*distance);
+                    };
+                }
+                break;
+            case 3:
+                // Gaussian
+                {
+                    float a = -8/(width*width);
+                    float b = 4/(sqrt(static_cast<float>(tau))*width);
+                    return [=](float distance)
+                    {
+                        return b*exp(a*distance*distance);
+                    };
+                }
+                break;
+            case 4:
+                // Sinc
+                {
+                    float bandLimit = min(1.0f, zoom)/width;
+                    if (width == 0)
+                        bandLimit = 10000;
+                    return [=](float distance)
+                    {
+                        return bandLimit*sinc(distance*bandLimit);
+                    };
+                }
+                break;
+            default:
+                // Box
+                {
+                    return [=](float distance)
+                    {
+                        return abs(distance) < 0.5f ? 1.0f : 0.0f;
+                    };
+                }
+                break;
+        }
+    }
+    void bleed(Byte* data, int s, Vector size, int bleeding)
+    {
+        if (bleeding == 1) {
             Byte* outputColumn = data;
             for (int x = 0; x < size.x; ++x) {
                 Byte* output = outputColumn;
@@ -218,7 +256,7 @@ private:
             }
             return;
         }
-        if (_bleeding == 2) {
+        if (bleeding == 2) {
             Byte* outputColumn = data;
             for (int x = 0; x < size.x; ++x) {
                 Byte* output = outputColumn;
@@ -335,8 +373,16 @@ private:
     }
 
     int _profile;
+    int _horizontalProfile;
     float _width;
     int _bleeding;
+    int _horizontalBleeding;
+    float _horizontalRollOff;
+    float _verticalRollOff;
+    float _subPixelSeparation;
+    int _phosphor;
+    int _mask;
+    float _maskSize;
     Vector2<float> _offset;
     Vector2<float> _zoom;
     Vector _size;
