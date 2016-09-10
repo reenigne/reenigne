@@ -2030,6 +2030,7 @@ public:
         double zoom;
         double aspectRatio;
         static const int decoderPadding = 32;
+        Vector2<float> zoomVector;
         {
             Lock lock(&_mutex);
             if (!_active)
@@ -2080,7 +2081,8 @@ public:
             _scaler.setPhosphor(_phosphor);
             _scaler.setMask(_mask);
             _scaler.setMaskSize(static_cast<float>(_maskSize));
-            _scaler.setZoom(scale());
+            zoomVector = scale();
+            _scaler.setZoom(zoomVector);
         }
 
         int srgbSize = _data->getTotal();
@@ -2233,7 +2235,7 @@ public:
         activeSize -= Vector2<float>(272, 62);
 
         if (outputSize.zeroArea()) {
-            inputTL = Vector2<float>(160, 38) - overscan*activeSize;
+            inputTL = Vector2<float>(160.5f, 38) - overscan*activeSize;
             double o = 1 + 2*overscan;
             double y = zoom*activeSize.y*o;
             double x = zoom*activeSize.x*o*aspectRatio/2;
@@ -2249,7 +2251,8 @@ public:
             offset = Vector2<float>(-decoderPadding - 0.5f, 0) +
                 static_cast<float>(combFilter)*Vector2<float>(1, -0.5f);
         }
-        _scaler.setOffset(inputTL + offset);
+        _scaler.setOffset(inputTL + offset +
+            Vector2<float>(0.5f, 0.5f)/zoomVector);
         _scaler.setOutputSize(outputSize);
 
         _bitmap.ensure(outputSize);
@@ -3145,7 +3148,7 @@ public:
     {
         _output->setScanlineBleeding(value);
     }
-    void verticalRollOffsetSet(double value)
+    void verticalRollOffSet(double value)
     {
         _output->setVerticalRollOff(value);
     }
@@ -3157,7 +3160,7 @@ public:
     {
         _output->setHorizontalBleeding(value);
     }
-    void horizontalRollOffsetSet(double value)
+    void horizontalRollOffSet(double value)
     {
         _output->setHorizontalRollOff(value);
     }
@@ -3550,7 +3553,7 @@ private:
                 add(&_bleeding);
                 _rollOff.setSliders(&_host->_knobSliders);
                 _rollOff.setValueSet(
-                    [&](double value) { _host->rollOffSet(value); });
+                    [&](double value) { _host->horizontalRollOffSet(value); });
                 _rollOff.setText("Roll-off: ");
                 _rollOff.setRange(0, 1);
                 add(&_rollOff);
@@ -3601,7 +3604,7 @@ private:
                 add(&_bleeding);
                 _rollOff.setSliders(&_host->_knobSliders);
                 _rollOff.setValueSet(
-                    [&](double value) { _host->rollOffSet(value); });
+                    [&](double value) { _host->verticalRollOffSet(value); });
                 _rollOff.setText("Roll-off: ");
                 _rollOff.setRange(0, 1);
                 add(&_rollOff);

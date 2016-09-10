@@ -62,8 +62,8 @@ public:
 
         Timer timerVerticalGenerate;
         _vertical.generate(_size, 3, kernelRadiusVertical,
-            kernel(_profile, _zoom.y, _width), &_inputTL.y, &_inputBR.y,
-            _zoom.y, _offset.y);
+            kernel(_profile, _zoom.y, _width, _verticalRollOff), &_inputTL.y,
+            &_inputBR.y, _zoom.y, _offset.y);
         timerVerticalGenerate.output("vertical generate");
 
         int inputHeight = _inputBR.y - _inputTL.y;
@@ -77,7 +77,8 @@ public:
 
         float kernelRadiusHorizontal = 16;
         Timer timerHorizontalGenerate;
-        auto channelKernel = kernel(_horizontalProfile, _zoom.x, 1);
+        auto channelKernel = kernel(_horizontalProfile, _zoom.x, 1,
+            _horizontalRollOff);
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
             kernelRadiusHorizontal,
@@ -150,9 +151,10 @@ public:
     AlignedBuffer output() { return _output; }
 
 private:
-    std::function<float(float)> kernel(int profile, float zoom, float width)
+    std::function<float(float)> kernel(int profile, float zoom, float width,
+        float rollOff)
     {
-        switch (_profile) {
+        switch (profile) {
             case 0:
                 // Rectangle
                 {
@@ -161,7 +163,8 @@ private:
                     float c = 0.5f*zoom*static_cast<float>(tau);
                     return [=](float d)
                     {
-                        return a*(sinint(b + c*d) + sinint(b - c*d));
+                        return a*(sinint(b + c*d) + sinint(b - c*d))*
+                            sinc(d*rollOff);
                     };
                 }
                 break;
@@ -180,7 +183,7 @@ private:
                         +2*cos(b*t*(f-w))
                         +2*cos(b*t*(f+w))
                         -4*cos(b*t*f)
-                        )/(t*t*w*w*b);
+                        )*sinc(distance*rollOff)/(t*t*w*w*b);
                 };
                 break;
             case 2:
@@ -193,7 +196,8 @@ private:
                     {
                         if (distance < -c || distance > c)
                             return 0.0f;
-                        return a*sqrt(1 - b*distance*distance);
+                        return a*sqrt(1 - b*distance*distance)*
+                            sinc(distance*rollOff);
                     };
                 }
                 break;
@@ -204,7 +208,8 @@ private:
                     float b = 4/(sqrt(static_cast<float>(tau))*width);
                     return [=](float distance)
                     {
-                        return b*exp(a*distance*distance);
+                        return b*exp(a*distance*distance)*
+                            sinc(distance*rollOff);
                     };
                 }
                 break;
@@ -216,7 +221,8 @@ private:
                         bandLimit = 10000;
                     return [=](float distance)
                     {
-                        return bandLimit*sinc(distance*bandLimit);
+                        return bandLimit*sinc(distance*bandLimit)*
+                            sinc(distance*rollOff);
                     };
                 }
                 break;
@@ -225,7 +231,8 @@ private:
                 {
                     return [=](float distance)
                     {
-                        return abs(distance) < 0.5f ? 1.0f : 0.0f;
+                        return (distance >= -0.5f && distance < 0.5f) ?
+                            sinc(distance*rollOff) : 0.0f;
                     };
                 }
                 break;
