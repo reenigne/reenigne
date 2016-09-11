@@ -1932,7 +1932,7 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    FFTNTSCDecoder _decoder;
+    NTSCDecoder _decoder;
     CGAComposite _composite;
     Linearizer _linearizer;
 
@@ -2858,7 +2858,7 @@ private:
     Bitmap<DWORD> _bitmap;
     Bitmap<DWORD> _lastBitmap;
     CGAComposite _composite;
-    FFTNTSCDecoder _decoder;
+    NTSCDecoder _decoder;
     Linearizer _linearizer;
     CGAArtWindow* _window;
     Mutex _mutex;
