@@ -193,7 +193,7 @@ public:
                         outputChannelPositions[outputChannel])/zoom + offset;
                     float dist = centerInputPixel - inputPosition;
                     int v = 0;
-                    if (dist > -kernelRadius && dist < kernelRadius) {
+                    if (dist >= -kernelRadius && dist <= kernelRadius) {
                         v = static_cast<int>(round(kernelFunction(dist,
                             inputChannel, outputChannel)*scale));
                     }
@@ -225,7 +225,7 @@ public:
                 kernelSize = 1;
                 left = min(left, leftInput);
                 right = max(right, leftInput);
-                *offsets = leftInput;
+                *offsets = leftInput*sizeof(UInt16);
                 ++offsets;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     *kernel = 0;
@@ -414,7 +414,7 @@ public:
                         outputChannelPositions[outputChannel])/zoom + offset;
                     float dist = centerInputPixel - inputPosition;
                     float v = 0;
-                    if (dist > -kernelRadius && dist < kernelRadius)
+                    if (dist >= -kernelRadius && dist <= kernelRadius)
                         v = kernelFunction(dist, inputChannel, outputChannel);
                     if (v != 0) {
                         if (lastC == 0) {
@@ -586,7 +586,7 @@ public:
             for (int i = topInput; i <= bottomInput; ++i) {
                 float dist = centerInputPixel - static_cast<float>(i);
                 float v = 0;
-                if (dist > -kernelRadius && dist < kernelRadius)
+                if (dist >= -kernelRadius && dist <= kernelRadius)
                     v = kernelFunction(dist);
                 for (int x = 0; x < channelsPerUnit; ++x) {
                     *kernel = v;

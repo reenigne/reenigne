@@ -57,13 +57,15 @@ public:
     { }
     void init()
     {
-        float kernelRadiusVertical = 16;
         _output.ensure(_size.x*3*sizeof(float), _size.y);
 
         Timer timerVerticalGenerate;
-        _vertical.generate(_size, 3, kernelRadiusVertical,
-            kernel(_profile, _zoom.y, _width, _verticalRollOff), &_inputTL.y,
-            &_inputBR.y, _zoom.y, _offset.y);
+        _vertical.generate(_size, 3,
+            kernelRadius(_profile, _zoom.y, _width, _verticalRollOff,
+                _verticalCutOff),
+            kernel(_profile, _zoom.y, _width, _verticalRollOff,
+                _verticalCutOff),
+            &_inputTL.y, &_inputBR.y, _zoom.y, _offset.y);
         timerVerticalGenerate.output("vertical generate");
 
         int inputHeight = _inputBR.y - _inputTL.y;
@@ -75,13 +77,13 @@ public:
         float outputChannelPositions[3] =
             {-_subPixelSeparation/3, 0, _subPixelSeparation/3};
 
-        float kernelRadiusHorizontal = 16;
         Timer timerHorizontalGenerate;
         auto channelKernel = kernel(_horizontalProfile, _zoom.x, 1,
-            _horizontalRollOff);
+            _horizontalRollOff, _horizontalCutOff);
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
             inputChannelPositions, 3, outputChannelPositions,
-            kernelRadiusHorizontal,
+            kernelRadius(_horizontalProfile, _zoom.x, 1, _horizontalRollOff,
+                _horizontalCutOff),
             [=](float distance, int inputChannel, int outputChannel)
             {
                 if (inputChannel != outputChannel)
@@ -131,6 +133,10 @@ public:
     void setVerticalRollOff(float rollOff) { _verticalRollOff = rollOff; }
     float getHorizontalRollOff() { return _horizontalRollOff; }
     void setHorizontalRollOff(float rollOff) { _horizontalRollOff = rollOff; }
+    float getVerticalCutOff() { return _verticalCutOff; }
+    void setVerticalCutOff(float cutOff) { _verticalCutOff = cutOff; }
+    float getHorizontalCutOff() { return _horizontalCutOff; }
+    void setHorizontalCutOff(float cutOff) { _horizontalCutOff = cutOff; }
     float getSubPixelSeparation() { return _subPixelSeparation; }
     void setSubPixelSeparation(float separation)
     {
@@ -152,7 +158,7 @@ public:
 
 private:
     std::function<float(float)> kernel(int profile, float zoom, float width,
-        float rollOff)
+        float rollOff, float cutOff)
     {
         switch (profile) {
             case 0:
@@ -163,8 +169,11 @@ private:
                     float c = 0.5f*zoom*static_cast<float>(tau);
                     return [=](float d)
                     {
-                        return a*(sinint(b + c*d) + sinint(b - c*d))*
+                        float r = a*(sinint(b + c*d) + sinint(b - c*d))*
                             sinc(d*rollOff);
+                        if (r > -cutOff && r < cutOff)
+                            r = 0;
+                        return r;
                     };
                 }
                 break;
@@ -176,7 +185,7 @@ private:
                     float w = 0.5f*width;
                     float f = distance;
                     float t = static_cast<float>(tau);
-                    return (
+                    float r = (
                         +2*t*(f-w)*b*sinint(t*(f-w)*b)
                         +2*t*(f+w)*b*sinint(t*(f+w)*b)
                         -4*t*f*b*sinint(t*f*b)
@@ -184,6 +193,9 @@ private:
                         +2*cos(b*t*(f+w))
                         -4*cos(b*t*f)
                         )*sinc(distance*rollOff)/(t*t*w*w*b);
+                    if (r > -cutOff && r < cutOff)
+                        r = 0;
+                    return r;
                 };
                 break;
             case 2:
@@ -208,8 +220,11 @@ private:
                     float b = 4/(sqrt(static_cast<float>(tau))*width);
                     return [=](float distance)
                     {
-                        return b*exp(a*distance*distance)*
+                        float r = b*exp(a*distance*distance)*
                             sinc(distance*rollOff);
+                        if (r < cutOff)
+                            r = 0;
+                        return r;
                     };
                 }
                 break;
@@ -221,8 +236,11 @@ private:
                         bandLimit = 10000;
                     return [=](float distance)
                     {
-                        return bandLimit*sinc(distance*bandLimit)*
+                        float r = bandLimit*sinc(distance*bandLimit)*
                             sinc(distance*rollOff);
+                        if (r > -cutOff && r < cutOff)
+                            r = 0;
+                        return r;
                     };
                 }
                 break;
@@ -237,6 +255,34 @@ private:
                 }
                 break;
         }
+    }
+    float kernelRadius(int profile, float zoom, float width, float rollOff,
+        float cutOff)
+    {
+        static const float pi = static_cast<float>(tau)/2;
+        static const float pi2 = static_cast<float>(tau*tau)/4;
+        switch (profile) {
+            case 2:
+                // Circle
+                return width/2.0f;
+            case 3:
+                // Gaussian
+                {
+                    float a = -8/(width*width);
+                    float b = 4/(sqrt(static_cast<float>(tau))*width);
+                    return sqrt(log(cutOff/b)/a);
+                }
+            case 4:
+                // Sinc
+                if (rollOff == 0)
+                    return 1/(cutOff*pi);
+                return sqrt(1/(cutOff*rollOff*pi2));
+            case 5:
+                // Box
+                return 0.5f;
+        }
+        // Not sure how to evaluvate for Rectangle or Triangle yet
+        return 16.0f;
     }
     void bleed(Byte* data, int s, Vector size, int bleeding)
     {
@@ -386,6 +432,8 @@ private:
     int _horizontalBleeding;
     float _horizontalRollOff;
     float _verticalRollOff;
+    float _horizontalCutOff;
+    float _verticalCutOff;
     float _subPixelSeparation;
     int _phosphor;
     int _mask;

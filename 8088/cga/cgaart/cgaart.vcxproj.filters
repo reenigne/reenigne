@@ -20,131 +20,139 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\include\alfe\bitmap.h">
+    <ClInclude Include="..\..\..\include\alfe\bitmap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\colour_space.h">
+    <ClInclude Include="..\..\..\include\alfe\colour_space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\user.h">
+    <ClInclude Include="..\..\..\include\alfe\user.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\vectors.h">
+    <ClInclude Include="..\..\..\include\alfe\vectors.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\terminal6.h">
+    <ClInclude Include="..\..\..\include\alfe\terminal6.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\complex.h">
+    <ClInclude Include="..\..\..\include\alfe\complex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\rotors.h">
+    <ClInclude Include="..\..\..\include\alfe\rotors.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\main.h">
+    <ClInclude Include="..\..\..\include\alfe\main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\thread.h">
+    <ClInclude Include="..\..\..\include\alfe\thread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\bitmap_png.h">
+    <ClInclude Include="..\..\..\include\alfe\bitmap_png.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\file.h">
+    <ClInclude Include="..\..\..\include\alfe\file.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\string.h">
+    <ClInclude Include="..\..\..\include\alfe\string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\set.h">
+    <ClInclude Include="..\..\..\include\alfe\set.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\hash_table.h">
+    <ClInclude Include="..\..\..\include\alfe\hash_table.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\array.h">
+    <ClInclude Include="..\..\..\include\alfe\array.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\config_file.h">
+    <ClInclude Include="..\..\..\include\alfe\config_file.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\cga.h">
+    <ClInclude Include="..\..\..\include\alfe\cga.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\expression.h">
+    <ClInclude Include="..\..\..\include\alfe\expression.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\identifier.h">
+    <ClInclude Include="..\..\..\include\alfe\identifier.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\operator.h">
+    <ClInclude Include="..\..\..\include\alfe\operator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\type.h">
+    <ClInclude Include="..\..\..\include\alfe\type.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\array_functions.h">
+    <ClInclude Include="..\..\..\include\alfe\array_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\ntsc_decode.h">
+    <ClInclude Include="..\..\..\include\alfe\ntsc_decode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\linked_list.h">
+    <ClInclude Include="..\..\..\include\alfe\linked_list.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\exception.h">
+    <ClInclude Include="..\..\..\include\alfe\exception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\timer.h">
+    <ClInclude Include="..\..\..\include\alfe\timer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\fft.h">
+    <ClInclude Include="..\..\..\include\alfe\fft.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\any.h">
+    <ClInclude Include="..\..\..\include\alfe\any.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\reference.h">
+    <ClInclude Include="..\..\..\include\alfe\reference.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\integer_functions.h">
+    <ClInclude Include="..\..\..\include\alfe\integer_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\knob.h">
+    <ClInclude Include="..\..\..\include\alfe\knob.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\space.h">
+    <ClInclude Include="..\..\..\include\alfe\space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\character_source.h">
+    <ClInclude Include="..\..\..\include\alfe\character_source.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\rational.h">
+    <ClInclude Include="..\..\..\include\alfe\rational.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\rational_functions.h">
+    <ClInclude Include="..\..\..\include\alfe\rational_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\scanlines.h">
+    <ClInclude Include="..\..\..\include\alfe\scanlines.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\image_filter.h">
+    <ClInclude Include="..\..\..\include\alfe\image_filter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\wrap.h">
+    <ClInclude Include="..\..\..\include\alfe\wrap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\function.h">
+    <ClInclude Include="..\..\..\include\alfe\function.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\double_functions.h">
+    <ClInclude Include="..\..\..\include\alfe\double_functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\alfe\handle.h">
+    <ClInclude Include="..\..\..\include\alfe\handle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="..\..\..\..\include\alfe.natvis" />
+    <Natvis Include="..\..\..\include\alfe.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

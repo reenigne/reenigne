@@ -10,7 +10,7 @@ typedef Vector3<UInt8> SRGB;
 
 Colour labFromXyz(Colour xyz)
 {
-    static const Colour xyzWhite(95.047, 100, 108.883);
+    static const Colour xyzWhite(95.047f, 100, 108.883f);
     auto helper = [=](float t)
     {
         static const float d = 6.0f/29.0f;

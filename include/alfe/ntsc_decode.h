@@ -401,6 +401,8 @@ public:
                     - chromaHigh*sinc(d*chromaHigh)
                     + chromaLow*sinc(d*chromaLow);
             }
+            if (r > -_cutOff && r < _cutOff)
+                r = 0;
             _yTime[t] = r;
             if (t > 0)
                 _yTime[_length - t] = r;
@@ -414,6 +416,8 @@ public:
             float r;
             r = sinc(d*rollOff);
             r *= chromaCutoff*sinc(d*chromaCutoff);
+            if (r > -_cutOff && r < _cutOff)
+                r = 0;
             _yTime[t] = r;
             if (t > 0)
                 _yTime[_length - t] = r;
@@ -500,10 +504,9 @@ public:
         _lumaBandwidth = static_cast<float>(lumaBandwidth);
     }
     double getRollOff() { return _rollOff; }
-    void setRollOff(double rollOff)
-    {
-        _rollOff = static_cast<float>(rollOff);
-    }
+    void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
+    double getCutOff() { return _cutOff; }
+    void setCutOff(double cutOff) { _cutOff = static_cast<float>(cutOff); }
     void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
     void setPadding(int padding) { _padding = padding; }
     float* yData() { return &_yTime[0]; }
@@ -538,6 +541,7 @@ private:
     float _chromaBandwidth;
     float _lumaBandwidth;
     float _rollOff;
+    float _cutOff;
     bool _chromaNotch;
 
     float _ri;
@@ -598,6 +602,7 @@ public:
             inputChannelPositions, 3, outputChannelPositions, kernelRadius,
             [=](float distance, int inputChannel, int outputChannel)
         {
+            float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
                 float y;
@@ -615,25 +620,26 @@ public:
                         - chromaHigh*sinc(distance*chromaHigh)
                         + chromaLow*sinc(distance*chromaLow);
                 }
-                return y*contrast/4.0f;
+                r = y*contrast/4.0f;
             }
-            // Chroma
-            Complex<float> iq = 0;
-            switch (inputChannel) {
-                case 1: iq.y = 1; break;
-                case 3: iq.x = -1; break;
-                case 5: iq.y = -1; break;
-                case 7: iq.x = 1; break;
+            else {
+                // Chroma
+                Complex<float> iq = 0;
+                switch (inputChannel) {
+                    case 1: iq.y = 1; break;
+                    case 3: iq.x = -1; break;
+                    case 5: iq.y = -1; break;
+                    case 7: iq.x = 1; break;
+                }
+                iq *= sinc(distance*_chromaBandwidth/4.0f);
+                iq *= iqAdjust*_chromaBandwidth/16.0f;
+                static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
+                static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
+                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y;
             }
-            iq *= sinc(distance*_chromaBandwidth/4.0f);
-            iq *= iqAdjust*_chromaBandwidth/16.0f;
-            switch (outputChannel) {
-                case 0: return 0.9563f*iq.x + 0.6210f*iq.y;
-                case 1: return -0.2721f*iq.x - 0.6474f*iq.y;
-                case 2: return -1.1069f*iq.x + 1.7046f*iq.y;
-            }
-            assert(false);
-            return 0.0f;
+            if (r > -_cutOff && r < _cutOff)
+                r = 0;
+            return r;
         },
             &_inputLeft, &_inputRight, 4, 0);
 
@@ -699,10 +705,9 @@ public:
         _lumaBandwidth = static_cast<float>(lumaBandwidth);
     }
     double getRollOff() { return _rollOff; }
-    void setRollOff(double rollOff)
-    {
-        _rollOff = static_cast<float>(rollOff);
-    }
+    void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
+    double getCutOff() { return _cutOff; }
+    void setCutOff(double cutOff) { _cutOff = static_cast<float>(cutOff); }
 private:
     float _hue;
     float _saturation;
@@ -711,6 +716,7 @@ private:
     float _chromaBandwidth;
     float _lumaBandwidth;
     float _rollOff;
+    float _cutOff;
 
     //ImageFilter16 _filter;
     ImageFilterHorizontal _filter;
