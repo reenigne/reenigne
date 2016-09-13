@@ -54,6 +54,7 @@ public:
     ConfigFileT() : _context(this)
     {
         addType(IntegerType());
+        addType(BooleanType());
         addFunco(AddIntegerInteger());
         addFunco(SubtractIntegerInteger());
         addFunco(MultiplyIntegerInteger());

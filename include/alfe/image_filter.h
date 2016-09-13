@@ -444,7 +444,7 @@ public:
                 kernelSize = 1;
                 left = min(left, leftInput);
                 right = max(right, leftInput);
-                *offsets = leftInput;
+                *offsets = leftInput*sizeof(float);
                 ++offsets;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     *kernel = 0;

@@ -979,7 +979,7 @@ private:
         { }
         ValueT<T> evaluate(EvaluationContext* context) const
         {
-            ValueT<T> v = _condition.evaluate(context);
+            ValueT<T> v = _condition.evaluate(context).rValue();
             if (v.type() != BooleanType()) {
                 _condition.span().throwError("Conditional operator requires "
                     "operand of type Boolean.");

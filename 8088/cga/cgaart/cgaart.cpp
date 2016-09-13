@@ -918,9 +918,10 @@ public:
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
                 Vector(1, _interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
+            _scaler.setProfile(_prescalerProfile);
             _scaler.setOutputSize(size + Vector(4 + 2*blockLap, 0));
-            _scaler.setHorizontalCutOff(0.03f);
-            _scaler.setVerticalCutOff(0.04f);
+            _scaler.setHorizontalLobes(3);
+            _scaler.setVerticalLobes(3);
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
@@ -928,20 +929,36 @@ public:
             Vector br = _scaler.inputBR() - Vector(blockLap, 0);
             Byte* unscaledRow = input.data() - tl.y*input.stride();
             Byte* inputRow = _input.data();
-            for (int y = 0; y < _input.size().y; ++y) {
+            int height = _input.size().y;
+            if (tl.y > 0) {
+                inputRow += _input.stride()*tl.y;
+                height -= tl.y;
+            }
+            int below = br.y - _input.size().y;
+            if (below < 0)
+                height += below;
+            int width = _input.size().x;
+            if (tl.x > 0) {
+                inputRow += sizeof(SRGB)*tl.x;
+                width -= tl.x;
+            }
+            int right = br.x - _input.size().x;
+            if (right < 0)
+                width += right;
+            for (int y = 0; y < height; ++y) {
                 Colour* unscaled = reinterpret_cast<Colour*>(unscaledRow);
                 SRGB* p = reinterpret_cast<SRGB*>(inputRow);
                 for (int x = 0; x < -tl.x; ++x) {
                     *unscaled = _linearizer.linear(*p);
                     ++unscaled;
                 }
-                for (int x = 0; x < _input.size().x; ++x) {
+                for (int x = 0; x < width; ++x) {
                     *unscaled = _linearizer.linear(*p);
                     ++unscaled;
                     ++p;
                 }
                 --p;
-                for (int x = 0; x < br.x - _input.size().x; ++x) {
+                for (int x = 0; x < right; ++x) {
                     *unscaled = _linearizer.linear(*p);
                     ++unscaled;
                 }
@@ -957,7 +974,7 @@ public:
             unscaledRow =
                 input.data() + (_input.size().y - tl.y)*input.stride();
             pp = unscaledRow - input.stride();
-            for (int y = 0; y < br.y - _input.size().y; ++y) {
+            for (int y = 0; y < below; ++y) {
                 memcpy(unscaledRow, pp, (br.x - tl.x)*sizeof(Colour));
                 unscaledRow += input.stride();
             }
@@ -1094,7 +1111,7 @@ public:
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
-            _decoder.setCutOff(_cutOff);
+            _decoder.setLobes(_lobes);
             _decoder.setChromaNotch(true);
             _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4) - 90);
             _decoder.setSaturation(saturation);
@@ -1638,8 +1655,14 @@ public:
     double getLumaBandwidth() { return _lumaBandwidth; }
     void setRollOff(double rollOff) { _rollOff = rollOff; }
     double getRollOff() { return _rollOff; }
-    void setCutOff(double cutOff) { _cutOff = cutOff; }
-    double getCutOff() { return _cutOff; }
+    void setLobes(double lobes) { _lobes = lobes; }
+    double getLobes() { return _lobes; }
+    void setPrescalerProfile(int profile)
+    {
+        _prescalerProfile = profile;
+        _size = Vector(0, 0);
+    }
+    int getPrescalerProfile() { return _prescalerProfile; }
 
 private:
     float tryPattern(int pattern)
@@ -1966,7 +1989,8 @@ private:
     double _chromaBandwidth;
     double _lumaBandwidth;
     double _rollOff;
-    double _cutOff;
+    double _lobes;
+    int _prescalerProfile;
 
     bool _active;
     Vector _size;
@@ -2073,7 +2097,7 @@ public:
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setRollOff(_rollOff);
-            _decoder.setCutOff(_cutOff);
+            _decoder.setLobes(_lobes);
             _decoder.setChromaNotch(combFilter == 0);
             _scaler.setProfile(_scanlineProfile);
             _scaler.setHorizontalProfile(_horizontalProfile);
@@ -2083,8 +2107,8 @@ public:
             _scaler.setHorizontalRollOff(
                 static_cast<float>(_horizontalRollOff));
             _scaler.setVerticalRollOff(static_cast<float>(_verticalRollOff));
-            _scaler.setHorizontalCutOff(static_cast<float>(_horizontalCutOff));
-            _scaler.setVerticalCutOff(static_cast<float>(_verticalCutOff));
+            _scaler.setHorizontalLobes(static_cast<float>(_horizontalLobes));
+            _scaler.setVerticalLobes(static_cast<float>(_verticalLobes));
             _scaler.setSubPixelSeparation(
                 static_cast<float>(_subPixelSeparation));
             _scaler.setPhosphor(_phosphor);
@@ -2610,15 +2634,15 @@ public:
         restart();
     }
     double getHorizontalRollOff() { return _horizontalRollOff; }
-    void setHorizontalCutOff(double cutOff)
+    void setHorizontalLobes(double lobes)
     {
         {
             Lock lock(&_mutex);
-            _horizontalCutOff = cutOff;
+            _horizontalLobes = lobes;
         }
         restart();
     }
-    double getHorizontalCutOff() { return _horizontalCutOff; }
+    double getHorizontalLobes() { return _horizontalLobes; }
     void setVerticalRollOff(double rollOff)
     {
         {
@@ -2628,15 +2652,15 @@ public:
         restart();
     }
     double getVerticalRollOff() { return _verticalRollOff; }
-    void setVerticalCutOff(double cutOff)
+    void setVerticalLobes(double lobes)
     {
         {
             Lock lock(&_mutex);
-            _verticalCutOff = cutOff;
+            _verticalLobes = lobes;
         }
         restart();
     }
-    double getVerticalCutOff() { return _verticalCutOff; }
+    double getVerticalLobes() { return _verticalLobes; }
     void setSubPixelSeparation(double separation)
     {
         {
@@ -2794,15 +2818,15 @@ public:
         restart();
     }
     double getRollOff() { return _rollOff; }
-    void setCutOff(double cutOff)
+    void setLobes(double lobes)
     {
         {
             Lock lock(&_mutex);
-            _cutOff = cutOff;
+            _lobes = lobes;
         }
         restart();
     }
-    double getCutOff() { return _cutOff; }
+    double getLobes() { return _lobes; }
     void setPhase(int phase)
     {
         {
@@ -2871,8 +2895,8 @@ private:
     int _horizontalBleeding;
     double _horizontalRollOff;
     double _verticalRollOff;
-    double _horizontalCutOff;
-    double _verticalCutOff;
+    double _horizontalLobes;
+    double _verticalLobes;
     double _subPixelSeparation;
     int _phosphor;
     int _mask;
@@ -2889,7 +2913,7 @@ private:
     double _chromaBandwidth;
     double _lumaBandwidth;
     double _rollOff;
-    double _cutOff;
+    double _lobes;
     int _combFilter;
     bool _showClipping;
     bool _active;
@@ -2943,7 +2967,7 @@ public:
             _output->getChromaBandwidth());
         _monitor._filter._lumaBandwidth.setValue(_output->getLumaBandwidth());
         _monitor._filter._rollOff.setValue(_output->getRollOff());
-        _monitor._filter._cutOff.setValue(_output->getCutOff());
+        _monitor._filter._lobes.setValue(_output->getLobes());
         _monitor._filter._combFilter.set(_output->getCombFilter());
         _monitor._phosphors._phosphor.set(_output->getPhosphor());
         _monitor._phosphors._mask.set(_output->getMask());
@@ -2952,14 +2976,14 @@ public:
         _monitor._horizontal._bleeding.set(_output->getHorizontalBleeding());
         _monitor._horizontal._rollOff.setValue(
             _output->getHorizontalRollOff());
-        _monitor._horizontal._cutOff.setValue(_output->getHorizontalCutOff());
+        _monitor._horizontal._lobes.setValue(_output->getHorizontalLobes());
         _monitor._horizontal._subPixelSeparation.setValue(
             _output->getSubPixelSeparation());
         _monitor._scanlines._profile.set(_output->getScanlineProfile());
         _monitor._scanlines._width.setValue(_output->getScanlineWidth());
         _monitor._scanlines._bleeding.set(_output->getScanlineBleeding());
         _monitor._scanlines._rollOff.setValue(_output->getVerticalRollOff());
-        _monitor._scanlines._cutOff.setValue(_output->getVerticalCutOff());
+        _monitor._scanlines._lobes.setValue(_output->getVerticalLobes());
         _monitor._scaling._zoom.setValue(_output->getZoom());
         _monitor._scaling._aspectRatio.setValue(_output->getAspectRatio());
         int mode = _matcher->getMode();
@@ -3017,6 +3041,7 @@ public:
         _videoCard._matching._gamma.setValue(_matcher->getGamma());
         _videoCard._matching._clipping.set(_matcher->getClipping());
         _videoCard._matching._metric.set(_matcher->getMetric());
+        _videoCard._matching._profile.set(_matcher->getPrescalerProfile());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
         setInnerSize(Vector(0, 0));
         _outputWindow.setInnerSize(_output->requiredSize());
@@ -3060,14 +3085,14 @@ public:
         _monitor._filter._chromaBandwidth.setConfig(config);
         _monitor._filter._lumaBandwidth.setConfig(config);
         _monitor._filter._rollOff.setConfig(config);
-        _monitor._filter._cutOff.setConfig(config);
+        _monitor._filter._lobes.setConfig(config);
         _monitor._phosphors._maskSize.setConfig(config);
         _monitor._horizontal._rollOff.setConfig(config);
-        _monitor._horizontal._cutOff.setConfig(config);
+        _monitor._horizontal._lobes.setConfig(config);
         _monitor._horizontal._subPixelSeparation.setConfig(config);
         _monitor._scanlines._width.setConfig(config);
         _monitor._scanlines._rollOff.setConfig(config);
-        _monitor._scanlines._cutOff.setConfig(config);
+        _monitor._scanlines._lobes.setConfig(config);
         _monitor._scaling._zoom.setConfig(config);
         _monitor._scaling._aspectRatio.setConfig(config);
         _videoCard._matching._diffusionHorizontal.setConfig(config);
@@ -3197,13 +3222,18 @@ public:
     {
         _output->setVerticalRollOff(value);
     }
-    void verticalCutOffSet(double value)
+    void verticalLobesSet(double value)
     {
-        _output->setVerticalCutOff(value);
+        _output->setVerticalLobes(value);
     }
     void horizontalProfileSet(int value)
     {
         _output->setHorizontalProfile(value);
+    }
+    void prescalerProfileSet(int value)
+    {
+        _matcher->setPrescalerProfile(value);
+        beginConvert();
     }
     void horizontalBleedingSet(int value)
     {
@@ -3213,9 +3243,9 @@ public:
     {
         _output->setHorizontalRollOff(value);
     }
-    void horizontalCutOffSet(double value)
+    void horizontalLobesSet(double value)
     {
-        _output->setHorizontalCutOff(value);
+        _output->setHorizontalLobes(value);
     }
     void subPixelSeparationSet(double value)
     {
@@ -3320,10 +3350,10 @@ public:
         _output->setRollOff(rollOff);
         _matcher->setRollOff(rollOff);
     }
-    void cutOffSet(double cutOff)
+    void lobesSet(double lobes)
     {
-        _output->setCutOff(cutOff);
-        _matcher->setCutOff(cutOff);
+        _output->setLobes(lobes);
+        _matcher->setLobes(lobes);
     }
     void connectorSet(int connector)
     {
@@ -3372,6 +3402,19 @@ private:
         CGAArtWindow* _host;
     };
     OutputWindow _outputWindow;
+    struct ProfileDropDown : public CaptionedDropDownList
+    {
+        ProfileDropDown()
+        {
+            setText("Profile: ");
+            add("rectangle");
+            add("triangle");
+            add("circle");
+            add("gaussian");
+            add("sinc");
+            add("box");
+        }
+    };
     struct MonitorGroup : public GroupBox
     {
         MonitorGroup(CGAArtWindow* host)
@@ -3500,12 +3543,12 @@ private:
                 _rollOff.setText("Roll-off: ");
                 _rollOff.setRange(0, 1);
                 add(&_rollOff);
-                _cutOff.setSliders(sliders);
-                _cutOff.setValueSet(
-                    [&](double value) { _host->cutOffSet(value); });
-                _cutOff.setText("Cut-off: ");
-                _cutOff.setRange(0, 1);
-                add(&_cutOff);
+                _lobes.setSliders(sliders);
+                _lobes.setValueSet(
+                    [&](double value) { _host->lobesSet(value); });
+                _lobes.setText("Lobes: ");
+                _lobes.setRange(1, 10);
+                add(&_lobes);
                 _combFilter.setChanged(
                     [&](int value) { _host->combFilterSet(value); });
                 _combFilter.setText("Comb filter: ");
@@ -3527,16 +3570,16 @@ private:
                 r = max(r, _combFilter.right());
                 _rollOff.setTopLeft(_combFilter.bottomLeft() + vSpace);
                 r = max(r, _rollOff.right());
-                _cutOff.setTopLeft(_rollOff.bottomLeft() + vSpace);
-                r = max(r, _cutOff.right());
-                setInnerSize(Vector(r, _cutOff.bottom()) + _host->groupBR());
+                _lobes.setTopLeft(_rollOff.bottomLeft() + vSpace);
+                r = max(r, _lobes.right());
+                setInnerSize(Vector(r, _lobes.bottom()) + _host->groupBR());
             }
             CGAArtWindow* _host;
             KnobSlider _chromaBandwidth;
             KnobSlider _lumaBandwidth;
             CaptionedDropDownList _combFilter;
             KnobSlider _rollOff;
-            KnobSlider _cutOff;
+            KnobSlider _lobes;
         };
         FilterGroup _filter;
         struct PhosphorsGroup : public GroupBox
@@ -3582,19 +3625,6 @@ private:
             KnobSlider _maskSize;
         };
         PhosphorsGroup _phosphors;
-        struct ProfileDropDown : public CaptionedDropDownList
-        {
-            ProfileDropDown()
-            {
-                setText("Profile: ");
-                add("rectangle");
-                add("triangle");
-                add("circle");
-                add("gaussian");
-                add("sinc");
-                add("box");
-            }
-        };
         struct BleedingDropDown : public CaptionedDropDownList
         {
             BleedingDropDown()
@@ -3622,12 +3652,12 @@ private:
                 _rollOff.setText("Roll-off: ");
                 _rollOff.setRange(0, 1);
                 add(&_rollOff);
-                _cutOff.setSliders(&_host->_knobSliders);
-                _cutOff.setValueSet(
-                    [&](double value) { _host->horizontalCutOffSet(value); });
-                _cutOff.setText("Cut-off: ");
-                _cutOff.setRange(0, 1);
-                add(&_cutOff);
+                _lobes.setSliders(&_host->_knobSliders);
+                _lobes.setValueSet(
+                    [&](double value) { _host->horizontalLobesSet(value); });
+                _lobes.setText("Lobes: ");
+                _lobes.setRange(1, 10);
+                add(&_lobes);
                 _subPixelSeparation.setSliders(&_host->_knobSliders);
                 _subPixelSeparation.setValueSet([&](double value) {
                     _host->subPixelSeparationSet(value); });
@@ -3644,9 +3674,9 @@ private:
                 r = max(r, _bleeding.right());
                 _rollOff.setTopLeft(_bleeding.bottomLeft() + vSpace);
                 r = max(r, _rollOff.right());
-                _cutOff.setTopLeft(_rollOff.bottomLeft() + vSpace);
-                r = max(r, _cutOff.right());
-                _subPixelSeparation.setTopLeft(_cutOff.bottomLeft() + vSpace);
+                _lobes.setTopLeft(_rollOff.bottomLeft() + vSpace);
+                r = max(r, _lobes.right());
+                _subPixelSeparation.setTopLeft(_lobes.bottomLeft() + vSpace);
                 r = max(r, _subPixelSeparation.right());
                 setInnerSize(Vector(r,
                     _subPixelSeparation.bottom()) + _host->groupBR());
@@ -3655,7 +3685,7 @@ private:
             ProfileDropDown _profile;
             BleedingDropDown _bleeding;
             KnobSlider _rollOff;
-            KnobSlider _cutOff;
+            KnobSlider _lobes;
             KnobSlider _subPixelSeparation;
         };
         HorizontalGroup _horizontal;
@@ -3682,12 +3712,12 @@ private:
                 _rollOff.setText("Roll-off: ");
                 _rollOff.setRange(0, 1);
                 add(&_rollOff);
-                _cutOff.setSliders(&_host->_knobSliders);
-                _cutOff.setValueSet(
-                    [&](double value) { _host->verticalCutOffSet(value); });
-                _cutOff.setText("Cut-off: ");
-                _cutOff.setRange(0, 1);
-                add(&_cutOff);
+                _lobes.setSliders(&_host->_knobSliders);
+                _lobes.setValueSet(
+                    [&](double value) { _host->verticalLobesSet(value); });
+                _lobes.setText("Lobes: ");
+                _lobes.setRange(1, 10);
+                add(&_lobes);
             }
             void layout()
             {
@@ -3700,16 +3730,16 @@ private:
                 r = max(r, _bleeding.right());
                 _rollOff.setTopLeft(_bleeding.bottomLeft() + vSpace);
                 r = max(r, _rollOff.right());
-                _cutOff.setTopLeft(_rollOff.bottomLeft() + vSpace);
-                r = max(r, _cutOff.right());
-                setInnerSize(Vector(r, _cutOff.bottom()) + _host->groupBR());
+                _lobes.setTopLeft(_rollOff.bottomLeft() + vSpace);
+                r = max(r, _lobes.right());
+                setInnerSize(Vector(r, _lobes.bottom()) + _host->groupBR());
             }
             CGAArtWindow* _host;
             ProfileDropDown _profile;
             KnobSlider _width;
             BleedingDropDown _bleeding;
             KnobSlider _rollOff;
-            KnobSlider _cutOff;
+            KnobSlider _lobes;
         };
         ScanlinesGroup _scanlines;
         struct ScalingGroup : public GroupBox
@@ -3971,6 +4001,9 @@ private:
                 _characterSet.add("ISAV");
                 _characterSet.set(3);
                 add(&_characterSet);
+                _profile.setChanged(
+                    [&](int value) { _host->prescalerProfileSet(value); });
+                add(&_profile);
             }
             void layout()
             {
@@ -3993,8 +4026,11 @@ private:
                 r = max(r, _metric.right());
                 _characterSet.setTopLeft(_quality.bottomLeft() + vSpace);
                 r = max(r, _characterSet.right());
-                setInnerSize(Vector(r, _characterSet.bottom()) +
-                    _host->groupBR());
+                int b = _characterSet.bottom();
+                _profile.setTopLeft(_characterSet.topRight() + hSpace);
+                r = max(r, _profile.right());
+                b = max(b, _profile.bottom());
+                setInnerSize(Vector(r, b) + _host->groupBR());
                 _progressBar.setTopLeft(_matchMode.topRight() + hSpace);
                 _progressBar.setInnerSize(Vector(r - _progressBar.topLeft().x,
                     _matchMode.outerSize().y));
@@ -4010,6 +4046,7 @@ private:
             CaptionedDropDownList _clipping;
             CaptionedDropDownList _metric;
             CaptionedDropDownList _characterSet;
+            ProfileDropDown _profile;
         };
         MatchingGroup _matching;
         CGAArtWindow* _host;
@@ -4208,7 +4245,7 @@ public:
         configFile.addDefaultOption("chromaBandwidth", 1.0);
         configFile.addDefaultOption("lumaBandwidth", 1.0);
         configFile.addDefaultOption("rollOff", 0.0);
-        configFile.addDefaultOption("cutOff", 0.01);
+        configFile.addDefaultOption("lobes", 4.0);
         configFile.addDefaultOption("horizontalDiffusion", 0.647565);
         configFile.addDefaultOption("verticalDiffusion", 0.352435);
         configFile.addDefaultOption("temporalDiffusion", 0.0);
@@ -4223,13 +4260,14 @@ public:
         configFile.addDefaultOption("scanlineWidth", 0.5);
         configFile.addDefaultOption("scanlineProfile", 0);
         configFile.addDefaultOption("horizontalProfile", 0);
+        configFile.addDefaultOption("prescalerProfile", 4);
         configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("horizontalBleeding", 2);
         configFile.addDefaultOption("zoom", 2.0);
         configFile.addDefaultOption("horizontalRollOff", 0.0);
         configFile.addDefaultOption("verticalRollOff", 0.0);
-        configFile.addDefaultOption("horizontalCutOff", 0.01);
-        configFile.addDefaultOption("verticalCutOff", 0.01);
+        configFile.addDefaultOption("horizontalLobes", 4.0);
+        configFile.addDefaultOption("verticalLobes", 4.0);
         configFile.addDefaultOption("subPixelSeparation", 1.0);
         configFile.addDefaultOption("phosphor", 0);
         configFile.addDefaultOption("mask", 0);
@@ -4325,13 +4363,14 @@ public:
         output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
         output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
         output.setRollOff(configFile.get<double>("rollOff"));
-        output.setCutOff(configFile.get<double>("cutOff"));
+        output.setLobes(configFile.get<double>("lobes"));
         int connector = configFile.get<int>("connector");
         output.setConnector(connector);
         matcher.setConnector(connector);
         output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
         output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
         output.setHorizontalProfile(configFile.get<int>("horizontalProfile"));
+        matcher.setPrescalerProfile(configFile.get<int>("prescalerProfile"));
         output.setZoom(configFile.get<double>("zoom"));
         output.setScanlineBleeding(configFile.get<int>("scanlineBleeding"));
         output.setHorizontalBleeding(
@@ -4339,8 +4378,8 @@ public:
         output.setHorizontalRollOff(
             configFile.get<double>("horizontalRollOff"));
         output.setVerticalRollOff(configFile.get<double>("verticalRollOff"));
-        output.setHorizontalCutOff(configFile.get<double>("horizontalCutOff"));
-        output.setVerticalCutOff(configFile.get<double>("verticalCutOff"));
+        output.setHorizontalLobes(configFile.get<double>("horizontalLobes"));
+        output.setVerticalLobes(configFile.get<double>("verticalLobes"));
         output.setSubPixelSeparation(
             configFile.get<double>("subPixelSeparation"));
         output.setPhosphor(configFile.get<int>("phosphor"));
@@ -4437,7 +4476,7 @@ public:
         s += "lumaBandwidth = " + format("%6f", matcher.getLumaBandwidth()) +
             ";\n";
         s += "rollOff = " + format("%6f", matcher.getRollOff()) + ";\n";
-        s += "cutOff = " + format("%6f", matcher.getCutOff()) + ";\n";
+        s += "lobes = " + format("%6f", matcher.getLobes()) + ";\n";
         s += "showClipping = " + String::Boolean(output.getShowClipping()) +
             ";\n";
         s += "combFilter = " + decimal(output.getCombFilter()) + ";\n";
@@ -4449,6 +4488,8 @@ public:
             ";\n";
         s += "horizontalProfile = " + decimal(output.getHorizontalProfile()) +
             ";\n";
+        s += "prescalerProfile = " + decimal(matcher.getPrescalerProfile()) +
+            ";\n";
         s += "scanlineBleeding = " + decimal(output.getScanlineBleeding()) +
             ";\n";
         s += "horizontalBleeding = " +
@@ -4458,10 +4499,10 @@ public:
             format("%6f", output.getHorizontalRollOff()) + ";\n";
         s += "verticalRollOff = " +
             format("%6f", output.getVerticalRollOff()) + ";\n";
-        s += "horizontalCutOff = " +
-            format("%6f", output.getHorizontalCutOff()) + ";\n";
-        s += "verticalCutOff = " +
-            format("%6f", output.getVerticalCutOff()) + ";\n";
+        s += "horizontalLobes = " +
+            format("%6f", output.getHorizontalLobes()) + ";\n";
+        s += "verticalLobes = " +
+            format("%6f", output.getVerticalLobes()) + ";\n";
         s += "subPixelSeparation = " + format("%6f",
             output.getSubPixelSeparation()) + ";\n";
         s += "phosphor = " + decimal(output.getPhosphor()) + ";\n";

@@ -401,7 +401,7 @@ public:
                     - chromaHigh*sinc(d*chromaHigh)
                     + chromaLow*sinc(d*chromaLow);
             }
-            if (r > -_cutOff && r < _cutOff)
+            if (t > _lobes*4)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
@@ -416,7 +416,7 @@ public:
             float r;
             r = sinc(d*rollOff);
             r *= chromaCutoff*sinc(d*chromaCutoff);
-            if (r > -_cutOff && r < _cutOff)
+            if (t > _lobes*4)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
@@ -505,8 +505,8 @@ public:
     }
     double getRollOff() { return _rollOff; }
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
-    double getCutOff() { return _cutOff; }
-    void setCutOff(double cutOff) { _cutOff = static_cast<float>(cutOff); }
+    double getLobes() { return _lobes; }
+    void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
     void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
     void setPadding(int padding) { _padding = padding; }
     float* yData() { return &_yTime[0]; }
@@ -541,7 +541,7 @@ private:
     float _chromaBandwidth;
     float _lumaBandwidth;
     float _rollOff;
-    float _cutOff;
+    float _lobes;
     bool _chromaNotch;
 
     float _ri;
@@ -597,9 +597,9 @@ public:
         static const float inputChannelPositions[8] =
             {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
         static const float outputChannelPositions[3] = {0, 0, 0};
-        float kernelRadius = 16;
+
         _filter.generate(Vector2<int>(_outputLength, 1), 8,
-            inputChannelPositions, 3, outputChannelPositions, kernelRadius,
+            inputChannelPositions, 3, outputChannelPositions, _lobes,
             [=](float distance, int inputChannel, int outputChannel)
         {
             float r;
@@ -637,8 +637,7 @@ public:
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
                 r = i[outputChannel]*iq.x + q[outputChannel]*iq.y;
             }
-            if (r > -_cutOff && r < _cutOff)
-                r = 0;
+            r *= sinc(distance*_rollOff);
             return r;
         },
             &_inputLeft, &_inputRight, 4, 0);
@@ -706,8 +705,8 @@ public:
     }
     double getRollOff() { return _rollOff; }
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
-    double getCutOff() { return _cutOff; }
-    void setCutOff(double cutOff) { _cutOff = static_cast<float>(cutOff); }
+    double getLobes() { return _lobes; }
+    void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
 private:
     float _hue;
     float _saturation;
@@ -716,7 +715,7 @@ private:
     float _chromaBandwidth;
     float _lumaBandwidth;
     float _rollOff;
-    float _cutOff;
+    float _lobes;
 
     //ImageFilter16 _filter;
     ImageFilterHorizontal _filter;
