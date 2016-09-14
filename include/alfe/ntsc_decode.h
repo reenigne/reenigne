@@ -602,28 +602,30 @@ public:
             inputChannelPositions, 3, outputChannelPositions, _lobes,
             [=](float distance, int inputChannel, int outputChannel)
         {
+            float n = sinc(distance*_rollOff);
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                float y;
                 float lumaHigh = _lumaBandwidth;
                 float chromaLow = (4 - _chromaBandwidth) / 4;
                 float chromaHigh = (4 + _chromaBandwidth) / 4;
                 if (lumaHigh < chromaHigh) {
                     if (lumaHigh < chromaLow)
-                        y = lumaHigh*sinc(distance*lumaHigh);
+                        n *= lumaHigh*sinc(distance*lumaHigh);
                     else
-                        y = chromaLow*sinc(distance*chromaLow);
+                        n *= chromaLow*sinc(distance*chromaLow);
                 }
                 else {
-                    y = lumaHigh*sinc(distance*lumaHigh)
+                    n *= lumaHigh*sinc(distance*lumaHigh)
                         - chromaHigh*sinc(distance*chromaHigh)
                         + chromaLow*sinc(distance*chromaLow);
                 }
-                r = y*contrast/4.0f;
+                r = n*contrast/4.0f;
             }
             else {
                 // Chroma
+                float c = _chromaBandwidth / 4;
+                n *= c*sinc(distance*c);
                 Complex<float> iq = 0;
                 switch (inputChannel) {
                     case 1: iq.y = 1; break;
@@ -631,14 +633,12 @@ public:
                     case 5: iq.y = -1; break;
                     case 7: iq.x = 1; break;
                 }
-                iq *= sinc(distance*_chromaBandwidth/4.0f);
-                iq *= iqAdjust*_chromaBandwidth/16.0f;
+                iq *= n*iqAdjust/4.0f;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
                 r = i[outputChannel]*iq.x + q[outputChannel]*iq.y;
             }
-            r *= sinc(distance*_rollOff);
-            return r;
+            return Tuple<float, float>(r, n);
         },
             &_inputLeft, &_inputRight, 4, 0);
 

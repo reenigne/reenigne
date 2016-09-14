@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <intrin.h>
+#include "alfe/tuple.h"
 
 bool useSSE2()
 {
@@ -110,7 +111,10 @@ public:
     // The kernel spans range -kernelRadius to kernelRadius input pixels.
     // kernelFunction's arguments are distance, inputChannel, outputChannel.
     //   distance is outputPixel - inputPixel in input pixels
-    // kernelFunction's results should sum to 1 for each output pixel channel.
+    // The first value returned by the kernelFunction is the actual
+    // coefficient. The second value is a normalization value - the
+    // coefficients will be scaled by the scale factor that makes the
+    // scaled normalization values total to 1 for each output pixel channel.
     // In inputLeft we return the leftmost input pixel that will be accessed.
     // In inputRight we return the rightmost input pixel that will be
     // accessed plus one.
@@ -119,8 +123,8 @@ public:
     void generate(Vector outputSize, int inputChannels,
         const float* inputChannelPositions, int outputChannels,
         const float* outputChannelPositions, float kernelRadius,
-        std::function<float(float, int, int)> kernelFunction, int* inputLeft,
-        int* inputRight, float zoom, float offset)
+        std::function<Tuple<float, float>(float, int, int)> kernelFunction,
+        int* inputLeft, int* inputRight, float zoom, float offset)
     {
         float minInputChannelPosition = std::numeric_limits<float>::max();
         float maxInputChannelPosition = -minInputChannelPosition;
@@ -192,11 +196,10 @@ public:
                         (static_cast<float>(oc / outputChannels) +
                         outputChannelPositions[outputChannel])/zoom + offset;
                     float dist = centerInputPixel - inputPosition;
-                    int v = 0;
-                    if (dist >= -kernelRadius && dist <= kernelRadius) {
-                        v = static_cast<int>(round(kernelFunction(dist,
-                            inputChannel, outputChannel)*scale));
-                    }
+                    Tuple<float, float> vv(0, 0);
+                    if (dist >= -kernelRadius && dist <= kernelRadius)
+                        vv = kernelFunction(dist, inputChannel, outputChannel);
+                    int v = static_cast<int>(round(vv.first()*scale));
                     if (v != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
@@ -333,7 +336,10 @@ public:
     // The kernel spans range -kernelRadius to kernelRadius input pixels.
     // kernelFunction's arguments are distance, inputChannel, outputChannel.
     //   distance is outputPixel - inputPixel in input pixels
-    // kernelFunction's results should sum to 1 for each output pixel channel.
+    // The first value returned by the kernelFunction is the actual
+    // coefficient. The second value is a normalization value - the
+    // coefficients will be scaled by the scale factor that makes the
+    // scaled normalization values total to 1 for each output pixel channel.
     // In inputLeft we return the leftmost input pixel that will be accessed.
     // In inputRight we return the rightmost input pixel that will be
     // accessed plus one.
@@ -342,8 +348,8 @@ public:
     void generate(Vector outputSize, int inputChannels,
         const float* inputChannelPositions, int outputChannels,
         const float* outputChannelPositions, float kernelRadius,
-        std::function<float(float, int, int)> kernelFunction, int* inputLeft,
-        int* inputRight, float zoom, float offset)
+        std::function<Tuple<float, float>(float, int, int)> kernelFunction,
+        int* inputLeft, int* inputRight, float zoom, float offset)
     {
         float minInputChannelPosition = std::numeric_limits<float>::max();
         float maxInputChannelPosition = -minInputChannelPosition;
@@ -413,10 +419,10 @@ public:
                         (static_cast<float>(oc / outputChannels) +
                         outputChannelPositions[outputChannel])/zoom + offset;
                     float dist = centerInputPixel - inputPosition;
-                    float v = 0;
+                    Tuple<float, float> v(0, 0);
                     if (dist >= -kernelRadius && dist <= kernelRadius)
                         v = kernelFunction(dist, inputChannel, outputChannel);
-                    if (v != 0) {
+                    if (v.first() != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
                             *offsets = i*sizeof(float);
@@ -427,7 +433,7 @@ public:
                             *kernel = 0;
                             ++kernel;
                         }
-                        *kernel = v;
+                        *kernel = v.first();
                         ++kernel;
                         ++lastC;
                     }
@@ -545,14 +551,17 @@ public:
     // outputSize.y is measured in output pixels
     // The kernel spans range -kernelRadius to kernelRadius input pixels.
     // kernelFunction's argument is outputPixel - inputPixel in input pixels
-    // kernelFunction's results should sum to 1 for each output pixel channel.
+    // The first value returned by the kernelFunction is the actual
+    // coefficient. The second value is a normalization value - the
+    // coefficients will be scaled by the scale factor that makes the
+    // scaled normalization values total to 1 for each output pixel channel.
     // In inputTop we return the topmost input pixel that will be accessed.
     // In inputBottom we return the bottommost input pixel that will be
     // accessed plus one.
     // zoom is number of output pixels per input pixel
     // offset is input position of output pixel 0.
     void generate(Vector outputSize, int channels, float kernelRadius,
-        std::function<float(float)> kernelFunction, int* inputTop,
+        std::function<Tuple<float,float>(float)> kernelFunction, int* inputTop,
         int* inputBottom, float zoom, float offset)
     {
         int channelsPerUnit = (useSSE2() ? 4 : 1);
@@ -585,11 +594,11 @@ public:
             bottom = max(bottom, bottomInput);
             for (int i = topInput; i <= bottomInput; ++i) {
                 float dist = centerInputPixel - static_cast<float>(i);
-                float v = 0;
+                Tuple<float, float> v(0, 0);
                 if (dist >= -kernelRadius && dist <= kernelRadius)
                     v = kernelFunction(dist);
                 for (int x = 0; x < channelsPerUnit; ++x) {
-                    *kernel = v;
+                    *kernel = v.first();
                     ++kernel;
                 }
             }

@@ -87,8 +87,8 @@ public:
             [=](float distance, int inputChannel, int outputChannel)
             {
                 if (inputChannel != outputChannel)
-                    return 0.0f;
-                return channelKernel(distance);
+                    return Tuple<float, float>(0.0f, 0.0f);
+                return  channelKernel(distance);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
         timerHorizontalGenerate.output("horizontal generate");
@@ -157,8 +157,8 @@ public:
     AlignedBuffer output() { return _output; }
 
 private:
-    std::function<float(float)> kernel(int profile, float zoom, float width,
-        float rollOff, float cutOff)
+    std::function<Tuple<float, float>(float)> kernel(int profile, float zoom,
+        float width, float rollOff, float cutOff)
     {
         switch (profile) {
             case 0:
@@ -171,7 +171,7 @@ private:
                     {
                         float r = a*(sinint(b + c*d) + sinint(b - c*d))*
                             sinc(d*rollOff);
-                        return r;
+                        return Tuple<float, float>(r, r);
                     };
                 }
                 break;
@@ -191,7 +191,7 @@ private:
                         +2*cos(b*t*(f+w))
                         -4*cos(b*t*f)
                         )*sinc(distance*rollOff)/(t*t*w*w*b);
-                    return r;
+                    return Tuple<float, float>(r, r);
                 };
                 break;
             case 2:
@@ -202,10 +202,12 @@ private:
                     float c = width/2.0f;
                     return [=](float distance)
                     {
-                        if (distance < -c || distance > c)
-                            return 0.0f;
-                        return a*sqrt(1 - b*distance*distance)*
-                            sinc(distance*rollOff);
+                        float r = 0.0f;
+                        if (distance > -c && distance < c) {
+                            r = a*sqrt(1 - b*distance*distance)*
+                               sinc(distance*rollOff);
+                        }
+                        return Tuple<float, float>(r, r);
                     };
                 }
                 break;
@@ -218,7 +220,7 @@ private:
                     {
                         float r = b*exp(a*distance*distance)*
                             sinc(distance*rollOff);
-                        return r;
+                        return Tuple<float, float>(r, r);
                     };
                 }
                 break;
@@ -232,7 +234,7 @@ private:
                     {
                         float r = bandLimit*sinc(distance*bandLimit)*
                             sinc(distance*rollOff);
-                        return r;
+                        return Tuple<float, float>(r, r);
                     };
                 }
                 break;
@@ -241,8 +243,9 @@ private:
                 {
                     return [=](float distance)
                     {
-                        return (distance >= -0.5f && distance < 0.5f) ?
+                        float r = (distance >= -0.5f && distance < 0.5f) ?
                             sinc(distance*rollOff) : 0.0f;
+                        return Tuple<float, float>(r, r);
                     };
                 }
                 break;
