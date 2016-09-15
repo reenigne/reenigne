@@ -5,7 +5,6 @@
 #include "alfe/set.h"
 #include "alfe/config_file.h"
 #include "alfe/cga.h"
-#include "alfe/timer.h"
 #include "alfe/ntsc_decode.h"
 #include "alfe/knob.h"
 #include "alfe/scanlines.h"
@@ -518,12 +517,20 @@ private:
                     int a = 0;
                     if (startAddress < address) {
                         a = address - startAddress;
-                        memcpy(&c._data[0], &_changes[start]._data[0], a);
+                        memcpy(&c._data[0], &_changes[start]._data[0],
+                            min(a, _changes[start].count()));
                     }
                     memcpy(&c._data[a], data, count);
                     if (endAddress > e2) {
-                        memcpy(&c._data[a + count], &e._data[e2 - e.start()],
-                            endAddress - e2);
+                        int offset = e2 - e.start();
+                        if (offset >= 0) {
+                            memcpy(&c._data[a + count],
+                                &e._data[e2 - e.start()], endAddress - e2);
+                        }
+                        else {
+                            memcpy(&c._data[a + count - offset],
+                                &e._data[0], endAddress - e.start());
+                        }
                     }
                     if (start < end) {
                         Array<Change> changes(_changes.count() + start - end);
@@ -1961,6 +1968,7 @@ private:
     CGAData* _data;
     CGASequencer* _sequencer;
     NTSCDecoder _decoder;
+    //MatchingNTSCDecoder _decoder;
     CGAComposite _composite;
     Linearizer _linearizer;
 
@@ -2048,7 +2056,6 @@ public:
     { }
     void run()
     {
-        Timer timerTotal;
         int connector;
         Vector outputSize;
         int combFilter;
@@ -2289,9 +2296,7 @@ public:
         _scaler.setOutputSize(outputSize);
 
         _bitmap.ensure(outputSize);
-        //Timer timerScalerInit;
         _scaler.init();
-        //timerScalerInit.output("scaler init");
         _unscaled = _scaler.input();
         _scaled = _scaler.output();
         Vector tl = _scaler.inputTL();
@@ -2332,7 +2337,6 @@ public:
             Byte srgbPalette[3*0x77];
             for (int i = 0; i < 3*0x77; ++i)
                 srgbPalette[i] = levels[palette[i]];
-            Timer timerRGBIToSRGB;
             const Byte* rgbi = &_rgbi[0];
             Byte* srgb = &_srgb[0];
             for (int x = 0; x < srgbSize; ++x) {
@@ -2343,16 +2347,13 @@ public:
                 srgb[2] = p[2];
                 srgb += 3;
             }
-            timerRGBIToSRGB.output("rgbi to srgb");
         }
         else {
             _decoder.setPadding(decoderPadding);
-            Timer timerDecoderInit;
             Byte burst[4];
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, (i + 3) & 3);
             _decoder.calculateBurst(burst);
-            timerDecoderInit.output("decoder init");
 
             int combedSize = srgbSize + 2*decoderPadding;
             Vector combTL = Vector(2, 1)*combFilter;
@@ -2366,7 +2367,6 @@ public:
             }
             memcpy(&_rgbi[srgbSize], &_rgbi[0], rgbiSize - srgbSize);
 
-            Timer timerRGBIToComposite;
             // Convert from RGBI to composite
             const Byte* rgbi = &_rgbi[0];
             Byte* ntsc = &_ntsc[0];
@@ -2375,9 +2375,7 @@ public:
                 ++rgbi;
                 ++ntsc;
             }
-            timerRGBIToComposite.output("rgbi to composite");
             // Apply comb filter and decode to sRGB.
-            Timer timerDecode;
             ntsc = &_ntsc[0];
             Byte* srgb = &_srgb[0];
             static const int fftLength = 512;
@@ -2477,12 +2475,9 @@ public:
                     }
                     break;
             }
-            timerDecode.output("decode");
-
         }
         // Shift, clip, show clipping and linearization
         _linearizer.setShowClipping(showClipping && _connector != 0);
-        Timer timerLinearize;
         tl.y = wrap(tl.y + _fields[firstField], scanlines);
         Byte* unscaledRow = _unscaled.data();
         int scanlineChannels = _unscaledSize.x*3;
@@ -2506,13 +2501,11 @@ public:
             }
             unscaledRow += _unscaled.stride();
         }
-        timerLinearize.output("linearize");
 
         // Scale to desired size and apply scanline filter
         _scaler.render();
 
         // Delinearization and float-to-byte conversion
-        Timer timerDelinearize;
         const Byte* scaledRow = _scaled.data();
         Byte* outputRow = _bitmap.data();
         for (int y = 0; y < outputSize.y; ++y) {
@@ -2528,11 +2521,8 @@ public:
             scaledRow += _scaled.stride();
             outputRow += _bitmap.stride();
         }
-        timerDelinearize.output("delinearize");
         _lastBitmap = _bitmap;
         _bitmap = _window->setNextBitmap(_bitmap);
-
-        timerTotal.output("total");
     }
 
     void save(String outputFileName)
@@ -4413,8 +4403,6 @@ public:
             }
         }
 
-        Timer timer;
-
         beginConvert();
 
         bool interactive = configFile.get<bool>("interactive");
@@ -4511,9 +4499,6 @@ public:
         s += "interactive = " + String::Boolean(interactive) + ";\n";
         s += "fftWisdom = " + enquote(fftWisdomFile) + ";\n";
         File(inputFileName + "_out.config", true).save(s);
-
-        if (!interactive)
-            timer.output("Elapsed time");
     }
     bool getMatchMode() { return _matchMode; }
     void setMatchMode(bool matchMode) { _matchMode = matchMode; }

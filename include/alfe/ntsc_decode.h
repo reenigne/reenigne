@@ -394,12 +394,16 @@ public:
             float d = static_cast<float>(t);
             float r;
             r = sinc(d*rollOff);
-            if (lumaHigh < chromaHigh)
-                r *= lumaCutoff*sinc(d*lumaCutoff);
+            if (!_chromaNotch)
+                r *= lumaHigh*sinc(d*lumaHigh);
             else {
-                r *= lumaHigh*sinc(d*lumaHigh)
-                    - chromaHigh*sinc(d*chromaHigh)
-                    + chromaLow*sinc(d*chromaLow);
+                if (lumaHigh < chromaHigh)
+                    r *= lumaCutoff*sinc(d*lumaCutoff);
+                else {
+                    r *= lumaHigh*sinc(d*lumaHigh)
+                        - chromaHigh*sinc(d*chromaHigh)
+                        + chromaLow*sinc(d*chromaLow);
+                }
             }
             if (t > _lobes*4)
                 r = 0;
@@ -609,16 +613,20 @@ public:
                 float lumaHigh = _lumaBandwidth;
                 float chromaLow = (4 - _chromaBandwidth) / 4;
                 float chromaHigh = (4 + _chromaBandwidth) / 4;
-                if (lumaHigh < chromaHigh) {
-                    if (lumaHigh < chromaLow)
-                        n *= lumaHigh*sinc(distance*lumaHigh);
-                    else
-                        n *= chromaLow*sinc(distance*chromaLow);
-                }
+                if (!_chromaNotch)
+                    n *= lumaHigh*sinc(distance*lumaHigh);
                 else {
-                    n *= lumaHigh*sinc(distance*lumaHigh)
-                        - chromaHigh*sinc(distance*chromaHigh)
-                        + chromaLow*sinc(distance*chromaLow);
+                    if (lumaHigh < chromaHigh) {
+                        if (lumaHigh < chromaLow)
+                            n *= lumaHigh*sinc(distance*lumaHigh);
+                        else
+                            n *= chromaLow*sinc(distance*chromaLow);
+                    }
+                    else {
+                        n *= lumaHigh*sinc(distance*lumaHigh)
+                            - chromaHigh*sinc(distance*chromaHigh)
+                            + chromaLow*sinc(distance*chromaLow);
+                    }
                 }
                 r = n*contrast/4.0f;
             }
@@ -707,6 +715,7 @@ public:
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
     double getLobes() { return _lobes; }
     void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
+    void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
 private:
     float _hue;
     float _saturation;
@@ -716,6 +725,7 @@ private:
     float _lumaBandwidth;
     float _rollOff;
     float _lobes;
+    bool _chromaNotch;
 
     //ImageFilter16 _filter;
     ImageFilterHorizontal _filter;

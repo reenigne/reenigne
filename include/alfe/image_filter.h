@@ -160,6 +160,9 @@ public:
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
         float scale = 128.0f;
+        _tempKernel.ensure(
+            (channelsPerUnit + kWidth*channelsPerUnit)*channelsPerUnit);
+        float totals[8];
 
         int left = std::numeric_limits<int>::max();
         int right = std::numeric_limits<int>::min();
@@ -182,8 +185,9 @@ public:
             if (leftInput < 0)
                 multiple = -leftInput*inputChannels;
 
+            for (int c = 0; c < channelsPerUnit; ++c)
+                totals[c] = 0;
             for (int i = leftInput; i <= rightInput; ++i) {
-                int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
                     int inputChannel = (ic + multiple) % inputChannels;
@@ -196,10 +200,21 @@ public:
                         (static_cast<float>(oc / outputChannels) +
                         outputChannelPositions[outputChannel])/zoom + offset;
                     float dist = centerInputPixel - inputPosition;
-                    Tuple<float, float> vv(0, 0);
+                    Tuple<float, float> v(0, 0);
                     if (dist >= -kernelRadius && dist <= kernelRadius)
-                        vv = kernelFunction(dist, inputChannel, outputChannel);
-                    int v = static_cast<int>(round(vv.first()*scale));
+                        v = kernelFunction(dist, inputChannel, outputChannel);
+                    totals[c] += v.second();
+                    _tempKernel[(i - leftInput)*channelsPerUnit + c] =
+                        v.first();
+                }
+            }
+            for (int c = 0; c < channelsPerUnit; ++c)
+                totals[c] = 1/totals[c];
+            for (int i = leftInput; i <= rightInput; ++i) {
+                int lastC = 0;
+                for (int c = 0; c < channelsPerUnit; ++c) {
+                    int v = static_cast<int>(round(scale*
+                        _tempKernel[(i - leftInput)*channelsPerUnit + c]));
                     if (v != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
@@ -261,6 +276,7 @@ private:
     Array<int> _kernelSizes;
     AlignedBuffer _input;
     AlignedBuffer _output;
+    Array<float> _tempKernel;
 
     // Parameters
     int _width;
@@ -366,6 +382,7 @@ public:
             maxOutputChannelPosition = max(maxOutputChannelPosition, p);
         }
         int channelsPerUnit = (useSSE2() ? 4 : 1);
+        float totals[4];
         _height = outputSize.y;
         _width = (outputSize.x*outputChannels + channelsPerUnit - 1)/
             channelsPerUnit;
@@ -405,6 +422,9 @@ public:
             if (leftInput < 0)
                 multiple = -leftInput*inputChannels;
 
+            for (int c = 0; c < channelsPerUnit; ++c)
+                totals[c] = 0;
+            float* kernelStart = kernel;
             for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
@@ -422,6 +442,7 @@ public:
                     Tuple<float, float> v(0, 0);
                     if (dist >= -kernelRadius && dist <= kernelRadius)
                         v = kernelFunction(dist, inputChannel, outputChannel);
+                    totals[c] += v.second();
                     if (v.first() != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
@@ -456,6 +477,12 @@ public:
                     *kernel = 0;
                     ++kernel;
                 }
+            }
+            for (int c = 0; c < channelsPerUnit; ++c)
+                totals[c] = 1/totals[c];
+            for (;kernelStart != kernel; kernelStart += channelsPerUnit) {
+                for (int c = 0; c < channelsPerUnit; ++c)
+                    kernelStart[c] *= totals[c];
             }
             sizes[x] = kernelSize;
         }
@@ -581,6 +608,7 @@ public:
         int top = std::numeric_limits<int>::max();
         int bottom = std::numeric_limits<int>::min();
         for (int y = 0; y < _height; ++y) {
+            float total = 0;
             // Compute topmost and bottommost possible input positions
             int topInput = static_cast<int>(offset - kernelRadius + 1 +
                 static_cast<float>(y)/zoom);
@@ -592,18 +620,47 @@ public:
 
             top = min(top, topInput);
             bottom = max(bottom, bottomInput);
+            float* kernelStart = kernel;
+            int realTop = bottomInput + 1;
+            int realBottom;
             for (int i = topInput; i <= bottomInput; ++i) {
                 float dist = centerInputPixel - static_cast<float>(i);
                 Tuple<float, float> v(0, 0);
                 if (dist >= -kernelRadius && dist <= kernelRadius)
                     v = kernelFunction(dist);
+                total += v.second();
+                if (v.first() != 0) {
+                    if (realTop <= bottomInput) {
+                        ++realBottom;
+                        for (;realBottom < i; ++realBottom) {
+                            for (int x = 0; x < channelsPerUnit; ++x) {
+                                *kernel = v.first();
+                                ++kernel;
+                            }
+                        }
+                    }
+                    else
+                        realTop = i;
+                    realBottom = i;
+                    for (int x = 0; x < channelsPerUnit; ++x) {
+                        *kernel = v.first();
+                        ++kernel;
+                    }
+                }
+            }
+            if (realTop > bottomInput) {
+                realTop = bottomInput;
+                realBottom = bottomInput;
                 for (int x = 0; x < channelsPerUnit; ++x) {
-                    *kernel = v.first();
+                    *kernel = 0;
                     ++kernel;
                 }
             }
-            sizes[y] = 1 + bottomInput - topInput;
-            offsets[y] = topInput;
+            sizes[y] = 1 + realBottom - realTop;
+            offsets[y] = realTop;
+            float scale = 1/total;
+            for (;kernelStart != kernel; ++kernelStart)
+                *kernelStart *= scale;
         }
         *inputTop = top;
         *inputBottom = bottom + 1;

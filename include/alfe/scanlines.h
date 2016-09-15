@@ -59,14 +59,12 @@ public:
     {
         _output.ensure(_size.x*3*sizeof(float), _size.y);
 
-        Timer timerVerticalGenerate;
         _vertical.generate(_size, 3,
             kernelRadius(_profile, _zoom.y, _width, _verticalRollOff,
                 _verticalLobes),
             kernel(_profile, _zoom.y, _width, _verticalRollOff,
                 _verticalLobes),
             &_inputTL.y, &_inputBR.y, _zoom.y, _offset.y);
-        timerVerticalGenerate.output("vertical generate");
 
         int inputHeight = _inputBR.y - _inputTL.y;
         _intermediate.ensure(_size.x*3*sizeof(float), inputHeight);
@@ -77,7 +75,6 @@ public:
         float outputChannelPositions[3] =
             {-_subPixelSeparation/3, 0, _subPixelSeparation/3};
 
-        Timer timerHorizontalGenerate;
         auto channelKernel = kernel(_horizontalProfile, _zoom.x, 1,
             _horizontalRollOff, _horizontalLobes);
         _horizontal.generate(Vector(_size.x, inputHeight), 3,
@@ -91,7 +88,6 @@ public:
                 return  channelKernel(distance);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
-        timerHorizontalGenerate.output("horizontal generate");
 
         _input.ensure((_inputBR.x - _inputTL.x)*3*sizeof(float), inputHeight);
 
@@ -99,22 +95,14 @@ public:
     }
     void render()
     {
-        Timer timerHorizontalExecute;
         _horizontal.execute();
-        timerHorizontalExecute.output("horizontal execute");
-        Timer timerHorizontalBleeding;
         Byte* d = _intermediate.data();
         for (int y = 0; y < _inputBR.y - _inputTL.y; ++y) {
             bleed(d, 12, Vector(3, _size.x), _horizontalBleeding);
             d += _intermediate.stride();
         }
-        timerHorizontalBleeding.output("horizontal bleeding");
-        Timer timerVerticalExecute;
         _vertical.execute();
-        timerVerticalExecute.output("vertical execute");
-        Timer timerBleeding;
         bleed(_output.data(), _output.stride(), _size*Vector(3, 1), _bleeding);
-        timerBleeding.output("bleeding");
     }
     int getProfile() { return _profile; }
     void setProfile(int profile) { _profile = profile; }
