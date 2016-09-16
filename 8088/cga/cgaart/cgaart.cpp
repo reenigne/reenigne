@@ -157,9 +157,11 @@ public:
             int t = deserialize(&data, offset);
             int address = deserialize(&data, offset + 4);
             int count = deserialize(&data, offset + 8);
-            if (offset + 12 + count < data.count())
+            int length = 12 + count;
+            if (offset + length > data.count())
                 throw Exception(file.path() + " is truncated.");
             changeNoLock(t, address, count, &data[offset + 12]);
+            offset += (length + 3) & ~3;
         } while (true);
     }
     void saveVRAM(File file)
@@ -1119,7 +1121,6 @@ public:
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
             _decoder.setLobes(_lobes);
-            _decoder.setChromaNotch(true);
             _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4) - 90);
             _decoder.setSaturation(saturation);
             double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
@@ -2092,7 +2093,8 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setHue(_hue + ((mode & 1) != 0 ? 14 : 4));
+            _decoder.setHue(_hue + ((mode & 1) != 0 ? 14 : 4) +
+                (combFilter == 2 ? 180 : 0));
             _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
             contrast = static_cast<float>(_contrast/100);
             static const double combDivisors[3] = {1, 2, 4};
@@ -2105,7 +2107,6 @@ public:
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setRollOff(_rollOff);
             _decoder.setLobes(_lobes);
-            _decoder.setChromaNotch(combFilter == 0);
             _scaler.setProfile(_scanlineProfile);
             _scaler.setHorizontalProfile(_horizontalProfile);
             _scaler.setWidth(static_cast<float>(_scanlineWidth));
@@ -2288,8 +2289,9 @@ public:
         }
         Vector2<float> offset(0, 0);
         if (connector != 0) {
-            offset = Vector2<float>(-decoderPadding - 0.5f, 0) +
-                static_cast<float>(combFilter)*Vector2<float>(1, -0.5f);
+            offset = Vector2<float>(-decoderPadding - 0.5f, 0);
+            if (combFilter == 2)
+                offset += Vector2<float>(2, -1);
         }
         _scaler.setOffset(inputTL + offset +
             Vector2<float>(0.5f, 0.5f)/zoomVector);
@@ -2418,10 +2420,10 @@ public:
                         float* i = _decoder.iData();
                         float* q = _decoder.qData();
                         for (int x = 0; x < fftLength; x += 4) {
-                            y[0] = static_cast<float>(n0[0] + n1[0]);
-                            y[1] = static_cast<float>(n0[1] + n1[1]);
-                            y[2] = static_cast<float>(n0[2] + n1[2]);
-                            y[3] = static_cast<float>(n0[3] + n1[3]);
+                            y[0] = static_cast<float>(2*n0[0]);
+                            y[1] = static_cast<float>(2*n0[1]);
+                            y[2] = static_cast<float>(2*n0[2]);
+                            y[3] = static_cast<float>(2*n0[3]);
                             i[0] = -static_cast<float>(n0[1] - n1[1]);
                             i[1] = static_cast<float>(n0[3] - n1[3]);
                             q[0] = static_cast<float>(n0[0] - n1[0]);
@@ -2454,14 +2456,14 @@ public:
                         float* i = _decoder.iData();
                         float* q = _decoder.qData();
                         for (int x = 0; x < fftLength; x += 4) {
-                            y[0] = static_cast<float>(n0[0] + n2[0] + 2*n1[0]);
-                            y[1] = static_cast<float>(n0[1] + n2[1] + 2*n1[1]);
-                            y[2] = static_cast<float>(n0[2] + n2[2] + 2*n1[2]);
-                            y[3] = static_cast<float>(n0[3] + n2[3] + 2*n1[3]);
-                            i[0] = static_cast<float>(2*n1[1] - n0[1] - n2[1]);
-                            i[1] = static_cast<float>(n0[3] + n2[3] - 2*n1[3]);
-                            q[0] = static_cast<float>(n0[0] + n2[0] - 2*n1[0]);
-                            q[1] = static_cast<float>(2*n1[2] - n0[2] - n2[2]);
+                            y[0] = static_cast<float>(4*n1[0]);
+                            y[1] = static_cast<float>(4*n1[1]);
+                            y[2] = static_cast<float>(4*n1[2]);
+                            y[3] = static_cast<float>(4*n1[3]);
+                            i[0] = static_cast<float>(n0[1] + n2[1] - 2*n1[1]);
+                            i[1] = static_cast<float>(2*n1[3] - n0[3] - n2[3]);
+                            q[0] = static_cast<float>(2*n1[0] - n0[0] - n2[0]);
+                            q[1] = static_cast<float>(n0[2] + n2[2] - 2*n1[2]);
                             n0 += 4;
                             n1 += 4;
                             n2 += 4;
@@ -4382,7 +4384,6 @@ public:
 
         Bitmap<SRGB> input = bitmapValue.bitmap();
         Vector activeSize = configFile.get<Vector>("activeSize");
-        matcher.setInput(input, activeSize);
         bool isPNG = bitmapValue.isPNG();
         String inputName = bitmapValue.name();
         setMatchMode(isPNG);
@@ -4390,18 +4391,17 @@ public:
             File file(inputName, true);
             if (endsIn(inputName, ".cgad")) {
                 _data.load(file);
-                int regs = -CGAData::registerLogCharactersPerBank;
-                Array<Byte> data = _data.getData(-regs, regs);
-                matcher.setMode(data[CGAData::registerMode]);
-                matcher.setPalette(data[CGAData::registerPalette]);
+                matcher.setMode(_data.getDataByte(CGAData::registerMode));
+                matcher.setPalette(
+                    _data.getDataByte(CGAData::registerPalette));
                 matcher.setScanlinesPerRow(1 +
-                    data[CGAData::registerMaximumScanline]);
+                    _data.getDataByte(CGAData::registerMaximumScanline));
             }
-            else {
+            else
                 _data.loadVRAM(file);
-                matcher.setSize(Vector(640, 200));
-            }
         }
+        else
+            matcher.setInput(input, activeSize);
 
         beginConvert();
 

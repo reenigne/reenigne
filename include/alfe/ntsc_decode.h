@@ -377,9 +377,10 @@ public:
         Complex<float> iq;
         iq.x = static_cast<float>(burst[0] - burst[2]);
         iq.y = static_cast<float>(burst[1] - burst[3]);
+        _chromaScale = 2/static_cast<float>(_length);
         Complex<float> iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            _contrast/iq.modulus()/static_cast<float>(_length);
+            _contrast*_chromaScale/(iq.modulus()*2);
         float contrast = _contrast/_length;
         _brightness2 = _brightness*256.0f;
         int fLength = _length/2 + 1;
@@ -393,18 +394,7 @@ public:
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
             float r;
-            r = sinc(d*rollOff);
-            if (!_chromaNotch)
-                r *= lumaHigh*sinc(d*lumaHigh);
-            else {
-                if (lumaHigh < chromaHigh)
-                    r *= lumaCutoff*sinc(d*lumaCutoff);
-                else {
-                    r *= lumaHigh*sinc(d*lumaHigh)
-                        - chromaHigh*sinc(d*chromaHigh)
-                        + chromaLow*sinc(d*chromaLow);
-                }
-            }
+            r = sinc(d*rollOff) * lumaHigh*sinc(d*lumaHigh);
             if (t > _lobes*4)
                 r = 0;
             _yTime[t] = r;
@@ -444,12 +434,6 @@ public:
     {
         int fLength = _length/2 + 1;
 
-        // Filter Y
-        _lumaForward.execute(_yTime, _frequency);
-        for (int f = 0; f < fLength; ++f)
-            _frequency[f] *= _yResponse[f];
-        _backward.execute(_frequency, _yTime);
-
         // Filter I
         _chromaForward.execute(_iTime, _frequency);
         for (int f = 0; f < fLength/2; ++f) {
@@ -469,6 +453,20 @@ public:
         for (int f = 0; f < fLength; ++f)
             _frequency[f] *= _qResponse[f];
         _backward.execute(_frequency, _qTime);
+
+        // Remove remodulated IQ from Y
+        for (int t = 0; t < _length; t += 4) {
+            _yTime[t] -=_qTime[t]*_chromaScale;
+            _yTime[t + 1] += _iTime[t + 1]*_chromaScale;
+            _yTime[t + 2] += _qTime[t + 2]*_chromaScale;
+            _yTime[t + 3] -= _iTime[t + 3]*_chromaScale;
+        }
+
+        // Filter Y
+        _lumaForward.execute(_yTime, _frequency);
+        for (int f = 0; f < fLength; ++f)
+            _frequency[f] *= _yResponse[f];
+        _backward.execute(_frequency, _yTime);
 
         for (int t = _padding; t < _padding + _outputLength; ++t) {
             float y = _yTime[t] + _brightness2;
@@ -511,7 +509,6 @@ public:
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
     double getLobes() { return _lobes; }
     void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
-    void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
     void setPadding(int padding) { _padding = padding; }
     float* yData() { return &_yTime[0]; }
     float* iData() { return &_iTime[0]; }
@@ -546,7 +543,7 @@ private:
     float _lumaBandwidth;
     float _rollOff;
     float _lobes;
-    bool _chromaNotch;
+    float _chromaScale;
 
     float _ri;
     float _gi;
@@ -613,21 +610,7 @@ public:
                 float lumaHigh = _lumaBandwidth;
                 float chromaLow = (4 - _chromaBandwidth) / 4;
                 float chromaHigh = (4 + _chromaBandwidth) / 4;
-                if (!_chromaNotch)
-                    n *= lumaHigh*sinc(distance*lumaHigh);
-                else {
-                    if (lumaHigh < chromaHigh) {
-                        if (lumaHigh < chromaLow)
-                            n *= lumaHigh*sinc(distance*lumaHigh);
-                        else
-                            n *= chromaLow*sinc(distance*chromaLow);
-                    }
-                    else {
-                        n *= lumaHigh*sinc(distance*lumaHigh)
-                            - chromaHigh*sinc(distance*chromaHigh)
-                            + chromaLow*sinc(distance*chromaLow);
-                    }
-                }
+                n *= lumaHigh*sinc(distance*lumaHigh);
                 r = n*contrast/4.0f;
             }
             else {
@@ -715,7 +698,6 @@ public:
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
     double getLobes() { return _lobes; }
     void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
-    void setChromaNotch(bool chromaNotch) { _chromaNotch = chromaNotch; }
 private:
     float _hue;
     float _saturation;
@@ -725,7 +707,6 @@ private:
     float _lumaBandwidth;
     float _rollOff;
     float _lobes;
-    bool _chromaNotch;
 
     //ImageFilter16 _filter;
     ImageFilterHorizontal _filter;
