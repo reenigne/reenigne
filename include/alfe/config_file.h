@@ -164,8 +164,11 @@ public:
     void load(File file)
     {
         _file = file;
-        String contents = file.contents();
-        CharacterSource source(contents, file);
+        loadFromString(file.contents());
+    }
+    void loadFromString(String contents)
+    {
+        CharacterSource source(contents, _file);
         Space::parse(&source);
         do {
             CharacterSource s = source;
@@ -177,7 +180,7 @@ public:
                 Value e = Expression::parse(&s).evaluate(&_context).
                     convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
-                load(File(e.value<String>(), file.parent()));
+                load(File(e.value<String>(), _file.parent()));
                 source = s;
                 continue;
             }
@@ -278,7 +281,7 @@ public:
         } while (true);
         for (auto i : *this) {
             if (!i.value().valid())
-                throw Exception(file.path() + ": " + i.key().name() +
+                throw Exception(_file.path() + ": " + i.key().name() +
                     " not defined and no default is available.");
         }
     }

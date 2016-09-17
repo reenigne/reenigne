@@ -10,6 +10,7 @@
 #include "alfe/scanlines.h"
 #include "alfe/image_filter.h"
 #include "alfe/wrap.h"
+#include <commdlg.h>
 
 template<class T> class CGAArtWindowT;
 typedef CGAArtWindowT<void> CGAArtWindow;
@@ -1571,9 +1572,6 @@ public:
                     bytesPerRow, &_rowData[1]);
             }
             _program->updateOutput();
-            _program->setProgress(static_cast<float>(row*banks + bank)/
-                (_verticalDisplayed*banks));
-
             ++bank;
             inputRow += _blockHeight*_scaled.stride();
             errorRow += _errorStride*_blockHeight;
@@ -1587,6 +1585,8 @@ public:
                 if (row >= _verticalDisplayed)
                     break;
             }
+            _program->setProgress(static_cast<float>(row*banks + bank)/
+                (_verticalDisplayed*banks));
         } // while (!cancelling())
         _program->setProgress(-1);
     }
@@ -2943,10 +2943,16 @@ public:
         setText("CGA Art");
         add(&_outputWindow);
         add(&_monitor);
+        _saveConfig.setClicked([&](bool value) { saveConfig(); });
+        _saveConfig.setText("Save Config");
+        add(&_saveConfig);
+        _loadConfig.setClicked([&](bool value) { loadConfig(); });
+        _loadConfig.setText("Load Config");
+        add(&_loadConfig);
         add(&_videoCard);
         add(&_knobSliders);
     }
-    void create()
+    void load()
     {
         _monitor._connector.set(_output->getConnector());
         _monitor._colour._brightness.setValue(_output->getBrightness());
@@ -3035,6 +3041,10 @@ public:
         _videoCard._matching._metric.set(_matcher->getMetric());
         _videoCard._matching._profile.set(_matcher->getPrescalerProfile());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
+    }
+    void create()
+    {
+        load();
         setInnerSize(Vector(0, 0));
         _outputWindow.setInnerSize(_output->requiredSize());
         RootWindow::create();
@@ -3059,9 +3069,12 @@ public:
         int r = _outputWindow.right();
         _videoCard.setTopLeft(_outputWindow.bottomLeft() + Vector(0, p.y));
         r = max(r, _videoCard.right());
-        _monitor.setTopLeft(_outputWindow.topRight() + Vector(p.x, 0));
-        setInnerSize(p + Vector(_monitor.right(),
-            max(_videoCard.bottom(), _monitor.bottom())));
+        _monitor.setTopLeft(Vector(r + p.x, _outputWindow.top()));
+        _saveConfig.setTopLeft(_monitor.bottomLeft() + vSpace());
+        _loadConfig.setTopLeft(_saveConfig.topRight() + hSpace());
+        int b = max(_saveConfig.bottom(), _loadConfig.bottom());
+        setInnerSize(p + Vector(max(_monitor.right(), _loadConfig.right()),
+            max(_videoCard.bottom(), b)));
     }
     void keyboardCharacter(int character)
     {
@@ -3070,6 +3083,7 @@ public:
     }
     void setConfig(ConfigFile* config)
     {
+        _config = config;
         _monitor._colour._brightness.setConfig(config);
         _monitor._colour._saturation.setConfig(config);
         _monitor._colour._contrast.setConfig(config);
@@ -3122,6 +3136,8 @@ public:
         _videoCard._matching._diffusionHorizontal.enableWindow(matchMode);
         _videoCard._matching._diffusionVertical.enableWindow(matchMode);
         _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
+        _videoCard._matching._profile.enableWindow(matchMode);
+        _videoCard._matching.enableWindow(_program->matchingPossible());
         _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);
@@ -3367,6 +3383,82 @@ public:
         _videoCard._matching._progressBar.show(
             progress >= 0 ? SW_SHOW : SW_HIDE);
         _videoCard._matching._progressBar.setValue(progress);
+    }
+    void saveConfig()
+    {
+        WCHAR buffer[MAX_PATH];
+        buffer[0] = 0;
+        OPENFILENAME saveFileName;
+        saveFileName.lStructSize = sizeof(OPENFILENAME);
+        saveFileName.hwndOwner = hWnd();
+        saveFileName.hInstance = 0;
+        saveFileName.lpstrFilter = L"Config Files\0*.config\0\0";
+        saveFileName.lpstrCustomFilter = NULL;
+        saveFileName.nMaxCustFilter = 0;
+        saveFileName.nFilterIndex = 1;
+        saveFileName.lpstrFile = buffer;
+        saveFileName.nMaxFile = MAX_PATH;
+        saveFileName.lpstrFileTitle = NULL;
+        saveFileName.nMaxFileTitle = 0;
+        saveFileName.lpstrInitialDir = NULL;
+        saveFileName.lpstrTitle = NULL;
+        saveFileName.Flags = OFN_NOCHANGEDIR | OFN_HIDEREADONLY |
+            OFN_NOREADONLYRETURN | OFN_OVERWRITEPROMPT;
+        saveFileName.nFileOffset = 0;
+        saveFileName.nFileExtension = 0;
+        saveFileName.lpstrDefExt = L"config";
+        saveFileName.lCustData = 0;
+        saveFileName.lpfnHook = 0;
+        saveFileName.lpTemplateName = 0;
+        saveFileName.pvReserved = 0;
+        saveFileName.dwReserved = 0;
+        saveFileName.FlagsEx = 0;
+        BOOL r = GetSaveFileName(&saveFileName);
+        if (r == 0)
+            return;
+        _program->saveConfig(File(String(buffer), true));
+    }
+    void loadConfig()
+    {
+        WCHAR buffer[MAX_PATH];
+        buffer[0] = 0;
+        OPENFILENAME openFileName;
+        openFileName.lStructSize = sizeof(OPENFILENAME);
+        openFileName.hwndOwner = hWnd();
+        openFileName.hInstance = 0;
+        openFileName.lpstrFilter = L"Config Files\0*.config\0\0";
+        openFileName.lpstrCustomFilter = NULL;
+        openFileName.nMaxCustFilter = 0;
+        openFileName.nFilterIndex = 1;
+        openFileName.lpstrFile = buffer;
+        openFileName.nMaxFile = MAX_PATH;
+        openFileName.lpstrFileTitle = NULL;
+        openFileName.nMaxFileTitle = 0;
+        openFileName.lpstrInitialDir = NULL;
+        openFileName.lpstrTitle = NULL;
+        openFileName.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+        openFileName.nFileOffset = 0;
+        openFileName.nFileExtension = 0;
+        openFileName.lpstrDefExt = L"config";
+        openFileName.lCustData = 0;
+        openFileName.lpfnHook = 0;
+        openFileName.lpTemplateName = 0;
+        openFileName.pvReserved = 0;
+        openFileName.dwReserved = 0;
+        openFileName.FlagsEx = 0;
+        BOOL r = GetOpenFileName(&openFileName);
+        if (r == 0)
+            return;
+        BEGIN_CHECKED {
+            _config->loadFromString(_program->configContents());
+            _config->load(File(String(buffer), true));
+            _program->loadConfig();
+            load();
+        }
+        END_CHECKED(Exception& e) {
+            NullTerminatedWideString s(e.message());
+            MessageBox(NULL, s, L"Error", MB_OK | MB_ICONERROR);
+        }
     }
 private:
     Vector vSpace() { return Vector(0, 15); }
@@ -3773,6 +3865,8 @@ private:
         CGAArtWindow* _host;
     };
     MonitorGroup _monitor;
+    Button _saveConfig;
+    Button _loadConfig;
     struct VideoCardGroup : public GroupBox
     {
         VideoCardGroup(CGAArtWindow* host)
@@ -4215,10 +4309,10 @@ class Program : public WindowProgram<CGAArtWindow>
 public:
     void run()
     {
-        BitmapValue bitmapValue;
-        BitmapType bitmapType(&bitmapValue);
+        BitmapType bitmapType(&_bitmapValue);
 
         ConfigFile configFile;
+        _config = &configFile;
         configFile.addType(VectorType());
         configFile.addOption("inputPicture", bitmapType);
         configFile.addDefaultOption("mode", 0x1a);
@@ -4298,11 +4392,11 @@ public:
         configFile.addDefaultOption("arguments",
             ArrayType(StringType(), IntegerType()), arguments);
 
-        File config(configPath, true);
-        configFile.load(config);
+        _configFile = File(configPath, true);
+        configFile.load(_configFile);
 
-        String fftWisdomFile = configFile.get<String>("fftWisdom");
-        FFTWWisdom<float> wisdom(File(fftWisdomFile, config.parent()));
+        _fftWisdomFile = configFile.get<String>("fftWisdom");
+        FFTWWisdom<float> wisdom(File(_fftWisdomFile, _configFile.parent()));
 
         CGAOutput output(&_data, &_sequencer, &_window);
         _output = &output;
@@ -4316,77 +4410,12 @@ public:
         _window.setOutput(&output);
         _window.setProgram(this);
 
-        matcher.setDiffusionHorizontal(
-            configFile.get<double>("horizontalDiffusion"));
-        matcher.setDiffusionVertical(
-            configFile.get<double>("verticalDiffusion"));
-        matcher.setDiffusionTemporal(
-            configFile.get<double>("temporalDiffusion"));
-        matcher.setQuality(configFile.get<double>("quality"));
-        matcher.setGamma(configFile.get<double>("gamma"));
-        matcher.setClipping(configFile.get<int>("clipping"));
-        matcher.setMetric(configFile.get<int>("metric"));
-        matcher.setInterlace(configFile.get<int>("interlaceMode"));
-        matcher.setInterlaceSync(configFile.get<bool>("interlaceSync"));
-        matcher.setInterlacePhase(configFile.get<bool>("interlacePhase"));
-        matcher.setFlicker(configFile.get<bool>("flicker"));
-        matcher.setCharacterSet(configFile.get<int>("characterSet"));
-        matcher.setMode(configFile.get<int>("mode"));
-        matcher.setPalette(configFile.get<int>("palette"));
-        matcher.setScanlinesPerRow(configFile.get<int>("scanlinesPerRow"));
-        int scanlinesRepeat = configFile.get<int>("scanlinesRepeat");
-        matcher.setScanlinesRepeat(scanlinesRepeat);
-        String cgaROM = configFile.get<String>("cgaROM");
-        _sequencer.setROM(File(cgaROM, config.parent()));
-
-        double brightness = configFile.get<double>("brightness");
-        output.setBrightness(brightness);
-        matcher.setBrightness(brightness);
-        double saturation = configFile.get<double>("saturation");
-        output.setSaturation(saturation);
-        matcher.setSaturation(saturation);
-        double hue = configFile.get<double>("hue");
-        output.setHue(hue);
-        matcher.setHue(hue);
-        double contrast = configFile.get<double>("contrast");
-        output.setContrast(contrast);
-        matcher.setContrast(contrast);
-        output.setShowClipping(configFile.get<bool>("showClipping"));
-        output.setChromaBandwidth(configFile.get<double>("chromaBandwidth"));
-        output.setLumaBandwidth(configFile.get<double>("lumaBandwidth"));
-        output.setRollOff(configFile.get<double>("rollOff"));
-        output.setLobes(configFile.get<double>("lobes"));
-        int connector = configFile.get<int>("connector");
-        output.setConnector(connector);
-        matcher.setConnector(connector);
-        output.setScanlineWidth(configFile.get<double>("scanlineWidth"));
-        output.setScanlineProfile(configFile.get<int>("scanlineProfile"));
-        output.setHorizontalProfile(configFile.get<int>("horizontalProfile"));
-        matcher.setPrescalerProfile(configFile.get<int>("prescalerProfile"));
-        output.setZoom(configFile.get<double>("zoom"));
-        output.setScanlineBleeding(configFile.get<int>("scanlineBleeding"));
-        output.setHorizontalBleeding(
-            configFile.get<int>("horizontalBleeding"));
-        output.setHorizontalRollOff(
-            configFile.get<double>("horizontalRollOff"));
-        output.setVerticalRollOff(configFile.get<double>("verticalRollOff"));
-        output.setHorizontalLobes(configFile.get<double>("horizontalLobes"));
-        output.setVerticalLobes(configFile.get<double>("verticalLobes"));
-        output.setSubPixelSeparation(
-            configFile.get<double>("subPixelSeparation"));
-        output.setPhosphor(configFile.get<int>("phosphor"));
-        output.setMask(configFile.get<int>("mask"));
-        output.setMaskSize(configFile.get<double>("maskSize"));
-        output.setAspectRatio(configFile.get<double>("aspectRatio"));
-        double overscan = configFile.get<double>("overscan");
-        output.setOverscan(overscan);
-        output.setCombFilter(configFile.get<int>("combFilter"));
-
-        Bitmap<SRGB> input = bitmapValue.bitmap();
-        Vector activeSize = configFile.get<Vector>("activeSize");
-        bool isPNG = bitmapValue.isPNG();
-        String inputName = bitmapValue.name();
+        loadConfig();
+        Bitmap<SRGB> input = _bitmapValue.bitmap();
+        bool isPNG = _bitmapValue.isPNG();
+        String inputName = _bitmapValue.name();
         setMatchMode(isPNG);
+        _matchingPossible = isPNG;
         if (!isPNG) {
             File file(inputName, true);
             if (endsIn(inputName, ".cgad")) {
@@ -4401,19 +4430,19 @@ public:
                 _data.loadVRAM(file);
         }
         else
-            matcher.setInput(input, activeSize);
+            matcher.setInput(input, _activeSize);
 
         beginConvert();
 
-        bool interactive = configFile.get<bool>("interactive");
-        if (interactive)
+        _interactive = configFile.get<bool>("interactive");
+        if (_interactive)
             WindowProgram::run();
 
         if (!_matchMode)
             matcher.cancel();
         matcher.join();
 
-        String inputFileName = bitmapValue.name();
+        String inputFileName = _bitmapValue.name();
         int i;
         for (i = inputFileName.length() - 1; i >= 0; --i)
             if (inputFileName[i] == '.')
@@ -4425,80 +4454,7 @@ public:
         _data.save(File(inputFileName + "_out.cgad", true));
         _data.saveVRAM(File(inputFileName + "_out.dat", true));
         output.saveRGBI(File(inputFileName + "_out.rgbi", true));
-        String s;
-        s = "inputPicture = " + enquote(bitmapValue.file().path()) + ";\n";
-        s += "cgaROM = " + enquote(cgaROM) + ";\n";
-        s += "activeSize = Vector(" + decimal(activeSize.x) + ", " +
-            decimal(activeSize.y) + ");\n";
-        s += "mode = " + hex(matcher.getMode(), 2) + ";\n";
-        s += "palette = " + hex(matcher.getPalette(), 2) + ";\n";
-        s += "scanlinesPerRow = " + decimal(matcher.getScanlinesPerRow()) +
-            ";\n";
-        s += "scanlinesRepeat = " + decimal(matcher.getScanlinesRepeat()) +
-            ";\n";
-        s += "interlaceMode = " + decimal(matcher.getInterlace()) + ";\n";
-        s += "interlaceSync = " + String::Boolean(matcher.getInterlaceSync()) +
-            ";\n";
-        s += "interlacePhase = " +
-            String::Boolean(matcher.getInterlacePhase()) + ";\n";
-        s += "flicker = " + String::Boolean(matcher.getFlicker()) + ";\n";
-        s += "phase = " + decimal(matcher.getPhase()) + ";\n";
-        s += "characterSet = " + decimal(matcher.getCharacterSet()) + ";\n";
-        s += "quality = " + format("%6f", matcher.getQuality()) + ";\n";
-        s += "horizontalDiffusion = " +
-            format("%6f", matcher.getDiffusionHorizontal()) + ";\n";
-        s += "verticalDiffusion = " +
-            format("%6f", matcher.getDiffusionVertical()) + ";\n";
-        s += "temporalDiffusion = " +
-            format("%6f", matcher.getDiffusionTemporal()) + ";\n";
-        s += "gamma = " + format("%6f", matcher.getGamma()) + ";\n";
-        s += "clipping = " + decimal(matcher.getClipping()) + ";\n";
-        s += "metric = " + decimal(matcher.getMetric()) + ";\n";
-        s += "connector = " + decimal(output.getConnector()) + ";\n";
-        s += "contrast = " + format("%6f", matcher.getContrast()) + ";\n";
-        s += "brightness = " + format("%6f", matcher.getBrightness()) + ";\n";
-        s += "saturation = " + format("%6f", matcher.getSaturation()) + ";\n";
-        s += "hue = " + format("%6f", matcher.getHue()) + ";\n";
-        s += "chromaBandwidth = " +
-            format("%6f", matcher.getChromaBandwidth()) + ";\n";
-        s += "lumaBandwidth = " + format("%6f", matcher.getLumaBandwidth()) +
-            ";\n";
-        s += "rollOff = " + format("%6f", matcher.getRollOff()) + ";\n";
-        s += "lobes = " + format("%6f", matcher.getLobes()) + ";\n";
-        s += "showClipping = " + String::Boolean(output.getShowClipping()) +
-            ";\n";
-        s += "combFilter = " + decimal(output.getCombFilter()) + ";\n";
-        s += "aspectRatio = " + format("%6f", output.getAspectRatio()) + ";\n";
-        s += "scanlineWidth = " + format("%6f", output.getScanlineWidth()) +
-            ";\n";
-        s += "overscan = " + format("%6f", overscan) + ";\n";
-        s += "scanlineProfile = " + decimal(output.getScanlineProfile()) +
-            ";\n";
-        s += "horizontalProfile = " + decimal(output.getHorizontalProfile()) +
-            ";\n";
-        s += "prescalerProfile = " + decimal(matcher.getPrescalerProfile()) +
-            ";\n";
-        s += "scanlineBleeding = " + decimal(output.getScanlineBleeding()) +
-            ";\n";
-        s += "horizontalBleeding = " +
-            decimal(output.getHorizontalBleeding()) + ";\n";
-        s += "zoom = " + format("%6f", output.getZoom()) + ";\n";
-        s += "horizontalRollOff = " +
-            format("%6f", output.getHorizontalRollOff()) + ";\n";
-        s += "verticalRollOff = " +
-            format("%6f", output.getVerticalRollOff()) + ";\n";
-        s += "horizontalLobes = " +
-            format("%6f", output.getHorizontalLobes()) + ";\n";
-        s += "verticalLobes = " +
-            format("%6f", output.getVerticalLobes()) + ";\n";
-        s += "subPixelSeparation = " + format("%6f",
-            output.getSubPixelSeparation()) + ";\n";
-        s += "phosphor = " + decimal(output.getPhosphor()) + ";\n";
-        s += "mask = " + decimal(output.getMask()) + ";\n";
-        s += "maskSize = " + format("%6f", output.getMaskSize()) + ";\n";
-        s += "interactive = " + String::Boolean(interactive) + ";\n";
-        s += "fftWisdom = " + enquote(fftWisdomFile) + ";\n";
-        File(inputFileName + "_out.config", true).save(s);
+        saveConfig(File(inputFileName + "_out.config", true));
     }
     bool getMatchMode() { return _matchMode; }
     void setMatchMode(bool matchMode) { _matchMode = matchMode; }
@@ -4523,11 +4479,171 @@ public:
         else
             _output->restart();
     }
+    String configContents()
+    {
+        String s;
+        s = "inputPicture = " + enquote(_bitmapValue.file().path()) + ";\n";
+        s += "cgaROM = " + enquote(_cgaROM) + ";\n";
+        s += "activeSize = Vector(" + decimal(_activeSize.x) + ", " +
+            decimal(_activeSize.y) + ");\n";
+        s += "mode = " + hex(_matcher->getMode(), 2) + ";\n";
+        s += "palette = " + hex(_matcher->getPalette(), 2) + ";\n";
+        s += "scanlinesPerRow = " + decimal(_matcher->getScanlinesPerRow()) +
+            ";\n";
+        s += "scanlinesRepeat = " + decimal(_matcher->getScanlinesRepeat()) +
+            ";\n";
+        s += "interlaceMode = " + decimal(_matcher->getInterlace()) + ";\n";
+        s += "interlaceSync = " +
+            String::Boolean(_matcher->getInterlaceSync()) + ";\n";
+        s += "interlacePhase = " +
+            String::Boolean(_matcher->getInterlacePhase()) + ";\n";
+        s += "flicker = " + String::Boolean(_matcher->getFlicker()) + ";\n";
+        s += "phase = " + decimal(_matcher->getPhase()) + ";\n";
+        s += "characterSet = " + decimal(_matcher->getCharacterSet()) + ";\n";
+        s += "quality = " + format("%6f", _matcher->getQuality()) + ";\n";
+        s += "horizontalDiffusion = " +
+            format("%6f", _matcher->getDiffusionHorizontal()) + ";\n";
+        s += "verticalDiffusion = " +
+            format("%6f", _matcher->getDiffusionVertical()) + ";\n";
+        s += "temporalDiffusion = " +
+            format("%6f", _matcher->getDiffusionTemporal()) + ";\n";
+        s += "gamma = " + format("%6f", _matcher->getGamma()) + ";\n";
+        s += "clipping = " + decimal(_matcher->getClipping()) + ";\n";
+        s += "metric = " + decimal(_matcher->getMetric()) + ";\n";
+        s += "connector = " + decimal(_output->getConnector()) + ";\n";
+        s += "contrast = " + format("%6f", _matcher->getContrast()) + ";\n";
+        s += "brightness = " + format("%6f", _matcher->getBrightness()) +
+            ";\n";
+        s += "saturation = " + format("%6f", _matcher->getSaturation()) +
+            ";\n";
+        s += "hue = " + format("%6f", _matcher->getHue()) + ";\n";
+        s += "chromaBandwidth = " +
+            format("%6f", _matcher->getChromaBandwidth()) + ";\n";
+        s += "lumaBandwidth = " + format("%6f", _matcher->getLumaBandwidth()) +
+            ";\n";
+        s += "rollOff = " + format("%6f", _matcher->getRollOff()) + ";\n";
+        s += "lobes = " + format("%6f", _matcher->getLobes()) + ";\n";
+        s += "showClipping = " + String::Boolean(_output->getShowClipping()) +
+            ";\n";
+        s += "combFilter = " + decimal(_output->getCombFilter()) + ";\n";
+        s += "aspectRatio = " + format("%6f", _output->getAspectRatio()) +
+            ";\n";
+        s += "scanlineWidth = " + format("%6f", _output->getScanlineWidth()) +
+            ";\n";
+        s += "overscan = " + format("%6f", _overscan) + ";\n";
+        s += "scanlineProfile = " + decimal(_output->getScanlineProfile()) +
+            ";\n";
+        s += "horizontalProfile = " +
+            decimal(_output->getHorizontalProfile()) + ";\n";
+        s += "prescalerProfile = " + decimal(_matcher->getPrescalerProfile()) +
+            ";\n";
+        s += "scanlineBleeding = " + decimal(_output->getScanlineBleeding()) +
+            ";\n";
+        s += "horizontalBleeding = " +
+            decimal(_output->getHorizontalBleeding()) + ";\n";
+        s += "zoom = " + format("%6f", _output->getZoom()) + ";\n";
+        s += "horizontalRollOff = " +
+            format("%6f", _output->getHorizontalRollOff()) + ";\n";
+        s += "verticalRollOff = " +
+            format("%6f", _output->getVerticalRollOff()) + ";\n";
+        s += "horizontalLobes = " +
+            format("%6f", _output->getHorizontalLobes()) + ";\n";
+        s += "verticalLobes = " +
+            format("%6f", _output->getVerticalLobes()) + ";\n";
+        s += "subPixelSeparation = " + format("%6f",
+            _output->getSubPixelSeparation()) + ";\n";
+        s += "phosphor = " + decimal(_output->getPhosphor()) + ";\n";
+        s += "mask = " + decimal(_output->getMask()) + ";\n";
+        s += "maskSize = " + format("%6f", _output->getMaskSize()) + ";\n";
+        s += "interactive = " + String::Boolean(_interactive) + ";\n";
+        s += "fftWisdom = " + enquote(_fftWisdomFile) + ";\n";
+        return s;
+    }
+    void saveConfig(File file) { file.save(configContents()); }
+    bool matchingPossible() { return _matchingPossible; }
+    void loadConfig()
+    {
+        _matcher->setDiffusionHorizontal(
+            _config->get<double>("horizontalDiffusion"));
+        _matcher->setDiffusionVertical(
+            _config->get<double>("verticalDiffusion"));
+        _matcher->setDiffusionTemporal(
+            _config->get<double>("temporalDiffusion"));
+        _matcher->setQuality(_config->get<double>("quality"));
+        _matcher->setGamma(_config->get<double>("gamma"));
+        _matcher->setClipping(_config->get<int>("clipping"));
+        _matcher->setMetric(_config->get<int>("metric"));
+        _matcher->setInterlace(_config->get<int>("interlaceMode"));
+        _matcher->setInterlaceSync(_config->get<bool>("interlaceSync"));
+        _matcher->setInterlacePhase(_config->get<bool>("interlacePhase"));
+        _matcher->setFlicker(_config->get<bool>("flicker"));
+        _matcher->setCharacterSet(_config->get<int>("characterSet"));
+        _matcher->setMode(_config->get<int>("mode"));
+        _matcher->setPalette(_config->get<int>("palette"));
+        _matcher->setScanlinesPerRow(_config->get<int>("scanlinesPerRow"));
+        int scanlinesRepeat = _config->get<int>("scanlinesRepeat");
+        _matcher->setScanlinesRepeat(scanlinesRepeat);
+        _cgaROM = _config->get<String>("cgaROM");
+        _sequencer.setROM(File(_cgaROM, _configFile.parent()));
+
+        double brightness = _config->get<double>("brightness");
+        _output->setBrightness(brightness);
+        _matcher->setBrightness(brightness);
+        double saturation = _config->get<double>("saturation");
+        _output->setSaturation(saturation);
+        _matcher->setSaturation(saturation);
+        double hue = _config->get<double>("hue");
+        _output->setHue(hue);
+        _matcher->setHue(hue);
+        double contrast = _config->get<double>("contrast");
+        _output->setContrast(contrast);
+        _matcher->setContrast(contrast);
+        _output->setShowClipping(_config->get<bool>("showClipping"));
+        _output->setChromaBandwidth(_config->get<double>("chromaBandwidth"));
+        _output->setLumaBandwidth(_config->get<double>("lumaBandwidth"));
+        _output->setRollOff(_config->get<double>("rollOff"));
+        _output->setLobes(_config->get<double>("lobes"));
+        int connector = _config->get<int>("connector");
+        _output->setConnector(connector);
+        _matcher->setConnector(connector);
+        _output->setScanlineWidth(_config->get<double>("scanlineWidth"));
+        _output->setScanlineProfile(_config->get<int>("scanlineProfile"));
+        _output->setHorizontalProfile(_config->get<int>("horizontalProfile"));
+        _matcher->setPrescalerProfile(_config->get<int>("prescalerProfile"));
+        _output->setZoom(_config->get<double>("zoom"));
+        _output->setScanlineBleeding(_config->get<int>("scanlineBleeding"));
+        _output->setHorizontalBleeding(
+            _config->get<int>("horizontalBleeding"));
+        _output->setHorizontalRollOff(
+            _config->get<double>("horizontalRollOff"));
+        _output->setVerticalRollOff(_config->get<double>("verticalRollOff"));
+        _output->setHorizontalLobes(_config->get<double>("horizontalLobes"));
+        _output->setVerticalLobes(_config->get<double>("verticalLobes"));
+        _output->setSubPixelSeparation(
+            _config->get<double>("subPixelSeparation"));
+        _output->setPhosphor(_config->get<int>("phosphor"));
+        _output->setMask(_config->get<int>("mask"));
+        _output->setMaskSize(_config->get<double>("maskSize"));
+        _output->setAspectRatio(_config->get<double>("aspectRatio"));
+        _overscan = _config->get<double>("overscan");
+        _output->setOverscan(_overscan);
+        _output->setCombFilter(_config->get<int>("combFilter"));
+        _activeSize = _config->get<Vector>("activeSize");
+    }
 private:
+    BitmapValue _bitmapValue;
+    String _cgaROM;
+    Vector _activeSize;
+    double _overscan;
+    bool _interactive;
+    String _fftWisdomFile;
     CGAData _data;
     CGAMatcher* _matcher;
     CGASequencer _sequencer;
     CGAOutput* _output;
+    File _configFile;
+    ConfigFile* _config;
     bool _matchMode;
+    bool _matchingPossible;
     bool _updateNeeded;
 };

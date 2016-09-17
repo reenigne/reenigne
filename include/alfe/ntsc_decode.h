@@ -607,10 +607,7 @@ public:
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                float lumaHigh = _lumaBandwidth;
-                float chromaLow = (4 - _chromaBandwidth) / 4;
-                float chromaHigh = (4 + _chromaBandwidth) / 4;
-                n *= lumaHigh*sinc(distance*lumaHigh);
+                n *= _lumaBandwidth*sinc(distance*_lumaBandwidth);
                 r = n*contrast/4.0f;
             }
             else {
@@ -627,7 +624,8 @@ public:
                 iq *= n*iqAdjust/4.0f;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
-                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y;
+                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y
+                    - n*_lumaBandwidth*sinc(distance*_lumaBandwidth);
             }
             return Tuple<float, float>(r, n);
         },
@@ -639,7 +637,7 @@ public:
         _filter.setBuffers(_input, _output);
     }
 
-    void decodeBlock(Byte* ntsc, SRGB* srgb)
+    void decodeNTSC(Byte* ntsc, SRGB* srgb)
     {
         //UInt16* input = reinterpret_cast<UInt16*>(_input.data());
         //for (int i = 0; i < _inputLength; ++i)
