@@ -10,6 +10,7 @@
 #include "alfe/scanlines.h"
 #include "alfe/image_filter.h"
 #include "alfe/wrap.h"
+#include "alfe/timer.h"
 #include <commdlg.h>
 
 template<class T> class CGAArtWindowT;
@@ -1671,7 +1672,15 @@ public:
         _size = Vector(0, 0);
     }
     int getPrescalerProfile() { return _prescalerProfile; }
-
+    void initFromData()
+    {
+        _mode = _data->getDataByte(CGAData::registerMode);
+        _palette = _data->getDataByte(CGAData::registerPalette);
+        _scanlinesPerRow = 1 +
+            _data->getDataByte(CGAData::registerMaximumScanline);
+        _scanlinesRepeat =
+            _data->getDataByte(CGAData::registerScanlinesRepeat);
+    }
 private:
     float tryPattern(int pattern)
     {
@@ -1891,11 +1900,23 @@ private:
     }
     void initData()
     {
-        if (!_active)
-            return;
         static const int regs = -CGAData::registerLogCharactersPerBank;
         Byte cgaRegistersData[regs] = { 0 };
         Byte* cgaRegisters = &cgaRegistersData[regs];
+        cgaRegisters[CGAData::registerScanlinesRepeat] = _scanlinesRepeat;
+        cgaRegisters[CGAData::registerMode] = _mode;
+        cgaRegisters[CGAData::registerPalette] = _palette;
+        cgaRegisters[CGAData::registerInterlaceMode] = 2;
+        cgaRegisters[CGAData::registerMaximumScanline] = _scanlinesPerRow - 1;
+        if (!_active) {
+            _data->change(0, CGAData::registerScanlinesRepeat, 1,
+                &cgaRegisters[CGAData::registerScanlinesRepeat]);
+            _data->change(0, CGAData::registerMode, 2,
+                &cgaRegisters[CGAData::registerMode]);
+            _data->change(0, CGAData::registerInterlaceMode, 2,
+                &cgaRegisters[CGAData::registerInterlaceMode]);
+            return;
+        }
         _hdotsPerChar = (_mode & 1) != 0 ? 8 : 16;
         _horizontalDisplayed =
             (_activeSize.x + _hdotsPerChar - 1)/_hdotsPerChar;
@@ -1921,7 +1942,6 @@ private:
         int hdotsPerScanline = horizontalTotal*_hdotsPerChar;
         cgaRegisters[CGAData::registerLogCharactersPerBank] =
             _logCharactersPerBank;
-        cgaRegisters[CGAData::registerScanlinesRepeat] = _scanlinesRepeat;
         cgaRegisters[CGAData::registerHorizontalTotalHigh] =
             (horizontalTotal - 1) >> 8;
         cgaRegisters[CGAData::registerHorizontalDisplayedHigh] =
@@ -1934,8 +1954,6 @@ private:
             _verticalDisplayed >> 8;
         cgaRegisters[CGAData::registerVerticalSyncPositionHigh] =
             verticalSyncPosition >> 8;
-        cgaRegisters[CGAData::registerMode] = _mode;
-        cgaRegisters[CGAData::registerPalette] = _palette;
         cgaRegisters[CGAData::registerHorizontalTotal] =
             (horizontalTotal - 1) & 0xff;
         cgaRegisters[CGAData::registerHorizontalDisplayed] =
@@ -1951,8 +1969,6 @@ private:
             _verticalDisplayed & 0xff;
         cgaRegisters[CGAData::registerVerticalSyncPosition] =
             verticalSyncPosition & 0xff;
-        cgaRegisters[CGAData::registerInterlaceMode] = 2;
-        cgaRegisters[CGAData::registerMaximumScanline] = _scanlinesPerRow - 1;
         cgaRegisters[CGAData::registerCursorStart] = 6;
         cgaRegisters[CGAData::registerCursorEnd] = 7;
         _data->change(0, -regs, regs, &cgaRegistersData[0]);
@@ -2383,6 +2399,7 @@ public:
             static const int fftLength = 512;
             int stride = fftLength - 2*decoderPadding;
             Byte* ntscBlock = &_ntsc[0];
+            Timer decodeTimer;
             switch (combFilter) {
                 case 0:
                     // No comb filter
@@ -2477,6 +2494,7 @@ public:
                     }
                     break;
             }
+            decodeTimer.output("Decoder: ");
         }
         // Shift, clip, show clipping and linearization
         _linearizer.setShowClipping(showClipping && _connector != 0);
@@ -2914,6 +2932,7 @@ private:
     Bitmap<DWORD> _lastBitmap;
     CGAComposite _composite;
     NTSCDecoder _decoder;
+    //MatchingNTSCDecoder _decoder;
     Linearizer _linearizer;
     CGAArtWindow* _window;
     Mutex _mutex;
@@ -3454,6 +3473,7 @@ public:
             _config->load(File(String(buffer), true));
             _program->loadConfig();
             load();
+            updateApplicableControls();
         }
         END_CHECKED(Exception& e) {
             NullTerminatedWideString s(e.message());
@@ -4418,16 +4438,11 @@ public:
         _matchingPossible = isPNG;
         if (!isPNG) {
             File file(inputName, true);
-            if (endsIn(inputName, ".cgad")) {
+            if (endsIn(inputName, ".cgad"))
                 _data.load(file);
-                matcher.setMode(_data.getDataByte(CGAData::registerMode));
-                matcher.setPalette(
-                    _data.getDataByte(CGAData::registerPalette));
-                matcher.setScanlinesPerRow(1 +
-                    _data.getDataByte(CGAData::registerMaximumScanline));
-            }
             else
                 _data.loadVRAM(file);
+            matcher.initFromData();
         }
         else
             matcher.setInput(input, _activeSize);

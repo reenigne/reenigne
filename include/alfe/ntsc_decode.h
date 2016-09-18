@@ -575,9 +575,8 @@ private:
 class MatchingNTSCDecoder
 {
 public:
-    void setLength(int length, int outputLength)
+    void setLength(int outputLength)
     {
-        _inputLength = length;
         _outputLength = outputLength;
     }
     void calculateBurst(Byte* burst)
@@ -632,7 +631,7 @@ public:
             &_inputLeft, &_inputRight, 4, 0);
 
         //_input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16), 1);
-        _input.ensure((_inputRight - _inputLeft)*8*sizeof(float), 1);
+        _input.ensure((_inputRight - _inputLeft)*4*sizeof(float), 1);
 
         _filter.setBuffers(_input, _output);
     }
@@ -654,7 +653,7 @@ public:
         //}
 
         float* input = reinterpret_cast<float*>(_input.data());
-        for (int i = 0; i < _inputLength; ++i)
+        for (int i = 0; i < (_inputRight - _inputLeft)*4; ++i)
             input[i] = ntsc[i];
         _filter.execute();
         Colour* output = reinterpret_cast<Colour*>(_output.data());
@@ -696,6 +695,9 @@ public:
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
     double getLobes() { return _lobes; }
     void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
+
+    int inputLeft() { return _inputLeft; }
+    int inputRight() { return _inputRight; }
 private:
     float _hue;
     float _saturation;
@@ -710,7 +712,6 @@ private:
     ImageFilterHorizontal _filter;
     AlignedBuffer _input;
     AlignedBuffer _output;
-    int _inputLength;
     int _outputLength;
     int _inputLeft;
     int _inputRight;
