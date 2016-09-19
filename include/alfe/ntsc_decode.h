@@ -586,10 +586,13 @@ public:
         iq.y = static_cast<float>(burst[1] - burst[3]);
         Complex<float> iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            _contrast*2/iq.modulus();
+            2*_contrast/iq.modulus();
         float contrast = _contrast;
         _brightness2 = _brightness*256.0f;
-
+        float lumaHigh = _lumaBandwidth*2;
+        float chromaLow = (4 - _chromaBandwidth) / 2;
+        float chromaHigh = (4 + _chromaBandwidth) / 2;
+        float chromaBandwidth = _chromaBandwidth / 2;
 
         //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
         _output.ensure(_outputLength*3*sizeof(float), 1);
@@ -606,13 +609,12 @@ public:
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                n *= _lumaBandwidth*sinc(distance*_lumaBandwidth);
-                r = n*contrast/4.0f;
+                n *= lumaHigh*sinc(distance*lumaHigh) - chromaHigh*sinc(distance*chromaHigh) + chromaLow*sinc(distance*chromaLow);
+                r = contrast; ///4.0f;
             }
             else {
                 // Chroma
-                float c = _chromaBandwidth / 4;
-                n *= c*sinc(distance*c);
+                n *= chromaBandwidth*sinc(distance*chromaBandwidth);
                 Complex<float> iq = 0;
                 switch (inputChannel) {
                     case 1: iq.y = 1; break;
@@ -620,27 +622,24 @@ public:
                     case 5: iq.y = -1; break;
                     case 7: iq.x = 1; break;
                 }
-                iq *= n*iqAdjust/4.0f;
+                iq *= n*iqAdjust; ///4.0f;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
-                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y
-                    - n*_lumaBandwidth*sinc(distance*_lumaBandwidth);
+                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y - lumaHigh*sinc(distance*lumaHigh);
             }
+            r *= n;
             return Tuple<float, float>(r, n);
         },
             &_inputLeft, &_inputRight, 4, 0);
 
         //_input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16), 1);
-        _input.ensure((_inputRight - _inputLeft)*4*sizeof(float), 1);
+        _input.ensure((_inputRight - _inputLeft)*8*sizeof(float), 1);
 
         _filter.setBuffers(_input, _output);
     }
 
-    void decodeNTSC(Byte* ntsc, SRGB* srgb)
+    void decodeBlock(SRGB* srgb)
     {
-        //UInt16* input = reinterpret_cast<UInt16*>(_input.data());
-        //for (int i = 0; i < _inputLength; ++i)
-        //    input[i] = ntsc[i];
         //_filter.execute();
         //UInt16* output = reinterpret_cast<UInt16*>(_output.data());
         //static const int shift = 6;
@@ -652,9 +651,6 @@ public:
         //    srgb[i] = SRGB(byteClamp(r), byteClamp(g), byteClamp(b));
         //}
 
-        float* input = reinterpret_cast<float*>(_input.data());
-        for (int i = 0; i < (_inputRight - _inputLeft)*4; ++i)
-            input[i] = ntsc[i];
         _filter.execute();
         Colour* output = reinterpret_cast<Colour*>(_output.data());
         for (int i = 0; i < _outputLength; ++i) {
@@ -663,6 +659,19 @@ public:
             srgb[i] = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
         }
     }
+
+    //void decodeNTSC(Byte* ntsc, SRGB* srgb)
+    //{
+    //    auto input = inputData();
+
+    //    //for (int i = 0; i < (_inputRight - _inputLeft)*8; ++i)
+    //    //    input[i] = ntsc[i];
+
+    //    for (int i = 0; i < (_inputRight - _inputLeft)*4; ++i)
+    //        input[i] = ntsc[i];
+
+    //    decodeBlock(srgb);
+    //}
 
     double getHue() { return _hue; }
     void setHue(double hue) { _hue = static_cast<float>(hue); }
@@ -698,6 +707,8 @@ public:
 
     int inputLeft() { return _inputLeft; }
     int inputRight() { return _inputRight; }
+    //UInt16* inputData() { return reinterpret_cast<UInt16*>(_input.data()); }
+    float* inputData() { return reinterpret_cast<float*>(_input.data()); }
 private:
     float _hue;
     float _saturation;

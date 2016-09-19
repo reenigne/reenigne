@@ -2367,11 +2367,15 @@ public:
             }
         }
         else {
-            _decoder.setPadding(decoderPadding);
+            _decoder.setLength(512 - 2*decoderPadding);
+            //_decoder.setPadding(decoderPadding);
             Byte burst[4];
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, (i + 3) & 3);
             _decoder.calculateBurst(burst);
+            float* input = _decoder.inputData();
+            int inputLeft = _decoder.inputLeft();
+            int inputRight = _decoder.inputRight();
 
             int combedSize = srgbSize + 2*decoderPadding;
             Vector combTL = Vector(2, 1)*combFilter;
@@ -2400,6 +2404,7 @@ public:
             int stride = fftLength - 2*decoderPadding;
             Byte* ntscBlock = &_ntsc[0];
             Timer decodeTimer;
+
             switch (combFilter) {
                 case 0:
                     // No comb filter
@@ -2411,88 +2416,104 @@ public:
                             ntscBlock = &_ntsc[j];
                             srgb = &_srgb[3*j];
                         }
-                        _decoder.decodeNTSC(ntscBlock,
-                            reinterpret_cast<SRGB*>(srgb));
-                        srgb += stride*3;
-                        ntscBlock += stride;
-                    }
-                    break;
-                case 1:
-                    // 1 line. Standard NTSC comb filters will have a delay of
-                    // 227.5 color carrier cycles (1 standard scanline) but a
-                    // CGA scanline is 228 color carrier cycles, so instead of
-                    // sharpening vertical detail a comb filter applied to CGA
-                    // will sharpen 1-ldot-per-scanline diagonals.
-                    for (int j = 0; j < srgbSize; j += stride) {
-                        if (j + stride > srgbSize) {
-                            // The last block is a small one, so we'll decode
-                            // it by overlapping the previous one.
-                            j = srgbSize - stride;
-                            ntscBlock = &_ntsc[j];
-                            srgb = &_srgb[3*j];
-                        }
-                        Byte* n0 = ntscBlock;
-                        Byte* n1 = n0 + pllWidth;
-                        float* y = _decoder.yData();
-                        float* i = _decoder.iData();
-                        float* q = _decoder.qData();
-                        for (int x = 0; x < fftLength; x += 4) {
-                            y[0] = static_cast<float>(2*n0[0]);
-                            y[1] = static_cast<float>(2*n0[1]);
-                            y[2] = static_cast<float>(2*n0[2]);
-                            y[3] = static_cast<float>(2*n0[3]);
-                            i[0] = -static_cast<float>(n0[1] - n1[1]);
-                            i[1] = static_cast<float>(n0[3] - n1[3]);
-                            q[0] = static_cast<float>(n0[0] - n1[0]);
-                            q[1] = -static_cast<float>(n0[2] - n1[2]);
-                            n0 += 4;
-                            n1 += 4;
-                            y += 4;
-                            i += 2;
-                            q += 2;
+                        //
+                        //_decoder.decodeNTSC(ntscBlock,
+                        //    reinterpret_cast<SRGB*>(srgb));
+                        float* p = input;
+                        Byte* ip = ntscBlock + decoderPadding + inputLeft*4;
+                        for (int i = inputLeft; i < inputRight; ++i) {
+                            p[0] = ip[0];
+                            p[1] = ip[0];
+                            p[2] = ip[1];
+                            p[3] = ip[1];
+                            p[4] = ip[2];
+                            p[5] = ip[2];
+                            p[6] = ip[3];
+                            p[7] = ip[3];
+                            p += 8;
+                            ip += 4;
                         }
                         _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
                     break;
-                case 2:
-                    // 2 line.
-                    for (int j = 0; j < srgbSize; j += stride) {
-                        if (j + stride > srgbSize) {
-                            // The last block is a small one, so we'll decode
-                            // it by overlapping the previous one.
-                            j = srgbSize - stride;
-                            ntscBlock = &_ntsc[j];
-                            srgb = &_srgb[3*j];
-                        }
-                        Byte* n0 = ntscBlock;
-                        Byte* n1 = n0 + pllWidth;
-                        Byte* n2 = n1 + pllWidth;
-                        float* y = _decoder.yData();
-                        float* i = _decoder.iData();
-                        float* q = _decoder.qData();
-                        for (int x = 0; x < fftLength; x += 4) {
-                            y[0] = static_cast<float>(4*n1[0]);
-                            y[1] = static_cast<float>(4*n1[1]);
-                            y[2] = static_cast<float>(4*n1[2]);
-                            y[3] = static_cast<float>(4*n1[3]);
-                            i[0] = static_cast<float>(n0[1] + n2[1] - 2*n1[1]);
-                            i[1] = static_cast<float>(2*n1[3] - n0[3] - n2[3]);
-                            q[0] = static_cast<float>(2*n1[0] - n0[0] - n2[0]);
-                            q[1] = static_cast<float>(n0[2] + n2[2] - 2*n1[2]);
-                            n0 += 4;
-                            n1 += 4;
-                            n2 += 4;
-                            y += 4;
-                            i += 2;
-                            q += 2;
-                        }
-                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
-                        srgb += stride*3;
-                        ntscBlock += stride;
-                    }
-                    break;
+                //case 1:
+                //    // 1 line. Standard NTSC comb filters will have a delay of
+                //    // 227.5 color carrier cycles (1 standard scanline) but a
+                //    // CGA scanline is 228 color carrier cycles, so instead of
+                //    // sharpening vertical detail a comb filter applied to CGA
+                //    // will sharpen 1-ldot-per-scanline diagonals.
+                //    for (int j = 0; j < srgbSize; j += stride) {
+                //        if (j + stride > srgbSize) {
+                //            // The last block is a small one, so we'll decode
+                //            // it by overlapping the previous one.
+                //            j = srgbSize - stride;
+                //            ntscBlock = &_ntsc[j];
+                //            srgb = &_srgb[3*j];
+                //        }
+                //        Byte* n0 = ntscBlock;
+                //        Byte* n1 = n0 + pllWidth;
+                //        float* y = _decoder.yData();
+                //        float* i = _decoder.iData();
+                //        float* q = _decoder.qData();
+                //        for (int x = 0; x < fftLength; x += 4) {
+                //            y[0] = static_cast<float>(2*n0[0]);
+                //            y[1] = static_cast<float>(2*n0[1]);
+                //            y[2] = static_cast<float>(2*n0[2]);
+                //            y[3] = static_cast<float>(2*n0[3]);
+                //            i[0] = -static_cast<float>(n0[1] - n1[1]);
+                //            i[1] = static_cast<float>(n0[3] - n1[3]);
+                //            q[0] = static_cast<float>(n0[0] - n1[0]);
+                //            q[1] = -static_cast<float>(n0[2] - n1[2]);
+                //            n0 += 4;
+                //            n1 += 4;
+                //            y += 4;
+                //            i += 2;
+                //            q += 2;
+                //        }
+                //        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
+                //        srgb += stride*3;
+                //        ntscBlock += stride;
+                //    }
+                //    break;
+                //case 2:
+                //    // 2 line.
+                //    for (int j = 0; j < srgbSize; j += stride) {
+                //        if (j + stride > srgbSize) {
+                //            // The last block is a small one, so we'll decode
+                //            // it by overlapping the previous one.
+                //            j = srgbSize - stride;
+                //            ntscBlock = &_ntsc[j];
+                //            srgb = &_srgb[3*j];
+                //        }
+                //        Byte* n0 = ntscBlock;
+                //        Byte* n1 = n0 + pllWidth;
+                //        Byte* n2 = n1 + pllWidth;
+                //        float* y = _decoder.yData();
+                //        float* i = _decoder.iData();
+                //        float* q = _decoder.qData();
+                //        for (int x = 0; x < fftLength; x += 4) {
+                //            y[0] = static_cast<float>(4*n1[0]);
+                //            y[1] = static_cast<float>(4*n1[1]);
+                //            y[2] = static_cast<float>(4*n1[2]);
+                //            y[3] = static_cast<float>(4*n1[3]);
+                //            i[0] = static_cast<float>(n0[1] + n2[1] - 2*n1[1]);
+                //            i[1] = static_cast<float>(2*n1[3] - n0[3] - n2[3]);
+                //            q[0] = static_cast<float>(2*n1[0] - n0[0] - n2[0]);
+                //            q[1] = static_cast<float>(n0[2] + n2[2] - 2*n1[2]);
+                //            n0 += 4;
+                //            n1 += 4;
+                //            n2 += 4;
+                //            y += 4;
+                //            i += 2;
+                //            q += 2;
+                //        }
+                //        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
+                //        srgb += stride*3;
+                //        ntscBlock += stride;
+                //    }
+                //    break;
             }
             decodeTimer.output("Decoder: ");
         }
@@ -2931,8 +2952,8 @@ private:
     Bitmap<DWORD> _bitmap;
     Bitmap<DWORD> _lastBitmap;
     CGAComposite _composite;
-    NTSCDecoder _decoder;
-    //MatchingNTSCDecoder _decoder;
+    //NTSCDecoder _decoder;
+    MatchingNTSCDecoder _decoder;
     Linearizer _linearizer;
     CGAArtWindow* _window;
     Mutex _mutex;
