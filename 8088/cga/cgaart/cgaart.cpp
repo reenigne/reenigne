@@ -2421,17 +2421,17 @@ public:
                         //    reinterpret_cast<SRGB*>(srgb));
                         float* p = input;
                         Byte* ip = ntscBlock + decoderPadding + inputLeft*4;
+                        //for (int i = inputLeft + decoderPadding; i < 0; ++i) {
+                        //    p[0] = 0;
+                        //    p[1] = 0;
+                        //    p += 2;
+                        //}
+
                         for (int i = inputLeft; i < inputRight; ++i) {
                             p[0] = ip[0];
                             p[1] = ip[0];
-                            p[2] = ip[1];
-                            p[3] = ip[1];
-                            p[4] = ip[2];
-                            p[5] = ip[2];
-                            p[6] = ip[3];
-                            p[7] = ip[3];
-                            p += 8;
-                            ip += 4;
+                            p += 2;
+                            ++ip;
                         }
                         _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;

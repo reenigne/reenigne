@@ -83,9 +83,9 @@ public:
                 _horizontalLobes),
             [=](float distance, int inputChannel, int outputChannel)
             {
-                if (inputChannel != outputChannel)
+                if ((inputChannel - outputChannel) % 3 != 0)
                     return Tuple<float, float>(0.0f, 0.0f);
-                return  channelKernel(distance);
+                return channelKernel(distance);
             },
             &_inputTL.x, &_inputBR.x, _zoom.x, _offset.x);
 

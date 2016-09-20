@@ -162,7 +162,7 @@ public:
         float scale = 128.0f;
         _tempKernel.ensure(
             (channelsPerUnit + kWidth*channelsPerUnit)*channelsPerUnit);
-        float totals[8];
+        _totals.ensure(inputChannels*channelsPerUnit);
 
         int left = std::numeric_limits<int>::max();
         int right = std::numeric_limits<int>::min();
@@ -185,8 +185,9 @@ public:
             if (leftInput < 0)
                 multiple = -leftInput*inputChannels;
 
-            for (int c = 0; c < channelsPerUnit; ++c)
-                totals[c] = 0;
+            for (int c = 0; c < inputChannels*channelsPerUnit; ++c)
+                _totals[c] = 0;
+            int realLeftInput = leftInput;
             for (int i = leftInput; i <= rightInput; ++i) {
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int ic = i + c;
@@ -202,23 +203,26 @@ public:
                     float dist = centerInputPixel - inputPosition;
                     Tuple<float, float> v(0, 0);
                     if (dist >= -kernelRadius && dist <= kernelRadius)
-                        v = kernelFunction(dist, inputChannel, outputChannel);
-                    totals[c] += v.second();
+                        v = kernelFunction(dist, ic, outputChannel);
+                    _totals[inputChannel*channelsPerUnit + c] += v.second();
                     _tempKernel[(i - leftInput)*channelsPerUnit + c] =
                         v.first();
                 }
             }
-            for (int c = 0; c < channelsPerUnit; ++c)
-                totals[c] = 1/totals[c];
+            for (int c = 0; c < channelsPerUnit*inputChannels; ++c)
+                _totals[c] = 1/_totals[c];
             for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     int v = static_cast<int>(round(scale*
-                        _tempKernel[(i - leftInput)*channelsPerUnit + c]));
+                        _tempKernel[(i - leftInput)*channelsPerUnit + c]*
+                        _totals[((i + c + multiple) % inputChannels)*
+                        channelsPerUnit + c]));
                     if (v != 0) {
                         if (lastC == 0) {
-                            left = min(left, i);
-                            *offsets = i*sizeof(UInt16);
+                            realLeftInput = i;
+                            left = min(left, realLeftInput);
+                            *offsets = realLeftInput*sizeof(UInt16);
                             ++offsets;
                             ++kernelSize;
                         }
@@ -241,9 +245,9 @@ public:
             }
             if (kernelSize == 0) {
                 kernelSize = 1;
-                left = min(left, leftInput);
-                right = max(right, leftInput);
-                *offsets = leftInput*sizeof(UInt16);
+                left = min(left, realLeftInput);
+                right = max(right, realLeftInput);
+                *offsets = realLeftInput*sizeof(UInt16);
                 ++offsets;
                 for (int c = 0; c < channelsPerUnit; ++c) {
                     *kernel = 0;
@@ -277,6 +281,7 @@ private:
     AlignedBuffer _input;
     AlignedBuffer _output;
     Array<float> _tempKernel;
+    Array<float> _totals;
 
     // Parameters
     int _width;
@@ -382,7 +387,7 @@ public:
             maxOutputChannelPosition = max(maxOutputChannelPosition, p);
         }
         int channelsPerUnit = (useSSE2() ? 4 : 1);
-        float totals[4];
+        _totals.ensure(inputChannels*channelsPerUnit);
         _height = outputSize.y;
         _width = (outputSize.x*outputChannels + channelsPerUnit - 1)/
             channelsPerUnit;
@@ -422,9 +427,10 @@ public:
             if (leftInput < 0)
                 multiple = -leftInput*inputChannels;
 
-            for (int c = 0; c < channelsPerUnit; ++c)
-                totals[c] = 0;
+            for (int c = 0; c < inputChannels*channelsPerUnit; ++c)
+                _totals[c] = 0;
             float* kernelStart = kernel;
+            int* offsetsStart = offsets;
             for (int i = leftInput; i <= rightInput; ++i) {
                 int lastC = 0;
                 for (int c = 0; c < channelsPerUnit; ++c) {
@@ -441,8 +447,8 @@ public:
                     float dist = centerInputPixel - inputPosition;
                     Tuple<float, float> v(0, 0);
                     if (dist >= -kernelRadius && dist <= kernelRadius)
-                        v = kernelFunction(dist, inputChannel, outputChannel);
-                    totals[c] += v.second();
+                        v = kernelFunction(dist, ic, outputChannel);
+                    _totals[inputChannel*channelsPerUnit + c] += v.second();
                     if (v.first() != 0) {
                         if (lastC == 0) {
                             left = min(left, i);
@@ -478,11 +484,17 @@ public:
                     ++kernel;
                 }
             }
-            for (int c = 0; c < channelsPerUnit; ++c)
-                totals[c] = 1/totals[c];
-            for (;kernelStart != kernel; kernelStart += channelsPerUnit) {
-                for (int c = 0; c < channelsPerUnit; ++c)
-                    kernelStart[c] *= totals[c];
+            else {
+                for (int c = 0; c < channelsPerUnit*inputChannels; ++c)
+                    _totals[c] = 1/_totals[c];
+                for (;kernelStart != kernel; kernelStart += channelsPerUnit) {
+                    int i = *offsetsStart/sizeof(float) + multiple;
+                    for (int c = 0; c < channelsPerUnit; ++c) {
+                        kernelStart[c] *= _totals[c +
+                            channelsPerUnit*((i + c) % inputChannels)];
+                    }
+                    ++offsetsStart;
+                }
             }
             sizes[x] = kernelSize;
         }
@@ -510,6 +522,7 @@ private:
     Array<int> _kernelSizes;
     AlignedBuffer _input;
     AlignedBuffer _output;
+    Array<float> _totals;
 
     // Parameters
     int _width;

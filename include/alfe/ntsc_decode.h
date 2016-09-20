@@ -586,51 +586,48 @@ public:
         iq.y = static_cast<float>(burst[1] - burst[3]);
         Complex<float> iqAdjust =
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            2*_contrast/iq.modulus();
+            _contrast/iq.modulus();
         float contrast = _contrast;
         _brightness2 = _brightness*256.0f;
-        float lumaHigh = _lumaBandwidth*2;
-        float chromaLow = (4 - _chromaBandwidth) / 2;
-        float chromaHigh = (4 + _chromaBandwidth) / 2;
-        float chromaBandwidth = _chromaBandwidth / 2;
+        float lumaHigh = _lumaBandwidth/2;
+        float chromaBandwidth = _chromaBandwidth / 8;
+        float rollOff = _rollOff / 4;
 
         //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
         _output.ensure(_outputLength*3*sizeof(float), 1);
 
-        static const float inputChannelPositions[8] =
-            {0, 0, 0.25f, 0.25f, 0.5f, 0.5f, 0.75f, 0.75f};
-        static const float outputChannelPositions[3] = {0, 0, 0};
+        static const float channelPositions[3] = {0, 0, 0};
 
-        _filter.generate(Vector2<int>(_outputLength, 1), 8,
-            inputChannelPositions, 3, outputChannelPositions, _lobes,
+        _filter.generate(Vector2<int>(_outputLength, 1), 2,
+            channelPositions, 3, channelPositions, _lobes*4,
             [=](float distance, int inputChannel, int outputChannel)
         {
-            float n = sinc(distance*_rollOff);
+            float n = sinc(distance*rollOff);
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                n *= lumaHigh*sinc(distance*lumaHigh) - chromaHigh*sinc(distance*chromaHigh) + chromaLow*sinc(distance*chromaLow);
+                n *= sinc(distance*lumaHigh);
                 r = contrast; ///4.0f;
             }
             else {
                 // Chroma
-                n *= chromaBandwidth*sinc(distance*chromaBandwidth);
+                n *= sinc(distance*chromaBandwidth);
                 Complex<float> iq = 0;
-                switch (inputChannel) {
-                    case 1: iq.y = 1; break;
-                    case 3: iq.x = -1; break;
-                    case 5: iq.y = -1; break;
-                    case 7: iq.x = 1; break;
+                switch (inputChannel & 6) {
+                    case 0: iq.y = 1; break;
+                    case 2: iq.x = -1; break;
+                    case 4: iq.y = -1; break;
+                    case 6: iq.x = 1; break;
                 }
-                iq *= n*iqAdjust; ///4.0f;
+                iq *= iqAdjust; ///4.0f;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
-                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y - lumaHigh*sinc(distance*lumaHigh);
+                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y;
             }
             r *= n;
             return Tuple<float, float>(r, n);
         },
-            &_inputLeft, &_inputRight, 4, 0);
+            &_inputLeft, &_inputRight, 1, 0);
 
         //_input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16), 1);
         _input.ensure((_inputRight - _inputLeft)*8*sizeof(float), 1);
