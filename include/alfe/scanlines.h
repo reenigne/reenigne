@@ -152,12 +152,11 @@ private:
             case 0:
                 // Rectangle
                 {
-                    float a = 2.0f/(static_cast<float>(tau)*width);
                     float b = 0.5f*zoom*static_cast<float>(tau)*width/2.0f;
                     float c = 0.5f*zoom*static_cast<float>(tau);
                     return [=](float d)
                     {
-                        float r = a*(sinint(b + c*d) + sinint(b - c*d))*
+                        float r = (sinint(b + c*d) + sinint(b - c*d))*
                             sinc(d*rollOff);
                         return Tuple<float, float>(r, r);
                     };
@@ -171,14 +170,13 @@ private:
                     float w = 0.5f*width;
                     float f = distance;
                     float t = static_cast<float>(tau);
-                    float r = (
+                    float r = sinc(distance*rollOff)*(
                         +2*t*(f-w)*b*sinint(t*(f-w)*b)
                         +2*t*(f+w)*b*sinint(t*(f+w)*b)
                         -4*t*f*b*sinint(t*f*b)
                         +2*cos(b*t*(f-w))
                         +2*cos(b*t*(f+w))
-                        -4*cos(b*t*f)
-                        )*sinc(distance*rollOff)/(t*t*w*w*b);
+                        -4*cos(b*t*f));
                     return Tuple<float, float>(r, r);
                 };
                 break;
@@ -186,13 +184,12 @@ private:
                 // Circle
                 {
                     float b = 4.0f/(width*width);
-                    float a = 2.0f*b*width/static_cast<float>(tau);
                     float c = width/2.0f;
                     return [=](float distance)
                     {
                         float r = 0.0f;
                         if (distance > -c && distance < c) {
-                            r = a*sqrt(1 - b*distance*distance)*
+                            r = sqrt(1 - b*distance*distance)*
                                sinc(distance*rollOff);
                         }
                         return Tuple<float, float>(r, r);
@@ -203,10 +200,9 @@ private:
                 // Gaussian
                 {
                     float a = -8/(width*width);
-                    float b = 4/(sqrt(static_cast<float>(tau))*width);
                     return [=](float distance)
                     {
-                        float r = b*exp(a*distance*distance)*
+                        float r = exp(a*distance*distance)*
                             sinc(distance*rollOff);
                         return Tuple<float, float>(r, r);
                     };
@@ -220,7 +216,7 @@ private:
                         bandLimit = 10000;
                     return [=](float distance)
                     {
-                        float r = bandLimit*sinc(distance*bandLimit)*
+                        float r = sinc(distance*bandLimit)*
                             sinc(distance*rollOff);
                         return Tuple<float, float>(r, r);
                     };
@@ -231,8 +227,7 @@ private:
                 {
                     return [=](float distance)
                     {
-                        float r = (distance >= -0.5f && distance < 0.5f) ?
-                            sinc(distance*rollOff) : 0.0f;
+                        float r = sinc(distance*rollOff);
                         return Tuple<float, float>(r, r);
                     };
                 }
@@ -254,7 +249,7 @@ private:
                 return lobes*width/min(1.0f, zoom);
             case 5:
                 // Box
-                return 2.0f; //0.5f;
+                return 0.5f;
         }
         return lobes/min(1.0f, zoom);
     }

@@ -171,15 +171,19 @@ public:
             int kernelSize = 0;
 
             // Compute leftmost and rightmost possible input positions
-            int leftInput = static_cast<int>(offset - kernelRadius + 1 +
+            float lp = offset - kernelRadius + 1 +
                 (static_cast<float>(o / outputChannels) +
-                minOutputChannelPosition)/zoom + minInputChannelPosition)*
-                inputChannels;
+                    minOutputChannelPosition)/zoom + minInputChannelPosition;
+            if (lp < 0)
+                lp -= 1;
+            int leftInput = static_cast<int>(lp)*inputChannels;
 
-            int rightInput = static_cast<int>(offset + kernelRadius +
+            float rp = offset + kernelRadius +
                 (static_cast<float>((o + channelsPerUnit - 1) / outputChannels)
-                + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
-                inputChannels;
+                    + maxOutputChannelPosition)/zoom + maxInputChannelPosition;
+            if (rp < 0)
+                rp -= 1;
+            int rightInput = static_cast<int>(rp)*inputChannels;
 
             int multiple = 0;
             if (leftInput < 0)
@@ -413,15 +417,19 @@ public:
             int kernelSize = 0;
 
             // Compute leftmost and rightmost possible input positions
-            int leftInput = static_cast<int>(offset - kernelRadius + 1 +
+            float lp = offset - kernelRadius + 1 +
                 (static_cast<float>(o / outputChannels) +
-                minOutputChannelPosition)/zoom + minInputChannelPosition)*
-                inputChannels;
+                minOutputChannelPosition)/zoom + minInputChannelPosition;
+            if (lp < 0)
+                lp -= 1;
+            int leftInput = static_cast<int>(lp)*inputChannels;
 
-            int rightInput = static_cast<int>(offset + kernelRadius +
+            float rp = offset + kernelRadius +
                 (static_cast<float>((o + channelsPerUnit - 1) / outputChannels)
-                + maxOutputChannelPosition)/zoom + maxInputChannelPosition)*
-                inputChannels;
+                + maxOutputChannelPosition)/zoom + maxInputChannelPosition;
+            if (rp < 0)
+                rp -= 1;
+            int rightInput = static_cast<int>(rp)*inputChannels;
 
             int multiple = 0;
             if (leftInput < 0)
@@ -488,7 +496,8 @@ public:
                 for (int c = 0; c < channelsPerUnit*inputChannels; ++c)
                     _totals[c] = 1/_totals[c];
                 for (;kernelStart != kernel; kernelStart += channelsPerUnit) {
-                    int i = *offsetsStart/sizeof(float) + multiple;
+                    int i = *offsetsStart/static_cast<int>(sizeof(float)) +
+                        multiple;
                     for (int c = 0; c < channelsPerUnit; ++c) {
                         kernelStart[c] *= _totals[c +
                             channelsPerUnit*((i + c) % inputChannels)];
@@ -623,11 +632,15 @@ public:
         for (int y = 0; y < _height; ++y) {
             float total = 0;
             // Compute topmost and bottommost possible input positions
-            int topInput = static_cast<int>(offset - kernelRadius + 1 +
-                static_cast<float>(y)/zoom);
+            float tp = offset - kernelRadius + 1 + static_cast<float>(y)/zoom;
+            if (tp < 0)
+                tp -= 1;
+            int topInput = static_cast<int>(tp);
 
-            int bottomInput = static_cast<int>(offset + kernelRadius +
-                static_cast<float>(y)/zoom);
+            float bp = offset + kernelRadius + static_cast<float>(y)/zoom;
+            if (bp < 0)
+                bp -= 1;
+            int bottomInput = static_cast<int>(bp);
 
             float centerInputPixel = static_cast<float>(y)/zoom + offset;
 

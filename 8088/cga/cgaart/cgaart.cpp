@@ -2420,7 +2420,7 @@ public:
                         //_decoder.decodeNTSC(ntscBlock,
                         //    reinterpret_cast<SRGB*>(srgb));
                         float* p = input;
-                        Byte* ip = ntscBlock + decoderPadding + inputLeft*4;
+                        Byte* ip = ntscBlock + decoderPadding + inputLeft;
                         //for (int i = inputLeft + decoderPadding; i < 0; ++i) {
                         //    p[0] = 0;
                         //    p[1] = 0;

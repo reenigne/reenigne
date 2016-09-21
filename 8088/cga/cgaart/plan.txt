@@ -1057,3 +1057,35 @@ Plan X: With FIR filtering, eliminate dependence of output on future blocks
     We would like to retain the ability to do higher-resolution matching with no chroma bandwidth
 
 
+
+
+inputChroma[x]
+demodulated[x] = (i,-1,-i,1)[x]*inputChroma[x]
+bandLimited[t] = sum_over_x(demodulated[x]*sinc((t-x)*chromaBandwidth))
+remodulated[t] = (-i,-1,i,1)[t]*bandLimited[t]
+subtracted[t] = inputLuma[t] - remodulated[t]
+filtered[y] = sum_over_t(subtracted[t]*sinc((t-y)*lumaBandwidth))
+
+filtered[y] = sum_over_t((inputLuma[t] - remodulated[t])*sinc((t-y)*lumaBandwidth))
+filtered[y] = sum_over_t((inputLuma[t] - (-i,-1,i,i)[t]*bandLimited[t])*sinc((t-y)*lumaBandwidth))
+filtered[y] = sum_over_t((inputLuma[t] - (-i,-1,i,i)[t]*sum_over_x(demodulated[x]*sinc((t-x)*chromaBandwidth)))*sinc((t-y)*lumaBandwidth))
+filtered[y] = sum_over_t((inputLuma[t] - (-i,-1,i,i)[t]*sum_over_x((i,-1,-i,1)[x]*inputChroma[x]*sinc((t-x)*chromaBandwidth)))*sinc((t-y)*lumaBandwidth))
+
+We don't care about the inputLuma[t] component, that's handled separately
+
+filtered[y] = sum_over_t((- (-i,-1,i,1)[t]*sum_over_x((i,-1,-i,1)[x]*inputChroma[x]*sinc((t-x)*chromaBandwidth)))*sinc((t-y)*lumaBandwidth))
+
+The inputChroma[x] component is implicit, as is the output (filtered[y]):
+
+distance = x-y
+j = t-x             change of variables
+t-y = j+distance
+
+r = sum_over_t((- (-i,-1,i,1)[t]*sum_over_x((i,-1,-i,1)[x]*sinc(j*chromaBandwidth)))*sinc((j+distance)*lumaBandwidth))
+
+We already sum over x
+
+r = sum_over_t((- (-i,-1,i,1)[t]*(i,-1,-i,1)[x]*sinc(j*chromaBandwidth))*sinc((j+distance)*lumaBandwidth))
+r = -(i,-1,-i,1)[x]*sum_over_t((-i,-1,i,1)[t]*sinc(j*chromaBandwidth)*sinc((j+distance)*lumaBandwidth))
+
+
