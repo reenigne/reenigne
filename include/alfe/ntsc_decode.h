@@ -592,26 +592,33 @@ public:
         float lumaHigh = _lumaBandwidth/2;
         float chromaBandwidth = _chromaBandwidth / 8;
         float rollOff = _rollOff / 4;
+        float width = _lobes*4;
+        int right = static_cast<int>(width+1);
+        int left = -right;
 
         //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
         _output.ensure(_outputLength*3*sizeof(float), 1);
 
+
+
         static const float channelPositions[3] = {0, 0, 0};
 
         _filter.generate(Vector2<int>(_outputLength, 1), 2,
-            channelPositions, 3, channelPositions, _lobes*4,
+            channelPositions, 3, channelPositions, width,
             [=](float distance, int inputChannel, int outputChannel)
         {
-            float n = sinc(distance*rollOff);
+            //float n = sinc(distance*rollOff);
+            int d = static_cast<int>(distance) - left;
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                n *= sinc(distance*lumaHigh);
-                r = contrast; ///4.0f;
+                //n *= sinc(distance*lumaHigh);
+                //r = contrast; ///4.0f;
+                r = contrast*_lumaKernel[d];
             }
             else {
                 // Chroma
-                n *= sinc(distance*chromaBandwidth);
+                //n *= sinc(distance*chromaBandwidth);
                 Complex<float> iq = 0;
                 switch (inputChannel & 6) {
                     case 0: iq.y = 1; break;
@@ -622,9 +629,19 @@ public:
                 iq *= iqAdjust; ///4.0f;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
-                r = i[outputChannel]*iq.x + q[outputChannel]*iq.y;
+                //float luma = 0;
+                //for (int j = left; j <= right; ++j) {
+                //    luma += sinc(distance*lumaHigh);
+                //}
+
+
+                r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
+                    _chromaKernel[d] + _diffKernel[d];
             }
-            r *= n;
+            if (distance == 0)
+                n = 1;
+            else
+                n = 0;
             return Tuple<float, float>(r, n);
         },
             &_inputLeft, &_inputRight, 1, 0);
@@ -725,6 +742,9 @@ private:
     int _inputRight;
     //int _brightness2;
     float _brightness2;
+    Array<float> _lumaKernel;
+    Array<float> _chromaKernel;
+    Array<float> _diffKernel;
 };
 
 #endif // INCLUDED_NTSC_DECODE_H
