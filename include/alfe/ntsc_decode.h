@@ -591,6 +591,8 @@ public:
         _brightness2 = _brightness*256.0f;
         float lumaHigh = _lumaBandwidth/2;
         float chromaBandwidth = _chromaBandwidth / 8;
+        float chromaLow = (4 - _chromaBandwidth) / 8;
+        float chromaHigh = (4 + _chromaBandwidth) / 8;
         float rollOff = _rollOff / 4;
         float width = _lobes*4;
         int right = static_cast<int>(width+1);
@@ -599,7 +601,41 @@ public:
         //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
         _output.ensure(_outputLength*3*sizeof(float), 1);
 
-
+        float lumaTotal = 0;
+        float chromaTotal = 0;
+        int n = 1 + right - left;
+        _lumaKernel.ensure(n);
+        _chromaKernel.ensure(n);
+        _diffKernel.ensure(n);
+        for (int i = 0; i < n; ++i) {
+            float d = static_cast<float>(i + left);
+            float r = sinc(d*rollOff);
+            float l = r*lumaHigh*sinc(d*lumaHigh);
+            float c = r*chromaBandwidth*sinc(d*chromaBandwidth);
+            float diff = 0;
+            for (int j = 0; j < n; ++j) {
+                int k = j + left;
+                float jj = static_cast<float>(k);
+                if (k+i >= left && k+i <= right) {
+                    diff += r*sinc((jj + d)*lumaHigh)*
+                        (sinc(jj*chromaHigh) - sinc(jj*chromaLow));
+                }
+            }
+            _lumaKernel[i] = l;
+            _chromaKernel[i] = c;
+            _diffKernel[i] = diff;
+            lumaTotal += l;
+            chromaTotal += c;
+        }
+        if (lumaTotal == 0)
+            lumaTotal = 1;
+        if (chromaTotal == 0)
+            chromaTotal = 1;
+        for (int i = 0; i < n; ++i) {
+            _lumaKernel[i] /= lumaTotal;
+            _chromaKernel[i] /= chromaTotal;
+            _diffKernel[i] /= lumaTotal*chromaTotal;
+        }
 
         static const float channelPositions[3] = {0, 0, 0};
 
@@ -636,13 +672,9 @@ public:
 
 
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
-                    _chromaKernel[d] + _diffKernel[d];
+                    _chromaKernel[d] - contrast*_diffKernel[d];
             }
-            if (distance == 0)
-                n = 1;
-            else
-                n = 0;
-            return Tuple<float, float>(r, n);
+            return Tuple<float, float>(r, distance == 0 ? 1.0f : 0.0f);
         },
             &_inputLeft, &_inputRight, 1, 0);
 

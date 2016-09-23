@@ -1089,3 +1089,12 @@ r = sum_over_t((- (-i,-1,i,1)[t]*(i,-1,-i,1)[x]*sinc(j*chromaBandwidth))*sinc((j
 r = -(i,-1,-i,1)[x]*sum_over_t((-i,-1,i,1)[t]*sinc(j*chromaBandwidth)*sinc((j+distance)*lumaBandwidth))
 
 
+inputChroma[x]
+remodulated[t] = sum_over_x(inputChroma[x]*(sinc(t-x)*chromaLow - sinc(t-x)*chromaHigh))
+unfiltered[t] = inputLuma[t] - remodulated[t]
+filtered[y] = sum_over_t(unfiltered[y]*sinc((t-y)*lumaBandwidth))
+
+filtered[y] = sum_over_t((inputLuma[t] - remodulated[t])*sinc((t-y)*lumaBandwidth))
+
+So amplitude of remodulated needs to be same as amplitude of inputLuma
+Let's assume amplitude of remodulation
