@@ -592,7 +592,7 @@ public:
         float lumaHigh = _lumaBandwidth/2;
         float chromaBandwidth = _chromaBandwidth / 8;
         float chromaLow = (4 - _chromaBandwidth) / 8;
-        float chromaHigh = (4 + _chromaBandwidth) / 8;
+        float chromaHigh = (4 + _chromaBandwidth)  / 8;
         float rollOff = _rollOff / 4;
         float width = _lobes*4;
         int right = static_cast<int>(width+1);
@@ -601,41 +601,58 @@ public:
         //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
         _output.ensure(_outputLength*3*sizeof(float), 1);
 
-        float lumaTotal = 0;
-        float chromaTotal = 0;
+        //float lumaTotal = 0;
+        //float chromaTotal = 0;
+        //float diffTotal = 0;
         int n = 1 + right - left;
         _lumaKernel.ensure(n);
         _chromaKernel.ensure(n);
         _diffKernel.ensure(n);
         for (int i = 0; i < n; ++i) {
-            float d = static_cast<float>(i + left);
-            float r = sinc(d*rollOff);
-            float l = r*lumaHigh*sinc(d*lumaHigh);
-            float c = r*chromaBandwidth*sinc(d*chromaBandwidth);
-            float diff = 0;
-            for (int j = 0; j < n; ++j) {
-                int k = j + left;
-                float jj = static_cast<float>(k);
-                if (k+i >= left && k+i <= right) {
-                    diff += r*sinc((jj + d)*lumaHigh)*
-                        (sinc(jj*chromaHigh) - sinc(jj*chromaLow));
-                }
+            int ii = i + left;
+            float i1 = static_cast<float>(ii);
+            float r = sinc(i1*rollOff);
+            float l = r*lumaHigh*sinc(i1*lumaHigh);
+            float c = r*chromaBandwidth*sinc(i1*chromaBandwidth);
+            //float diff = 0;
+            //for (int j = 0; j < n; ++j) {
+            //    int jj = j + left;
+            //    float j1 = static_cast<float>(jj);
+            //    if (jj+ii >= left && jj+ii <= right) {
+            //        diff += r*sinc((j1 + i1)*lumaHigh)*
+            //            (sinc(j1*chromaHigh) - sinc(j1*chromaLow));
+            //    }
+            //}
+            float diff;
+            if (lumaHigh > chromaHigh) {
+                diff = r*(chromaHigh*sinc(i1*chromaHigh) -
+                    chromaLow*sinc(i1*chromaLow));
             }
+            else {
+                if (lumaHigh > chromaLow) {
+                    diff = r*(lumaHigh*sinc(i1*lumaHigh) -
+                        chromaLow*sinc(i1*chromaLow));
+                }
+                else
+                    diff = 0;
+            }
+
             _lumaKernel[i] = l;
             _chromaKernel[i] = c;
             _diffKernel[i] = diff;
-            lumaTotal += l;
-            chromaTotal += c;
+            //lumaTotal += l;
+            //chromaTotal += c;
+            //diffTotal += diff;
         }
-        if (lumaTotal == 0)
-            lumaTotal = 1;
-        if (chromaTotal == 0)
-            chromaTotal = 1;
-        for (int i = 0; i < n; ++i) {
-            _lumaKernel[i] /= lumaTotal;
-            _chromaKernel[i] /= chromaTotal;
-            _diffKernel[i] /= lumaTotal*chromaTotal;
-        }
+        //if (lumaTotal == 0)
+        //    lumaTotal = 1;
+        //if (chromaTotal == 0)
+        //    chromaTotal = 1;
+        //for (int i = 0; i < n; ++i) {
+        //    _lumaKernel[i] /= lumaTotal;
+        //    _chromaKernel[i] /= chromaTotal;
+        //    _diffKernel[i] /= lumaTotal*chromaTotal;
+        //}
 
         static const float channelPositions[3] = {0, 0, 0};
 
