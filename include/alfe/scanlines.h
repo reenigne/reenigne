@@ -8,45 +8,6 @@
 
 #include "alfe/image_filter.h"
 
-float sinint(float x)
-{
-    float mr = 1;
-    if (x < 0) {
-        x = -x;
-        mr = -1;
-    }
-    if (x < 10) {
-        float i = 3;
-        float r = x;
-        float x2 = -x*x;
-        float t = x;
-        static const float eps = 1.0f/(1 << 16);
-        do {
-            t *= x2/(i*(i - 1));
-            r += t/i;
-            i += 2;
-        } while (t < -eps || t > eps);
-        return r * mr;
-    }
-    float cr = 1;
-    float sr = 1/x;
-    float ct = 1;
-    float st = 1/x;
-    float i = 2;
-    float x2 = -1/(x*x);
-    do {
-        float lct = ct;
-        ct *= x2*i*(i - 1);
-        st *= x2*i*(i + 1);
-        if (abs(ct) > abs(lct) || ct == 0)
-            break;
-        cr += ct;
-        sr += st;
-        i += 2;
-    } while (true);
-    return (static_cast<float>(tau)/4.0f - (cos(x)/x)*cr - (sin(x)/x)*sr) * mr;
-}
-
 class ScanlineRenderer
 {
 public:

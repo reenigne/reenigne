@@ -601,37 +601,39 @@ public:
         //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
         _output.ensure(_outputLength*3*sizeof(float), 1);
 
-        //float lumaTotal = 0;
-        //float chromaTotal = 0;
-        //float diffTotal = 0;
         int n = 1 + right - left;
         _lumaKernel.ensure(n);
         _chromaKernel.ensure(n);
         _diffKernel.ensure(n);
+        float pi = static_cast<float>(tau/2);
+        float lumaScale = (pi*lumaHigh)/(2*sinint(pi*lumaHigh*width));
+        if (lumaHigh == 0)
+            lumaScale = 0;
+        float chromaScale = (pi*chromaBandwidth)/
+            (2*sinint(pi*chromaBandwidth*width));
+        float chromaHighScale = (pi*chromaHigh)/
+            (2*sinint(pi*chromaHigh*width));
+        float chromaLowScale = (pi*chromaLow)/(2*sinint(pi*chromaLow*width));
+        if (chromaBandwidth == 0) {
+            chromaScale = 0;
+            chromaHighScale = 0;
+            chromaLowScale = 0;
+        }
         for (int i = 0; i < n; ++i) {
             int ii = i + left;
             float i1 = static_cast<float>(ii);
             float r = sinc(i1*rollOff);
-            float l = r*lumaHigh*sinc(i1*lumaHigh);
-            float c = r*chromaBandwidth*sinc(i1*chromaBandwidth);
-            //float diff = 0;
-            //for (int j = 0; j < n; ++j) {
-            //    int jj = j + left;
-            //    float j1 = static_cast<float>(jj);
-            //    if (jj+ii >= left && jj+ii <= right) {
-            //        diff += r*sinc((j1 + i1)*lumaHigh)*
-            //            (sinc(j1*chromaHigh) - sinc(j1*chromaLow));
-            //    }
-            //}
+            float l = r*lumaScale*sinc(i1*lumaHigh);
+            float c = r*chromaScale*sinc(i1*chromaBandwidth);
             float diff;
             if (lumaHigh > chromaHigh) {
-                diff = r*(chromaHigh*sinc(i1*chromaHigh) -
-                    chromaLow*sinc(i1*chromaLow));
+                diff = r*(chromaHighScale*sinc(i1*chromaHigh) -
+                    chromaLowScale*sinc(i1*chromaLow));
             }
             else {
                 if (lumaHigh > chromaLow) {
-                    diff = r*(lumaHigh*sinc(i1*lumaHigh) -
-                        chromaLow*sinc(i1*chromaLow));
+                    diff = r*(lumaScale*sinc(i1*lumaHigh) -
+                        chromaLowScale*sinc(i1*chromaLow));
                 }
                 else
                     diff = 0;
@@ -640,19 +642,7 @@ public:
             _lumaKernel[i] = l;
             _chromaKernel[i] = c;
             _diffKernel[i] = diff;
-            //lumaTotal += l;
-            //chromaTotal += c;
-            //diffTotal += diff;
         }
-        //if (lumaTotal == 0)
-        //    lumaTotal = 1;
-        //if (chromaTotal == 0)
-        //    chromaTotal = 1;
-        //for (int i = 0; i < n; ++i) {
-        //    _lumaKernel[i] /= lumaTotal;
-        //    _chromaKernel[i] /= chromaTotal;
-        //    _diffKernel[i] /= lumaTotal*chromaTotal;
-        //}
 
         static const float channelPositions[3] = {0, 0, 0};
 
@@ -660,18 +650,14 @@ public:
             channelPositions, 3, channelPositions, width,
             [=](float distance, int inputChannel, int outputChannel)
         {
-            //float n = sinc(distance*rollOff);
             int d = static_cast<int>(distance) - left;
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                //n *= sinc(distance*lumaHigh);
-                //r = contrast; ///4.0f;
                 r = contrast*_lumaKernel[d];
             }
             else {
                 // Chroma
-                //n *= sinc(distance*chromaBandwidth);
                 Complex<float> iq = 0;
                 switch (inputChannel & 6) {
                     case 0: iq.y = 1; break;
@@ -679,14 +665,9 @@ public:
                     case 4: iq.y = -1; break;
                     case 6: iq.x = 1; break;
                 }
-                iq *= iqAdjust; ///4.0f;
+                iq *= iqAdjust;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
-                //float luma = 0;
-                //for (int j = left; j <= right; ++j) {
-                //    luma += sinc(distance*lumaHigh);
-                //}
-
 
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
                     _chromaKernel[d] - contrast*_diffKernel[d];
