@@ -387,15 +387,32 @@ public:
         float lumaHigh = _lumaBandwidth / 2;
         float chromaLow = (4 - _chromaBandwidth) / 8;
         float chromaHigh = (4 + _chromaBandwidth) / 8;
-        float lumaCutoff = min(lumaHigh, chromaLow);
         float rollOff = _rollOff / 4;
         float chromaCutoff = _chromaBandwidth / 8;
+
+        float pi = static_cast<float>(tau/2);
+        float width = _lobes*4;
+        float lumaScale = (pi*lumaHigh)/(2*sinint(pi*lumaHigh*width));
+        if (lumaHigh == 0)
+            lumaScale = 0;
+        float chromaScale = (pi*chromaCutoff)/
+            (2*sinint(pi*chromaCutoff*width));
+        if (chromaCutoff == 0)
+            chromaScale = 0;
+        //float chromaHighScale = (pi*chromaHigh)/
+        //    (2*sinint(pi*chromaHigh*width));
+        //float chromaLowScale = (pi*chromaLow)/(2*sinint(pi*chromaLow*width));
+        //if (chromaBandwidth == 0) {
+        //    chromaScale = 0;
+        //    chromaHighScale = 0;
+        //    chromaLowScale = 0;
+        //}
 
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
             float r;
-            r = sinc(d*rollOff) * lumaHigh*sinc(d*lumaHigh);
-            if (t > _lobes*4)
+            r = sinc(d*rollOff) * lumaScale*sinc(d*lumaHigh);
+            if (t > width)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
@@ -409,8 +426,8 @@ public:
             float d = static_cast<float>(t);
             float r;
             r = sinc(d*rollOff);
-            r *= chromaCutoff*sinc(d*chromaCutoff);
-            if (t > _lobes*4)
+            r *= chromaScale*sinc(d*chromaCutoff);
+            if (t > width)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
@@ -588,7 +605,13 @@ public:
             -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
             _contrast/iq.modulus();
         float contrast = _contrast;
+// define to 1 to use the floating-point filter, 0 for integer
+#define FIR_FP 1
+#if FIR_FP
         _brightness2 = _brightness*256.0f;
+#else
+        _brightness2 = static_cast<int>(_brightness*256.0f + 128*_contrast);
+#endif
         float lumaHigh = _lumaBandwidth/2;
         float chromaBandwidth = _chromaBandwidth / 8;
         float chromaLow = (4 - _chromaBandwidth) / 8;
@@ -598,8 +621,11 @@ public:
         int right = static_cast<int>(width+1);
         int left = -right;
 
-        //_output.ensure(_outputLength*3*sizeof(UInt16), 1);
+#if FIR_FP
         _output.ensure(_outputLength*3*sizeof(float), 1);
+#else
+        _output.ensure(_outputLength*3*sizeof(UInt16), 1);
+#endif
 
         int n = 1 + right - left;
         _lumaKernel.ensure(n);
@@ -676,25 +702,18 @@ public:
         },
             &_inputLeft, &_inputRight, 1, 0);
 
-        //_input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16), 1);
+#if FIR_FP
         _input.ensure((_inputRight - _inputLeft)*8*sizeof(float), 1);
+#else
+        _input.ensure((_inputRight - _inputLeft)*8*sizeof(UInt16), 1);
+#endif
 
         _filter.setBuffers(_input, _output);
     }
 
     void decodeBlock(SRGB* srgb)
     {
-        //_filter.execute();
-        //UInt16* output = reinterpret_cast<UInt16*>(_output.data());
-        //static const int shift = 6;
-        //for (int i = 0; i < _outputLength; ++i) {
-        //    UInt16 r = (output[0] + _brightness2) >> shift;
-        //    UInt16 g = (output[1] + _brightness2) >> shift;
-        //    UInt16 b = (output[2] + _brightness2) >> shift;
-        //    output += 3;
-        //    srgb[i] = SRGB(byteClamp(r), byteClamp(g), byteClamp(b));
-        //}
-
+#if FIR_FP
         _filter.execute();
         Colour* output = reinterpret_cast<Colour*>(_output.data());
         for (int i = 0; i < _outputLength; ++i) {
@@ -702,6 +721,19 @@ public:
                 Colour(_brightness2, _brightness2, _brightness2);
             srgb[i] = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
         }
+#else
+        _filter.execute();
+        SInt16* output = reinterpret_cast<SInt16*>(_output.data());
+        static const int shift = 7;
+        int bias = (_brightness2 << shift) + (1 << (shift - 1));
+        for (int i = 0; i < _outputLength; ++i) {
+            SInt16 r = (output[0] + bias) >> shift;
+            SInt16 g = (output[1] + bias) >> shift;
+            SInt16 b = (output[2] + bias) >> shift;
+            output += 3;
+            srgb[i] = SRGB(byteClamp(r), byteClamp(g), byteClamp(b));
+        }
+#endif
     }
 
     //void decodeNTSC(Byte* ntsc, SRGB* srgb)
@@ -751,8 +783,11 @@ public:
 
     int inputLeft() { return _inputLeft; }
     int inputRight() { return _inputRight; }
-    //UInt16* inputData() { return reinterpret_cast<UInt16*>(_input.data()); }
+#if FIR_FP
     float* inputData() { return reinterpret_cast<float*>(_input.data()); }
+#else
+    UInt16* inputData() { return reinterpret_cast<UInt16*>(_input.data()); }
+#endif
 private:
     float _hue;
     float _saturation;
@@ -763,15 +798,21 @@ private:
     float _rollOff;
     float _lobes;
 
-    //ImageFilter16 _filter;
+#if FIR_FP
     ImageFilterHorizontal _filter;
+#else
+    ImageFilter16 _filter;
+#endif
     AlignedBuffer _input;
     AlignedBuffer _output;
     int _outputLength;
     int _inputLeft;
     int _inputRight;
-    //int _brightness2;
+#if FIR_FP
     float _brightness2;
+#else
+    int _brightness2;
+#endif
     Array<float> _lumaKernel;
     Array<float> _chromaKernel;
     Array<float> _diffKernel;
