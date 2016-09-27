@@ -410,8 +410,7 @@ public:
 
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
-            float r;
-            r = sinc(d*rollOff) * lumaScale*sinc(d*lumaHigh);
+            float r = sinc(d*rollOff)*lumaScale*sinc(d*lumaHigh);
             if (t > width)
                 r = 0;
             _yTime[t] = r;
@@ -424,9 +423,7 @@ public:
 
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
-            float r;
-            r = sinc(d*rollOff);
-            r *= chromaScale*sinc(d*chromaCutoff);
+            float r = sinc(d*rollOff)*chromaScale*sinc(d*chromaCutoff);
             if (t > width)
                 r = 0;
             _yTime[t] = r;
@@ -435,7 +432,7 @@ public:
         }
         _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f) {
-            _iResponse[f] = _frequency[f].x * unit(f/512.0f);
+            _iResponse[f] = _frequency[f].x * unit(-f/512.0f);
             _qResponse[f] = _frequency[f].x;
         }
 
@@ -473,7 +470,7 @@ public:
 
         // Remove remodulated IQ from Y
         for (int t = 0; t < _length; t += 4) {
-            _yTime[t] -=_qTime[t]*_chromaScale;
+            _yTime[t] -= _qTime[t]*_chromaScale;
             _yTime[t + 1] += _iTime[t + 1]*_chromaScale;
             _yTime[t + 2] += _qTime[t + 2]*_chromaScale;
             _yTime[t + 3] -= _iTime[t + 3]*_chromaScale;
