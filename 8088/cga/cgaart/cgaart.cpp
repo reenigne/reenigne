@@ -3285,6 +3285,7 @@ public:
         _videoCard._registers._palette.enableWindow((mode & 0x12) == 2);
         _videoCard._registers._phase.enableWindow((mode & 1) == 1);
         bool composite = (_output->getConnector() != 0);
+        _videoCard._matching.enableWindow(_program->matchingPossible());
         _videoCard._matching._quality.enableWindow(matchMode &&
             (((((mode & 3) != 2 || composite) && (mode & 0x13) != 0x13) ||
             scanlinesPerRow > 2)));
@@ -3297,7 +3298,6 @@ public:
         _videoCard._matching._diffusionVertical.enableWindow(matchMode);
         _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
         _videoCard._matching._profile.enableWindow(matchMode);
-        _videoCard._matching.enableWindow(_program->matchingPossible());
         _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);
