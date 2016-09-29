@@ -461,14 +461,16 @@ public:
                 minOutputChannelPosition)/zoom + minInputChannelPosition;
             if (lp < 0)
                 lp -= 1;
-            int leftInput = static_cast<int>(lp)*inputChannels;
+            int leftInput = static_cast<int>(lp)*inputChannels + 1 -
+                channelsPerUnit;
 
             float rp = offset + kernelRadius +
                 (static_cast<float>((o + channelsPerUnit - 1) / outputChannels)
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition;
             if (rp < 0)
                 rp -= 1;
-            int rightInput = static_cast<int>(rp)*inputChannels;
+            int rightInput = static_cast<int>(rp)*inputChannels +
+                channelsPerUnit - 1;
 
             int multiple = 0;
             if (leftInput < 0)
