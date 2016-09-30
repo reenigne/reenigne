@@ -666,6 +666,26 @@ public:
             _chromaKernel[i] = c;
             _diffKernel[i] = diff;
         }
+        Complex<float> response(0, 0);
+        for (int i = 0; i < n; ++i) {
+            switch (i & 3) {
+                case 0:
+                    response.x += _diffKernel[i];
+                    break;
+                case 1:
+                    response.y += _diffKernel[i];
+                    break;
+                case 2:
+                    response.x -= _diffKernel[i];
+                    break;
+                case 3:
+                    response.y -= _diffKernel[i];
+                    break;
+            }
+        }
+        float rm = 1/(2*response.modulus());
+        for (int i = 0; i < n; ++i)
+            _diffKernel[i] *= rm;
 
         static const float channelPositions[3] = {0, 0, 0};
 
