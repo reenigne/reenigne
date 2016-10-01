@@ -2368,7 +2368,7 @@ public:
         }
         else {
 // Change to 1 to use FIR decoding for output
-#define FIR_DECODING 0
+#define FIR_DECODING 1
 #if FIR_DECODING
             _decoder.setLength(512 - 2*decoderPadding);
 #else

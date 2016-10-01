@@ -603,7 +603,7 @@ public:
             _contrast/iq.modulus();
         float contrast = _contrast;
 // define to 1 to use the floating-point filter, 0 for integer
-#define FIR_FP 1
+#define FIR_FP 0
 #if FIR_FP
         _brightness2 = _brightness*256.0f;
 #else
@@ -650,13 +650,13 @@ public:
             float c = r*chromaScale*sinc(i1*chromaBandwidth);
             float diff;
             if (lumaHigh > chromaHigh) {
-                diff = r*(chromaHighScale*sinc(i1*chromaHigh) -
-                    chromaLowScale*sinc(i1*chromaLow));
+                diff = r*(chromaHigh*sinc(i1*chromaHigh) -
+                    chromaLow*sinc(i1*chromaLow));
             }
             else {
                 if (lumaHigh > chromaLow) {
-                    diff = r*(lumaScale*sinc(i1*lumaHigh) -
-                        chromaLowScale*sinc(i1*chromaLow));
+                    diff = r*(lumaHigh*sinc(i1*lumaHigh) -
+                        chromaLow*sinc(i1*chromaLow));
                 }
                 else
                     diff = 0;
