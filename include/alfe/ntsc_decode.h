@@ -408,6 +408,7 @@ public:
         //    chromaLowScale = 0;
         //}
 
+        float lumaTotal = 0;
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
             float r = sinc(d*rollOff)*lumaScale*sinc(d*lumaHigh);
@@ -416,14 +417,16 @@ public:
             _yTime[t] = r;
             if (t > 0)
                 _yTime[_length - t] = r;
+            lumaTotal += r*(t == 0 ? 1 : 2);
         }
+        float scale = 1/lumaTotal;
         _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f)
-            _yResponse[f] = _frequency[f].x*contrast;
+            _yResponse[f] = _frequency[f].x*contrast*scale;
 
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
-            float r = sinc(d*rollOff)*chromaScale*sinc(d*chromaCutoff);
+            float r = sinc(d*rollOff)*chromaScale*sinc(d*chromaCutoff)*scale;
             if (t > width)
                 r = 0;
             _yTime[t] = r;
@@ -603,7 +606,7 @@ public:
             _contrast/iq.modulus();
         float contrast = _contrast;
 // define to 1 to use the floating-point filter, 0 for integer
-#define FIR_FP 0
+#define FIR_FP 1
 #if FIR_FP
         _brightness2 = _brightness*256.0f;
 #else
@@ -629,25 +632,12 @@ public:
         _chromaKernel.ensure(n);
         _diffKernel.ensure(n);
         float pi = static_cast<float>(tau/2);
-        float lumaScale = (pi*lumaHigh)/(2*sinint(pi*lumaHigh*width));
-        if (lumaHigh == 0)
-            lumaScale = 0;
-        float chromaScale = (pi*chromaBandwidth)/
-            (2*sinint(pi*chromaBandwidth*width));
-        float chromaHighScale = (pi*chromaHigh)/
-            (2*sinint(pi*chromaHigh*width));
-        float chromaLowScale = (pi*chromaLow)/(2*sinint(pi*chromaLow*width));
-        if (chromaBandwidth == 0) {
-            chromaScale = 0;
-            chromaHighScale = 0;
-            chromaLowScale = 0;
-        }
         for (int i = 0; i < n; ++i) {
             int ii = i + left;
             float i1 = static_cast<float>(ii);
             float r = sinc(i1*rollOff);
-            float l = r*lumaScale*sinc(i1*lumaHigh);
-            float c = r*chromaScale*sinc(i1*chromaBandwidth);
+            float l = r*lumaHigh*sinc(i1*lumaHigh);
+            float c = r*chromaBandwidth*sinc(i1*chromaBandwidth);
             float diff;
             if (lumaHigh > chromaHigh) {
                 diff = r*(chromaHigh*sinc(i1*chromaHigh) -
@@ -666,26 +656,6 @@ public:
             _chromaKernel[i] = c;
             _diffKernel[i] = diff;
         }
-        Complex<float> response(0, 0);
-        for (int i = 0; i < n; ++i) {
-            switch (i & 3) {
-                case 0:
-                    response.x += _diffKernel[i];
-                    break;
-                case 1:
-                    response.y += _diffKernel[i];
-                    break;
-                case 2:
-                    response.x -= _diffKernel[i];
-                    break;
-                case 3:
-                    response.y -= _diffKernel[i];
-                    break;
-            }
-        }
-        float rm = 1/(2*response.modulus());
-        for (int i = 0; i < n; ++i)
-            _diffKernel[i] *= rm;
 
         static const float channelPositions[3] = {0, 0, 0};
 
@@ -715,7 +685,7 @@ public:
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
                     _chromaKernel[d] - contrast*_diffKernel[d];
             }
-            return Tuple<float, float>(r, distance == 0 ? 1.0f : 0.0f);
+            return Tuple<float, float>(r, _lumaKernel[d]);
         },
             &_inputLeft, &_inputRight, 1, 0);
 

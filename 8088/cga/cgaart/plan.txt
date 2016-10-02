@@ -1098,3 +1098,40 @@ filtered[y] = sum_over_t((inputLuma[t] - remodulated[t])*sinc((t-y)*lumaBandwidt
 
 So amplitude of remodulated needs to be same as amplitude of inputLuma
 Let's assume amplitude of remodulation
+
+
+
+
+Levels from Amstrad PC1512 MM
+  0 66
+  1 104
+  2 131
+  3 147
+  4 115
+  5 123
+  6 158
+  7 164
+  8 173
+  9 181
+ 10 196
+ 11 213
+ 12 179
+ 13 192
+ 14 217
+ 15 219
+
+
+
+
+          FIR filter is lighter (especially noticable with yellow)
+            chroma and luma separately are perfect, the issue is with the normalization of the remodulated chroma
+            It's more stripy with FIR - this is probably the same issue
+            Look at response of a 3.57MHz signal
+              FFT: chromaScale = 0.263174921, qResponse = 1.00276959, iResponse = 1.00276959
+              FIR: 0.101212457, -0.215411261  magnitude = 0.23800414453867598563709920634386
+          chroma filter gives different results when lobes is not a multiple of 4
+            Possibly because the FIR method currently uses the same kernel for all input phases, but the FFT response is different for each phase
+              Can we implement FIR transform without the sinc-sinc
+            Does it matter, since the problem is small and gets smaller when lobes increases?
+              Not really, but investigating this could turn up other issues like the FFT phase issue
+
