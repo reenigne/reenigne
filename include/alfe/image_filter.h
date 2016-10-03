@@ -198,7 +198,7 @@ public:
         _kernelSizes.ensure(_width);
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
-        float scale = 128.0f;
+        float scale = 64.0f;
         _tempKernel.ensure(
             (channelsPerUnit + kWidth*channelsPerUnit)*channelsPerUnit);
         _totals.ensure(inputChannels*channelsPerUnit);
@@ -215,15 +215,16 @@ public:
                     minOutputChannelPosition)/zoom + minInputChannelPosition;
             if (lp < 0)
                 lp -= 1;
-            int leftInput = static_cast<int>(lp)*inputChannels + 1 -
-                channelsPerUnit;
+            int leftInput = static_cast<int>(lp)*inputChannels + 1
+                - channelsPerUnit;
 
             float rp = offset + kernelRadius +
                 (static_cast<float>((o + channelsPerUnit - 1) / outputChannels)
                     + maxOutputChannelPosition)/zoom + maxInputChannelPosition;
             if (rp < 0)
                 rp -= 1;
-            int rightInput = static_cast<int>(rp)*inputChannels + 1;
+            int rightInput = static_cast<int>(rp)*inputChannels + inputChannels
+                - 1;
 
             int multiple = 0;
             if (leftInput < 0)
@@ -462,15 +463,16 @@ public:
                 minOutputChannelPosition)/zoom + minInputChannelPosition;
             if (lp < 0)
                 lp -= 1;
-            int leftInput = static_cast<int>(lp)*inputChannels + 1 -
-                channelsPerUnit;
+            int leftInput = static_cast<int>(lp)*inputChannels + 1
+                - channelsPerUnit;
 
             float rp = offset + kernelRadius +
                 (static_cast<float>((o + channelsPerUnit - 1) / outputChannels)
                 + maxOutputChannelPosition)/zoom + maxInputChannelPosition;
             if (rp < 0)
                 rp -= 1;
-            int rightInput = static_cast<int>(rp)*inputChannels + 1;
+            int rightInput = static_cast<int>(rp)*inputChannels + inputChannels
+                - 1;
 
             int multiple = 0;
             if (leftInput < 0)

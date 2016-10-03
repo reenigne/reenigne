@@ -424,19 +424,23 @@ public:
         for (int f = 0; f < fLength; ++f)
             _yResponse[f] = _frequency[f].x*contrast*scale;
 
+        float chromaTotal = 0;
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
-            float r = sinc(d*rollOff)*chromaScale*sinc(d*chromaCutoff)*scale;
+            float r = sinc(d*rollOff)*chromaScale*sinc(d*chromaCutoff);
             if (t > width)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
                 _yTime[_length - t] = r;
+            chromaTotal += r*(t == 0 ? 1 : 2);
         }
+        scale = 1/chromaTotal;
         _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f) {
-            _iResponse[f] = _frequency[f].x * unit(-f/512.0f);
-            _qResponse[f] = _frequency[f].x;
+            float s = scale * _frequency[f].x;
+            _iResponse[f] = s * unit(-f/512.0f);
+            _qResponse[f] = s;
         }
 
         _ri =  0.9563f*iqAdjust.x +0.6210f*iqAdjust.y;
@@ -526,6 +530,7 @@ public:
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
     double getLobes() { return _lobes; }
     void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
+    void setInputScaling(int scaling) { }
     void setPadding(int padding) { _padding = padding; }
     float* yData() { return &_yTime[0]; }
     float* iData() { return &_iTime[0]; }
@@ -606,11 +611,12 @@ public:
             _contrast/iq.modulus();
         float contrast = _contrast;
 // define to 1 to use the floating-point filter, 0 for integer
-#define FIR_FP 1
+#define FIR_FP 0
 #if FIR_FP
         _brightness2 = _brightness*256.0f;
 #else
-        _brightness2 = static_cast<int>(_brightness*256.0f + 128*_contrast);
+        _brightness2 = static_cast<int>(_brightness*256.0f +
+            128*_inputScaling*_contrast);
 #endif
         float lumaHigh = _lumaBandwidth/2;
         float chromaBandwidth = _chromaBandwidth / 8;
@@ -618,7 +624,7 @@ public:
         float chromaHigh = (4 + _chromaBandwidth)  / 8;
         float rollOff = _rollOff / 4;
         float width = _lobes*4;
-        int right = static_cast<int>(width+1);
+        int right = static_cast<int>(width);
         int left = -right;
 
 #if FIR_FP
@@ -632,6 +638,8 @@ public:
         _chromaKernel.ensure(n);
         _diffKernel.ensure(n);
         float pi = static_cast<float>(tau/2);
+        float lumaTotal = 0;
+        float chromaTotal = 0;
         for (int i = 0; i < n; ++i) {
             int ii = i + left;
             float i1 = static_cast<float>(ii);
@@ -652,9 +660,20 @@ public:
                     diff = 0;
             }
 
+            lumaTotal += l;
             _lumaKernel[i] = l;
+            chromaTotal += c;
             _chromaKernel[i] = c;
             _diffKernel[i] = diff;
+        }
+        if (lumaTotal == 0)
+            lumaTotal = 1;
+        if (chromaTotal == 0)
+            chromaTotal = 1;
+        for (int i = 0; i < n; ++i) {
+            _lumaKernel[i] /= lumaTotal;
+            _chromaKernel[i] /= chromaTotal;
+            //_diffKernel[i]
         }
 
         static const float channelPositions[3] = {0, 0, 0};
@@ -685,7 +704,7 @@ public:
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
                     _chromaKernel[d] - contrast*_diffKernel[d];
             }
-            return Tuple<float, float>(r, _lumaKernel[d]);
+            return Tuple<float, float>(r, distance == 0 ? 1.0f : 0.0f);
         },
             &_inputLeft, &_inputRight, 1, 0);
 
@@ -711,7 +730,7 @@ public:
 #else
         _filter.execute();
         SInt16* output = reinterpret_cast<SInt16*>(_output.data());
-        static const int shift = 7;
+        static const int shift = 6;
         int bias = (_brightness2 << shift) + (1 << (shift - 1));
         for (int i = 0; i < _outputLength; ++i) {
             SInt16 r = (output[0] + bias) >> shift;
@@ -767,6 +786,7 @@ public:
     void setRollOff(double rollOff) { _rollOff = static_cast<float>(rollOff); }
     double getLobes() { return _lobes; }
     void setLobes(double lobes) { _lobes = static_cast<float>(lobes); }
+    void setInputScaling(int scaling) { _inputScaling = scaling; }
 
     int inputLeft() { return _inputLeft; }
     int inputRight() { return _inputRight; }
@@ -800,6 +820,7 @@ private:
 #else
     int _brightness2;
 #endif
+    int _inputScaling;
     Array<float> _lumaKernel;
     Array<float> _chromaKernel;
     Array<float> _diffKernel;

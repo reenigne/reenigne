@@ -2113,9 +2113,11 @@ public:
                 (combFilter == 2 ? 180 : 0));
             _decoder.setSaturation(_saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
             contrast = static_cast<float>(_contrast/100);
-            static const double combDivisors[3] = {1, 2, 4};
+            static const int combDivisors[3] = {1, 2, 4};
+            int scaling = combDivisors[combFilter];
+            _decoder.setInputScaling(scaling);
             double c = _contrast*256*(newCGA ? 1.2 : 1)/((white - black)*100);
-            _decoder.setContrast(c/combDivisors[combFilter]);
+            _decoder.setContrast(c/scaling);
             brightness = static_cast<float>(_brightness/100);
             _decoder.setBrightness((-black*c +
                 _brightness*5 + (newCGA ? -50 : 0))/256.0);
@@ -2368,7 +2370,7 @@ public:
         }
         else {
 // Change to 1 to use FIR decoding for output
-#define FIR_DECODING 1
+#define FIR_DECODING 0
 #if FIR_DECODING
             _decoder.setLength(512 - 2*decoderPadding);
 #else
