@@ -894,8 +894,7 @@ template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
     CGAMatcherT()
-      : _rgbiPalette(3*0x10), _decoder(128), _active(false), _size(0, 0),
-        _skip(0x100)
+      : _rgbiPalette(3*0x10), _active(false), _size(0, 0), _skip(0x100)
     {
         _scaler.setProfile(4);
         _scaler.setWidth(1);
@@ -920,6 +919,46 @@ public:
     void run()
     {
         _program->setProgress(0);
+
+        bool hres = (_mode & 1) != 0;
+        bool composite = _connector != 0;
+        if ((_mode & 2) != 0) {
+            _incrementWidth = 4;
+            _rgbiWidth = ((!composite || hres) ? 4 : 8);
+        }
+        else {
+            _incrementWidth = hres ? 8 : 16;
+            _rgbiWidth = _incrementWidth;
+        }
+        int leftPadding = 0;
+        int ntscWidth = _rgbiWidth;
+        bool newCGA = _connector == 2;
+        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
+        if (_connector != 0) {
+            _composite.setBW((_mode & 4) != 0);
+            _composite.setNewCGA(newCGA);
+            _composite.initChroma();
+            double black = _composite.black();
+            double white = _composite.white();
+            _decoder.setLength(_rgbiWidth);
+            _decoder.setLumaBandwidth(_lumaBandwidth);
+            _decoder.setChromaBandwidth(_chromaBandwidth);
+            _decoder.setRollOff(_rollOff);
+            _decoder.setLobes(_lobes);
+            _decoder.setHue(_hue + (hres ? 14 : 4) - 90);
+            _decoder.setSaturation(saturation);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+            _decoder.setContrast(c);
+            _decoder.setBrightness(
+                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, i);
+            _decoder.calculateBurst(burst);
+            leftPadding = -_decoder.inputLeft();
+            ntscWidth = _decoder.inputRight() + leftPadding;
+            _ntscPattern.ensure(ntscWidth);
+        }
+
         int blockLap = (_connector == 0 ? 0 : 3);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
@@ -1009,16 +1048,12 @@ public:
         _table.setSize(entries);
         _blockHeight = _scanlinesPerRow*_scanlinesRepeat;
         if ((_mode & 2) != 0) {
-            _incrementWidth = 4;
-            _rgbiWidth = ((_connector == 0 || (_mode & 1) != 0) ? 4 : 8);
             _blockHeight = (_scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow)*
                 _scanlinesRepeat;
             for (int i = 0; i < 0x100; ++i)
                 _skip[i] = false;
         }
         else {
-            _incrementWidth = (_mode & 1) != 0 ? 8 : 16;
-            _rgbiWidth = _incrementWidth;
             bool blink = ((_mode & 0x20) != 0);
             auto cgaROM = _sequencer->romData();
             int lines = _scanlinesPerRow*_scanlinesRepeat;
@@ -1043,6 +1078,11 @@ public:
                 }
                 if (_characterSet == 5) {
                     _skip[i] = (i != 0xb0 && i != 0xb1);
+                    continue;
+                }
+                if (_characterSet == 7) {
+                    _skip[i] = (i != 0x0c && i != 0x0d && i != 0x21 &&
+                        i != 0x35 && i != 0x55 && i != 0x6a && i != 0xdd);
                     continue;
                 }
                 if (_characterSet == 6) {
@@ -1095,8 +1135,6 @@ public:
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
-        bool newCGA = _connector == 2;
-        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
         if (_connector == 0) {
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1111,29 +1149,6 @@ public:
             for (int i = 0; i < 3*0x10; ++i)
                 _rgbiPalette[i] = levels[palette[i]];
         }
-        else {
-            _composite.setBW((_mode & 4) != 0);
-            _composite.setNewCGA(newCGA);
-            _composite.initChroma();
-            double black = _composite.black();
-            double white = _composite.white();
-            _decoder.setLength(_rgbiWidth, _rgbiWidth);
-            _decoder.setPadding(0);
-            _decoder.setLumaBandwidth(_lumaBandwidth);
-            _decoder.setChromaBandwidth(_chromaBandwidth);
-            _decoder.setRollOff(_rollOff);
-            _decoder.setLobes(_lobes);
-            _decoder.setHue(_hue + ((_mode & 1) != 0 ? 14 : 4) - 90);
-            _decoder.setSaturation(saturation);
-            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
-            _decoder.setContrast(c);
-            _decoder.setBrightness(
-                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
-            for (int i = 0; i < 4; ++i)
-                burst[i] = _composite.simulateCGA(6, 6, i);
-            _decoder.calculateBurst(burst);
-            _ntscPattern.ensure(_rgbiWidth);
-        }
         _srgbPattern.ensure(_rgbiWidth);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
             0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
@@ -1142,7 +1157,6 @@ public:
         // Populate gamut table
         int skipSolidColour = 0xf00;
         for (UInt32 pattern = 0;; ++pattern) {
-            Colour rgb(0, 0, 0);
             UInt32 dataBits[2];
             int patternCount = 0x100;
             int yMask = 1;
@@ -1216,6 +1230,7 @@ public:
             int blockLines = _blockHeight;
             if ((_mode & 2) == 2)
                 blockLines = _scanlinesPerRow <= 2 ? 1 : 2;
+            Colour rgb(0, 0, 0);
             for (int y = 0; y < blockLines; ++y) {
                 UInt64 rgbi = _sequencer->process(dataBits[y & yMask], _mode,
                     _palette, y, false, 0);
@@ -1230,14 +1245,14 @@ public:
                 }
                 else {
                     Byte* ntsc = &_ntscPattern[0];
-                    int x;
-                    for (x = 0; x < _rgbiWidth - 1; ++x) {
-                        *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
-                            (rgbi >> ((x + 1) * 4)) & 0xf, x & 3);
-                        ++ntsc;
+                    int l = (leftPadding*(_rgbiWidth - 1))%_rgbiWidth;
+                    int r = (l + 1)%_rgbiWidth;
+                    for (int x = 0; x < ntscWidth; ++x) {
+                        *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
+                            (rgbi >> (r * 4)) & 0xf, (x - leftPadding) & 3);
+                        l = r;
+                        r = (r + 1)%_rgbiWidth;
                     }
-                    *ntsc = _composite.simulateCGA((rgbi >> (x * 4)) & 0xf,
-                        rgbi & 0xf, x & 3);
                     _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
                 }
                 SRGB* srgb = &_srgbPattern[0];
@@ -1304,11 +1319,7 @@ public:
             }
         }
 
-        _decoderLength = 128;
-        int padding = 0;
-        if (_connector != 0)
-            padding = 32;
-        _srgbStride = 2*padding + size.x + 2*blockLap;
+        _srgbStride = size.x + ntscWidth - _rgbiWidth;
         _srgb.ensure(size.y*_srgbStride);
         _ntscStride = size.x + 64;
         _weights.ensure(_compareWidth);
@@ -1330,8 +1341,6 @@ public:
                     _ntsc[x + (y + 1)*_ntscStride] = _ntsc[x & 3];
             }
 
-            _decoder.setLength(_decoderLength, _compareWidth);
-            _decoder.setPadding(64 - blockLap);
             _decoder.setSaturation(0);
             _decoder.calculateBurst(burst);
 
@@ -1984,8 +1993,8 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    NTSCDecoder _decoder;
-    //MatchingNTSCDecoder _decoder;
+    //NTSCDecoder _decoder;
+    MatchingNTSCDecoder _decoder;
     CGAComposite _composite;
     Linearizer _linearizer;
 
@@ -4248,6 +4257,7 @@ private:
                 _characterSet.add("0xb1");
                 _characterSet.add("0xb0/0xb1");
                 _characterSet.add("ISAV");
+                _characterSet.add("Clash");
                 _characterSet.set(3);
                 add(&_characterSet);
                 _profile.setChanged(

@@ -399,14 +399,6 @@ public:
             (2*sinint(pi*chromaCutoff*width));
         if (chromaCutoff == 0)
             chromaScale = 0;
-        //float chromaHighScale = (pi*chromaHigh)/
-        //    (2*sinint(pi*chromaHigh*width));
-        //float chromaLowScale = (pi*chromaLow)/(2*sinint(pi*chromaLow*width));
-        //if (chromaBandwidth == 0) {
-        //    chromaScale = 0;
-        //    chromaHighScale = 0;
-        //    chromaLowScale = 0;
-        //}
 
         float lumaTotal = 0;
         for (int t = 0; t < fLength; ++t) {
@@ -742,18 +734,18 @@ public:
 #endif
     }
 
-    //void decodeNTSC(Byte* ntsc, SRGB* srgb)
-    //{
-    //    auto input = inputData();
-
-    //    //for (int i = 0; i < (_inputRight - _inputLeft)*8; ++i)
-    //    //    input[i] = ntsc[i];
-
-    //    for (int i = 0; i < (_inputRight - _inputLeft)*4; ++i)
-    //        input[i] = ntsc[i];
-
-    //    decodeBlock(srgb);
-    //}
+    void decodeNTSC(Byte* ntsc, SRGB* srgb)
+    {
+        auto input = inputData();
+#if FIR_FP
+        for (int i = 0; i < (_inputRight - _inputLeft)*4; ++i)
+            input[i] = ntsc[i];
+#else
+        for (int i = 0; i < (_inputRight - _inputLeft)*8; ++i)
+            input[i] = ntsc[i];
+#endif
+        decodeBlock(srgb);
+    }
 
     double getHue() { return _hue; }
     void setHue(double hue) { _hue = static_cast<float>(hue); }
