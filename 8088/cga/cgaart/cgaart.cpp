@@ -1859,9 +1859,10 @@ private:
                 Colour e = output - target;
                 *error = e;
 
+                float contribution = 0;
                 switch (_metric) {
                     case 1:
-                        metric += e.modulus2();
+                        contribution = e.modulus2();
                         break;
                     case 0:
                     case 2:
@@ -1871,29 +1872,30 @@ private:
                             float dg = static_cast<float>(o.y - t.y);
                             float db = static_cast<float>(o.z - t.z);
                             if (_metric == 0)
-                                metric += dr*dr + dg*dg + db*db;
+                                contribution = dr*dr + dg*dg + db*db;
                             else {
                                 // Fast colour distance metric from
                                 // http://www.compuphase.com/cmetric.htm .
                                 float mr = (o.x + t.x)/512.0f;
-                                metric += _weights[x]*(4.0f*dg*dg +
-                                    (2.0f + mr)*dr*dr + (3.0f - mr)*db*db);
+                                contribution = 4.0f*dg*dg + (2.0f + mr)*dr*dr +
+                                    (3.0f - mr)*db*db);
                             }
                         }
                         break;
                     case 3:
-                        metric += deltaE2Luv(output, target);
+                        contribution = deltaE2Luv(output, target);
                         break;
                     case 4:
-                        metric += deltaE2CIE76(output, target);
+                        contribution = deltaE2CIE76(output, target);
                         break;
                     case 5:
-                        metric += deltaE2CIE94(output, target);
+                        contribution = deltaE2CIE94(output, target);
                         break;
                     case 6:
-                        metric += deltaE2CIEDE2000(output, target);
+                        contribution = deltaE2CIEDE2000(output, target);
                         break;
                 }
+                metric += _weights[x]*contribution;
 
                 ++input;
                 ++error;

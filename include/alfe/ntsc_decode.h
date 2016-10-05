@@ -593,7 +593,7 @@ public:
     {
         _outputLength = outputLength;
     }
-    void calculateBurst(Byte* burst)
+    void calculateBurst(Byte* burst, Byte* active = 0)
     {
         Complex<float> iq;
         iq.x = static_cast<float>(burst[0] - burst[2]);
@@ -665,7 +665,6 @@ public:
         for (int i = 0; i < n; ++i) {
             _lumaKernel[i] /= lumaTotal;
             _chromaKernel[i] /= chromaTotal;
-            //_diffKernel[i]
         }
 
         static const float channelPositions[3] = {0, 0, 0};
@@ -696,6 +695,8 @@ public:
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
                     _chromaKernel[d] - contrast*_diffKernel[d];
             }
+            if (active != 0 && active[inputChannel >> 1] == 0)
+                r = 0;
             return Tuple<float, float>(r, distance == 0 ? 1.0f : 0.0f);
         },
             &_inputLeft, &_inputRight, 1, 0);
