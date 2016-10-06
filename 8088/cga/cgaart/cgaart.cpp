@@ -935,12 +935,13 @@ public:
         bool newCGA = _connector == 2;
         double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
         if (_connector != 0) {
+            _compareWidth = _rgbiWidth + 2*static_cast<int>(4*_lobes);
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(_rgbiWidth);
+            _decoder.setLength(_compareWidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
@@ -1130,7 +1131,6 @@ public:
                     _skip[i] = true;
             }
         }
-        _compareWidth = _rgbiWidth + 2*blockLap;
         float blockArea = static_cast<float>(_compareWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;

@@ -1135,3 +1135,12 @@ Levels from Amstrad PC1512 MM
             Does it matter, since the problem is small and gets smaller when lobes increases?
               Not really, but investigating this could turn up other issues like the FFT phase issue
 
+
+
+        How do we compute MORV, given that some coefficients may be negative?
+          We have three types of coefficients: L (no vote), C (vote that the output pixel should count), R (vote that the output pixel should not count)
+          Possible computations:
+            sum(C) > sum(R)            - this isn't ideal because coefficients could cancel despite them making a real difference
+            sum(C*C) > sum(R*R)        - this isn't ideal because it underweights small coefficients: consider 4 C coefficients of 0.2 and 1 R coefficient of 0.5 - R would win but C has more influence
+            sum(abs(C)) > sum(abs(R))  - pick this one
+
