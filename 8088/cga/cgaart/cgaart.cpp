@@ -821,82 +821,13 @@ private:
     int _entries;
 };
 
-class Linearizer
-{
-public:
-    Linearizer() : _gamma(0), _showClipping(false) { init(); }
-    void setShowClipping(bool showClipping)
-    {
-        _showClipping = showClipping;
-        init();
-    }
-    void setGamma(float gamma) { _gamma = gamma; init(); }
-    Colour linear(SRGB srgb)
-    {
-        return Colour(linear(srgb.x), linear(srgb.y), linear(srgb.z));
-    }
-    SRGB srgb(Colour linear)
-    {
-        return SRGB(srgb(linear.x), srgb(linear.y), srgb(linear.z));
-    }
-    float linear(Byte srgb) { return _linear[srgb]; }
-    Byte srgb(float linear)
-    {
-        return _srgb[clamp(0, static_cast<int>(linear*_multiplier), 6589)];
-    }
-private:
-    void init()
-    {
-        if (_gamma == 0) {
-            for (int i = 1; i < 255; ++i) {
-                float t = i/255.0f;
-                if (t <= 0.04045f)
-                    _linear[i] = t/12.92f;
-                else
-                    _linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
-            }
-            for (int i = 0; i < 6590; ++i) {
-                float l = i/_multiplier;
-                float s;
-                if (l <= 0.0031308)
-                    s = 12.92f*l;
-                else
-                    s = 1.055f*pow(l, 1/2.4f) - 0.055f;
-                _srgb[i] = byteClamp(0.5f + 255.0f*s);
-            }
-        }
-        else {
-            for (int i = 1; i < 255; ++i)
-                _linear[i] = pow(i/255.0f, _gamma);
-            for (int i = 0; i < 6590; ++i) {
-                _srgb[i] = byteClamp(0.5f +
-                    255.0f*pow(i/_multiplier, 1/_gamma));
-            }
-        }
-        if (_showClipping) {
-            _linear[0] = 1.0f;
-            _linear[255] = 0.0f;
-        }
-        else {
-            _linear[0] = 0.0f;
-            _linear[255] = 1.0f;
-        }
-    }
-
-    float _linear[256];
-    Byte _srgb[6590];
-    float _gamma;
-    bool _showClipping;
-    constexpr static const float _multiplier = 2*255.0f*12.92f;
-};
-
 template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
     CGAMatcherT()
-      : _rgbiPalette(3*0x10), _active(false), _size(0, 0), _skip(0x100)
+      : _rgbiPalette(3*0x10), _active(false), _size(0, 0), _skip(0x100),
+        _prescalerProfile(0), _padding(0)
     {
-        _scaler.setProfile(4);
         _scaler.setWidth(1);
         _scaler.setBleeding(2);
         _scaler.setOffset(Vector2<float>(0, 0));
@@ -920,64 +851,24 @@ public:
     {
         _program->setProgress(0);
 
-        bool hres = (_mode & 1) != 0;
-        bool composite = _connector != 0;
-        if ((_mode & 2) != 0) {
-            _incrementWidth = 4;
-            _rgbiWidth = ((!composite || hres) ? 4 : 8);
-        }
-        else {
-            _incrementWidth = hres ? 8 : 16;
-            _rgbiWidth = _incrementWidth;
-        }
-        int leftPadding = 0;
-        int ntscWidth = _rgbiWidth;
-        bool newCGA = _connector == 2;
-        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
-        if (_connector != 0) {
-            _compareWidth = _rgbiWidth + 2*static_cast<int>(4*_lobes);
-            _composite.setBW((_mode & 4) != 0);
-            _composite.setNewCGA(newCGA);
-            _composite.initChroma();
-            double black = _composite.black();
-            double white = _composite.white();
-            _decoder.setLength(_compareWidth);
-            _decoder.setLumaBandwidth(_lumaBandwidth);
-            _decoder.setChromaBandwidth(_chromaBandwidth);
-            _decoder.setRollOff(_rollOff);
-            _decoder.setLobes(_lobes);
-            _decoder.setHue(_hue + (hres ? 14 : 4) - 90);
-            _decoder.setSaturation(saturation);
-            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
-            _decoder.setContrast(c);
-            _decoder.setBrightness(
-                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
-            for (int i = 0; i < 4; ++i)
-                burst[i] = _composite.simulateCGA(6, 6, i);
-            _decoder.calculateBurst(burst);
-            leftPadding = -_decoder.inputLeft();
-            ntscWidth = _decoder.inputRight() + leftPadding;
-            _ntscPattern.ensure(ntscWidth);
-        }
-
-        int blockLap = (_connector == 0 ? 0 : 3);
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_scanlinesRepeat*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(_gamma));
-        if (size != _size) {
+        if (size != _size || padding > _padding) {
+            _padding = padding;
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
                 Vector(1, _interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
             _scaler.setProfile(_prescalerProfile);
-            _scaler.setOutputSize(size + Vector(4 + 2*blockLap, 0));
+            _scaler.setOutputSize(size + Vector(4*padding, 0));
             _scaler.setHorizontalLobes(3);
             _scaler.setVerticalLobes(3);
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
-            Vector tl = _scaler.inputTL() - Vector(blockLap, 0);
-            Vector br = _scaler.inputBR() - Vector(blockLap, 0);
+            Vector tl = _scaler.inputTL() - Vector(padding, 0);
+            Vector br = _scaler.inputBR() - Vector(padding, 0);
             Byte* unscaledRow = input.data() - tl.y*input.stride();
             Byte* inputRow = _input.data();
             int height = _input.size().y;
@@ -1149,6 +1040,43 @@ public:
             for (int i = 0; i < 3*0x10; ++i)
                 _rgbiPalette[i] = levels[palette[i]];
         }
+        bool hres = (_mode & 1) != 0;
+        bool composite = _connector != 0;
+        if ((_mode & 2) != 0) {
+            _incrementWidth = 4;
+            _rgbiWidth = ((!composite || hres) ? 4 : 8);
+        }
+        else {
+            _incrementWidth = hres ? 8 : 16;
+            _rgbiWidth = _incrementWidth;
+        }
+        bool newCGA = _connector == 2;
+        int padding = static_cast<int>(4*_lobes);
+        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
+        if (_connector != 0) {
+            _compareWidth = _rgbiWidth + 2*padding;
+            _composite.setBW((_mode & 4) != 0);
+            _composite.setNewCGA(newCGA);
+            _composite.initChroma();
+            double black = _composite.black();
+            double white = _composite.white();
+            _decoder.setLength(_incrementWidth);
+            _decoder.setLumaBandwidth(_lumaBandwidth);
+            _decoder.setChromaBandwidth(_chromaBandwidth);
+            _decoder.setRollOff(_rollOff);
+            _decoder.setLobes(_lobes);
+            _decoder.setHue(_hue + (hres ? 14 : 4) - 90);
+            _decoder.setSaturation(saturation);
+            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+            _decoder.setContrast(c);
+            _decoder.setBrightness(
+                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, i);
+            _decoder.calculateBurst(burst);
+            _ntscPattern.ensure(_compareWidth);
+        }
+
         _srgbPattern.ensure(_rgbiWidth);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
             0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
@@ -1247,7 +1175,7 @@ public:
                     Byte* ntsc = &_ntscPattern[0];
                     int l = (leftPadding*(_rgbiWidth - 1))%_rgbiWidth;
                     int r = (l + 1)%_rgbiWidth;
-                    for (int x = 0; x < ntscWidth; ++x) {
+                    for (int x = 0; x < _compareWidth; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
                             (rgbi >> (r * 4)) & 0xf, (x - leftPadding) & 3);
                         l = r;
@@ -1270,7 +1198,7 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        _errorStride = size.x + 1 + 2*blockLap + _rgbiWidth - _incrementWidth;
+        _errorStride = size.x + 1 + 2*padding + _rgbiWidth - _incrementWidth;
         int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
@@ -1319,52 +1247,20 @@ public:
             }
         }
 
-        _srgbStride = size.x + ntscWidth - _rgbiWidth;
+        _srgbStride = size.x + 1;
         _srgb.ensure(size.y*_srgbStride);
-        _ntscStride = size.x + 64;
-        _weights.ensure(_compareWidth);
-        if (_connector == 0) {
-            for (int i = 0; i < _compareWidth; ++i)
-                _weights[i] = 1;
-        }
-        else {
-            _ntsc.ensure(64 + size.y*_ntscStride);
-            for (int x = 0; x < 63; ++x)
-                _ntsc[x] = _composite.simulateCGA(overscan, overscan, x & 3);
+        if (_connector != 0) {
+            _decoder.setLength(_compareWidth);
+            _decoder.calculateBurst(burst);
+            _deltaDecoder = _decoder;
+            _ntscStride = size.x + 4*padding;
+            _ntsc.ensure(size.y*_ntscStride);
             for (int y = 0; y < size.y; ++y) {
-                for (int x = 0; x < size.x + 1; ++x) {
-                    _ntsc[x + 63 + y*_ntscStride] = _composite.simulateCGA(
-                        _rgbi[x + y*_rgbiStride], _rgbi[x + 1 + y*_rgbiStride],
-                        (x - 1) & 3);
+                for (int x = 0; x < size.x; ++x) {
                 }
-                for (int x = 0; x < 63; ++x)
-                    _ntsc[x + (y + 1)*_ntscStride] = _ntsc[x & 3];
             }
-
-            _decoder.setSaturation(0);
-            _decoder.calculateBurst(burst);
-
-            int weightWidth = _incrementWidth; // _rgbiWidth;
-            _ntscPattern.ensure(_decoderLength);
-            for (int x = 0; x < _decoderLength; ++x)
-                _ntscPattern[x] = _composite.simulateCGA(0, 0, x & 3);
-            _srgbPattern.ensure(_compareWidth);
-            _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
-            for (int x = 0; x < _compareWidth; ++x)
-                _weights[x] = static_cast<float>(-_srgbPattern[x].x);
-
-            _ntscPattern[63] = _composite.simulateCGA(0, 15, 3);
-            for (int x = 0; x < weightWidth - 1; ++x)
-                _ntscPattern[x + 64] = _composite.simulateCGA(15, 15, x & 3);
-            _ntscPattern[weightWidth + 63] =
-                _composite.simulateCGA(15, 0, 3);
-            _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
-            for (int x = 0; x < _compareWidth; ++x)
-                _weights[x] += static_cast<float>(_srgbPattern[x].x);
-
-            _decoder.setSaturation(saturation);
-            _decoder.calculateBurst(burst);
         }
+
 
         const Byte* inputRow = _scaled.data();
         Colour* errorRow = &_error[_errorStride + 1];
@@ -1644,7 +1540,12 @@ public:
     bool getFlicker() { return _flicker; }
     void setQuality(double quality) { _quality = quality; }
     double getQuality() { return _quality; }
-    void setGamma(double gamma) { _gamma = gamma; _size = Vector(0, 0); }
+    void setGamma(double gamma)
+    {
+        if (gamma != _gamma)
+            _size = Vector(0, 0);
+        _gamma = gamma;
+    }
     double getGamma() { return _gamma; }
     void setClipping(int clipping) { _clipping = clipping; }
     int getClipping() { return _clipping; }
@@ -1677,8 +1578,9 @@ public:
     double getLobes() { return _lobes; }
     void setPrescalerProfile(int profile)
     {
+        if (profile != _prescalerProfile)
+            _size = Vector(0, 0);
         _prescalerProfile = profile;
-        _size = Vector(0, 0);
     }
     int getPrescalerProfile() { return _prescalerProfile; }
     void initFromData()
@@ -1895,7 +1797,7 @@ private:
                         contribution = deltaE2CIEDE2000(output, target);
                         break;
                 }
-                metric += _weights[x]*contribution;
+                metric += contribution;
 
                 ++input;
                 ++error;
@@ -1995,8 +1897,8 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    //NTSCDecoder _decoder;
     MatchingNTSCDecoder _decoder;
+    MatchingNTSCDecoder _deltaDecoder;
     CGAComposite _composite;
     Linearizer _linearizer;
 
@@ -2030,6 +1932,7 @@ private:
 
     bool _active;
     Vector _size;
+    int _padding;
     Vector _activeSize;
     ScanlineRenderer _scaler;
     AlignedBuffer _scaled;
@@ -2048,7 +1951,6 @@ private:
     Array<Byte> _ntsc;
     Array<SRGB> _srgb;
     Bitmap<SRGB> _input;
-    Array<Colour> _output;
     Array<Colour> _error;
 
     int _mode2;
@@ -2070,7 +1972,6 @@ private:
     int _ntscStride;
     int _rgbiStride;
     int _srgbStride;
-    Array<float> _weights;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;

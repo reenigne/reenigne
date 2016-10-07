@@ -352,4 +352,73 @@ SRGBColourSpaceBody ColourSpace::_srgb;
 RGBColourSpaceBody ColourSpace::_rgb;
 XYZColourSpaceBody ColourSpace::_xyz;
 
+class Linearizer
+{
+public:
+    Linearizer() : _gamma(0), _showClipping(false) { init(); }
+    void setShowClipping(bool showClipping)
+    {
+        _showClipping = showClipping;
+        init();
+    }
+    void setGamma(float gamma) { _gamma = gamma; init(); }
+    Colour linear(SRGB srgb)
+    {
+        return Colour(linear(srgb.x), linear(srgb.y), linear(srgb.z));
+    }
+    SRGB srgb(Colour linear)
+    {
+        return SRGB(srgb(linear.x), srgb(linear.y), srgb(linear.z));
+    }
+    float linear(Byte srgb) { return _linear[srgb]; }
+    Byte srgb(float linear)
+    {
+        return _srgb[clamp(0, static_cast<int>(linear*_multiplier), 6589)];
+    }
+private:
+    void init()
+    {
+        if (_gamma == 0) {
+            for (int i = 1; i < 255; ++i) {
+                float t = i/255.0f;
+                if (t <= 0.04045f)
+                    _linear[i] = t/12.92f;
+                else
+                    _linear[i] = pow((t + 0.055f)/(1 + 0.055f), 2.4f);
+            }
+            for (int i = 0; i < 6590; ++i) {
+                float l = i/_multiplier;
+                float s;
+                if (l <= 0.0031308)
+                    s = 12.92f*l;
+                else
+                    s = 1.055f*pow(l, 1/2.4f) - 0.055f;
+                _srgb[i] = byteClamp(0.5f + 255.0f*s);
+            }
+        }
+        else {
+            for (int i = 1; i < 255; ++i)
+                _linear[i] = pow(i/255.0f, _gamma);
+            for (int i = 0; i < 6590; ++i) {
+                _srgb[i] = byteClamp(0.5f +
+                    255.0f*pow(i/_multiplier, 1/_gamma));
+            }
+        }
+        if (_showClipping) {
+            _linear[0] = 1.0f;
+            _linear[255] = 0.0f;
+        }
+        else {
+            _linear[0] = 0.0f;
+            _linear[255] = 1.0f;
+        }
+    }
+
+    float _linear[256];
+    Byte _srgb[6590];
+    float _gamma;
+    bool _showClipping;
+    constexpr static const float _multiplier = 2*255.0f*12.92f;
+};
+
 #endif // INCLUDED_COLOUR_SPACE_H

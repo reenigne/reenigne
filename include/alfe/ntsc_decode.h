@@ -1,12 +1,12 @@
+#ifndef INCLUDED_NTSC_DECODE_H
+#define INCLUDED_NTSC_DECODE_H
+
 #include "alfe/main.h"
 #include "alfe/bitmap.h"
 #include "alfe/complex.h"
 #include "alfe/fft.h"
-
-#ifndef INCLUDED_NTSC_DECODE_H
-#define INCLUDED_NTSC_DECODE_H
-
 #include "alfe/image_filter.h"
+#include "alfe/colour_space.h"
 
 float sinc(float z)
 {
@@ -593,15 +593,7 @@ public:
     {
         _outputLength = outputLength;
     }
-    // inputTypes[inputPixel] is:
-    //   0 for an input sample to the left of the match area
-    //   1 for an input sample in the match area
-    //   2 for an input sample to the right of the match area
-    // outputTypes[outputPixel] is:
-    //   0 for an output pixel that does not meet the MORV condition
-    //   1 for an output pixel that does meet the MORV condition
-    void calculateBurst(Byte* burst, Byte* inputTypes = 0,
-        Byte* outputTypes = 0)
+    void calculateBurst(Byte* burst, Byte* active = 0)
     {
         Complex<float> iq;
         iq.x = static_cast<float>(burst[0] - burst[2]);
@@ -703,7 +695,7 @@ public:
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
                     _chromaKernel[d] - contrast*_diffKernel[d];
             }
-            if (inputTypes != 0 && inputTypes[inputChannel >> 1] != 1)
+            if (active != 0 && active[inputChannel >> 1] == 0)
                 r = 0;
             return Tuple<float, float>(r, distance == 0 ? 1.0f : 0.0f);
         },
@@ -716,27 +708,6 @@ public:
 #endif
 
         _filter.setBuffers(_input, _output);
-
-        if (inputTypes == 0 || outputTypes == 0)
-            return;
-        for (int x = 0; x < _outputLength; ++x) {
-            float total = 0;
-            for (int i = 0; i < n; ++i) {
-                float r = _chromaKernel[i]*_saturation + _lumaKernel[i] -
-                    _diffKernel[i];
-                if (r < 0)
-                    r = -r;
-                switch (inputTypes[i + left]) {
-                    case 1:
-                        total += r;
-                        break;
-                    case 2:
-                        total -= r;
-                        break;
-                }
-            }
-            outputTypes[x] = (total > 0 ? 1 : 0);
-        }
     }
 
     void decodeBlock(SRGB* srgb)
@@ -764,7 +735,7 @@ public:
 #endif
     }
 
-    void decodeNTSC(Byte* ntsc, SRGB* srgb)
+    void decodeNTSC(const Byte* ntsc, SRGB* srgb)
     {
         auto input = inputData();
 #if FIR_FP
@@ -775,6 +746,15 @@ public:
             input[i] = ntsc[i];
 #endif
         decodeBlock(srgb);
+    }
+
+    void encodeNTSC(const Colour* input, Byte* output, int n,
+        const Linearizer* linearizer, int phase)
+    {
+        for (int i = 0; i < n; ++i) {
+            SRGB srgb = linearizer->srgb(*input);
+
+        }
     }
 
     double getHue() { return _hue; }
