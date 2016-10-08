@@ -362,16 +362,16 @@ public:
         init();
     }
     void setGamma(float gamma) { _gamma = gamma; init(); }
-    Colour linear(SRGB srgb)
+    Colour linear(SRGB srgb) const
     {
         return Colour(linear(srgb.x), linear(srgb.y), linear(srgb.z));
     }
-    SRGB srgb(Colour linear)
+    SRGB srgb(Colour linear) const
     {
         return SRGB(srgb(linear.x), srgb(linear.y), srgb(linear.z));
     }
-    float linear(Byte srgb) { return _linear[srgb]; }
-    Byte srgb(float linear)
+    float linear(Byte srgb) const { return _linear[srgb]; }
+    Byte srgb(float linear) const
     {
         return _srgb[clamp(0, static_cast<int>(linear*_multiplier), 6589)];
     }
