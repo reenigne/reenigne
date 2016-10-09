@@ -598,10 +598,8 @@ public:
         Complex<float> iq;
         iq.x = static_cast<float>(burst[0] - burst[2]);
         iq.y = static_cast<float>(burst[1] - burst[3]);
-        Complex<float> iqAdjust =
-            -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
+        _iqAdjust = -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
             _contrast/iq.modulus();
-        float contrast = _contrast;
 // define to 1 to use the floating-point filter, 0 for integer
 #define FIR_FP 0
 #if FIR_FP
@@ -677,7 +675,7 @@ public:
             float r;
             if ((inputChannel & 1) == 0) {
                 // Luma
-                r = contrast*_lumaKernel[d];
+                r = _contrast*_lumaKernel[d];
             }
             else {
                 // Chroma
@@ -688,12 +686,12 @@ public:
                     case 4: iq.y = -1; break;
                     case 6: iq.x = 1; break;
                 }
-                iq *= iqAdjust;
+                iq *= _iqAdjust;
                 static const float i[3] = {0.9563f, -0.2721f, -1.1069f};
                 static const float q[3] = {0.6210f, -0.6474f, 1.7046f};
 
                 r = (i[outputChannel]*iq.x + q[outputChannel]*iq.y)*
-                    _chromaKernel[d] - contrast*_diffKernel[d];
+                    _chromaKernel[d] - _contrast*_diffKernel[d];
             }
             if (active != 0 && active[inputChannel >> 1] == 0)
                 r = 0;
@@ -751,9 +749,32 @@ public:
     void encodeNTSC(const Colour* input, Byte* output, int n,
         const Linearizer* linearizer, int phase)
     {
+        Complex<float> iqAdjust = Complex<float>(1)/_iqAdjust;
+        float contrast = 1/_contrast;
         for (int i = 0; i < n; ++i) {
             SRGB srgb = linearizer->srgb(*input);
-
+            Complex<float> iq;
+            float y = 0.299f*srgb.x + 0.587f*srgb.y + 0.114f*srgb.z;
+            iq.x = 0.596f*srgb.x - 0.275f*srgb.y - 0.321f*srgb.z;
+            iq.y = 0.212f*srgb.x - 0.528f*srgb.y + 0.311f*srgb.z;
+            iq *= iqAdjust;
+            y = (y - _brightness2)*contrast;
+            switch (phase) {
+                case 0:
+                    *output = byteClamp(y + iq.y);
+                    break;
+                case 1:
+                    *output = byteClamp(y - iq.x);
+                    break;
+                case 2:
+                    *output = byteClamp(y - iq.y);
+                    break;
+                case 3:
+                    *output = byteClamp(y + iq.x);
+                    break;
+            }
+            ++output;
+            phase = (phase + 1) & 3;
         }
     }
 
@@ -822,6 +843,7 @@ private:
 #else
     int _brightness2;
 #endif
+    Complex<float> _iqAdjust;
     int _inputScaling;
     Array<float> _lumaKernel;
     Array<float> _chromaKernel;

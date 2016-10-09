@@ -232,13 +232,14 @@ public:
             maxV = max(maxV, tableValue(x));
         double vBlack = tableValue(0);
         double vWhite = tableValue(1023);
+        maxV = max(maxV, (vWhite - vBlack)*4/3 + vBlack);
 
         // v                p          q       f
         //
         //                  0          0
         // tableValue(0)    0.416              0
         // tableValue(1023) 1.46               1
-        // maxV                      255
+        // maxV                      255       >= 4/3
 
         // p = n*v + m
         // 0.416 = n*vBlack + m
