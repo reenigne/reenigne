@@ -855,6 +855,7 @@ public:
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_scanlinesRepeat*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(_gamma));
+        int padding = static_cast<int>(4*_lobes);
         if (size != _size || padding > _padding) {
             _padding = padding;
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
@@ -1051,7 +1052,6 @@ public:
             _rgbiWidth = _incrementWidth;
         }
         bool newCGA = _connector == 2;
-        int padding = static_cast<int>(4*_lobes);
         double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
         if (_connector != 0) {
             _compareWidth = _rgbiWidth + 2*padding;
@@ -1173,6 +1173,7 @@ public:
                 }
                 else {
                     Byte* ntsc = &_ntscPattern[0];
+                    int leftPadding = _decoder.inputLeft();
                     int l = (leftPadding*(_rgbiWidth - 1))%_rgbiWidth;
                     int r = (l + 1)%_rgbiWidth;
                     for (int x = 0; x < _compareWidth; ++x) {
@@ -1249,16 +1250,28 @@ public:
 
         _srgbStride = size.x + 1;
         _srgb.ensure(size.y*_srgbStride);
+        int inputWidth = _rgbiWidth + 4*padding;
         if (_connector != 0) {
             _decoder.setLength(_compareWidth);
             _decoder.calculateBurst(burst);
             _deltaDecoder = _decoder;
+            _active.ensure(_compareWidth);
+            for (int x = 0; x < inputWidth; ++x) {
+                _active[x] =
+                    (x >= 2*padding && x < 2*padding + _rgbiWidth) ? 1 : 0;
+            }
+            _deltaDecoder.calculateBurst(burst, &_active[0]);
             _ntscStride = size.x + 4*padding;
             _ntsc.ensure(size.y*_ntscStride);
+            const Byte* inputRow = _scaled.data();
+            Byte* outputRow = _ntsc.data();
             for (int y = 0; y < size.y; ++y) {
-                for (int x = 0; x < size.x; ++x) {
-                }
+                encodeNTSC(reinterpret_cast<const Colour*>(inputRow),
+                    outputRow, size.x, &_linearizer, 2*padding);
+                inputRow += _scaled.stride();
+                outputRow += _ntscStride;
             }
+            _base.ensure(inputWidth*_blockHeight);
         }
 
 
@@ -1308,7 +1321,12 @@ public:
                 const Byte* inputLine = _inputBlock;
                 Colour* errorLine = _errorBlock;
 
+                // Compute base for decoding
+                _decoder.decodeNTSC(&_ntscBlock, );
+
                 // Compute average target colour for block to look up in table.
+                // Also compute base for decoding.
+                SRGB* baseLine;
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
@@ -1325,6 +1343,9 @@ public:
                     }
                     inputLine += _scaled.stride();
                     errorLine += _errorStride;
+
+                    _base.
+                    baseLine += inputWidth;
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
                 auto s = Vector3Cast<int>(
@@ -1699,7 +1720,9 @@ private:
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
                 }
-                _decoder.decodeNTSC(ntscLine, srgb);
+                _deltaDecoder.decodeNTSC(ntscLine, srgb);
+                for (int x = 0; x < _compareWidth; ++x)
+                    srgb[x] += _base[x];
             }
             srgb = srgbLine;
             for (int x = 0; x < _compareWidth; ++x) {
@@ -1952,6 +1975,8 @@ private:
     Array<SRGB> _srgb;
     Bitmap<SRGB> _input;
     Array<Colour> _error;
+    Array<Byte> _active;
+    Array<SRGB> _base;
 
     int _mode2;
     Byte* _d0;

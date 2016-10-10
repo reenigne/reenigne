@@ -593,7 +593,7 @@ public:
     {
         _outputLength = outputLength;
     }
-    void calculateBurst(Byte* burst, Byte* active = 0)
+    void calculateBurst(const Byte* burst, const Byte* active = 0)
     {
         Complex<float> iq;
         iq.x = static_cast<float>(burst[0] - burst[2]);
@@ -737,11 +737,19 @@ public:
     {
         auto input = inputData();
 #if FIR_FP
-        for (int i = 0; i < (_inputRight - _inputLeft)*4; ++i)
-            input[i] = ntsc[i];
+        for (int i = _inputLeft; i < _inputRight; ++i) {
+            input[0] = ntsc[0];
+            input[1] = ntsc[0];
+            input += 2;
+            ++ntsc;
+        }
 #else
-        for (int i = 0; i < (_inputRight - _inputLeft)*8; ++i)
-            input[i] = ntsc[i];
+        for (int i = _inputLeft; i < _inputRight; ++i) {
+            input[0] = ntsc[0] - 128;
+            input[1] = ntsc[0] - 128;
+            input += 2;
+            ++ntsc;
+        }
 #endif
         decodeBlock(srgb);
     }
