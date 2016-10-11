@@ -1023,7 +1023,6 @@ public:
                     _skip[i] = true;
             }
         }
-        float blockArea = static_cast<float>(_compareWidth*_blockHeight);
         int banks = ((_mode & 2) != 0 && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
         Byte burst[4];
@@ -1060,7 +1059,7 @@ public:
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            _decoder.setLength(_incrementWidth);
+            _decoder.setLength(_rgbiWidth);
             _decoder.setLumaBandwidth(_lumaBandwidth);
             _decoder.setChromaBandwidth(_chromaBandwidth);
             _decoder.setRollOff(_rollOff);
@@ -1076,6 +1075,7 @@ public:
             _decoder.calculateBurst(burst);
             _ntscPattern.ensure(_compareWidth);
         }
+        float blockArea = static_cast<float>(_rgbiWidth*_blockHeight);
 
         _srgbPattern.ensure(_rgbiWidth);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
@@ -1273,6 +1273,7 @@ public:
             }
             _base.ensure(inputWidth*_blockHeight);
         }
+        blockArea = static_cast<float>(_compareWidth*_blockHeight);
 
 
         const Byte* inputRow = _scaled.data();
@@ -1321,12 +1322,9 @@ public:
                 const Byte* inputLine = _inputBlock;
                 Colour* errorLine = _errorBlock;
 
-                // Compute base for decoding
-                _decoder.decodeNTSC(&_ntscBlock, );
-
                 // Compute average target colour for block to look up in table.
                 // Also compute base for decoding.
-                SRGB* baseLine;
+                SRGB* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
@@ -1344,7 +1342,10 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += _errorStride;
 
-                    _base.
+                    _decoder.decodeNTSC(&_ntscBlock, baseLine);
+                    _deltaDecoder.decodeNTSC(&_ntscBlock, _srgbBlock);
+                    for (int x = 0; x < _compareWidth; ++x)
+                        _baseLine[x] -= _srgbBlock[x];
                     baseLine += inputWidth;
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
@@ -1696,6 +1697,7 @@ private:
         Byte* rgbiLine = _rgbiBlock;
         Byte* ntscLine = _ntscBlock;
         SRGB* srgbLine = _srgbBlock;
+        SRGB* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat;
             UInt64 rgbis = _sequencer->process(v[s & yMask],
@@ -1722,7 +1724,7 @@ private:
                 }
                 _deltaDecoder.decodeNTSC(ntscLine, srgb);
                 for (int x = 0; x < _compareWidth; ++x)
-                    srgb[x] += _base[x];
+                    srgb[x] += baseLine[x];
             }
             srgb = srgbLine;
             for (int x = 0; x < _compareWidth; ++x) {
@@ -1831,6 +1833,7 @@ private:
             ntscLine += _ntscStride;
             rgbiLine += _rgbiStride;
             srgbLine += _srgbStride;
+            baseLine += _baseStride;
         }
         return metric;
     }
@@ -1997,6 +2000,7 @@ private:
     int _ntscStride;
     int _rgbiStride;
     int _srgbStride;
+    int _baseStride;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
