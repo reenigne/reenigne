@@ -1272,6 +1272,7 @@ public:
                 outputRow += _ntscStride;
             }
             _base.ensure(inputWidth*_blockHeight);
+            _rightNTSC.ensure(_blockHeight);
         }
         blockArea = static_cast<float>(_compareWidth*_blockHeight);
 
@@ -1321,6 +1322,7 @@ public:
                 Colour rgb(0, 0, 0);
                 const Byte* inputLine = _inputBlock;
                 Colour* errorLine = _errorBlock;
+                Byte* ntscLine = _ntscBlock;
 
                 // Compute average target colour for block to look up in table.
                 // Also compute base for decoding.
@@ -1347,6 +1349,8 @@ public:
                     for (int x = 0; x < _compareWidth; ++x)
                         _baseLine[x] -= _srgbBlock[x];
                     baseLine += inputWidth;
+                    _rightNTSC[scanline] = ntscLine[_rgbiWidth];
+                    ntscLine += _ntscStride;
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
                 auto s = Vector3Cast<int>(
@@ -1717,9 +1721,8 @@ private:
                 int x;
                 for (x = 0; x < _rgbiWidth; ++x)
                     rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
-                Byte* ntsc = ntscLine + 64;
                 for (x = -1; x < _rgbiWidth; ++x) {
-                    ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
+                    ntscLine[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
                 }
                 _deltaDecoder.decodeNTSC(ntscLine, srgb);
@@ -1980,6 +1983,7 @@ private:
     Array<Colour> _error;
     Array<Byte> _active;
     Array<SRGB> _base;
+    Array<Byte> _rightNTSC;
 
     int _mode2;
     Byte* _d0;
