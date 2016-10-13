@@ -299,6 +299,14 @@ public:
             return _table[((left & 15) << 6) + ((right & 15) << 2) + phase];
         return _syncTable[(left << 2) + phase];
     }
+    Byte simulateHalfCGA(int left, Byte right, int phase)
+    {
+        int b = _table[((left & 15) << 6) + phase];
+        int w = _table[((left & 15) << 6) + 0x3c + phase];
+        int bb = _table[phase];
+        int ww = _table[0x3fc + phase];
+        return (right - bb)*(w - b)/(ww - bb) + b;
+    }
     void simulateLine(const Byte* rgbi, Byte* ntsc, int length, int phase)
     {
         for (int x = 0; x < length; ++x) {

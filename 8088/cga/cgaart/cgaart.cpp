@@ -1721,10 +1721,12 @@ private:
                 int x;
                 for (x = 0; x < _rgbiWidth; ++x)
                     rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
-                for (x = -1; x < _rgbiWidth; ++x) {
+                for (x = -1; x < _rgbiWidth - 1; ++x) {
                     ntscLine[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
                 }
+                ntscLine[x] = _composite.simulateHalfCGA(rgbi[x],
+                    _rightNTSC[scanline], x & 3);
                 _deltaDecoder.decodeNTSC(ntscLine, srgb);
                 for (int x = 0; x < _compareWidth; ++x)
                     srgb[x] += baseLine[x];
