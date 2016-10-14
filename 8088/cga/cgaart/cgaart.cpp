@@ -1052,8 +1052,9 @@ public:
         }
         bool newCGA = _connector == 2;
         double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
+        int gamutLeftPadding = 0;
+        int gamutWidth = 0;
         if (_connector != 0) {
-            _compareWidth = _rgbiWidth + 2*padding;
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
@@ -1073,7 +1074,9 @@ public:
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
             _decoder.calculateBurst(burst);
-            _ntscPattern.ensure(_compareWidth);
+            gamutLeftPadding = _decoder.inputLeft();
+            gamutWidth = _decoder.inputRight() - gamutLeftPadding;
+            _ntscPattern.ensure(gamutWidth);
         }
         float blockArea = static_cast<float>(_rgbiWidth*_blockHeight);
 
@@ -1173,12 +1176,12 @@ public:
                 }
                 else {
                     Byte* ntsc = &_ntscPattern[0];
-                    int leftPadding = _decoder.inputLeft();
                     int l = (leftPadding*(_rgbiWidth - 1))%_rgbiWidth;
                     int r = (l + 1)%_rgbiWidth;
-                    for (int x = 0; x < _compareWidth; ++x) {
+                    for (int x = 0; x < gamutWidth; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
-                            (rgbi >> (r * 4)) & 0xf, (x - leftPadding) & 3);
+                            (rgbi >> (r * 4)) & 0xf,
+                            (x - gamutLeftPadding) & 3);
                         l = r;
                         r = (r + 1)%_rgbiWidth;
                     }
@@ -1251,6 +1254,10 @@ public:
         _srgbStride = size.x + 1;
         _srgb.ensure(size.y*_srgbStride);
         int inputWidth = _rgbiWidth + 4*padding;
+        int baseLeftPadding = 0;
+        int baseWidth = 0;
+        int deltaLeftPadding = 0;
+        int deltaWidth = 0;
         if (_connector != 0) {
             _decoder.setLength(_compareWidth);
             _decoder.calculateBurst(burst);
@@ -1258,7 +1265,7 @@ public:
             _active.ensure(_compareWidth);
             for (int x = 0; x < inputWidth; ++x) {
                 _active[x] =
-                    (x >= 2*padding && x < 2*padding + _rgbiWidth) ? 1 : 0;
+                    (x >= 2*padding - 1 && x < 2*padding + _rgbiWidth) ? 1 : 0;
             }
             _deltaDecoder.calculateBurst(burst, &_active[0]);
             _ntscStride = size.x + 4*padding;
