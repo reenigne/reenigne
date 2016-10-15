@@ -821,6 +821,8 @@ public:
 
     int inputLeft() { return _inputLeft; }
     int inputRight() { return _inputRight; }
+    int outputLeft() const { return _filter.outputLeft(); }
+    int outputRight() const { return _filter.outputRight(); }
 #if FIR_FP
     float* inputData() { return reinterpret_cast<float*>(_input.data()); }
 #else

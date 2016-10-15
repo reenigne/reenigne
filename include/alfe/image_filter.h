@@ -203,6 +203,9 @@ public:
             (channelsPerUnit + kWidth*channelsPerUnit)*channelsPerUnit);
         _totals.ensure(inputChannels*channelsPerUnit);
 
+        _outputLeft = std::numeric_limits<int>::max();
+        _outputRight = std::numeric_limits<int>::min();
+
         int left = std::numeric_limits<int>::max();
         int right = std::numeric_limits<int>::min();
         for (int x = 0; x < _width; ++x) {
@@ -264,6 +267,9 @@ public:
                         _totals[((i + c + multiple) % inputChannels)*
                         channelsPerUnit + c]));
                     if (v != 0) {
+                        int oc = o + c;
+                        _outputLeft = min(_outputLeft, oc);
+                        _outputRight = max(_outputRight, oc + 1);
                         if (lastC == 0) {
                             realLeftInput = i;
                             left = min(left, realLeftInput);
@@ -288,17 +294,6 @@ public:
                     right = max(right, i);
                 }
             }
-            if (kernelSize == 0) {
-                kernelSize = 1;
-                left = min(left, realLeftInput);
-                right = max(right, realLeftInput);
-                *offsets = realLeftInput*sizeof(UInt16);
-                ++offsets;
-                for (int c = 0; c < channelsPerUnit; ++c) {
-                    *kernel = 0;
-                    ++kernel;
-                }
-            }
             sizes[x] = kernelSize;
         }
         if (left < 0)
@@ -317,6 +312,8 @@ public:
         _input = input;
         _output = output;
     }
+    int outputLeft() const { return _outputLeft; }
+    int outputRight() const { return _outputRight; }
 
 private:
     // Buffers
@@ -334,6 +331,9 @@ private:
     int _inputStride;
     int _outputStride;
     int _inputOffset;
+
+    int _outputLeft;
+    int _outputRight;
 };
 
 // Filters and resamples an image horizontally using single-precision
@@ -451,6 +451,9 @@ public:
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
 
+        _outputLeft = std::numeric_limits<int>::max();
+        _outputRight = std::numeric_limits<int>::min();
+
         int left = std::numeric_limits<int>::max();
         int right = std::numeric_limits<int>::min();
         for (int x = 0; x < _width; ++x) {
@@ -501,6 +504,8 @@ public:
                         v = kernelFunction(dist, ic, outputChannel);
                     _totals[inputChannel*channelsPerUnit + c] += v.second();
                     if (v.first() != 0) {
+                        _outputLeft = min(_outputLeft, oc);
+                        _outputRight = max(_outputRight, oc + 1);
                         if (lastC == 0) {
                             left = min(left, i);
                             *offsets = i*sizeof(float);
@@ -524,29 +529,16 @@ public:
                     right = max(right, i);
                 }
             }
-            if (kernelSize == 0) {
-                kernelSize = 1;
-                left = min(left, leftInput);
-                right = max(right, leftInput);
-                *offsets = leftInput*sizeof(float);
-                ++offsets;
+            for (int c = 0; c < channelsPerUnit*inputChannels; ++c)
+                _totals[c] = 1/_totals[c];
+            for (;kernelStart != kernel; kernelStart += channelsPerUnit) {
+                int i = *offsetsStart/static_cast<int>(sizeof(float)) +
+                    multiple;
                 for (int c = 0; c < channelsPerUnit; ++c) {
-                    *kernel = 0;
-                    ++kernel;
+                    kernelStart[c] *= _totals[c +
+                        channelsPerUnit*((i + c) % inputChannels)];
                 }
-            }
-            else {
-                for (int c = 0; c < channelsPerUnit*inputChannels; ++c)
-                    _totals[c] = 1/_totals[c];
-                for (;kernelStart != kernel; kernelStart += channelsPerUnit) {
-                    int i = *offsetsStart/static_cast<int>(sizeof(float)) +
-                        multiple;
-                    for (int c = 0; c < channelsPerUnit; ++c) {
-                        kernelStart[c] *= _totals[c +
-                            channelsPerUnit*((i + c) % inputChannels)];
-                    }
-                    ++offsetsStart;
-                }
+                ++offsetsStart;
             }
             sizes[x] = kernelSize;
         }
@@ -566,6 +558,8 @@ public:
         _input = input;
         _output = output;
     }
+    int outputLeft() const { return _outputLeft; }
+    int outputRight() const { return _outputRight; }
 
 private:
     // Buffers
@@ -582,6 +576,9 @@ private:
     int _inputStride;
     int _outputStride;
     int _inputOffset;
+
+    int _outputLeft;
+    int _outputRight;
 };
 
 // Filters and resamples an image vertically using single-precision

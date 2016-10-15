@@ -1080,7 +1080,7 @@ public:
         }
         float blockArea = static_cast<float>(_rgbiWidth*_blockHeight);
 
-        _srgbPattern.ensure(_rgbiWidth);
+        _srgb.ensure(_rgbiWidth);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
             0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
         memcpy(_hres1bpp, hres1bpp, 0x10);
@@ -1166,7 +1166,7 @@ public:
                 UInt64 rgbi = _sequencer->process(dataBits[y & yMask], _mode,
                     _palette, y, false, 0);
                 if (_connector == 0) {
-                    SRGB* srgb = &_srgbPattern[0];
+                    SRGB* srgb = &_srgb[0];
                     for (int x = 0; x < _rgbiWidth; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
@@ -1185,9 +1185,9 @@ public:
                         l = r;
                         r = (r + 1)%_rgbiWidth;
                     }
-                    _decoder.decodeNTSC(&_ntscPattern[0], &_srgbPattern[0]);
+                    _decoder.decodeNTSC(&_ntscPattern[0], &_srgb[0]);
                 }
-                SRGB* srgb = &_srgbPattern[0];
+                SRGB* srgb = &_srgb[0];
                 for (int x = 0; x < _rgbiWidth; ++x)
                     rgb += _linearizer.linear(srgb[x]);
             }
@@ -1251,11 +1251,9 @@ public:
             }
         }
 
-        _srgbStride = size.x + 1;
-        _srgb.ensure(size.y*_srgbStride);
         int inputWidth = _rgbiWidth + 4*padding;
         int baseLeftPadding = 0;
-        int baseWidth = 0;
+        int baseWidth = _rgbiWidth;
         int deltaLeftPadding = 0;
         int deltaWidth = 0;
         if (_connector != 0) {
@@ -1281,6 +1279,7 @@ public:
             _base.ensure(inputWidth*_blockHeight);
             _rightNTSC.ensure(_blockHeight);
         }
+        _srgb.ensure(baseWidth);
         blockArea = static_cast<float>(_compareWidth*_blockHeight);
 
 
@@ -1288,7 +1287,6 @@ public:
         Colour* errorRow = &_error[_errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
-        SRGB* srgbRow = &_srgb[0];
         phaseRow = _phase << 6;
         int bankShift =
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
@@ -1320,7 +1318,6 @@ public:
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
             _ntscBlock = ntscRow;
-            _srgbBlock = srgbRow;
             _phaseBlock = phaseRow;
             for (int column = 0; column < horizontalBlocks; ++column) {
                 _mode2 = mode1 + (column << 9 & 0x200);
@@ -1352,9 +1349,9 @@ public:
                     errorLine += _errorStride;
 
                     _decoder.decodeNTSC(&_ntscBlock, baseLine);
-                    _deltaDecoder.decodeNTSC(&_ntscBlock, _srgbBlock);
+                    _deltaDecoder.decodeNTSC(&_ntscBlock, &_srgb[0]);
                     for (int x = 0; x < _compareWidth; ++x)
-                        _baseLine[x] -= _srgbBlock[x];
+                        _baseLine[x] -= _srgb[x];
                     baseLine += inputWidth;
                     _rightNTSC[scanline] = ntscLine[_rgbiWidth];
                     ntscLine += _ntscStride;
@@ -1494,7 +1491,6 @@ public:
                 _errorBlock += _incrementWidth;
                 _rgbiBlock += _incrementWidth;
                 _ntscBlock += _incrementWidth;
-                _srgbBlock += _incrementWidth;
             } // column
 
             if ((mode1 & 0x102) == 0x102) {
@@ -1517,7 +1513,6 @@ public:
             phaseRow ^= phaseRowFlip;
             rgbiRow += _rgbiStride*_blockHeight;
             ntscRow += _ntscStride*_blockHeight;
-            srgbRow += _srgbStride*_blockHeight;
             if (bank == banks) {
                 bank = 0;
                 ++row;
@@ -1707,13 +1702,12 @@ private:
         Colour* errorLine = _errorBlock;
         Byte* rgbiLine = _rgbiBlock;
         Byte* ntscLine = _ntscBlock;
-        SRGB* srgbLine = _srgbBlock;
         SRGB* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat;
             UInt64 rgbis = _sequencer->process(v[s & yMask],
                 _mode + _phaseBlock, _palette, s, false, 0);
-            SRGB* srgb = srgbLine;
+            SRGB* srgb = &_srgb[0];
             auto input = reinterpret_cast<const Colour*>(inputLine);
             auto error = errorLine;
             if (_connector == 0) {
@@ -1738,7 +1732,7 @@ private:
                 for (int x = 0; x < _compareWidth; ++x)
                     srgb[x] += baseLine[x];
             }
-            srgb = srgbLine;
+            srgb = &_srgb[0];
             for (int x = 0; x < _compareWidth; ++x) {
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
@@ -1844,7 +1838,6 @@ private:
             errorLine += _errorStride;
             ntscLine += _ntscStride;
             rgbiLine += _rgbiStride;
-            srgbLine += _srgbStride;
             baseLine += _baseStride;
         }
         return metric;
@@ -1983,7 +1976,6 @@ private:
     Array<bool> _skip;
 
     Array<Byte> _ntscPattern;
-    Array<SRGB> _srgbPattern;
     Array<Byte> _rowData;
     Array<Byte> _rgbi;
     Array<Byte> _ntsc;
@@ -1991,7 +1983,7 @@ private:
     Bitmap<SRGB> _input;
     Array<Colour> _error;
     Array<Byte> _active;
-    Array<SRGB> _base;
+    Array<Vector3<SInt16>> _base;
     Array<Byte> _rightNTSC;
 
     int _mode2;
@@ -2002,7 +1994,6 @@ private:
     Colour* _errorBlock;
     Byte* _rgbiBlock;
     Byte* _ntscBlock;
-    SRGB* _srgbBlock;
     int _rgbiWidth;
     int _compareWidth;
     int _incrementWidth;
@@ -2012,7 +2003,6 @@ private:
     int _errorStride;
     int _ntscStride;
     int _rgbiStride;
-    int _srgbStride;
     int _baseStride;
 };
 
