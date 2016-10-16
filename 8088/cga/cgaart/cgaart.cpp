@@ -1185,7 +1185,8 @@ public:
                         l = r;
                         r = (r + 1)%_rgbiWidth;
                     }
-                    _decoder.decodeNTSC(&_ntscPattern[0], &_srgb[0]);
+                    _decoder.decodeNTSC(&_ntscPattern[0]);
+                    _decoder.outputToSRGB(&_srgb[0]);
                 }
                 SRGB* srgb = &_srgb[0];
                 for (int x = 0; x < _rgbiWidth; ++x)
@@ -1259,6 +1260,8 @@ public:
         if (_connector != 0) {
             _decoder.setLength(_compareWidth);
             _decoder.calculateBurst(burst);
+            _bias = _decoder.bias();
+            _shift = _decoder.shift();
             _deltaDecoder = _decoder;
             _active.ensure(_compareWidth);
             for (int x = 0; x < inputWidth; ++x) {
@@ -1348,10 +1351,17 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += _errorStride;
 
-                    _decoder.decodeNTSC(&_ntscBlock, baseLine);
-                    _deltaDecoder.decodeNTSC(&_ntscBlock, &_srgb[0]);
-                    for (int x = 0; x < _compareWidth; ++x)
-                        _baseLine[x] -= _srgb[x];
+                    _decoder.decodeNTSC(&_ntscBlock);
+                    _deltaDecoder.decodeNTSC(&_ntscBlock);
+                    UInt16* decoded = _decoder.output();
+                    UInt16* deltaDecoded = _deltaDecoder.output();
+                    for (int x = 0; x < _compareWidth; ++x) {
+                        _baseLine[x] = Vector3<SInt16>(decoded[0], decoded[1],
+                            decoded[2]) - Vector3<SInt16>(deltaDecoded[0],
+                            deltaDecoded[1], deltaDecoded[2]);
+                        decoded += 3;
+                        deltaDecoded += 3;
+                    }
                     baseLine += inputWidth;
                     _rightNTSC[scanline] = ntscLine[_rgbiWidth];
                     ntscLine += _ntscStride;
@@ -1728,9 +1738,12 @@ private:
                 }
                 ntscLine[x] = _composite.simulateHalfCGA(rgbi[x],
                     _rightNTSC[scanline], x & 3);
-                _deltaDecoder.decodeNTSC(ntscLine, srgb);
-                for (int x = 0; x < _compareWidth; ++x)
-                    srgb[x] += baseLine[x];
+                _deltaDecoder.decodeNTSC(ntscLine);
+                UInt16* decoded = _deltaDecoder.output();
+                for (int x = 0; x < _compareWidth; ++x) {
+                    srgb[x] = baseLine[x] + Vector3<SInt16>(decoded[0],
+                        decoded[1], decoded[2]);
+                }
             }
             srgb = &_srgb[0];
             for (int x = 0; x < _compareWidth; ++x) {
@@ -1984,6 +1997,8 @@ private:
     Array<Colour> _error;
     Array<Byte> _active;
     Array<Vector3<SInt16>> _base;
+    int _bias;
+    int _shift;
     Array<Byte> _rightNTSC;
 
     int _mode2;

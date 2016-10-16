@@ -708,10 +708,11 @@ public:
         _filter.setBuffers(_input, _output);
     }
 
-    void decodeBlock(SRGB* srgb)
+    void execute() { _filter.execute(); }
+
+    void outputToSRGB(SRGB* srgb)
     {
 #if FIR_FP
-        _filter.execute();
         Colour* output = reinterpret_cast<Colour*>(_output.data());
         for (int i = 0; i < _outputLength; ++i) {
             Colour c = output[i] +
@@ -719,21 +720,19 @@ public:
             srgb[i] = SRGB(byteClamp(c.x), byteClamp(c.y), byteClamp(c.z));
         }
 #else
-        _filter.execute();
         SInt16* output = reinterpret_cast<SInt16*>(_output.data());
-        static const int shift = 6;
-        int bias = (_brightness2 << shift) + (1 << (shift - 1));
+        static const int s = shift();
+        static const int b = bias();
         for (int i = 0; i < _outputLength; ++i) {
-            SInt16 r = (output[0] + bias) >> shift;
-            SInt16 g = (output[1] + bias) >> shift;
-            SInt16 b = (output[2] + bias) >> shift;
+            srgb[i] = SRGB(byteClamp((output[0] + b) >> s),
+                byteClamp((output[1] + b) >> s),
+                byteClamp((output[2] + b) >> s));
             output += 3;
-            srgb[i] = SRGB(byteClamp(r), byteClamp(g), byteClamp(b));
         }
 #endif
     }
 
-    void decodeNTSC(const Byte* ntsc, SRGB* srgb)
+    void decodeNTSC(const Byte* ntsc)
     {
         auto input = inputData();
 #if FIR_FP
@@ -751,7 +750,7 @@ public:
             ++ntsc;
         }
 #endif
-        decodeBlock(srgb);
+        execute();
     }
 
     void encodeNTSC(const Colour* input, Byte* output, int n,
@@ -823,10 +822,18 @@ public:
     int inputRight() { return _inputRight; }
     int outputLeft() const { return _filter.outputLeft(); }
     int outputRight() const { return _filter.outputRight(); }
+    int shift() const { return _filter.shift(); }
+    int bias() const
+    {
+        int s = shift();
+        return (_brightness2 << s) + (1 << (s - 1));
+    }
 #if FIR_FP
     float* inputData() { return reinterpret_cast<float*>(_input.data()); }
+    float* outputData() { return reinterpret_cast<float*>(_output.data()); }
 #else
     UInt16* inputData() { return reinterpret_cast<UInt16*>(_input.data()); }
+    UInt16* outputData() { return reinterpret_cast<UInt16*>(_output.data()); }
 #endif
 private:
     float _hue;

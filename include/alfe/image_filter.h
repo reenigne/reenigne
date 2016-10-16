@@ -87,6 +87,7 @@ private:
 class ImageFilter16
 {
 public:
+    ImageFilter16() : _shift(6) { }
     void execute()
     {
         Byte* inputRow = _input.data() + _inputOffset;
@@ -198,7 +199,7 @@ public:
         _kernelSizes.ensure(_width);
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
-        float scale = 64.0f;
+        float scale = static_cast<float>(1 << shift);
         _tempKernel.ensure(
             (channelsPerUnit + kWidth*channelsPerUnit)*channelsPerUnit);
         _totals.ensure(inputChannels*channelsPerUnit);
@@ -314,6 +315,8 @@ public:
     }
     int outputLeft() const { return _outputLeft; }
     int outputRight() const { return _outputRight; }
+    void setShift(int shift) { _shift = shift; }
+    int shift() const { return _shift; }
 
 private:
     // Buffers
@@ -331,6 +334,7 @@ private:
     int _inputStride;
     int _outputStride;
     int _inputOffset;
+    int _shift;
 
     int _outputLeft;
     int _outputRight;
