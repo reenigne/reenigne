@@ -199,7 +199,7 @@ public:
         _kernelSizes.ensure(_width);
         int* offsets = &_offsets[0];
         int* sizes = &_kernelSizes[0];
-        float scale = static_cast<float>(1 << shift);
+        float scale = static_cast<float>(1 << _shift);
         _tempKernel.ensure(
             (channelsPerUnit + kWidth*channelsPerUnit)*channelsPerUnit);
         _totals.ensure(inputChannels*channelsPerUnit);
