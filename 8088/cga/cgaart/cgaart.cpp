@@ -1253,15 +1253,14 @@ public:
         }
 
         int baseLeftPadding = 0;
-        int baseWidth = _rgbiWidth;
         int deltaLeftPadding = 0;
-        int deltaWidth = 0;
         int compareLeftPadding = 0;
+        _compareWidth = _rgbiWidth;
         if (_connector != 0) {
             _decoder.setLength(_rgbiWidth + 1 + 2*padding);
             _decoder.calculateBurst(burst);
             baseLeftPadding = -_decoder.inputLeft();
-            baseWidth = _decoder.inputRight() + baseLeftPadding;
+            int baseWidth = _decoder.inputRight() + baseLeftPadding;
             _bias = _decoder.bias();
             _shift = _decoder.shift();
             _deltaDecoder = _decoder;
@@ -1272,9 +1271,8 @@ public:
             }
             _deltaDecoder.calculateBurst(burst, &_activeInputs[0]);
             deltaLeftPadding = -_deltaDecoder.inputLeft();
-            deltaWidth = _deltaDecoder.inputRight() + deltaLeftPadding;
-            compareLeftPadding = -_deltaDecoder.outputLeft();
-            _compareWidth = _deltaDecoder.outputRight() + compareLeftPadding;
+            compareLeftPadding = _deltaDecoder.outputLeft();
+            _compareWidth = _deltaDecoder.outputRight() - compareLeftPadding;
             _ntscStride = size.x + 1 + 4*padding;
             _ntsc.ensure(size.y*_ntscStride);
             const Byte* inputRow = _scaled.data();
@@ -1288,14 +1286,14 @@ public:
             _base.ensure(_compareWidth*_blockHeight);
             _rightNTSC.ensure(_blockHeight);
         }
-        _srgb.ensure(baseWidth);
+        _srgb.ensure(_compareWidth);
         blockArea = static_cast<float>(_compareWidth*_blockHeight);
 
         const Byte* inputRow = _scaled.data();
         Colour* errorRow = &_error[_errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
-        Byte* ntscBaseRow = &_ntsc[0] + 2*padding - baseLeftPadding;
-        Byte* ntscDeltaRow = &_ntsc[0] + 2*padding - deltaLeftPadding;
+        Byte* ntscBaseRow = &_ntsc[0] + padding - baseLeftPadding;
+        Byte* ntscDeltaRow = &_ntsc[0] + padding - deltaLeftPadding;
         phaseRow = _phase << 6;
         int bankShift =
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
@@ -1338,10 +1336,10 @@ public:
                 Colour* errorLine = _errorBlock;
                 Byte* ntscLine = _ntscBlock;
 
-                // Compute average target colour for block to look up in table.
-                // Also compute base for decoding.
                 Vector3<SInt16>* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
+                    // Compute average target colour for block to look up in
+                    // table.
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
                     for (int x = 0; x < _rgbiWidth; ++x) {
@@ -1358,9 +1356,11 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += _errorStride;
 
+                    // Compute base for decoding.
                     _decoder.decodeNTSC(ntscBaseBlock);
                     _deltaDecoder.decodeNTSC(_ntscBlock);
-                    UInt16* decoded = _decoder.outputData();
+                    UInt16* decoded = _decoder.outputData() +
+                        compareLeftPadding;
                     UInt16* deltaDecoded = _deltaDecoder.outputData();
                     _deltaDecoded = deltaDecoded;
                     for (int x = 0; x < _compareWidth; ++x) {
