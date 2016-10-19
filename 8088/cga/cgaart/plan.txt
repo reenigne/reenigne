@@ -1144,3 +1144,32 @@ Levels from Amstrad PC1512 MM
             sum(C*C) > sum(R*R)        - this isn't ideal because it underweights small coefficients: consider 4 C coefficients of 0.2 and 1 R coefficient of 0.5 - R would win but C has more influence
             sum(abs(C)) > sum(abs(R))  - pick this one
 
+
+
+
+ntsc_start == &_ntsc[0]
+base_input == ntscBaseRow
+delta_input == ntscDeltaRow
+
+change_origin - ntsc_start = 2*padding+1               definition of ntsc_start
+change_origin - base_output = padding+1                making base large enough
+base_output - base_input = baseLeftPadding             base filter creation
+base_output - delta_input = deltaLeftPadding           delta filter creation
+delta_output - base_output = compareLeftPadding        delta output alignment
+
+change_origin = ntsc_start + 2*padding+1
+base_output = change_origin - (padding+1) = ntsc_start + 2*padding+1 - (padding+1) = ntsc_start + padding
+base_input = base_output - baseLeftPadding = ntsc_start + padding - baseLeftPadding
+delta_input = base_output - deltaLeftPadding = ntsc_start + padding - deltaLeftPadding
+delta_output = base_output + compareLeftPadding = ntsc_start + padding + compareLeftPadding
+
+Find all positions relative to ntsc_start:
+
+base_output - ntsc_start
+delta_output - ntsc_start
+delta_input - ntsc_start
+base_input - ntsc_start
+
+
+
+
