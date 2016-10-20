@@ -589,6 +589,20 @@ private:
 class MatchingNTSCDecoder
 {
 public:
+    const MatchingNTSCDecoder& operator=(const MatchingNTSCDecoder& decoder)
+    {
+        _hue = decoder._hue;
+        _saturation = decoder._saturation;
+        _contrast = decoder._contrast;
+        _brightness = decoder._brightness;
+        _chromaBandwidth = decoder._chromaBandwidth;
+        _lumaBandwidth = decoder._lumaBandwidth;
+        _rollOff = decoder._rollOff;
+        _lobes = decoder._lobes;
+        _outputLength = decoder._outputLength;
+        return *this;
+    }
+
     void setLength(int outputLength)
     {
         _outputLength = outputLength;
@@ -757,7 +771,8 @@ public:
         const Linearizer* linearizer, int phase)
     {
         Complex<float> iqAdjust = Complex<float>(1)/_iqAdjust;
-        float contrast = 1/_contrast;
+        float contrast = 1/(_contrast*_inputScaling);
+        float brightness = -_brightness*256.0f;
         for (int i = 0; i < n; ++i) {
             SRGB srgb = linearizer->srgb(*input);
             Complex<float> iq;
@@ -765,8 +780,8 @@ public:
             iq.x = 0.596f*srgb.x - 0.275f*srgb.y - 0.321f*srgb.z;
             iq.y = 0.212f*srgb.x - 0.528f*srgb.y + 0.311f*srgb.z;
             iq *= iqAdjust;
-            y = (y - _brightness2)*contrast;
-            switch (phase) {
+            y = (y + brightness)*contrast;
+            switch (phase & 3) {
                 case 0:
                     *output = byteClamp(y + iq.y);
                     break;
@@ -781,7 +796,8 @@ public:
                     break;
             }
             ++output;
-            phase = (phase + 1) & 3;
+            ++input;
+            ++phase;
         }
     }
 

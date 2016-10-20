@@ -268,9 +268,9 @@ public:
                         _totals[((i + c + multiple) % inputChannels)*
                         channelsPerUnit + c]));
                     if (v != 0) {
-                        int oc = o + c;
-                        _outputLeft = min(_outputLeft, oc);
-                        _outputRight = max(_outputRight, oc + 1);
+                        int op = (o + c + outputChannels - 1)/outputChannels;
+                        _outputLeft = min(_outputLeft, op);
+                        _outputRight = max(_outputRight, op + 1);
                         if (lastC == 0) {
                             realLeftInput = i;
                             left = min(left, realLeftInput);
@@ -508,8 +508,9 @@ public:
                         v = kernelFunction(dist, ic, outputChannel);
                     _totals[inputChannel*channelsPerUnit + c] += v.second();
                     if (v.first() != 0) {
-                        _outputLeft = min(_outputLeft, oc);
-                        _outputRight = max(_outputRight, oc + 1);
+                        int op = (oc + outputChannels - 1)/outputChannels;
+                        _outputLeft = min(_outputLeft, op);
+                        _outputRight = max(_outputRight, op + 1);
                         if (lastC == 0) {
                             left = min(left, i);
                             *offsets = i*sizeof(float);

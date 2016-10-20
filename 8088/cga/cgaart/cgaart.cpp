@@ -855,7 +855,7 @@ public:
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_scanlinesRepeat*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(_gamma));
-        int padding = static_cast<int>(4*_lobes);
+        int padding = static_cast<int>(4*_lobes) + 1;
         _changeOrigin = 2*padding + 1;
         if (size != _size || padding > _padding) {
             _padding = padding;
@@ -1335,10 +1335,11 @@ public:
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
-                const Byte* inputLine = _inputBlock + _changeOrigin;
+                const Byte* inputLine = _inputBlock +
+                    _changeOrigin*sizeof(Colour);
                 Colour* errorLine = _errorBlock + _changeOrigin;
                 Byte* ntscBaseLine = _ntscBlock + padding - baseLeftPadding;
-                Byte* ntscDeltaLine = _ntscBlock + padding - deltaLeftPadding;
+                Byte* ntscDeltaLine = _ntscBlock + _deltaInputOrigin;
                 Byte* ntscLine = _ntscBlock + _changeOrigin;
 
                 Vector3<SInt16>* baseLine = &_base[0];
@@ -1574,11 +1575,7 @@ public:
     int getScanlinesPerRow() { return _scanlinesPerRow; }
     void setScanlinesRepeat(int v) { _scanlinesRepeat = v; initData(); }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
-    void setPhase(int phase)
-    {
-        _phase = phase;
-        initData();
-    }
+    void setPhase(int phase) { _phase = phase; initData(); }
     int getPhase() { return _phase; }
     void setInterlace(int interlace) { _interlace = interlace; initData(); }
     int getInterlace() { return _interlace; }
@@ -4723,12 +4720,12 @@ public:
         _matcher->setInterlaceSync(_config->get<bool>("interlaceSync"));
         _matcher->setInterlacePhase(_config->get<bool>("interlacePhase"));
         _matcher->setFlicker(_config->get<bool>("flicker"));
+        _matcher->setPhase(_config->get<bool>("phase"));
         _matcher->setCharacterSet(_config->get<int>("characterSet"));
         _matcher->setMode(_config->get<int>("mode"));
         _matcher->setPalette(_config->get<int>("palette"));
         _matcher->setScanlinesPerRow(_config->get<int>("scanlinesPerRow"));
-        int scanlinesRepeat = _config->get<int>("scanlinesRepeat");
-        _matcher->setScanlinesRepeat(scanlinesRepeat);
+        _matcher->setScanlinesRepeat(_config->get<int>("scanlinesRepeat"));
         _cgaROM = _config->get<String>("cgaROM");
         _sequencer.setROM(File(_cgaROM, _configFile.parent()));
 
@@ -4745,10 +4742,18 @@ public:
         _output->setContrast(contrast);
         _matcher->setContrast(contrast);
         _output->setShowClipping(_config->get<bool>("showClipping"));
-        _output->setChromaBandwidth(_config->get<double>("chromaBandwidth"));
-        _output->setLumaBandwidth(_config->get<double>("lumaBandwidth"));
-        _output->setRollOff(_config->get<double>("rollOff"));
-        _output->setLobes(_config->get<double>("lobes"));
+        double chromaBandwidth = _config->get<double>("chromaBandwidth");
+        _matcher->setChromaBandwidth(chromaBandwidth);
+        _output->setChromaBandwidth(chromaBandwidth);
+        double lumaBandwidth = _config->get<double>("lumaBandwidth");
+        _matcher->setLumaBandwidth(lumaBandwidth);
+        _output->setLumaBandwidth(lumaBandwidth);
+        double rollOff = _config->get<double>("rollOff");
+        _matcher->setRollOff(rollOff);
+        _output->setRollOff(rollOff);
+        double lobes = _config->get<double>("lobes");
+        _output->setLobes(lobes);
+        _matcher->setLobes(lobes);
         int connector = _config->get<int>("connector");
         _output->setConnector(connector);
         _matcher->setConnector(connector);
