@@ -1269,10 +1269,11 @@ public:
             _deltaDecoder = _decoder;
             _activeInputs.ensure(baseWidth);
             for (int x = 0; x < baseWidth; ++x) {
-                int r = x - (baseLeftPadding + padding);
+                int r = x - (baseLeftPadding + padding + 1);
                 _activeInputs[x] = (r >= -1 && r < _rgbiWidth) ? 1 : 0;
             }
-            _deltaDecoder.calculateBurst(burst, &_activeInputs[0]);
+            _deltaDecoder.calculateBurst(burst,
+                &_activeInputs[baseLeftPadding]);
             deltaLeftPadding = -_deltaDecoder.inputLeft();
             compareLeftPadding = _deltaDecoder.outputLeft();
             _compareWidth = _deltaDecoder.outputRight() - compareLeftPadding;
@@ -1292,7 +1293,6 @@ public:
             _deltaOutputOrigin = padding + compareLeftPadding;
         }
         _srgb.ensure(_compareWidth);
-        blockArea = static_cast<float>(_compareWidth*_blockHeight);
 
         const Byte* inputRow = _scaled.data();
         Colour* errorRow = &_error[_errorStride + 1];
@@ -1366,9 +1366,9 @@ public:
                     _decoder.decodeNTSC(ntscBaseLine);
                     _deltaDecoder.decodeNTSC(ntscDeltaLine);
                     UInt16* decoded = _decoder.outputData() +
-                        compareLeftPadding;
+                        compareLeftPadding*3;
                     UInt16* deltaDecoded = _deltaDecoder.outputData() +
-                        compareLeftPadding;
+                        compareLeftPadding*3;
                     _deltaDecoded = deltaDecoded;
                     for (int x = 0; x < _compareWidth; ++x) {
                         baseLine[x] = Vector3<SInt16>(decoded[0], decoded[1],
@@ -1725,7 +1725,7 @@ private:
         }
         v[0] = (v[0] & 0xffff) + (_d0[-1] << 24);
         v[1] = (v[1] & 0xffff) + (_d1[-1] << 24);
-        const Byte* inputLine = _inputBlock + _deltaOutputOrigin;
+        const Byte* inputLine = _inputBlock + _deltaOutputOrigin*sizeof(Colour);
         Colour* errorLine = _errorBlock + _deltaOutputOrigin;
         Byte* rgbiLine = _rgbiBlock;
         Byte* ntscLine = _ntscBlock;

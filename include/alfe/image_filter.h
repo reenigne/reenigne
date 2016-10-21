@@ -269,8 +269,10 @@ public:
                         channelsPerUnit + c]));
                     if (v != 0) {
                         int op = (o + c + outputChannels - 1)/outputChannels;
-                        _outputLeft = min(_outputLeft, op);
-                        _outputRight = max(_outputRight, op + 1);
+                        if (op >= 0)
+                            _outputLeft = min(_outputLeft, op);
+                        if (op < outputSize.x)
+                            _outputRight = max(_outputRight, op + 1);
                         if (lastC == 0) {
                             realLeftInput = i;
                             left = min(left, realLeftInput);
@@ -509,8 +511,10 @@ public:
                     _totals[inputChannel*channelsPerUnit + c] += v.second();
                     if (v.first() != 0) {
                         int op = (oc + outputChannels - 1)/outputChannels;
-                        _outputLeft = min(_outputLeft, op);
-                        _outputRight = max(_outputRight, op + 1);
+                        if (op >= 0)
+                            _outputLeft = min(_outputLeft, op);
+                        if (op < outputSize.x)
+                            _outputRight = max(_outputRight, op + 1);
                         if (lastC == 0) {
                             left = min(left, i);
                             *offsets = i*sizeof(float);
