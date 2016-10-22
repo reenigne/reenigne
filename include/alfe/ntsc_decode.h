@@ -848,8 +848,8 @@ public:
     float* inputData() { return reinterpret_cast<float*>(_input.data()); }
     float* outputData() { return reinterpret_cast<float*>(_output.data()); }
 #else
-    UInt16* inputData() { return reinterpret_cast<UInt16*>(_input.data()); }
-    UInt16* outputData() { return reinterpret_cast<UInt16*>(_output.data()); }
+    SInt16* inputData() { return reinterpret_cast<SInt16*>(_input.data()); }
+    SInt16* outputData() { return reinterpret_cast<SInt16*>(_output.data()); }
 #endif
 private:
     float _hue;

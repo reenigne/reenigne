@@ -1172,4 +1172,21 @@ base_input - ntsc_start
 
 
 
+change_origin = base_output + outputLeftPadding
+delta_output = base_output + compareLeftPadding
+base_output = base_input + inputLeftPadding
+base_output = delta_input + deltaLeftPadding
+leftPadding = inputLeftPadding + outputLeftPadding
+ntsc_start = base_input
+input_start + _leftPadding = change_origin
+
+
+_changeOrigin
+_deltaInputOrigin
+_deltaOutputOrigin
+
+
+
+
+change_origin = base_input + leftPadding
 
