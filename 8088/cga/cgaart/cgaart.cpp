@@ -826,7 +826,7 @@ template<class T> class CGAMatcherT : public ThreadTask
 public:
     CGAMatcherT()
       : _rgbiPalette(3*0x10), _active(false), _size(0, 0), _skip(0x100),
-        _prescalerProfile(0), _leftPadding(0), _rightPadding(0)
+        _prescalerProfile(0), _lTargetToLChange(0), _rChangeToRTarget(0)
     {
         _scaler.setWidth(1);
         _scaler.setBleeding(2);
@@ -856,94 +856,92 @@ public:
         bool graphics = (_mode & 2) != 0;
         if (graphics) {
             _incrementWidth = 4;
-            _rgbiWidth = ((!composite || hres) ? 4 : 8);
+            _lChangeToRChange = ((!composite || hres) ? 4 : 8);
         }
         else {
             _incrementWidth = hres ? 8 : 16;
-            _rgbiWidth = _incrementWidth;
+            _lChangeToRChange = _incrementWidth;
         }
-        _compareWidth = _rgbiWidth;
-        int leftPadding = 0;
-        int rightPadding = 0;
-        int outputRightPadding = static_cast<int>(4*_lobes);
-        int outputLeftPadding = (outputRightPadding + 4) & ~3;
-        outputRightPadding += _rgbiWidth - _incrementWidth;
-        int inputLeftPadding = 0;
-        int inputRightPadding = 0;
-        int deltaLeftPadding = 0;
-        int compareLeftPadding = 0;
+        _lCompareToRCompare = _lChangeToRChange;
+        _lNtscToLChange = 0;
+        int rChangeToRNtsc = 0;
+        int incrementExtra = _lChangeToRChange - _incrementWidth;
+        int lBaseToLCompare = 0;
+        int lCompareToLChange = 0;
+        int rChangeToRCompare = 0;
 
-        MatchingNTSCDecoder baseDecoder;
         bool newCGA = _connector == 2;
+        Byte burst[4];
         if (composite) {
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            int outputWidth = outputLeftPadding + _rgbiWidth +
-                outputRightPadding;
-            baseDecoder.setLength(outputWidth);
-            baseDecoder.setLumaBandwidth(_lumaBandwidth);
-            baseDecoder.setChromaBandwidth(_chromaBandwidth);
-            baseDecoder.setRollOff(_rollOff);
-            baseDecoder.setLobes(_lobes);
-            baseDecoder.setHue(_hue + (hres ? 14 : 4) - 90);
-            baseDecoder.setSaturation(saturation);
+            int rChangeToRBase = static_cast<int>(4*_lobes);
+            int lBaseToLChange = (rChangeToRBase + 4) & ~3;
+            _baseDecoder.setLength(lBaseToLChange + _lChangeToRChange
+                + rChangeToRBase);
+            _baseDecoder.setLumaBandwidth(_lumaBandwidth);
+            _baseDecoder.setChromaBandwidth(_chromaBandwidth);
+            _baseDecoder.setRollOff(_rollOff);
+            _baseDecoder.setLobes(_lobes);
+            _baseDecoder.setHue(_hue + (hres ? 14 : 4) - 90);
+            _baseDecoder.setSaturation(
+                _saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
             double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
-            baseDecoder.setContrast(c);
-            baseDecoder.setBrightness(
+            _baseDecoder.setContrast(c);
+            _baseDecoder.setBrightness(
                 (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
-            baseDecoder.setInputScaling(1);
+            _baseDecoder.setInputScaling(1);
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
-            baseDecoder.setLength(outputLeftPadding + _rgbiWidth +
-                outputRightPadding);
-            baseDecoder.calculateBurst(burst);
-            inputLeftPadding = -baseDecoder.inputLeft();
-            int inputRight = baseDecoder.inputRight();
-            inputRightPadding = inputRight - outputWidth;
-            int inputWidth = inputRight + inputLeftPadding;
-            leftPadding = inputLeftPadding + outputLeftPadding;
-            rightPadding = outputRightPadding + inputRightPadding;
-            _bias = baseDecoder.bias();
-            _shift = baseDecoder.shift();
-            _decoder = baseDecoder;
-            _activeInputs.ensure(inputWidth);
-            for (int x = 0; x < inputWidth; ++x) {
-                int r = x - leftPadding;
-                _activeInputs[x] = (r >= -1 && r < _rgbiWidth) ? 1 : 0;
+            _baseDecoder.calculateBurst(burst);
+            int lNtscToLBase = -_baseDecoder.inputLeft();
+            int lBaseToRNtsc = _baseDecoder.inputRight();
+            _lNtscToLChange = lNtscToLBase + rChangeToRBase;
+            rChangeToRNtsc = -lBaseToLChange + lBaseToRNtsc
+                - _lChangeToRChange;
+            _bias = _baseDecoder.bias();
+            _shift = _baseDecoder.shift();
+            _deltaDecoder = _baseDecoder;
+            int lNtscToRNtsc = lNtscToLBase + lBaseToRNtsc;
+            _activeInputs.ensure(lNtscToRNtsc);
+            for (int x = 0; x < lNtscToRNtsc; ++x) {
+                int r = x - _lNtscToLChange;
+                _activeInputs[x] = (r >= -1 && r < _lChangeToRChange) ? 1 : 0;
             }
-            _decoder.calculateBurst(burst, &_activeInputs[inputLeftPadding]);
-            deltaLeftPadding = -_decoder.inputLeft();
-            compareLeftPadding = _decoder.outputLeft();
-            _compareWidth = _decoder.outputRight() - compareLeftPadding;
-            //_deltaInputOrigin = padding - deltaLeftPadding;
-            //_deltaOutputOrigin = padding + compareLeftPadding;
+            _deltaDecoder.calculateBurst(burst, &_activeInputs[lNtscToLBase]);
+            lBaseToLCompare = _deltaDecoder.outputLeft();
+            _lCompareToRCompare = _deltaDecoder.outputRight()
+                - lBaseToLCompare;
+            _lNtscToLDelta = lNtscToLBase + _deltaDecoder.inputLeft();
+            _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
+            lCompareToLChange = _lNtscToLChange - _lNtscToLCompare;
+            rChangeToRCompare = rChangeToLCompare + _lCompareToRCompare
         }
 
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             _scanlinesPerRow*_scanlinesRepeat*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(_gamma));
-        //_changeOrigin = 2*padding + 1;
-        if (size != _size || leftPadding > _leftPadding ||
-            rightPadding > _rightPadding) {
-            _leftPadding = leftPadding;
-            _rightPadding = rightPadding;
+        if (size != _size || _lNtscToLChange > _lTargetToLChange ||
+            rChangeToRNtsc + incrementExtra > _rChangeToRTarget) {
+            _lTargetToLChange = _lNtscToLChange;
+            _rChangeToRTarget = rChangeToRNtsc + incrementExtra;
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
                 Vector(1, _interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
             _scaler.setProfile(_prescalerProfile);
             _scaler.setOutputSize(size
-                + Vector(leftPadding + rightPadding, 0));
+                + Vector(_lTargetToLChange + _rChangeToRTarget, 0));
             _scaler.setHorizontalLobes(3);
             _scaler.setVerticalLobes(3);
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
-            Vector tl = _scaler.inputTL() - Vector(_leftPadding, 0);
-            Vector br = _scaler.inputBR() - Vector(_leftPadding, 0);
+            Vector tl = _scaler.inputTL() - Vector(_lTargetToLChange, 0);
+            Vector br = _scaler.inputBR() - Vector(_lTargetToLChange, 0);
             Byte* unscaledRow = input.data() - tl.y*input.stride();
             Byte* inputRow = _input.data();
             int height = _input.size().y;
@@ -1099,7 +1097,6 @@ public:
         }
         int banks = (graphics && _scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
-        Byte burst[4];
         if (!composite) {
             Byte levels[4];
             for (int i = 0; i < 4; ++i) {
@@ -1114,20 +1111,18 @@ public:
             for (int i = 0; i < 3*0x10; ++i)
                 _rgbiPalette[i] = levels[palette[i]];
         }
-        double saturation = _saturation*1.45*(newCGA ? 1.5 : 1.0)/100;
         int gamutLeftPadding = 0;
         int gamutWidth = 0;
-        MatchingNTSCDecoder gamutDecoder;
         if (composite) {
-            gamutDecoder.setLength(_rgbiWidth);
-            gamutDecoder.calculateBurst(burst);
-            gamutLeftPadding = gamutDecoder.inputLeft();
-            gamutWidth = gamutDecoder.inputRight() - gamutLeftPadding;
+            _gamutDecoder.setLength(_lChangeToRChange);
+            _gamutDecoder.calculateBurst(burst);
+            gamutLeftPadding = _gamutDecoder.inputLeft();
+            gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
             _ntscPattern.ensure(gamutWidth);
         }
-        float blockArea = static_cast<float>(_rgbiWidth*_blockHeight);
+        float blockArea = static_cast<float>(_lChangeToRChange*_blockHeight);
 
-        _srgb.ensure(_rgbiWidth);
+        _srgb.ensure(_lChangeToRChange);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
             0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
         memcpy(_hres1bpp, hres1bpp, 0x10);
@@ -1214,7 +1209,7 @@ public:
                     _palette, y, false, 0);
                 if (!composite) {
                     SRGB* srgb = &_srgb[0];
-                    for (int x = 0; x < _rgbiWidth; ++x) {
+                    for (int x = 0; x < _lChangeToRChange; ++x) {
                         Byte* p =
                             &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
                         *srgb = SRGB(p[0], p[1], p[2]);
@@ -1223,21 +1218,22 @@ public:
                 }
                 else {
                     Byte* ntsc = &_ntscPattern[0];
-                    int l = (gamutLeftPadding*(_rgbiWidth - 1))%_rgbiWidth;
-                    int r = (l + 1)%_rgbiWidth;
+                    int l = (gamutLeftPadding*(_lChangeToRChange - 1))
+                        %_lChangeToRChange;
+                    int r = (l + 1)%_lChangeToRChange;
                     for (int x = 0; x < gamutWidth; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
                             (rgbi >> (r * 4)) & 0xf,
                             (x - gamutLeftPadding) & 3);
                         l = r;
-                        r = (r + 1)%_rgbiWidth;
+                        r = (r + 1)%_lChangeToRChange;
                         ++ntsc;
                     }
-                    gamutDecoder.decodeNTSC(&_ntscPattern[0]);
-                    gamutDecoder.outputToSRGB(&_srgb[0]);
+                    _gamutDecoder.decodeNTSC(&_ntscPattern[0]);
+                    _gamutDecoder.outputToSRGB(&_srgb[0]);
                 }
                 SRGB* srgb = &_srgb[0];
-                for (int x = 0; x < _rgbiWidth; ++x)
+                for (int x = 0; x < _lChangeToRChange; ++x)
                     rgb += _linearizer.linear(srgb[x]);
             }
             SRGB srgb = _linearizer.srgb(rgb/blockArea);
@@ -1251,12 +1247,13 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        _errorStride = leftOutputPadding + size.x + 1 + rightOutputPadding;
+        _errorStride = 1 + lCompareToLChange + size.x + incrementExtra
+            + rChangeToRCompare;
         int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
         for (int x = 0; x < errorSize; ++x)
             _error[x] = Colour(0, 0, 0);
-        _rgbiStride = size.x + 1;
+        _rgbiStride = 1 + size.x + incrementExtra;
         _rgbi.ensure(_rgbiStride*size.y + 1);
         int row = 0;
         int scanline = 0;
@@ -1300,23 +1297,25 @@ public:
             }
         }
 
-        const Byte* inputStart = _scaled.data() + _leftPadding - leftPadding;
+        const Byte* inputStart = _scaled.data() + _lTargetToLChange
+            - _lNtscToLChange;
         if (composite) {
-            _ntscStride = leftPadding + size.x + rightPadding;
+            _ntscStride = _lNtscToLChange + size.x + incrementExtra
+                + rChangeToRNtsc;
             _ntsc.ensure(size.y*_ntscStride);
             const Byte* inputRow = inputStart;
             Byte* outputRow = &_ntsc[0];
             for (int y = 0; y < size.y; ++y) {
-                baseDecoder.encodeNTSC(
+                _baseDecoder.encodeNTSC(
                     reinterpret_cast<const Colour*>(inputRow),
-                    outputRow, _ntscStride, &_linearizer, -leftPadding);
+                    outputRow, _ntscStride, &_linearizer, -_lNtscToLChange);
                 inputRow += _scaled.stride();
                 outputRow += _ntscStride;
             }
-            _base.ensure(_compareWidth*_blockHeight);
+            _base.ensure(_lCompareToRCompare*_blockHeight);
             _rightNTSC.ensure(_blockHeight);
         }
-        _srgb.ensure(_compareWidth);
+        _srgb.ensure(_lCompareToRCompare);
 
         const Byte* inputRow = inputStart;
         Colour* errorRow = &_error[_errorStride + 1];
@@ -1359,11 +1358,11 @@ public:
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
-                const Byte* inputLine = _inputBlock;
-                Colour* errorLine = _errorBlock + _changeOrigin;
+                const Byte* inputLine = _inputBlock + _lNtscToLChange;
+                Colour* errorLine = _errorBlock + lCompareToLChange;
                 Byte* ntscBaseLine = _ntscBlock;
-                Byte* ntscDeltaLine = _ntscBlock + _deltaInputOrigin;
-                Byte* ntscLine = _ntscBlock + _changeOrigin;
+                Byte* ntscDeltaLine = _ntscBlock + _lNtscToLDelta;
+                Byte* ntscLine = _ntscBlock + _lNtscToLChange;
 
                 Vector3<SInt16>* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
@@ -1371,7 +1370,7 @@ public:
                     // table.
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
-                    for (int x = 0; x < _rgbiWidth; ++x) {
+                    for (int x = 0; x < _lChangeToRChange; ++x) {
                         Colour target = *input - _diffusionHorizontal*error[-1]
                             - _diffusionVertical*error[-_errorStride];
                         target.x = clamp(0.0f, target.x, 1.0f);
@@ -1385,26 +1384,29 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += _errorStride;
 
-                    // Compute base for decoding.
-                    baseDecoder.decodeNTSC(ntscBaseLine);
-                    _decoder.decodeNTSC(ntscDeltaLine);
-                    SInt16* decoded = baseDecoder.outputData() +
-                        compareLeftPadding*3;
-                    SInt16* deltaDecoded = _decoder.outputData() +
-                        compareLeftPadding*3;
-                    _deltaDecoded = deltaDecoded;
-                    for (int x = 0; x < _compareWidth; ++x) {
-                        baseLine[x] = Vector3<SInt16>(decoded[0], decoded[1],
-                            decoded[2]) - Vector3<SInt16>(deltaDecoded[0],
-                            deltaDecoded[1], deltaDecoded[2]);
-                        decoded += 3;
-                        deltaDecoded += 3;
+                    if (composite) {
+                        // Compute base for decoding.
+                        _baseDecoder.decodeNTSC(ntscBaseLine);
+                        _deltaDecoder.decodeNTSC(ntscDeltaLine);
+                        SInt16* decoded = _baseDecoder.outputData() +
+                            lBaseToLCompare*3;
+                        SInt16* deltaDecoded = _deltaDecoder.outputData() +
+                            lBaseToLCompare*3;
+                        _deltaDecoded = deltaDecoded;
+                        for (int x = 0; x < _lCompareToRCompare; ++x) {
+                            baseLine[x] = Vector3<SInt16>(decoded[0],
+                                decoded[1], decoded[2])
+                                - Vector3<SInt16>(deltaDecoded[0],
+                                deltaDecoded[1], deltaDecoded[2]);
+                            decoded += 3;
+                            deltaDecoded += 3;
+                        }
+                        _rightNTSC[scanline] = ntscLine[_lChangeToRChange];
+                        ntscLine += _ntscStride;
+                        ntscBaseLine += _ntscStride;
+                        ntscDeltaLine += _ntscStride;
+                        baseLine += _lCompareToRCompare;
                     }
-                    baseLine += _compareWidth;
-                    _rightNTSC[scanline] = ntscLine[_rgbiWidth];
-                    ntscLine += _ntscStride;
-                    ntscBaseLine += _ntscStride;
-                    ntscDeltaLine += _ntscStride;
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
                 auto s = Vector3Cast<int>(
@@ -1748,8 +1750,8 @@ private:
         }
         v[0] = (v[0] & 0xffff) + (_d0[-1] << 24);
         v[1] = (v[1] & 0xffff) + (_d1[-1] << 24);
-        const Byte* inputLine = _inputBlock + _deltaOutputOrigin*sizeof(Colour);
-        Colour* errorLine = _errorBlock + _deltaOutputOrigin;
+        const Byte* inputLine = _inputBlock + _lNtscToLCompare*sizeof(Colour);
+        Colour* errorLine = _errorBlock;
         Byte* rgbiLine = _rgbiBlock;
         Byte* ntscLine = _ntscBlock;
         Vector3<SInt16>* baseLine = &_base[0];
@@ -1761,7 +1763,7 @@ private:
             auto input = reinterpret_cast<const Colour*>(inputLine);
             auto error = errorLine;
             if (_connector == 0) {
-                for (int x = 0; x < _rgbiWidth; ++x) {
+                for (int x = 0; x < _lChangeToRChange; ++x) {
                     Byte* p = &_rgbiPalette[3*((rgbis >> (x * 4)) & 0xf)];
                     *srgb = SRGB(p[0], p[1], p[2]);
                     ++srgb;
@@ -1770,18 +1772,18 @@ private:
             else {
                 Byte* rgbi = rgbiLine;
                 int x;
-                for (x = 0; x < _rgbiWidth; ++x)
+                for (x = 0; x < _lChangeToRChange; ++x)
                     rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
-                Byte* ntsc = ntscLine + _changeOrigin;
-                for (x = -1; x < _rgbiWidth - 1; ++x) {
+                Byte* ntsc = ntscLine + _lNtscToLChange;
+                for (x = -1; x < _lChangeToRChange - 1; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
                 }
                 ntsc[x] = _composite.simulateHalfCGA(rgbi[x],
                     _rightNTSC[scanline], x & 3);
-                _decoder.decodeNTSC(ntscLine + _deltaInputOrigin);
+                _deltaDecoder.decodeNTSC(ntscLine + _lNtscToLDelta);
                 SInt16* decoded = _deltaDecoded;
-                for (int x = 0; x < _compareWidth; ++x) {
+                for (int x = 0; x < _lCompareToRCompare; ++x) {
                     Vector3<SInt16> b = baseLine[x];
                     srgb[x] = SRGB(
                         byteClamp((b.x + decoded[0] + _bias) >> _shift),
@@ -1791,7 +1793,7 @@ private:
                 }
             }
             srgb = &_srgb[0];
-            for (int x = 0; x < _compareWidth; ++x) {
+            for (int x = 0; x < _lCompareToRCompare; ++x) {
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
                 Colour target = *input - _diffusionHorizontal*error[-1] -
@@ -1896,7 +1898,7 @@ private:
             errorLine += _errorStride;
             ntscLine += _ntscStride;
             rgbiLine += _rgbiStride;
-            baseLine += _compareWidth;
+            baseLine += _lCompareToRCompare;
         }
         return metric;
     }
@@ -1986,7 +1988,9 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    MatchingNTSCDecoder _decoder;
+    MatchingNTSCDecoder _baseDecoder;
+    MatchingNTSCDecoder _deltaDecoder;
+    MatchingNTSCDecoder _gamutDecoder;
     CGAComposite _composite;
     Linearizer _linearizer;
 
@@ -2020,8 +2024,8 @@ private:
 
     bool _active;
     Vector _size;
-    int _leftPadding;
-    int _rightPadding;
+    int _lTargetToLChange;
+    int _rChangeToRTarget;
     Vector _activeSize;
     ScanlineRenderer _scaler;
     AlignedBuffer _scaled;
@@ -2054,8 +2058,8 @@ private:
     Colour* _errorBlock;
     Byte* _rgbiBlock;
     Byte* _ntscBlock;
-    int _rgbiWidth;
-    int _compareWidth;
+    int _lChangeToRChange;
+    int _lCompareToRCompare;
     int _incrementWidth;
     int _blockHeight;
     int _phaseBlock;
@@ -2064,9 +2068,9 @@ private:
     int _ntscStride;
     int _rgbiStride;
     SInt16* _deltaDecoded;
-    int _changeOrigin;
-    int _deltaInputOrigin;
-    int _deltaOutputOrigin;
+    int _lNtscToLChange;
+    int _lNtscToLDelta;
+    int _lNtscToLCompare;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;

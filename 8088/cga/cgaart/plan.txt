@@ -1181,12 +1181,45 @@ ntsc_start = base_input
 input_start + _leftPadding = change_origin
 
 
-_changeOrigin
-_deltaInputOrigin
-_deltaOutputOrigin
 
 
 
 
 change_origin = base_input + leftPadding
+
+
+Name the spans
+  ntsc (base input)
+  target
+  error
+  delta (input)
+  base (output)
+  compare (delta output)
+  change (rgbi)
+
+The points are L and R of the spans
+  lNtsc           rNtsc
+  lTarget         rTarget
+  lError          rError
+  lDelta          rDelta
+  lBase           rBase
+  lCompare        rCompare
+  lChange         rChange
+
+Lengths are difference between two points:
+  leftPadding        => _lNtscToLChange         done   (also _changeOrigin)
+  rightPadding       => rChangeToRNtsc          done
+  outputLeftPadding  => lBaseToLChange          done
+  outputRightPadding => rChangeToRBase          done
+  inputLeftPadding   => lNtscToLBase            done
+  _leftPadding       => _lTargetToLChange       done
+  _rightPadding      => _rChangeToRTarget       done
+  compareLeftPadding => lBaseToLCompare         done
+  _compareWidth      => _lCompareToRCompare     done
+  _rgbiWidth         => _lChangeToRChange       done
+  inputRight         => lBaseToRNtsc            done
+  _deltaInputOrigin  => lNtscToLDelta           done
+  _deltaOutputOrigin => _lNtscToLCompare        done
+  inputWidth         => lNtscToRNtsc            done
+
 
