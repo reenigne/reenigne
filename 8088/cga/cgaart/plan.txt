@@ -1018,7 +1018,7 @@ AaAaAaAa,.,.SsCc,.
 
 
 
-mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0)
+mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0) + (_composite ? 0x400 : 0)
 
 mode1  mode                                             patternCount  QCE?  Repeat?   0  1  2  3    rgbiWi increment banks             blockHeight       Notes
 
@@ -1206,7 +1206,29 @@ The points are L and R of the spans
   lCompare        rCompare
   lChange         rChange
 
-Lengths are difference between two points:
+What we've got initially:
+  rChangeToRBase = static_cast<int>(4*_lobes);
+  lBaseToLChange = (rChangeToRBase + 4) & ~3;
+  lNtscToLBase = -_baseDecoder.inputLeft();
+  lBaseToRNtsc = _baseDecoder.inputRight();
+  lBaseToLCompare = _deltaDecoder.outputLeft();
+  lBaseToRCompare = _deltaDecoder.outputRight();
+  lDeltaToLBase = -_deltaDecoder.inputLeft();       elided
+  lBaseToRDelta = _deltaDecoder.inputRight();
+  _lChangeToRChange
+
+We then derive:
+  lBaseToRChange = lBaseToLChange + _lChangeToRChange;
+  _lNtscToLChange = lNtscToLBase + lBaseToLChange;
+  rChangeToRNtsc = lBaseToRNtsc - lBaseToRChange;
+  lNtscToRNtsc = lNtscToLBase + lBaseToRNtsc;
+  _lCompareToRCompare = lBaseToRCompare - lBaseToLCompare;
+  _lNtscToLDelta = lNtscToLBase - lDeltaToLBase;
+  _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
+  lCompareToLChange = _lNtscToLChange - _lNtscToLCompare;
+  rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
+
+Older names for "To" variables:
   leftPadding        => _lNtscToLChange         done   (also _changeOrigin)
   rightPadding       => rChangeToRNtsc          done
   outputLeftPadding  => lBaseToLChange          done

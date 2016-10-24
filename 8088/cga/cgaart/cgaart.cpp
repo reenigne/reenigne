@@ -825,8 +825,9 @@ template<class T> class CGAMatcherT : public ThreadTask
 {
 public:
     CGAMatcherT()
-      : _rgbiPalette(3*0x10), _active(false), _size(0, 0), _skip(0x100),
-        _prescalerProfile(0), _lTargetToLChange(0), _rChangeToRTarget(0)
+      : _rgbiPalette(3*0x10), _active(false), _skip(0x100),
+        _prescalerProfile(0), _lTargetToLChange(0), _rChangeToRTarget(0),
+        _needRescale(true)
     {
         _scaler.setWidth(1);
         _scaler.setBleeding(2);
@@ -849,14 +850,67 @@ public:
     void setData(CGAData* data) { _data = data; }
     void run()
     {
+        int scanlinesPerRow;
+        int phase;
+        int interlace;
+        bool interlaceSync;
+        bool interlacePhase;
+        bool flicker;
+        double quality;
+        bool needRescale;
+        double gamma;
+        int characterSet;
+        double hue;
+        double saturation;
+        double contrast;
+        double brightness;
+        int connector;
+        double chromaBandwidth;
+        double lumaBandwidth;
+        double rollOff;
+        double lobes;
+        int prescalerProfile;
+        {
+            Lock lock(&_mutex);
+            _diffusionHorizontal2 = _diffusionHorizontal;
+            _diffusionVertical2 = _diffusionVertical;
+            _diffusionTemporal2 = _diffusionTemporal;
+            _modeThread = _mode;
+            _palette2 = _palette;
+            scanlinesPerRow = _scanlinesPerRow;
+            _scanlinesRepeat2 = _scanlinesRepeat;
+            phase = _phase;
+            interlace = _interlace;
+            interlaceSync = _interlaceSync;
+            interlacePhase = _interlacePhase;
+            flicker = _flicker;
+            quality = _quality;
+            needRescale = _needRescale;
+            _needRescale = false;
+            gamma = _gamma;
+            _clipping2 = _clipping;
+            _metric2 = _metric;
+            characterSet = _characterSet;
+            hue = _hue;
+            saturation = _saturation;
+            contrast = _contrast;
+            brightness = _brightness;
+            connector = _connector;
+            chromaBandwidth = _chromaBandwidth;
+            lumaBandwidth = _lumaBandwidth;
+            rollOff = _rollOff;
+            lobes = _lobes;
+            prescalerProfile = _prescalerProfile;
+        }
+
         _program->setProgress(0);
 
         bool hres = (_mode & 1) != 0;
-        bool composite = _connector != 0;
+        _isComposite = connector != 0;
         bool graphics = (_mode & 2) != 0;
         if (graphics) {
             _incrementWidth = 4;
-            _lChangeToRChange = ((!composite || hres) ? 4 : 8);
+            _lChangeToRChange = ((!_isComposite || hres) ? 4 : 8);
         }
         else {
             _incrementWidth = hres ? 8 : 16;
@@ -864,44 +918,45 @@ public:
         }
         _lCompareToRCompare = _lChangeToRChange;
         _lNtscToLChange = 0;
+        _lNtscToLCompare = 0;
         int rChangeToRNtsc = 0;
         int incrementExtra = _lChangeToRChange - _incrementWidth;
         int lBaseToLCompare = 0;
         int lCompareToLChange = 0;
         int rChangeToRCompare = 0;
-
-        bool newCGA = _connector == 2;
+        int gamutLeftPadding = 0;
+        int gamutWidth = 0;
+        bool newCGA = connector == 2;
         Byte burst[4];
-        if (composite) {
+        if (_isComposite) {
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
-            int rChangeToRBase = static_cast<int>(4*_lobes);
+            int rChangeToRBase = static_cast<int>(4*lobes);
             int lBaseToLChange = (rChangeToRBase + 4) & ~3;
-            _baseDecoder.setLength(lBaseToLChange + _lChangeToRChange
-                + rChangeToRBase);
-            _baseDecoder.setLumaBandwidth(_lumaBandwidth);
-            _baseDecoder.setChromaBandwidth(_chromaBandwidth);
-            _baseDecoder.setRollOff(_rollOff);
-            _baseDecoder.setLobes(_lobes);
-            _baseDecoder.setHue(_hue + (hres ? 14 : 4) - 90);
+            int lBaseToRChange = lBaseToLChange + _lChangeToRChange;
+            _baseDecoder.setLength(lBaseToRChange + rChangeToRBase);
+            _baseDecoder.setLumaBandwidth(lumaBandwidth);
+            _baseDecoder.setChromaBandwidth(chromaBandwidth);
+            _baseDecoder.setRollOff(rollOff);
+            _baseDecoder.setLobes(lobes);
+            _baseDecoder.setHue(hue + (hres ? 14 : 4) - 90);
             _baseDecoder.setSaturation(
-                _saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
-            double c = _contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+                saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
+            double c = contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
             _baseDecoder.setContrast(c);
             _baseDecoder.setBrightness(
-                (-black*c + _brightness*5 + (newCGA ? -50 : 0))/256.0);
+                (-black*c + brightness*5 + (newCGA ? -50 : 0))/256.0);
             _baseDecoder.setInputScaling(1);
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
             _baseDecoder.calculateBurst(burst);
             int lNtscToLBase = -_baseDecoder.inputLeft();
             int lBaseToRNtsc = _baseDecoder.inputRight();
-            _lNtscToLChange = lNtscToLBase + rChangeToRBase;
-            rChangeToRNtsc = -lBaseToLChange + lBaseToRNtsc
-                - _lChangeToRChange;
+            _lNtscToLChange = lNtscToLBase + lBaseToLChange;
+            rChangeToRNtsc = lBaseToRNtsc - lBaseToRChange;
             _bias = _baseDecoder.bias();
             _shift = _baseDecoder.shift();
             _deltaDecoder = _baseDecoder;
@@ -913,26 +968,33 @@ public:
             }
             _deltaDecoder.calculateBurst(burst, &_activeInputs[lNtscToLBase]);
             lBaseToLCompare = _deltaDecoder.outputLeft();
-            _lCompareToRCompare = _deltaDecoder.outputRight()
-                - lBaseToLCompare;
+            int lBaseToRCompare = _deltaDecoder.outputRight();
+            _lCompareToRCompare = lBaseToRCompare - lBaseToLCompare;
             _lNtscToLDelta = lNtscToLBase + _deltaDecoder.inputLeft();
             _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
             lCompareToLChange = _lNtscToLChange - _lNtscToLCompare;
-            rChangeToRCompare = rChangeToLCompare + _lCompareToRCompare
+            rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
+            _gamutDecoder = _baseDecoder;
+            _gamutDecoder.setLength(_lChangeToRChange);
+            _gamutDecoder.calculateBurst(burst);
+            gamutLeftPadding = _gamutDecoder.inputLeft();
+            gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
+            _ntscPattern.ensure(gamutWidth);
         }
 
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
-            _scanlinesPerRow*_scanlinesRepeat*_verticalDisplayed);
-        _linearizer.setGamma(static_cast<float>(_gamma));
+            scanlinesPerRow*_scanlinesRepeat2*_verticalDisplayed);
+        _linearizer.setGamma(static_cast<float>(gamma));
         if (size != _size || _lNtscToLChange > _lTargetToLChange ||
-            rChangeToRNtsc + incrementExtra > _rChangeToRTarget) {
+            rChangeToRNtsc + incrementExtra > _rChangeToRTarget ||
+            needRescale) {
             _lTargetToLChange = _lNtscToLChange;
             _rChangeToRTarget = rChangeToRNtsc + incrementExtra;
             _scaler.setZoom(Vector2Cast<float>(_activeSize*
-                Vector(1, _interlaceSync ? 2 : 1))/
+                Vector(1, interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size()));
-            _scaler.setProfile(_prescalerProfile);
+            _scaler.setProfile(prescalerProfile);
             _scaler.setOutputSize(size
                 + Vector(_lTargetToLChange + _rChangeToRTarget, 0));
             _scaler.setHorizontalLobes(3);
@@ -996,9 +1058,8 @@ public:
             _scaler.render();
             _scaled = _scaler.output();
         }
-        double quality = _quality;
-        int mode1 = (_mode & 0x13) + (_scanlinesPerRow > 2 ? 0x100 : 0) +
-            (composite ? 0x400 : 0);
+        int mode1 = (_modeThread & 0x13) + (scanlinesPerRow > 2 ? 0x100 : 0) +
+            (_isComposite ? 0x400 : 0);
         if (mode1 == 0x13 || (mode1 & 0x503) == 2)
             quality = 1;
 
@@ -1011,51 +1072,51 @@ public:
         Vector3<int> srgbDiv = Vector3Cast<int>(255.0f*srgbScale) + 1;
         int entries = srgbDiv.x*srgbDiv.y*srgbDiv.z;
         _table.setSize(entries);
-        _blockHeight = _scanlinesPerRow*_scanlinesRepeat;
+        _blockHeight = scanlinesPerRow*_scanlinesRepeat2;
         if (graphics) {
-            _blockHeight = (_scanlinesPerRow <= 2 ? 1 : _scanlinesPerRow)*
-                _scanlinesRepeat;
+            _blockHeight = (scanlinesPerRow <= 2 ? 1 : scanlinesPerRow)*
+                _scanlinesRepeat2;
             for (int i = 0; i < 0x100; ++i)
                 _skip[i] = false;
         }
         else {
-            bool blink = ((_mode & 0x20) != 0);
+            bool blink = ((_modeThread & 0x20) != 0);
             auto cgaROM = _sequencer->romData();
-            int lines = _scanlinesPerRow*_scanlinesRepeat;
+            int lines = scanlinesPerRow*_scanlinesRepeat2;
             for (int i = 0; i < 0x100; ++i) {
                 _skip[i] = false;
-                if (_characterSet == 0) {
+                if (characterSet == 0) {
                     _skip[i] = (i != 0xdd);
                     continue;
                 }
-                if (_characterSet == 1) {
+                if (characterSet == 1) {
                     _skip[i] = (i != 0x13 && i != 0x55);
                     continue;
                 }
-                if (_characterSet == 2) {
+                if (characterSet == 2) {
                     _skip[i] =
                         (i != 0x13 && i != 0x55 && i != 0xb0 && i != 0xb1);
                     continue;
                 }
-                if (_characterSet == 4) {
+                if (characterSet == 4) {
                     _skip[i] = (i != 0xb1);
                     continue;
                 }
-                if (_characterSet == 5) {
+                if (characterSet == 5) {
                     _skip[i] = (i != 0xb0 && i != 0xb1);
                     continue;
                 }
-                if (_characterSet == 7) {
+                if (characterSet == 7) {
                     _skip[i] = (i != 0x0c && i != 0x0d && i != 0x21 &&
                         i != 0x35 && i != 0x55 && i != 0x6a && i != 0xdd);
                     continue;
                 }
-                if (_characterSet == 6) {
+                if (characterSet == 6) {
                     _skip[i] = (i != 0x06 && i != 0x13 && i != 0x19 &&
                         i != 0x22 && i != 0x27 && i != 0x55 && i != 0x57 &&
                         i != 0x60 && i != 0xb6 && i != 0xdd);
                 }
-                if ((_mode & 0x10) != 0)
+                if ((_modeThread & 0x10) != 0)
                     continue;
                 bool isBackground = true;
                 bool isForeground = true;
@@ -1095,14 +1156,12 @@ public:
                     _skip[i] = true;
             }
         }
-        int banks = (graphics && _scanlinesPerRow > 1) ? 2 : 1;
+        int banks = (graphics && scanlinesPerRow > 1) ? 2 : 1;
         int bytesPerRow = 2*_horizontalDisplayed;
-        if (!composite) {
+        if (!_isComposite) {
             Byte levels[4];
-            for (int i = 0; i < 4; ++i) {
-                levels[i] = byteClamp(2.55*_brightness + 0.85*i*_contrast +
-                    0.5);
-            }
+            for (int i = 0; i < 4; ++i)
+                levels[i] = byteClamp(2.55*brightness + 0.85*i*contrast + 0.5);
             int palette[3*0x10] = {
                 0, 0, 0,  0, 0, 2,  0, 2, 0,  0, 2, 2,
                 2, 0, 0,  2, 0, 2,  2, 1, 0,  2, 2, 2,
@@ -1110,15 +1169,6 @@ public:
                 3, 1, 1,  3, 1, 3,  3, 3, 1,  3, 3, 3};
             for (int i = 0; i < 3*0x10; ++i)
                 _rgbiPalette[i] = levels[palette[i]];
-        }
-        int gamutLeftPadding = 0;
-        int gamutWidth = 0;
-        if (composite) {
-            _gamutDecoder.setLength(_lChangeToRChange);
-            _gamutDecoder.calculateBurst(burst);
-            gamutLeftPadding = _gamutDecoder.inputLeft();
-            gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
-            _ntscPattern.ensure(gamutWidth);
         }
         float blockArea = static_cast<float>(_lChangeToRChange*_blockHeight);
 
@@ -1202,12 +1252,12 @@ public:
             }
             int blockLines = _blockHeight;
             if (graphics)
-                blockLines = _scanlinesPerRow <= 2 ? 1 : 2;
+                blockLines = scanlinesPerRow <= 2 ? 1 : 2;
             Colour rgb(0, 0, 0);
             for (int y = 0; y < blockLines; ++y) {
-                UInt64 rgbi = _sequencer->process(dataBits[y & yMask], _mode,
-                    _palette, y, false, 0);
-                if (!composite) {
+                UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
+                    _modeThread, _palette2, y, false, 0);
+                if (!_isComposite) {
                     SRGB* srgb = &_srgb[0];
                     for (int x = 0; x < _lChangeToRChange; ++x) {
                         Byte* p =
@@ -1218,8 +1268,8 @@ public:
                 }
                 else {
                     Byte* ntsc = &_ntscPattern[0];
-                    int l = (gamutLeftPadding*(_lChangeToRChange - 1))
-                        %_lChangeToRChange;
+                    int l = (gamutLeftPadding*(1 - _lChangeToRChange))
+                        % _lChangeToRChange;
                     int r = (l + 1)%_lChangeToRChange;
                     for (int x = 0; x < gamutWidth; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
@@ -1259,9 +1309,9 @@ public:
         int scanline = 0;
         int scanlineIteration = 0;
         int horizontalBlocks = size.x/_incrementWidth;
-        int overscan = (_mode & 0x10) != 0 ? 0 : _palette & 0xf;
+        int overscan = (_modeThread & 0x10) != 0 ? 0 : _palette2 & 0xf;
         Byte* rgbi = &_rgbi[0];
-        int phaseRow = _phase << 6;
+        int phaseRow = phase << 6;
         int phaseRowFlip =
             (_data->getDataByte(CGAData::registerHorizontalTotal) & 1) << 6;
         for (int y = 0;; ++y) {
@@ -1277,8 +1327,8 @@ public:
             int phase = phaseRow;
             for (int x = 0; x < size.x; x += _hdotsPerChar) {
                 UInt64 rgbis = _sequencer->process(
-                    p[0] + (p[1] << 8) + (p[-1] << 24), _mode + phase,
-                    _palette, scanline, false, 0);
+                    p[0] + (p[1] << 8) + (p[-1] << 24), _modeThread + phase,
+                    _palette2, scanline, false, 0);
                 for (int xx = 0; xx < _hdotsPerChar; ++xx) {
                     *rgbi = (rgbis >> (xx * 4)) & 0xf;
                     ++rgbi;
@@ -1286,10 +1336,10 @@ public:
                 phase ^= 0x40;
             }
             ++scanlineIteration;
-            if (scanlineIteration == _scanlinesPerRow) {
+            if (scanlineIteration == scanlinesPerRow) {
                 scanlineIteration = 0;
                 ++scanline;
-                if (scanline == _scanlinesPerRow) {
+                if (scanline == scanlinesPerRow) {
                     scanline = 0;
                     ++row;
                     phaseRow ^= phaseRowFlip;
@@ -1297,9 +1347,9 @@ public:
             }
         }
 
-        const Byte* inputStart = _scaled.data() + _lTargetToLChange
-            - _lNtscToLChange;
-        if (composite) {
+        const Byte* inputStart = _scaled.data() +
+            (_lTargetToLChange - _lNtscToLChange)*sizeof(Colour);
+        if (_isComposite) {
             _ntscStride = _lNtscToLChange + size.x + incrementExtra
                 + rChangeToRNtsc;
             _ntsc.ensure(size.y*_ntscStride);
@@ -1321,7 +1371,7 @@ public:
         Colour* errorRow = &_error[_errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
-        phaseRow = _phase << 6;
+        phaseRow = phase << 6;
         int bankShift =
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
@@ -1358,7 +1408,8 @@ public:
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
-                const Byte* inputLine = _inputBlock + _lNtscToLChange;
+                const Byte* inputLine = _inputBlock
+                    + _lNtscToLChange*sizeof(Colour);
                 Colour* errorLine = _errorBlock + lCompareToLChange;
                 Byte* ntscBaseLine = _ntscBlock;
                 Byte* ntscDeltaLine = _ntscBlock + _lNtscToLDelta;
@@ -1371,8 +1422,9 @@ public:
                     auto input = reinterpret_cast<const Colour*>(inputLine);
                     Colour* error = errorLine;
                     for (int x = 0; x < _lChangeToRChange; ++x) {
-                        Colour target = *input - _diffusionHorizontal*error[-1]
-                            - _diffusionVertical*error[-_errorStride];
+                        Colour target = *input
+                            - _diffusionHorizontal2*error[-1]
+                            - _diffusionVertical2*error[-_errorStride];
                         target.x = clamp(0.0f, target.x, 1.0f);
                         target.y = clamp(0.0f, target.y, 1.0f);
                         target.z = clamp(0.0f, target.z, 1.0f);
@@ -1384,7 +1436,7 @@ public:
                     inputLine += _scaled.stride();
                     errorLine += _errorStride;
 
-                    if (composite) {
+                    if (_isComposite) {
                         // Compute base for decoding.
                         _baseDecoder.decodeNTSC(ntscBaseLine);
                         _deltaDecoder.decodeNTSC(ntscDeltaLine);
@@ -1579,87 +1631,175 @@ public:
 
     void setDiffusionHorizontal(double diffusionHorizontal)
     {
+        Lock lock(&_mutex);
         _diffusionHorizontal = static_cast<float>(diffusionHorizontal);
     }
     double getDiffusionHorizontal() { return _diffusionHorizontal; }
     void setDiffusionVertical(double diffusionVertical)
     {
+        Lock lock(&_mutex);
         _diffusionVertical = static_cast<float>(diffusionVertical);
     }
     double getDiffusionVertical() { return _diffusionVertical; }
     void setDiffusionTemporal(double diffusionTemporal)
     {
+        Lock lock(&_mutex);
         _diffusionTemporal = static_cast<float>(diffusionTemporal);
     }
     double getDiffusionTemporal() { return _diffusionTemporal; }
-    void setMode(int mode) { _mode = mode; initData(); }
+    void setMode(int mode)
+    {
+        Lock lock(&_mutex);
+        _mode = mode;
+        initData();
+    }
     int getMode() { return _mode; }
-    void setPalette(int palette) { _palette = palette; initData(); }
+    void setPalette(int palette)
+    {
+        Lock lock(&_mutex);
+        _palette = palette;
+        initData();
+    }
     int getPalette() { return _palette; }
-    void setScanlinesPerRow(int v) { _scanlinesPerRow = v; initData(); }
+    void setScanlinesPerRow(int v)
+    {
+        Lock lock(&_mutex);
+        _scanlinesPerRow = v;
+        initData();
+    }
     int getScanlinesPerRow() { return _scanlinesPerRow; }
-    void setScanlinesRepeat(int v) { _scanlinesRepeat = v; initData(); }
+    void setScanlinesRepeat(int v)
+    {
+        Lock lock(&_mutex);
+        _scanlinesRepeat = v;
+        initData();
+    }
     int getScanlinesRepeat() { return _scanlinesRepeat; }
-    void setPhase(int phase) { _phase = phase; initData(); }
+    void setPhase(int phase)
+    {
+        Lock lock(&_mutex);
+        _phase = phase;
+        initData();
+    }
     int getPhase() { return _phase; }
-    void setInterlace(int interlace) { _interlace = interlace; initData(); }
+    void setInterlace(int interlace)
+    {
+        Lock lock(&_mutex);
+        _interlace = interlace;
+        initData();
+    }
     int getInterlace() { return _interlace; }
     void setInterlaceSync(bool interlaceSync)
     {
+        Lock lock(&_mutex);
         _interlaceSync = interlaceSync;
         initData();
     }
     bool getInterlaceSync() { return _interlaceSync; }
     void setInterlacePhase(bool interlacePhase)
     {
+        Lock lock(&_mutex);
         _interlacePhase = interlacePhase;
         initData();
     }
     bool getInterlacePhase() { return _interlacePhase; }
-    void setFlicker(bool flicker) { _flicker = flicker; initData(); }
+    void setFlicker(bool flicker)
+    {
+        Lock lock(&_mutex);
+        _flicker = flicker;
+        initData();
+    }
     bool getFlicker() { return _flicker; }
-    void setQuality(double quality) { _quality = quality; }
+    void setQuality(double quality)
+    {
+        Lock lock(&_mutex);
+        _quality = quality;
+    }
     double getQuality() { return _quality; }
     void setGamma(double gamma)
     {
+        Lock lock(&_mutex);
         if (gamma != _gamma)
-            _size = Vector(0, 0);
+            _needRescale = true;
         _gamma = gamma;
     }
     double getGamma() { return _gamma; }
-    void setClipping(int clipping) { _clipping = clipping; }
+    void setClipping(int clipping)
+    {
+        Lock lock(&_mutex);
+        _clipping = clipping;
+    }
     int getClipping() { return _clipping; }
-    void setMetric(int metric) { _metric = metric; }
+    void setMetric(int metric)
+    {
+        Lock lock(&_mutex);
+        _metric = metric;
+    }
     int getMetric() { return _metric; }
-    void setCharacterSet(int characterSet) { _characterSet = characterSet; }
+    void setCharacterSet(int characterSet)
+    {
+        Lock lock(&_mutex);
+        _characterSet = characterSet;
+    }
     int getCharacterSet() { return _characterSet; }
     double getHue() { return _hue; }
-    void setHue(double hue) { _hue = hue; }
+    void setHue(double hue)
+    {
+        Lock lock(&_mutex);
+        _hue = hue;
+    }
     double getSaturation() { return _saturation; }
-    void setSaturation(double saturation) { _saturation = saturation; }
+    void setSaturation(double saturation)
+    {
+        Lock lock(&_mutex);
+        _saturation = saturation;
+    }
     double getContrast() { return _contrast; }
-    void setContrast(double contrast) { _contrast = contrast; }
+    void setContrast(double contrast)
+    {
+        Lock lock(&_mutex);
+        _contrast = contrast;
+    }
     double getBrightness() { return _brightness; }
-    void setBrightness(double brightness) { _brightness = brightness; }
-    void setConnector(int connector) { _connector = connector; }
+    void setBrightness(double brightness)
+    {
+        Lock lock(&_mutex);
+        _brightness = brightness;
+    }
+    void setConnector(int connector)
+    {
+        Lock lock(&_mutex);
+        _connector = connector;
+    }
     void setChromaBandwidth(double chromaBandwidth)
     {
+        Lock lock(&_mutex);
         _chromaBandwidth = chromaBandwidth;
     }
     double getChromaBandwidth() { return _chromaBandwidth; }
     void setLumaBandwidth(double lumaBandwidth)
     {
+        Lock lock(&_mutex);
         _lumaBandwidth = lumaBandwidth;
     }
     double getLumaBandwidth() { return _lumaBandwidth; }
-    void setRollOff(double rollOff) { _rollOff = rollOff; }
+    void setRollOff(double rollOff)
+    {
+        Lock lock(&_mutex);
+        _rollOff = rollOff;
+    }
     double getRollOff() { return _rollOff; }
-    void setLobes(double lobes) { _lobes = lobes; }
+    void setLobes(double lobes)
+    {
+        Lock lock(&_mutex);
+        _lobes = lobes;
+    }
     double getLobes() { return _lobes; }
     void setPrescalerProfile(int profile)
     {
+        Lock lock(&_mutex);
         if (profile != _prescalerProfile)
-            _size = Vector(0, 0);
+            _needRescale = true;
         _prescalerProfile = profile;
     }
     int getPrescalerProfile() { return _prescalerProfile; }
@@ -1756,13 +1896,13 @@ private:
         Byte* ntscLine = _ntscBlock;
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
-            int s = scanline / _scanlinesRepeat;
+            int s = scanline / _scanlinesRepeat2;
             UInt64 rgbis = _sequencer->process(v[s & yMask],
-                _mode + _phaseBlock, _palette, s, false, 0);
+                _modeThread + _phaseBlock, _palette2, s, false, 0);
             SRGB* srgb = &_srgb[0];
             auto input = reinterpret_cast<const Colour*>(inputLine);
             auto error = errorLine;
-            if (_connector == 0) {
+            if (!_isComposite) {
                 for (int x = 0; x < _lChangeToRChange; ++x) {
                     Byte* p = &_rgbiPalette[3*((rgbis >> (x * 4)) & 0xf)];
                     *srgb = SRGB(p[0], p[1], p[2]);
@@ -1796,9 +1936,9 @@ private:
             for (int x = 0; x < _lCompareToRCompare; ++x) {
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
-                Colour target = *input - _diffusionHorizontal*error[-1] -
-                    _diffusionVertical*error[-_errorStride];
-                switch (_clipping) {
+                Colour target = *input - _diffusionHorizontal2*error[-1] -
+                    _diffusionVertical2*error[-_errorStride];
+                switch (_clipping2) {
                     case 1:
                         target.x = clamp(0.0f, target.x, 1.0f);
                         target.y = clamp(0.0f, target.y, 1.0f);
@@ -1853,7 +1993,7 @@ private:
                 *error = e;
 
                 float contribution = 0;
-                switch (_metric) {
+                switch (_metric2) {
                     case 1:
                         contribution = e.modulus2();
                         break;
@@ -2021,6 +2161,7 @@ private:
     double _rollOff;
     double _lobes;
     int _prescalerProfile;
+    bool _needRescale;
 
     bool _active;
     Vector _size;
@@ -2071,6 +2212,17 @@ private:
     int _lNtscToLChange;
     int _lNtscToLDelta;
     int _lNtscToLCompare;
+    bool _isComposite;
+    int _metric2;
+    int _clipping2;
+    int _scanlinesRepeat2;
+    int _palette2;
+    int _modeThread;
+    float _diffusionHorizontal2;
+    float _diffusionVertical2;
+    float _diffusionTemporal2;
+
+    Mutex _mutex;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
