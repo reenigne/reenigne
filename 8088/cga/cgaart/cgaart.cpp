@@ -910,7 +910,7 @@ public:
         bool graphics = (_mode & 2) != 0;
         if (graphics) {
             _incrementWidth = 4;
-            _lChangeToRChange = ((!_isComposite || hres) ? 4 : 8);
+            _lChangeToRChange = 4; //((!_isComposite || hres) ? 4 : 8);
         }
         else {
             _incrementWidth = hres ? 8 : 16;
@@ -991,9 +991,11 @@ public:
             needRescale) {
             _lTargetToLChange = _lNtscToLChange;
             _rChangeToRTarget = rChangeToRNtsc + incrementExtra;
-            _scaler.setZoom(Vector2Cast<float>(_activeSize*
+            auto zoom = Vector2Cast<float>(_activeSize*
                 Vector(1, interlaceSync ? 2 : 1))/
-                Vector2Cast<float>(_input.size()));
+                Vector2Cast<float>(_input.size());
+            _scaler.setZoom(zoom);
+            Vector offset(static_cast<int>(_lTargetToLChange / zoom.x), 0);
             _scaler.setProfile(prescalerProfile);
             _scaler.setOutputSize(size
                 + Vector(_lTargetToLChange + _rChangeToRTarget, 0));
@@ -1002,8 +1004,8 @@ public:
             _scaler.init();
             _size = size;
             AlignedBuffer input = _scaler.input();
-            Vector tl = _scaler.inputTL() - Vector(_lTargetToLChange, 0);
-            Vector br = _scaler.inputBR() - Vector(_lTargetToLChange, 0);
+            Vector tl = _scaler.inputTL() - offset;
+            Vector br = _scaler.inputBR() - offset;
             Byte* unscaledRow = input.data() - tl.y*input.stride();
             Byte* inputRow = _input.data();
             int height = _input.size().y;
@@ -1187,15 +1189,17 @@ public:
                 // -HRES+GRPH
                 case 0x002:
                 case 0x012:
+                case 0x402:
+                case 0x412:
                     dataBits[0] = pattern * 0x1111;
                     yMask = 0;
                     patternCount = 0x10;
                     break;
-                case 0x402:
-                case 0x412:
-                    dataBits[0] = pattern * 0x0101;
-                    yMask = 0;
-                    break;
+                //case 0x402:
+                //case 0x412:
+                //    dataBits[0] = pattern * 0x0101;
+                //    yMask = 0;
+                //    break;
                 case 0x102:
                 case 0x112:
                     dataBits[0] = (pattern & 0xf) * 0x1111;
@@ -1274,7 +1278,7 @@ public:
                     for (int x = 0; x < gamutWidth; ++x) {
                         *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
                             (rgbi >> (r * 4)) & 0xf,
-                            (x - gamutLeftPadding) & 3);
+                            (x + gamutLeftPadding) & 3);
                         l = r;
                         r = (r + 1)%_lChangeToRChange;
                         ++ntsc;
@@ -1314,37 +1318,9 @@ public:
         int phaseRow = phase << 6;
         int phaseRowFlip =
             (_data->getDataByte(CGAData::registerHorizontalTotal) & 1) << 6;
-        for (int y = 0;; ++y) {
+        for (int y = 0; y <= size.y; ++y) {
             *rgbi = overscan;
-            if (y == size.y)
-                break;
-            int bank = y & 1;
-            if (!graphics)
-                bank = 0;
-            Array<Byte> rowData = _data->getData(row*bytesPerRow, bytesPerRow);
-            memcpy(&_rowData[1], &rowData[0], bytesPerRow);
-            Byte* p = &_rowData[1];
-            int phase = phaseRow;
-            for (int x = 0; x < size.x; x += _hdotsPerChar) {
-                UInt64 rgbis = _sequencer->process(
-                    p[0] + (p[1] << 8) + (p[-1] << 24), _modeThread + phase,
-                    _palette2, scanline, false, 0);
-                for (int xx = 0; xx < _hdotsPerChar; ++xx) {
-                    *rgbi = (rgbis >> (xx * 4)) & 0xf;
-                    ++rgbi;
-                }
-                phase ^= 0x40;
-            }
-            ++scanlineIteration;
-            if (scanlineIteration == scanlinesPerRow) {
-                scanlineIteration = 0;
-                ++scanline;
-                if (scanline == scanlinesPerRow) {
-                    scanline = 0;
-                    ++row;
-                    phaseRow ^= phaseRowFlip;
-                }
-            }
+            rgbi += _rgbiStride;
         }
 
         const Byte* inputStart = _scaled.data() +
@@ -1506,22 +1482,26 @@ public:
                     // -HRES+GRPH
                     case 0x002:
                     case 0x012:
+                    case 0x402:
+                    case 0x412:
                         *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
                         break;
                     case 0x202:
                     case 0x212:
+                    case 0x602:
+                    case 0x612:
                         *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
                         ++_d0;
                         break;
-                    case 0x402:
-                    case 0x412:
-                        *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
-                        break;
-                    case 0x602:
-                    case 0x612:
-                        *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
-                        ++_d0;
-                        break;
+                    //case 0x402:
+                    //case 0x412:
+                    //    *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
+                    //    break;
+                    //case 0x602:
+                    //case 0x612:
+                    //    *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
+                    //    ++_d0;
+                    //    break;
                     case 0x102:
                         case 0x112:
                         *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
@@ -1824,14 +1804,18 @@ private:
             case 0x012:
             case 0x202:
             case 0x212:
-                v[0] = pattern << 4;
-                break;
             case 0x402:
             case 0x412:
             case 0x602:
             case 0x612:
-                v[0] = pattern;
+                v[0] = pattern << 4;
                 break;
+            //case 0x402:
+            //case 0x412:
+            //case 0x602:
+            //case 0x612:
+            //    v[0] = pattern;
+            //    break;
             case 0x102:
             case 0x112:
             case 0x302:
@@ -3672,21 +3656,25 @@ public:
     {
         _output->setChromaBandwidth(chromaBandwidth);
         _matcher->setChromaBandwidth(chromaBandwidth);
+        beginConvert();
     }
     void lumaBandwidthSet(double lumaBandwidth)
     {
         _output->setLumaBandwidth(lumaBandwidth);
         _matcher->setLumaBandwidth(lumaBandwidth);
+        beginConvert();
     }
     void rollOffSet(double rollOff)
     {
         _output->setRollOff(rollOff);
         _matcher->setRollOff(rollOff);
+        beginConvert();
     }
     void lobesSet(double lobes)
     {
         _output->setLobes(lobes);
         _matcher->setLobes(lobes);
+        beginConvert();
     }
     void connectorSet(int connector)
     {
