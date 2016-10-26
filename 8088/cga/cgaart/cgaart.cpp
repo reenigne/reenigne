@@ -823,6 +823,16 @@ private:
 
 template<class T> class CGAMatcherT : public ThreadTask
 {
+    struct Box
+    {
+        MatcherTable _table;
+        MatchingNTSCDecoder _baseDecoder;
+        MatchingNTSCDecoder _deltaDecoder;
+        int _patternCount;
+        int _bitOffset;
+        int _bitCount;
+        int _
+    };
 public:
     CGAMatcherT()
       : _rgbiPalette(3*0x10), _active(false), _skip(0x100),
@@ -903,24 +913,69 @@ public:
             prescalerProfile = _prescalerProfile;
         }
 
+        int boxCount;
+        int incrementWidth;
+        switch (_modeThread & 0x13) {
+            case 0x00:
+                // Low-resolution text
+                boxCount = 1;
+                incrementWidth = 16;
+                break;
+            case 0x01:
+                // High-resolution text
+                boxCount = 1;
+                incrementWidth = 8;
+                break;
+            case 0x02:
+                // 2bpp graphics
+                boxCount = 4;
+                incrementWidth = 8;
+                break;
+            case 0x03:
+                // high-res 2bpp graphics
+                boxCount = 16;
+                incrementWidth = 16;
+                break;
+            case 0x10:
+                // Low-resolution text with 1bpp graphics
+                boxCount = 1;
+                incrementWidth = 16;
+                break;
+            case 0x11:
+                // High-resolution text with 1bpp graphics
+                boxCount = 1;
+                incrementWidth = 8;
+                break;
+            case 0x12:
+                // 1bpp graphics
+                boxCount = 8;
+                incrementWidth = 8;
+                break;
+            case 0x13:
+                // high-res 1bpp graphics
+                boxCount = 16;
+                incrementWidth = 16;
+                break;
+        }
+
         _program->setProgress(0);
 
         bool hres = (_mode & 1) != 0;
         _isComposite = connector != 0;
         bool graphics = (_mode & 2) != 0;
         if (graphics) {
-            _incrementWidth = 4;
+            incrementWidth = 4;
             _lChangeToRChange = 4; //((!_isComposite || hres) ? 4 : 8);
         }
         else {
-            _incrementWidth = hres ? 8 : 16;
-            _lChangeToRChange = _incrementWidth;
+            incrementWidth = hres ? 8 : 16;
+            _lChangeToRChange = incrementWidth;
         }
         _lCompareToRCompare = _lChangeToRChange;
         _lNtscToLChange = 0;
         _lNtscToLCompare = 0;
         int rChangeToRNtsc = 0;
-        int incrementExtra = _lChangeToRChange - _incrementWidth;
+        int incrementExtra = _lChangeToRChange - incrementWidth;
         int lBaseToLCompare = 0;
         int lCompareToLChange = 0;
         int rChangeToRCompare = 0;
@@ -1312,7 +1367,7 @@ public:
         int row = 0;
         int scanline = 0;
         int scanlineIteration = 0;
-        int horizontalBlocks = size.x/_incrementWidth;
+        int horizontalBlocks = size.x/incrementWidth;
         int overscan = (_modeThread & 0x10) != 0 ? 0 : _palette2 & 0xf;
         Byte* rgbi = &_rgbi[0];
         int phaseRow = phase << 6;
@@ -1571,10 +1626,10 @@ public:
                         _d0[1] = bestPattern >> 8;
                         _d0 += 2;
                 }
-                _inputBlock += _incrementWidth*3*sizeof(float);
-                _errorBlock += _incrementWidth;
-                _rgbiBlock += _incrementWidth;
-                _ntscBlock += _incrementWidth;
+                _inputBlock += incrementWidth*3*sizeof(float);
+                _errorBlock += incrementWidth;
+                _rgbiBlock += incrementWidth;
+                _ntscBlock += incrementWidth;
             } // column
 
             if ((mode1 & 0x102) == 0x102) {
@@ -1793,7 +1848,7 @@ public:
             _data->getDataByte(CGAData::registerScanlinesRepeat);
     }
 private:
-    float tryPattern(int pattern)
+    float tryPattern(Box* box, int pattern)
     {
         float metric = 0;
         UInt32 v[2];
@@ -2108,12 +2163,9 @@ private:
             static_cast<int>((hdotsPerScanline - 2)*(totalScanlines + 0.5)));
     }
 
-    MatcherTable _table;
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    MatchingNTSCDecoder _baseDecoder;
-    MatchingNTSCDecoder _deltaDecoder;
     MatchingNTSCDecoder _gamutDecoder;
     CGAComposite _composite;
     Linearizer _linearizer;
@@ -2185,7 +2237,6 @@ private:
     Byte* _ntscBlock;
     int _lChangeToRChange;
     int _lCompareToRCompare;
-    int _incrementWidth;
     int _blockHeight;
     int _phaseBlock;
     int _decoderLength;
@@ -2207,6 +2258,8 @@ private:
     float _diffusionTemporal2;
 
     Mutex _mutex;
+
+    Box _boxes[16];
 };
 
 typedef CGAMatcherT<void> CGAMatcher;

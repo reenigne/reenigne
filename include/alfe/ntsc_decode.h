@@ -600,6 +600,7 @@ public:
         _rollOff = decoder._rollOff;
         _lobes = decoder._lobes;
         _outputLength = decoder._outputLength;
+        _inputScaling = decoder._inputScaling;
         return *this;
     }
 

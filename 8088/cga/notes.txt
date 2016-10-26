@@ -628,7 +628,7 @@ We don't want to just pass in a pointer to memory data as it's the previous valu
     No; attribute latch is cleared when display disabled, so we always get 0 pixels
 
 The problem in +GRPH+HRES (problem 1) is that the attribute latch value is stale
-The problem in -GRPH+1BPP (problem 2) is that the SR is loaded before the attribute latch is loaded
+The problem in -GRPH+1BPP (problem 2) is that the SR is loaded from the attribute latch before the attribute latch is loaded from VRAM
 Can both of these happen at once?
   No, because the first only happens with +GRPH and the second only happens with -GRPH
 
