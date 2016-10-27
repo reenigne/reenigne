@@ -831,7 +831,8 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _patternCount;
         int _bitOffset;
         int _bitCount;
-        int _
+        int _incrementHDots;
+        int _incrementBytes;
     };
 public:
     CGAMatcherT()
@@ -915,41 +916,71 @@ public:
 
         int boxCount;
         int incrementWidth;
+        Box* box = &_boxes[0];
         switch (_modeThread & 0x13) {
             case 0x00:
                 // Low-resolution text
                 boxCount = 1;
-                incrementWidth = 16;
+                box->_bitOffset = 0;
+                box->_bitCount = 16;
+                box->_incrementHDots = 16;
+                box->_incrementBytes = 2;
                 break;
             case 0x01:
                 // High-resolution text
                 boxCount = 1;
-                incrementWidth = 8;
+                box->_bitOffset = 0;
+                box->_bitCount = 16;
+                box->_incrementHDots = 8;
+                box->_incrementBytes = 2;
                 break;
             case 0x02:
                 // 2bpp graphics
                 boxCount = 4;
-                incrementWidth = 8;
+                for (int i = 0; i < 4; ++i) {
+                    box = &_boxes[i];
+                    box->_bitOffset = 6 - (i << 1);
+                    box->_bitCount = 2;
+                    box->_incrementHDots = 2;
+                    box->_incrementBytes = (i == 3 ? 1 : 0);
+                }
                 break;
             case 0x03:
                 // high-res 2bpp graphics
                 boxCount = 16;
-                incrementWidth = 16;
+                for (int i = 0; i < 16; ++i) {
+                    box->_bitOffset = 6 - ((i & 3) << 1);
+                    box->_bitCount = 2;
+                    box->_incrementHDots = 1;
+                    box->_incrementBytes = 0;
+                }
                 break;
             case 0x10:
                 // Low-resolution text with 1bpp graphics
                 boxCount = 1;
-                incrementWidth = 16;
+                box->_bitOffset = 0;
+                box->_bitCount = 16;
+                box->_incrementHDots = 16;
+                box->_incrementBytes = 2;
                 break;
             case 0x11:
                 // High-resolution text with 1bpp graphics
                 boxCount = 1;
-                incrementWidth = 8;
+                box->_bitOffset = 0;
+                box->_bitCount = 16;
+                box->_incrementHDots = 8;
+                box->_incrementBytes = 2;
                 break;
             case 0x12:
                 // 1bpp graphics
                 boxCount = 8;
-                incrementWidth = 8;
+                for (int i = 0; i < 8; ++i) {
+                    box = &_boxes[i];
+                    box->_bitOffset = 7 - i;
+                    box->_bitCount = 1;
+                    box->_incrementHDots = 1;
+                    box->_incrementBytes = (i == 7 ? 1 : 0);
+                }
                 break;
             case 0x13:
                 // high-res 1bpp graphics
@@ -1240,63 +1271,63 @@ public:
             UInt32 dataBits[2];
             int patternCount = 0x100;
             int yMask = 1;
-            switch (mode1) {
-                // -HRES+GRPH
-                case 0x002:
-                case 0x012:
-                case 0x402:
-                case 0x412:
-                    dataBits[0] = pattern * 0x1111;
-                    yMask = 0;
-                    patternCount = 0x10;
-                    break;
-                //case 0x402:
-                //case 0x412:
-                //    dataBits[0] = pattern * 0x0101;
-                //    yMask = 0;
-                //    break;
-                case 0x102:
-                case 0x112:
-                    dataBits[0] = (pattern & 0xf) * 0x1111;
-                    dataBits[1] = (pattern >> 4) * 0x1111;
-                    break;
-                case 0x502:
-                case 0x512:
-                    dataBits[0] = (pattern & 0xff) * 0x0101;
-                    dataBits[1] = (pattern >> 8) * 0x0101;
-                    patternCount = 0x10000;
-                    break;
+            //switch (mode1) {
+            //    // -HRES+GRPH
+            //    case 0x002:
+            //    case 0x012:
+            //    case 0x402:
+            //    case 0x412:
+            //        dataBits[0] = pattern * 0x1111;
+            //        yMask = 0;
+            //        patternCount = 0x10;
+            //        break;
+            //    //case 0x402:
+            //    //case 0x412:
+            //    //    dataBits[0] = pattern * 0x0101;
+            //    //    yMask = 0;
+            //    //    break;
+            //    case 0x102:
+            //    case 0x112:
+            //        dataBits[0] = (pattern & 0xf) * 0x1111;
+            //        dataBits[1] = (pattern >> 4) * 0x1111;
+            //        break;
+            //    case 0x502:
+            //    case 0x512:
+            //        dataBits[0] = (pattern & 0xff) * 0x0101;
+            //        dataBits[1] = (pattern >> 8) * 0x0101;
+            //        patternCount = 0x10000;
+            //        break;
 
-                //  +HRES+GRPH
-                case 0x103:
-                case 0x503:
-                    dataBits[0] = (pattern & 0xff) * 0x01010101;
-                    dataBits[1] = (pattern >> 8) * 0x01010101;
-                    patternCount = 0x10000;
-                    break;
-                case 0x113:
-                case 0x513:
-                    dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
-                    dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
-                    break;
-                case 0x003:
-                case 0x403:
-                    dataBits[0] = pattern * 0x01010101;
-                    yMask = 0;
-                    break;
-                case 0x013:
-                case 0x413:
-                    dataBits[0] = _hres1bpp[pattern]*0x01010101;
-                    yMask = 0;
-                    patternCount = 0x10;
-                    break;
+            //    //  +HRES+GRPH
+            //    case 0x103:
+            //    case 0x503:
+            //        dataBits[0] = (pattern & 0xff) * 0x01010101;
+            //        dataBits[1] = (pattern >> 8) * 0x01010101;
+            //        patternCount = 0x10000;
+            //        break;
+            //    case 0x113:
+            //    case 0x513:
+            //        dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
+            //        dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
+            //        break;
+            //    case 0x003:
+            //    case 0x403:
+            //        dataBits[0] = pattern * 0x01010101;
+            //        yMask = 0;
+            //        break;
+            //    case 0x013:
+            //    case 0x413:
+            //        dataBits[0] = _hres1bpp[pattern]*0x01010101;
+            //        yMask = 0;
+            //        patternCount = 0x10;
+            //        break;
 
-                // -GRPH
-                default:
-                    dataBits[0] = pattern * 0x00010001;
-                    patternCount = 0x10000;
-                    yMask = 0;
-            }
+            //    // -GRPH
+            //    default:
+            //        dataBits[0] = pattern * 0x00010001;
+            //        patternCount = 0x10000;
+            //        yMask = 0;
+            //}
             if (pattern == patternCount)
                 break;
             if (!graphics) {
@@ -1533,99 +1564,99 @@ public:
                 }
                 tryPattern(bestPattern);
 
-                switch (_mode2) {
-                    // -HRES+GRPH
-                    case 0x002:
-                    case 0x012:
-                    case 0x402:
-                    case 0x412:
-                        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
-                        break;
-                    case 0x202:
-                    case 0x212:
-                    case 0x602:
-                    case 0x612:
-                        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
-                        ++_d0;
-                        break;
-                    //case 0x402:
-                    //case 0x412:
-                    //    *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
-                    //    break;
-                    //case 0x602:
-                    //case 0x612:
-                    //    *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
-                    //    ++_d0;
-                    //    break;
-                    case 0x102:
-                        case 0x112:
-                        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
-                        *_d1 = (*_d1 & 0xf) + (bestPattern & 0xf0);
-                        break;
-                    case 0x302:
-                    case 0x312:
-                        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
-                        *_d1 = (*_d1 & 0xf0) + (bestPattern >> 4);
-                        ++_d0;
-                        ++_d1;
-                        break;
-                    case 0x502:
-                    case 0x512:
-                        *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
-                        *_d1 = (*_d1 & 0xf) + ((bestPattern >> 8) & 0xf0);
-                        break;
-                    case 0x702:
-                    case 0x712:
-                        *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
-                        *_d1 = (*_d1 & 0xf0) + ((bestPattern >> 12) & 0xf);
-                        ++_d0;
-                        ++_d1;
-                        break;
+                //switch (_mode2) {
+                //    // -HRES+GRPH
+                //    case 0x002:
+                //    case 0x012:
+                //    case 0x402:
+                //    case 0x412:
+                //        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
+                //        break;
+                //    case 0x202:
+                //    case 0x212:
+                //    case 0x602:
+                //    case 0x612:
+                //        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
+                //        ++_d0;
+                //        break;
+                //    //case 0x402:
+                //    //case 0x412:
+                //    //    *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
+                //    //    break;
+                //    //case 0x602:
+                //    //case 0x612:
+                //    //    *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
+                //    //    ++_d0;
+                //    //    break;
+                //    case 0x102:
+                //        case 0x112:
+                //        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
+                //        *_d1 = (*_d1 & 0xf) + (bestPattern & 0xf0);
+                //        break;
+                //    case 0x302:
+                //    case 0x312:
+                //        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
+                //        *_d1 = (*_d1 & 0xf0) + (bestPattern >> 4);
+                //        ++_d0;
+                //        ++_d1;
+                //        break;
+                //    case 0x502:
+                //    case 0x512:
+                //        *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
+                //        *_d1 = (*_d1 & 0xf) + ((bestPattern >> 8) & 0xf0);
+                //        break;
+                //    case 0x702:
+                //    case 0x712:
+                //        *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
+                //        *_d1 = (*_d1 & 0xf0) + ((bestPattern >> 12) & 0xf);
+                //        ++_d0;
+                //        ++_d1;
+                //        break;
 
-                    // +HRES+GRPH
-                    case 0x003:
-                    case 0x203:
-                    case 0x403:
-                    case 0x603:
-                        *_d0 = bestPattern;
-                        ++_d0;
-                        _phaseBlock ^= 0x40;
-                        break;
-                    case 0x013:
-                    case 0x213:
-                    case 0x413:
-                    case 0x613:
-                        *_d0 = _hres1bpp[bestPattern];
-                        ++_d0;
-                        _phaseBlock ^= 0x40;
-                        break;
-                    case 0x103:
-                    case 0x303:
-                    case 0x503:
-                    case 0x703:
-                        *_d0 = bestPattern;
-                        *_d1 = bestPattern >> 8;
-                        ++_d0;
-                        ++_d1;
-                        _phaseBlock ^= 0x40;
-                        break;
-                    case 0x113:
-                    case 0x313:
-                    case 0x513:
-                    case 0x713:
-                        *_d0 = _hres1bpp[bestPattern & 0xf];
-                        *_d1 = _hres1bpp[bestPattern >> 4];
-                        ++_d0;
-                        ++_d1;
-                        _phaseBlock ^= 0x40;
-                        break;
+                //    // +HRES+GRPH
+                //    case 0x003:
+                //    case 0x203:
+                //    case 0x403:
+                //    case 0x603:
+                //        *_d0 = bestPattern;
+                //        ++_d0;
+                //        _phaseBlock ^= 0x40;
+                //        break;
+                //    case 0x013:
+                //    case 0x213:
+                //    case 0x413:
+                //    case 0x613:
+                //        *_d0 = _hres1bpp[bestPattern];
+                //        ++_d0;
+                //        _phaseBlock ^= 0x40;
+                //        break;
+                //    case 0x103:
+                //    case 0x303:
+                //    case 0x503:
+                //    case 0x703:
+                //        *_d0 = bestPattern;
+                //        *_d1 = bestPattern >> 8;
+                //        ++_d0;
+                //        ++_d1;
+                //        _phaseBlock ^= 0x40;
+                //        break;
+                //    case 0x113:
+                //    case 0x313:
+                //    case 0x513:
+                //    case 0x713:
+                //        *_d0 = _hres1bpp[bestPattern & 0xf];
+                //        *_d1 = _hres1bpp[bestPattern >> 4];
+                //        ++_d0;
+                //        ++_d1;
+                //        _phaseBlock ^= 0x40;
+                //        break;
 
-                    // -GRPH
-                    default:
-                        *_d0 = bestPattern;
-                        _d0[1] = bestPattern >> 8;
-                        _d0 += 2;
-                }
+                //    // -GRPH
+                //    default:
+                //        *_d0 = bestPattern;
+                //        _d0[1] = bestPattern >> 8;
+                //        _d0 += 2;
+                //}
                 _inputBlock += incrementWidth*3*sizeof(float);
                 _errorBlock += incrementWidth;
                 _rgbiBlock += incrementWidth;
@@ -1853,80 +1884,80 @@ private:
         float metric = 0;
         UInt32 v[2];
         int yMask = (_mode2 & 0x102) == 0x102 ? 1 : 0;
-        switch (_mode2) {
-            // -HRES+GRPH
-            case 0x002:
-            case 0x012:
-            case 0x202:
-            case 0x212:
-            case 0x402:
-            case 0x412:
-            case 0x602:
-            case 0x612:
-                v[0] = pattern << 4;
-                break;
-            //case 0x402:
-            //case 0x412:
-            //case 0x602:
-            //case 0x612:
-            //    v[0] = pattern;
-            //    break;
-            case 0x102:
-            case 0x112:
-            case 0x302:
-            case 0x312:
-                v[0] = pattern << 4;
-                v[1] = pattern & 0xf0;
-                break;
-            case 0x502:
-            case 0x512:
-            case 0x702:
-            case 0x712:
-                v[0] = pattern;
-                v[1] = pattern >> 8;
-                break;
+        //switch (_mode2) {
+        //    // -HRES+GRPH
+        //    case 0x002:
+        //    case 0x012:
+        //    case 0x202:
+        //    case 0x212:
+        //    case 0x402:
+        //    case 0x412:
+        //    case 0x602:
+        //    case 0x612:
+        //        v[0] = pattern << 4;
+        //        break;
+        //    //case 0x402:
+        //    //case 0x412:
+        //    //case 0x602:
+        //    //case 0x612:
+        //    //    v[0] = pattern;
+        //    //    break;
+        //    case 0x102:
+        //    case 0x112:
+        //    case 0x302:
+        //    case 0x312:
+        //        v[0] = pattern << 4;
+        //        v[1] = pattern & 0xf0;
+        //        break;
+        //    case 0x502:
+        //    case 0x512:
+        //    case 0x702:
+        //    case 0x712:
+        //        v[0] = pattern;
+        //        v[1] = pattern >> 8;
+        //        break;
 
-            // +HRES+GRPH
-            case 0x103:
-            case 0x503:
-                v[0] = (_d0[1] << 8) + pattern;
-                v[1] = (_d1[1] << 8) + (pattern >> 8);
-                break;
-            case 0x303:
-            case 0x703:
-                v[0] = _d0[1] + (pattern << 8);
-                v[1] = _d1[1] + (pattern & 0xff00);
-                break;
-            case 0x113:
-            case 0x513:
-                v[0] = (_d0[1] << 8) + _hres1bpp[pattern & 0xf];
-                v[1] = (_d1[1] << 8) + _hres1bpp[pattern >> 4];
-                break;
-            case 0x313:
-            case 0x713:
-                v[0] = _d0[1] + (_hres1bpp[pattern & 0xf] << 8);
-                v[1] = _d1[1] + (_hres1bpp[pattern >> 4] << 8);
-                break;
+        //    // +HRES+GRPH
+        //    case 0x103:
+        //    case 0x503:
+        //        v[0] = (_d0[1] << 8) + pattern;
+        //        v[1] = (_d1[1] << 8) + (pattern >> 8);
+        //        break;
+        //    case 0x303:
+        //    case 0x703:
+        //        v[0] = _d0[1] + (pattern << 8);
+        //        v[1] = _d1[1] + (pattern & 0xff00);
+        //        break;
+        //    case 0x113:
+        //    case 0x513:
+        //        v[0] = (_d0[1] << 8) + _hres1bpp[pattern & 0xf];
+        //        v[1] = (_d1[1] << 8) + _hres1bpp[pattern >> 4];
+        //        break;
+        //    case 0x313:
+        //    case 0x713:
+        //        v[0] = _d0[1] + (_hres1bpp[pattern & 0xf] << 8);
+        //        v[1] = _d1[1] + (_hres1bpp[pattern >> 4] << 8);
+        //        break;
 
-            case 0x003:
-            case 0x403:
-                v[0] = (_d0[1] << 8) + pattern;
-                break;
-            case 0x203:
-            case 0x603:
-                v[0] = _d0[1] + (pattern << 8);
-                break;
-            case 0x013:
-            case 0x413:
-                v[0] = (_d0[1] << 8) + _hres1bpp[pattern];
-                break;
-            case 0x213:
-            case 0x613:
-                v[0] = _d0[1] + (_hres1bpp[pattern] << 8);
-                break;
-            default:
-                v[0] = pattern;
-        }
+        //    case 0x003:
+        //    case 0x403:
+        //        v[0] = (_d0[1] << 8) + pattern;
+        //        break;
+        //    case 0x203:
+        //    case 0x603:
+        //        v[0] = _d0[1] + (pattern << 8);
+        //        break;
+        //    case 0x013:
+        //    case 0x413:
+        //        v[0] = (_d0[1] << 8) + _hres1bpp[pattern];
+        //        break;
+        //    case 0x213:
+        //    case 0x613:
+        //        v[0] = _d0[1] + (_hres1bpp[pattern] << 8);
+        //        break;
+        //    default:
+        //        v[0] = pattern;
+        //}
         v[0] = (v[0] & 0xffff) + (_d0[-1] << 24);
         v[1] = (v[1] & 0xffff) + (_d1[-1] << 24);
         const Byte* inputLine = _inputBlock + _lNtscToLCompare*sizeof(Colour);
@@ -2259,7 +2290,7 @@ private:
 
     Mutex _mutex;
 
-    Box _boxes[16];
+    Box _boxes[24];
 };
 
 typedef CGAMatcherT<void> CGAMatcher;

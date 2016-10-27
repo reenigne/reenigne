@@ -1245,3 +1245,55 @@ Older names for "To" variables:
   inputWidth         => lNtscToRNtsc            done
 
 
+
+
+Boxwise matching:
+  Decide what needs to go in a box
+    Base decoder
+    Delta decoder
+    Pattern count
+    Gamut table
+    Bit position
+    Byte position
+    Bit count
+  Enumerate horizontal modes (>2slpr graphics modes just have twice as many bits)
+    08: 1 box, 16 hdot increment, up to 0x10000 patterns
+    09: 1 box, 8 hdot increment, up to 0x10000 patterns
+    0a: 4 boxes, 2 hdot increment, variable pattern count
+    0b: 16 boxes, 1 hdot incremnet, variable pattern count
+    0c: 1 box, 16 hdot increment, up to 0x10000 patterns
+    0d: 1 box, 8 hdot increment, up to 0x10000 patterns
+    0e: 4 boxes, 2 hdot increment, 4 patterns
+    0f: 16 boxes, 1 hdot increment, 4 patterns
+    18: 1 box, 16 hdot increment, 0x10000 patterns, N iterations
+    19: 1 box, 8 hdot increment, 0x10000 patterns, N iterations
+    1a: 8 boxes, 1 hdot increment, variable pattern count
+    1b: 16 boxes, 1 hdot increment, variable pattern count
+    1c: 1 box, 16 hdot increment, 0x10000 patterns, N iterations
+    1d: 1 box, 8 hdot increment, 0x10000 patterns, N iterations
+    1e: 8 boxes, 1 hdot increment, 2 patterns
+    1f: 16 boxes, 1 hdot increment, 4 patterns
+
+1 iteration: abcdefgh (1 forward, 0 back)
+2 iterations: a bacbdced (2 forward, 1 back)
+3 iterations: a  ba cbadcbedc (3 forward, 1 back, 1 back)
+
+
+001 +HRES
+002 +GRPH
+010 +1BPP
+100 >2slpr
+200 odd column
+400 composite
+
+
+
+Is the skew-improper mode actually possible? The CRT hsync is lchar-aligned
+  We can still shift by 1 hchar so that different addresses are repeated
+  To do this we'll need a restart between the rows
+    This means that we'll need to use ISAV to restart on an odd row
+
+abadefeh             abacdcefe  6*4 hdots per 4 bytes
+cdcfghgj
+
+
