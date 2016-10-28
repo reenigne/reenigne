@@ -881,6 +881,8 @@ public:
         double rollOff;
         double lobes;
         int prescalerProfile;
+        int lookAhead;
+        int combinations;
         {
             Lock lock(&_mutex);
             _diffusionHorizontal2 = _diffusionHorizontal;
@@ -912,6 +914,8 @@ public:
             rollOff = _rollOff;
             lobes = _lobes;
             prescalerProfile = _prescalerProfile;
+            lookAhead = _lookAhead;
+            combinations = _combinations;
         }
 
         int boxCount;
@@ -925,6 +929,7 @@ public:
                 box->_bitCount = 16;
                 box->_incrementHDots = 16;
                 box->_incrementBytes = 2;
+                box->_patternCount = 0x10000;
                 break;
             case 0x01:
                 // High-resolution text
@@ -933,6 +938,7 @@ public:
                 box->_bitCount = 16;
                 box->_incrementHDots = 8;
                 box->_incrementBytes = 2;
+                box->_patternCount = 0x10000;
                 break;
             case 0x02:
                 // 2bpp graphics
@@ -943,6 +949,7 @@ public:
                     box->_bitCount = 2;
                     box->_incrementHDots = 2;
                     box->_incrementBytes = (i == 3 ? 1 : 0);
+                    box->_patternCount = 4;
                 }
                 break;
             case 0x03:
@@ -953,6 +960,7 @@ public:
                     box->_bitCount = 2;
                     box->_incrementHDots = 1;
                     box->_incrementBytes = 0;
+                    box->_patternCount = 4;
                 }
                 break;
             case 0x10:
@@ -962,6 +970,7 @@ public:
                 box->_bitCount = 16;
                 box->_incrementHDots = 16;
                 box->_incrementBytes = 2;
+                box->_patternCount = 0x10000;
                 break;
             case 0x11:
                 // High-resolution text with 1bpp graphics
@@ -970,6 +979,7 @@ public:
                 box->_bitCount = 16;
                 box->_incrementHDots = 8;
                 box->_incrementBytes = 2;
+                box->_patternCount = 0x10000;
                 break;
             case 0x12:
                 // 1bpp graphics
@@ -980,13 +990,26 @@ public:
                     box->_bitCount = 1;
                     box->_incrementHDots = 1;
                     box->_incrementBytes = (i == 7 ? 1 : 0);
+                    box->_patternCount = 2;
                 }
                 break;
             case 0x13:
                 // high-res 1bpp graphics
                 boxCount = 16;
-                incrementWidth = 16;
+                for (int i = 0; i < 16; ++i) {
+                    box->_bitOffset = 7 - (i & 7);
+                    box->_bitCount = 1;
+                    box->_incrementHDots = 1;
+                    box->_incrementBytes = 0;
+                    box->_patternCount = 2;
+                }
                 break;
+        }
+
+        for (int i = 0; i < 4; ++i) {
+            UInt64 rgbi = _sequencer->process(i << box->_bitOffset,
+                _modeThread, _palette2, 0, false, 0);
+            _rgbiFromBits[i] = rgbi & 0xf;
         }
 
         _program->setProgress(0);
@@ -1265,122 +1288,126 @@ public:
             0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55};
         memcpy(_hres1bpp, hres1bpp, 0x10);
 
-        // Populate gamut table
-        int skipSolidColour = 0xf00;
-        for (UInt32 pattern = 0;; ++pattern) {
-            UInt32 dataBits[2];
-            int patternCount = 0x100;
-            int yMask = 1;
-            //switch (mode1) {
-            //    // -HRES+GRPH
-            //    case 0x002:
-            //    case 0x012:
-            //    case 0x402:
-            //    case 0x412:
-            //        dataBits[0] = pattern * 0x1111;
-            //        yMask = 0;
-            //        patternCount = 0x10;
-            //        break;
-            //    //case 0x402:
-            //    //case 0x412:
-            //    //    dataBits[0] = pattern * 0x0101;
-            //    //    yMask = 0;
-            //    //    break;
-            //    case 0x102:
-            //    case 0x112:
-            //        dataBits[0] = (pattern & 0xf) * 0x1111;
-            //        dataBits[1] = (pattern >> 4) * 0x1111;
-            //        break;
-            //    case 0x502:
-            //    case 0x512:
-            //        dataBits[0] = (pattern & 0xff) * 0x0101;
-            //        dataBits[1] = (pattern >> 8) * 0x0101;
-            //        patternCount = 0x10000;
-            //        break;
+        // Populate gamut tables
+        for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
+            Box* box = &_boxes[boxIndex];
+            int skipSolidColour = 0xf00;
+            for (UInt32 pattern = 0; pattern < _box->_patternCount;
+                ++pattern) {
+                UInt32 dataBits[2];
+                int yMask = 1;
+                //switch (mode1) {
+                //    // -HRES+GRPH
+                //    case 0x002:
+                //    case 0x012:
+                //    case 0x402:
+                //    case 0x412:
+                //        dataBits[0] = pattern * 0x1111;
+                //        yMask = 0;
+                //        patternCount = 0x10;
+                //        break;
+                //    //case 0x402:
+                //    //case 0x412:
+                //    //    dataBits[0] = pattern * 0x0101;
+                //    //    yMask = 0;
+                //    //    break;
+                //    case 0x102:
+                //    case 0x112:
+                //        dataBits[0] = (pattern & 0xf) * 0x1111;
+                //        dataBits[1] = (pattern >> 4) * 0x1111;
+                //        break;
+                //    case 0x502:
+                //    case 0x512:
+                //        dataBits[0] = (pattern & 0xff) * 0x0101;
+                //        dataBits[1] = (pattern >> 8) * 0x0101;
+                //        patternCount = 0x10000;
+                //        break;
 
-            //    //  +HRES+GRPH
-            //    case 0x103:
-            //    case 0x503:
-            //        dataBits[0] = (pattern & 0xff) * 0x01010101;
-            //        dataBits[1] = (pattern >> 8) * 0x01010101;
-            //        patternCount = 0x10000;
-            //        break;
-            //    case 0x113:
-            //    case 0x513:
-            //        dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
-            //        dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
-            //        break;
-            //    case 0x003:
-            //    case 0x403:
-            //        dataBits[0] = pattern * 0x01010101;
-            //        yMask = 0;
-            //        break;
-            //    case 0x013:
-            //    case 0x413:
-            //        dataBits[0] = _hres1bpp[pattern]*0x01010101;
-            //        yMask = 0;
-            //        patternCount = 0x10;
-            //        break;
+                //    //  +HRES+GRPH
+                //    case 0x103:
+                //    case 0x503:
+                //        dataBits[0] = (pattern & 0xff) * 0x01010101;
+                //        dataBits[1] = (pattern >> 8) * 0x01010101;
+                //        patternCount = 0x10000;
+                //        break;
+                //    case 0x113:
+                //    case 0x513:
+                //        dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
+                //        dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
+                //        break;
+                //    case 0x003:
+                //    case 0x403:
+                //        dataBits[0] = pattern * 0x01010101;
+                //        yMask = 0;
+                //        break;
+                //    case 0x013:
+                //    case 0x413:
+                //        dataBits[0] = _hres1bpp[pattern]*0x01010101;
+                //        yMask = 0;
+                //        patternCount = 0x10;
+                //        break;
 
-            //    // -GRPH
-            //    default:
-            //        dataBits[0] = pattern * 0x00010001;
-            //        patternCount = 0x10000;
-            //        yMask = 0;
-            //}
-            if (pattern == patternCount)
-                break;
-            if (!graphics) {
-                if (_skip[pattern & 0xff])
-                    continue;
-                int foreground = pattern & 0xf00;
-                if (foreground == ((pattern >> 4) & 0x0f00)) {
-                    if (foreground == skipSolidColour)
+                //    // -GRPH
+                //    default:
+                //        dataBits[0] = pattern * 0x00010001;
+                //        patternCount = 0x10000;
+                //        yMask = 0;
+                //}
+                if (pattern == patternCount)
+                    break;
+                if (!graphics) {
+                    if (_skip[pattern & 0xff])
                         continue;
-                    skipSolidColour = foreground;
+                    int foreground = pattern & 0xf00;
+                    if (foreground == ((pattern >> 4) & 0x0f00)) {
+                        if (foreground == skipSolidColour)
+                            continue;
+                        skipSolidColour = foreground;
+                    }
                 }
-            }
-            int blockLines = _blockHeight;
-            if (graphics)
-                blockLines = scanlinesPerRow <= 2 ? 1 : 2;
-            Colour rgb(0, 0, 0);
-            for (int y = 0; y < blockLines; ++y) {
-                UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
-                    _modeThread, _palette2, y, false, 0);
-                if (!_isComposite) {
+                int blockLines = _blockHeight;
+                if (graphics)
+                    blockLines = scanlinesPerRow <= 2 ? 1 : 2;
+                Colour rgb(0, 0, 0);
+                for (int y = 0; y < blockLines; ++y) {
+                    UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
+                        _modeThread, _palette2, y, false, 0);
+                    if (!_isComposite) {
+                        SRGB* srgb = &_srgb[0];
+                        for (int x = 0; x < _lChangeToRChange; ++x) {
+                            Byte* p =
+                                &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
+                            *srgb = SRGB(p[0], p[1], p[2]);
+                            ++srgb;
+                        }
+                    }
+                    else {
+                        Byte* ntsc = &_ntscPattern[0];
+                        int l = (gamutLeftPadding*(1 - _lChangeToRChange))
+                            % _lChangeToRChange;
+                        int r = (l + 1)%_lChangeToRChange;
+                        for (int x = 0; x < gamutWidth; ++x) {
+                            *ntsc = _composite.simulateCGA(
+                                (rgbi >> (l * 4)) & 0xf,
+                                (rgbi >> (r * 4)) & 0xf,
+                                (x + gamutLeftPadding) & 3);
+                            l = r;
+                            r = (r + 1)%_lChangeToRChange;
+                            ++ntsc;
+                        }
+                        _gamutDecoder.decodeNTSC(&_ntscPattern[0]);
+                        _gamutDecoder.outputToSRGB(&_srgb[0]);
+                    }
                     SRGB* srgb = &_srgb[0];
-                    for (int x = 0; x < _lChangeToRChange; ++x) {
-                        Byte* p =
-                            &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
-                        *srgb = SRGB(p[0], p[1], p[2]);
-                        ++srgb;
-                    }
+                    for (int x = 0; x < _lChangeToRChange; ++x)
+                        rgb += _linearizer.linear(srgb[x]);
                 }
-                else {
-                    Byte* ntsc = &_ntscPattern[0];
-                    int l = (gamutLeftPadding*(1 - _lChangeToRChange))
-                        % _lChangeToRChange;
-                    int r = (l + 1)%_lChangeToRChange;
-                    for (int x = 0; x < gamutWidth; ++x) {
-                        *ntsc = _composite.simulateCGA((rgbi >> (l * 4)) & 0xf,
-                            (rgbi >> (r * 4)) & 0xf,
-                            (x + gamutLeftPadding) & 3);
-                        l = r;
-                        r = (r + 1)%_lChangeToRChange;
-                        ++ntsc;
-                    }
-                    _gamutDecoder.decodeNTSC(&_ntscPattern[0]);
-                    _gamutDecoder.outputToSRGB(&_srgb[0]);
-                }
-                SRGB* srgb = &_srgb[0];
-                for (int x = 0; x < _lChangeToRChange; ++x)
-                    rgb += _linearizer.linear(srgb[x]);
+                SRGB srgb = _linearizer.srgb(rgb/blockArea);
+                auto s = Vector3Cast<int>(Vector3Cast<float>(srgb)*srgbScale);
+                _table.add(pattern, s.x + srgbDiv.x*(s.y + srgbDiv.y*s.z));
             }
-            SRGB srgb = _linearizer.srgb(rgb/blockArea);
-            auto s = Vector3Cast<int>(Vector3Cast<float>(srgb)*srgbScale);
-            _table.add(pattern, s.x + srgbDiv.x*(s.y + srgbDiv.y*s.z));
+            _table.finalize();
         }
-        _table.finalize();
 
         // Set up data structures for matching
         int rowDataStride = 2*_horizontalDisplayed + 1;
@@ -1869,6 +1896,18 @@ public:
         _prescalerProfile = profile;
     }
     int getPrescalerProfile() { return _prescalerProfile; }
+    void setLookAhead(int lookAhead)
+    {
+        Lock lock(&_mutex);
+        _lookAhead = lookAhead;
+    }
+    int getLookAhead() { return _lookAhead; }
+    void setCombinations(int combinations)
+    {
+        Lock lock(&_mutex);
+        _combinations = combinations;
+    }
+    int getCombinations() { return _combinations; }
     void initFromData()
     {
         _mode = _data->getDataByte(CGAData::registerMode);
@@ -2228,6 +2267,8 @@ private:
     double _rollOff;
     double _lobes;
     int _prescalerProfile;
+    int _lookAhead;
+    int _combinations;
     bool _needRescale;
 
     bool _active;
@@ -2291,6 +2332,7 @@ private:
     Mutex _mutex;
 
     Box _boxes[24];
+    Byte _rgbiFromBits[4];
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
@@ -3434,6 +3476,8 @@ public:
         _videoCard._matching._metric.set(_matcher->getMetric());
         _videoCard._matching._profile.set(_matcher->getPrescalerProfile());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
+        _videoCard._matching._lookAhead.set(_matcher->getLookAhead());
+        _videoCard._matching._combinations.set(_matcher->getCombinations());
     }
     void create()
     {
@@ -3513,7 +3557,7 @@ public:
     {
         bool matchMode = _program->getMatchMode();
         int mode = _matcher->getMode();
-        int scanlinesPerRow = _matcher->getScanlinesPerRow();
+        bool mttslpr = _matcher->getScanlinesPerRow() > 2;
         _videoCard._registers._blink.enableWindow((mode & 2) == 0);
         _videoCard._registers._palette.enableWindow((mode & 0x12) == 2);
         _videoCard._registers._phase.enableWindow((mode & 1) == 1);
@@ -3521,7 +3565,7 @@ public:
         _videoCard._matching.enableWindow(_program->matchingPossible());
         _videoCard._matching._quality.enableWindow(matchMode &&
             (((((mode & 3) != 2 || composite) && (mode & 0x13) != 0x13) ||
-            scanlinesPerRow > 2)));
+            mttslpr)));
         _videoCard._matching._gamma.enableWindow(matchMode);
         _videoCard._matching._clipping.enableWindow(matchMode);
         _videoCard._matching._metric.enableWindow(matchMode);
@@ -3531,6 +3575,9 @@ public:
         _videoCard._matching._diffusionVertical.enableWindow(matchMode);
         _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
         _videoCard._matching._profile.enableWindow(matchMode);
+        _videoCard._matching._lookAhead.enableWindow(matchMode);
+        _videoCard._matching._combinations.enableWindow(matchMode &&
+            ((mode & 3) == 2 || mttslpr));
         _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);
@@ -3765,6 +3812,16 @@ public:
         _output->setConnector(connector);
         _matcher->setConnector(connector);
         updateApplicableControls();
+        beginConvert();
+    }
+    void lookAheadSet(int lookAhead)
+    {
+        _matcher->setLookAhead(lookAhead);
+        beginConvert();
+    }
+    void combinationsSet(int combinations)
+    {
+        _matcher->setCombinations(combinations);
         beginConvert();
     }
 
@@ -4489,6 +4546,10 @@ private:
                 _profile.setChanged(
                     [&](int value) { _host->prescalerProfileSet(value); });
                 add(&_profile);
+                _lookAhead.setText("Look ahead: ")
+                for (int i = 0; i < 16; ++i)
+                    _lookAhead.add(decimal(i));
+
             }
             void layout()
             {
