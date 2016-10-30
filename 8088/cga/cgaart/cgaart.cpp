@@ -1370,6 +1370,10 @@ public:
                     blockLines = scanlinesPerRow <= 2 ? 1 : 2;
                 Colour rgb(0, 0, 0);
                 for (int y = 0; y < blockLines; ++y) {
+                    if (graphics) {
+
+                    }
+
                     UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
                         _modeThread, _palette2, y, false, 0);
                     if (!_isComposite) {
@@ -2286,6 +2290,7 @@ private:
     Array<Byte> _rgbiPalette;
     Array<bool> _skip;
 
+    Array<Byte> _rgbiPattern;
     Array<Byte> _ntscPattern;
     Array<Byte> _rowData;
     Array<Byte> _rgbi;
