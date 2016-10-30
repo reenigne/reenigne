@@ -4549,7 +4549,13 @@ private:
                 _lookAhead.setText("Look ahead: ")
                 for (int i = 0; i < 16; ++i)
                     _lookAhead.add(decimal(i));
-
+                add(&_lookAhead);
+                _combinations.setText("Combinations: ");
+                _combinations.add("None");
+                _combinations.add("Horizontal");
+                _combinations.add("Vertical");
+                _combinations.add("Either");
+                add(&_combinations);
             }
             void layout()
             {
@@ -4576,6 +4582,12 @@ private:
                 _profile.setTopLeft(_characterSet.topRight() + hSpace);
                 r = max(r, _profile.right());
                 b = max(b, _profile.bottom());
+                _lookAhead.setTopLeft(_profile.topRight() + hSpace);
+                r = max(r, _lookAhead.right());
+                b = max(b, _lookAhead.bottom());
+                _combinations.setTopLeft(_lookAhead.topRight() + hSpace);
+                r = max(r, _combinations.right());
+                b = max(b, _combinations.bottom());
                 setInnerSize(Vector(r, b) + _host->groupBR());
                 _progressBar.setTopLeft(_matchMode.topRight() + hSpace);
                 _progressBar.setInnerSize(Vector(r - _progressBar.topLeft().x,
@@ -4593,6 +4605,8 @@ private:
             CaptionedDropDownList _metric;
             CaptionedDropDownList _characterSet;
             ProfileDropDown _profile;
+            CaptionedDropDownList _lookAhead;
+            CaptionedDropDownList _combinations;
         };
         MatchingGroup _matching;
         CGAArtWindow* _host;
@@ -4807,6 +4821,8 @@ public:
         configFile.addDefaultOption("scanlineProfile", 0);
         configFile.addDefaultOption("horizontalProfile", 0);
         configFile.addDefaultOption("prescalerProfile", 4);
+        configFile.addDefaultOption("lookAhead", 3);
+        configFile.addDefaultOption("combinations", 3);
         configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("horizontalBleeding", 2);
         configFile.addDefaultOption("zoom", 2.0);
@@ -4992,6 +5008,8 @@ public:
             decimal(_output->getHorizontalProfile()) + ";\n";
         s += "prescalerProfile = " + decimal(_matcher->getPrescalerProfile()) +
             ";\n";
+        s += "lookAhead = " + decimal(_matcher->getLookAhead()) + ";\n";
+        s += "combinations = " + decimal(_matcher->getCombinations()) + ";\n";
         s += "scanlineBleeding = " + decimal(_output->getScanlineBleeding()) +
             ";\n";
         s += "horizontalBleeding = " +
@@ -5025,6 +5043,8 @@ public:
         _matcher->setDiffusionTemporal(
             _config->get<double>("temporalDiffusion"));
         _matcher->setQuality(_config->get<double>("quality"));
+        _matcher->setLookAhead(_config->get<int>("lookAhead"));
+        _matcher->setCombinations(_config->get<int>("combinations"));
         _matcher->setGamma(_config->get<double>("gamma"));
         _matcher->setClipping(_config->get<int>("clipping"));
         _matcher->setMetric(_config->get<int>("metric"));
