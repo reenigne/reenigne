@@ -833,6 +833,8 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _bitCount;
         int _incrementHDots;
         int _incrementBytes;
+        int _lChangeToRChange;
+        int _shift;
     };
 public:
     CGAMatcherT()
@@ -882,7 +884,7 @@ public:
         double lobes;
         int prescalerProfile;
         int lookAhead;
-        int combinations;
+        bool combineScanlines;
         {
             Lock lock(&_mutex);
             _diffusionHorizontal2 = _diffusionHorizontal;
@@ -915,95 +917,92 @@ public:
             lobes = _lobes;
             prescalerProfile = _prescalerProfile;
             lookAhead = _lookAhead;
-            combinations = _combinations;
+            combineScanlines = _combineScanlines;
         }
 
+        bool hres = (_mode & 1) != 0;
+        _isComposite = connector != 0;
+        bool graphics = (_mode & 2) != 0;
+        bool oneBpp = (_mode & 0x10) != 0;
+        _combineHorizontal = false;
+        _combineVertical = false;
         int boxCount;
         int incrementWidth;
         Box* box = &_boxes[0];
-        switch (_modeThread & 0x13) {
-            case 0x00:
-                // Low-resolution text
-                boxCount = 1;
-                box->_bitOffset = 0;
-                box->_bitCount = 16;
-                box->_incrementHDots = 16;
-                box->_incrementBytes = 2;
-                box->_patternCount = 0x10000;
-                break;
-            case 0x01:
-                // High-resolution text
-                boxCount = 1;
-                box->_bitOffset = 0;
-                box->_bitCount = 16;
-                box->_incrementHDots = 8;
-                box->_incrementBytes = 2;
-                box->_patternCount = 0x10000;
-                break;
-            case 0x02:
-                // 2bpp graphics
-                boxCount = 4;
-                for (int i = 0; i < 4; ++i) {
-                    box = &_boxes[i];
-                    box->_bitOffset = 6 - (i << 1);
-                    box->_bitCount = 2;
-                    box->_incrementHDots = 2;
-                    box->_incrementBytes = (i == 3 ? 1 : 0);
-                    box->_patternCount = 4;
+        if (graphics) {
+            if (scanlinesPerRow > 2 && combineScanlines)
+                _combineVertical = true;
+            if (hres) {
+                if (oneBpp) {
+                    if (_combineVertical)
+                        lookAhead = max(lookAhead, 7);
+                    boxCount = 16;
+                    for (int i = 0; i < 16; ++i) {
+                        box->_bitOffset = 7 - (i & 7);
+                        box->_bitCount = 1;
+                        box->_incrementHDots = 1;
+                        box->_incrementBytes = 0;
+                        box->_patternCount = 2 << lookAhead;
+                        box->_lChangeToRChange = lookAhead + 1;
+                        box->_shift = 0;
+                    }
                 }
-                break;
-            case 0x03:
-                // high-res 2bpp graphics
-                boxCount = 16;
-                for (int i = 0; i < 16; ++i) {
-                    box->_bitOffset = 6 - ((i & 3) << 1);
-                    box->_bitCount = 2;
-                    box->_incrementHDots = 1;
-                    box->_incrementBytes = 0;
-                    box->_patternCount = 4;
+                else {
+                    lookAhead = max(lookAhead, _combineVertical ? 7 : 3);
+                    boxCount = 16;
+                    for (int i = 0; i < 16; ++i) {
+                        box->_bitOffset = 6 - ((i & 3) << 1);
+                        box->_bitCount = 2;
+                        box->_incrementHDots = 1;
+                        box->_incrementBytes = 0;
+                        box->_patternCount = 4 << (lookAhead << 1);
+                        box->_lChangeToRChange = lookAhead + 1;
+                        box->_shift = 1;
+                    }
                 }
-                break;
-            case 0x10:
-                // Low-resolution text with 1bpp graphics
-                boxCount = 1;
-                box->_bitOffset = 0;
-                box->_bitCount = 16;
-                box->_incrementHDots = 16;
-                box->_incrementBytes = 2;
-                box->_patternCount = 0x10000;
-                break;
-            case 0x11:
-                // High-resolution text with 1bpp graphics
-                boxCount = 1;
-                box->_bitOffset = 0;
-                box->_bitCount = 16;
-                box->_incrementHDots = 8;
-                box->_incrementBytes = 2;
-                box->_patternCount = 0x10000;
-                break;
-            case 0x12:
-                // 1bpp graphics
-                boxCount = 8;
-                for (int i = 0; i < 8; ++i) {
-                    box = &_boxes[i];
-                    box->_bitOffset = 7 - i;
-                    box->_bitCount = 1;
-                    box->_incrementHDots = 1;
-                    box->_incrementBytes = (i == 7 ? 1 : 0);
-                    box->_patternCount = 2;
+            }
+            else {
+                if (_combineVertical)
+                    lookAhead = max(lookAhead, 7);
+                if (oneBpp) {
+                    boxCount = 8;
+                    for (int i = 0; i < 8; ++i) {
+                        box = &_boxes[i];
+                        box->_bitOffset = 7 - i;
+                        box->_bitCount = 1;
+                        box->_incrementHDots = 1;
+                        box->_incrementBytes = (i == 7 ? 1 : 0);
+                        box->_patternCount = 2 << lookAhead;
+                        box->_lChangeToRChange = lookAhead + 1;
+                        box->_shift = 0;
+                    }
                 }
-                break;
-            case 0x13:
-                // high-res 1bpp graphics
-                boxCount = 16;
-                for (int i = 0; i < 16; ++i) {
-                    box->_bitOffset = 7 - (i & 7);
-                    box->_bitCount = 1;
-                    box->_incrementHDots = 1;
-                    box->_incrementBytes = 0;
-                    box->_patternCount = 2;
+                else {
+                    boxCount = 4;
+                    for (int i = 0; i < 4; ++i) {
+                        box = &_boxes[i];
+                        box->_bitOffset = 6 - (i << 1);
+                        box->_bitCount = 2;
+                        box->_incrementHDots = 2;
+                        box->_incrementBytes = (i == 3 ? 1 : 0);
+                        int s = (lookAhead & -2);
+                        box->_patternCount = 4 << s;
+                        box->_lChangeToRChange = s + 2;
+                        box->_shift = 1;
+                    }
                 }
-                break;
+            }
+        }
+        else {
+            int hdots = hres ? 8 : 16;
+            lookAhead = 0;
+            boxCount = 1;
+            box->_bitOffset = 0;
+            box->_bitCount = 16;
+            box->_incrementHDots = hdots;
+            box->_incrementBytes = 2;
+            box->_patternCount = 0x10000;
+            box->_lChangeToRChange = hdots;
         }
 
         for (int i = 0; i < 4; ++i) {
@@ -1014,12 +1013,9 @@ public:
 
         _program->setProgress(0);
 
-        bool hres = (_mode & 1) != 0;
-        _isComposite = connector != 0;
-        bool graphics = (_mode & 2) != 0;
         if (graphics) {
             incrementWidth = 4;
-            _lChangeToRChange = 4; //((!_isComposite || hres) ? 4 : 8);
+            _lChangeToRChange = 4;
         }
         else {
             incrementWidth = hres ? 8 : 16;
@@ -1353,8 +1349,6 @@ public:
                 //        patternCount = 0x10000;
                 //        yMask = 0;
                 //}
-                if (pattern == patternCount)
-                    break;
                 if (!graphics) {
                     if (_skip[pattern & 0xff])
                         continue;
@@ -1371,11 +1365,21 @@ public:
                 Colour rgb(0, 0, 0);
                 for (int y = 0; y < blockLines; ++y) {
                     if (graphics) {
+                        for (int x = 0; x < box->_lChangeToRChange; ++x) {
+                            int xx = x;
+                            if (graphics && !hres)
+                                xx >>= 1;
+                            _rgbiPattern[x] = _rgbiFromBits[pattern >> ]
 
+                        }
+                    }
+                    else {
+                        UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
+                            _modeThread, _palette2, y, false, 0);
+                        for (int x = 0; x < box->_lChangeToRChange; ++x)
+                            _rgbiPattern[x] = (rgbi >> (x << 2)) & 0xf;
                     }
 
-                    UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
-                        _modeThread, _palette2, y, false, 0);
                     if (!_isComposite) {
                         SRGB* srgb = &_srgb[0];
                         for (int x = 0; x < _lChangeToRChange; ++x) {
@@ -1906,12 +1910,12 @@ public:
         _lookAhead = lookAhead;
     }
     int getLookAhead() { return _lookAhead; }
-    void setCombinations(int combinations)
+    void setCombineScanlines(bool combineScanlines)
     {
         Lock lock(&_mutex);
-        _combinations = combinations;
+        _combineScanlines = combineScanlines;
     }
-    int getCombinations() { return _combinations; }
+    bool getCombineScanlines() { return _combineScanlines; }
     void initFromData()
     {
         _mode = _data->getDataByte(CGAData::registerMode);
@@ -2272,7 +2276,7 @@ private:
     double _lobes;
     int _prescalerProfile;
     int _lookAhead;
-    int _combinations;
+    bool _combineScanlines;
     bool _needRescale;
 
     bool _active;
@@ -2290,7 +2294,7 @@ private:
     Array<Byte> _rgbiPalette;
     Array<bool> _skip;
 
-    Array<Byte> _rgbiPattern;
+    Byte _rgbiPattern[16];
     Array<Byte> _ntscPattern;
     Array<Byte> _rowData;
     Array<Byte> _rgbi;
@@ -2333,6 +2337,8 @@ private:
     float _diffusionHorizontal2;
     float _diffusionVertical2;
     float _diffusionTemporal2;
+    bool _combineHorizontal;
+    bool _combineVertical;
 
     Mutex _mutex;
 
@@ -3482,7 +3488,8 @@ public:
         _videoCard._matching._profile.set(_matcher->getPrescalerProfile());
         _videoCard._matching._characterSet.set(_matcher->getCharacterSet());
         _videoCard._matching._lookAhead.set(_matcher->getLookAhead());
-        _videoCard._matching._combinations.set(_matcher->getCombinations());
+        _videoCard._matching._combineScanlines.setCheckState(
+            _matcher->getCombineScanlines());
     }
     void create()
     {
@@ -3581,8 +3588,8 @@ public:
         _videoCard._matching._diffusionTemporal.enableWindow(matchMode);
         _videoCard._matching._profile.enableWindow(matchMode);
         _videoCard._matching._lookAhead.enableWindow(matchMode);
-        _videoCard._matching._combinations.enableWindow(matchMode &&
-            ((mode & 3) == 2 || mttslpr));
+        _videoCard._matching._combineScanlines.enableWindow(matchMode &&
+            mttslpr);
         _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);
@@ -3824,9 +3831,9 @@ public:
         _matcher->setLookAhead(lookAhead);
         beginConvert();
     }
-    void combinationsSet(int combinations)
+    void combineScanlinesSet(bool combineScanlines)
     {
-        _matcher->setCombinations(combinations);
+        _matcher->setCombineScanlines(combineScanlines);
         beginConvert();
     }
 
@@ -4555,12 +4562,10 @@ private:
                 for (int i = 0; i < 16; ++i)
                     _lookAhead.add(decimal(i));
                 add(&_lookAhead);
-                _combinations.setText("Combinations: ");
-                _combinations.add("None");
-                _combinations.add("Horizontal");
-                _combinations.add("Vertical");
-                _combinations.add("Either");
-                add(&_combinations);
+                _combineScanlines.setClicked(
+                    [&](bool value) { _host->combineScanlinesSet(value); });
+                _combineScanlines.setText("Combine Scanlines");
+                add(&_combineScanlines);
             }
             void layout()
             {
@@ -4590,9 +4595,9 @@ private:
                 _lookAhead.setTopLeft(_profile.topRight() + hSpace);
                 r = max(r, _lookAhead.right());
                 b = max(b, _lookAhead.bottom());
-                _combinations.setTopLeft(_lookAhead.topRight() + hSpace);
-                r = max(r, _combinations.right());
-                b = max(b, _combinations.bottom());
+                _combineScanlines.setTopLeft(_lookAhead.topRight() + hSpace);
+                r = max(r, _combineScanlines.right());
+                b = max(b, _combineScanlines.bottom());
                 setInnerSize(Vector(r, b) + _host->groupBR());
                 _progressBar.setTopLeft(_matchMode.topRight() + hSpace);
                 _progressBar.setInnerSize(Vector(r - _progressBar.topLeft().x,
@@ -4611,7 +4616,7 @@ private:
             CaptionedDropDownList _characterSet;
             ProfileDropDown _profile;
             CaptionedDropDownList _lookAhead;
-            CaptionedDropDownList _combinations;
+            CaptionedDropDownList _combineScanlines;
         };
         MatchingGroup _matching;
         CGAArtWindow* _host;
@@ -4827,7 +4832,7 @@ public:
         configFile.addDefaultOption("horizontalProfile", 0);
         configFile.addDefaultOption("prescalerProfile", 4);
         configFile.addDefaultOption("lookAhead", 3);
-        configFile.addDefaultOption("combinations", 3);
+        configFile.addDefaultOption("combineScanlines", true);
         configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("horizontalBleeding", 2);
         configFile.addDefaultOption("zoom", 2.0);
@@ -5014,7 +5019,8 @@ public:
         s += "prescalerProfile = " + decimal(_matcher->getPrescalerProfile()) +
             ";\n";
         s += "lookAhead = " + decimal(_matcher->getLookAhead()) + ";\n";
-        s += "combinations = " + decimal(_matcher->getCombinations()) + ";\n";
+        s += "combineScanlines = " +
+            String::Boolean(_matcher->getCombineScanlines()) + ";\n";
         s += "scanlineBleeding = " + decimal(_output->getScanlineBleeding()) +
             ";\n";
         s += "horizontalBleeding = " +
@@ -5049,7 +5055,7 @@ public:
             _config->get<double>("temporalDiffusion"));
         _matcher->setQuality(_config->get<double>("quality"));
         _matcher->setLookAhead(_config->get<int>("lookAhead"));
-        _matcher->setCombinations(_config->get<int>("combinations"));
+        _matcher->setCombineScanlines(_config->get<bool>("combineScanlines"));
         _matcher->setGamma(_config->get<double>("gamma"));
         _matcher->setClipping(_config->get<int>("clipping"));
         _matcher->setMetric(_config->get<int>("metric"));
