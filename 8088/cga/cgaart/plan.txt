@@ -1547,3 +1547,9 @@ Available when using 1bpp without vertical combining:
                2++++1111++++2222+++.    +++.
 
 
+logBitsPerPixel      bitsPerPixel    patternCount
+        0                 1               2
+        1                 2               4
+       (2)                4              16
+       (3)                8             256
+        4                16           65536

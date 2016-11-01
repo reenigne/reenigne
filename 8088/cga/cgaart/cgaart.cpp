@@ -834,7 +834,6 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _incrementHDots;
         int _incrementBytes;
         int _lChangeToRChange;
-        int _shift;
     };
 public:
     CGAMatcherT()
@@ -927,11 +926,12 @@ public:
         _combineHorizontal = false;
         _combineVertical = false;
         int boxCount;
-        int incrementWidth;
+        int incrementHDots;
         Box* box = &_boxes[0];
         if (graphics) {
             if (scanlinesPerRow > 2 && combineScanlines)
                 _combineVertical = true;
+            _logBitsPerPixel = oneBpp ? 0 : 1;
             if (hres) {
                 if (oneBpp) {
                     if (_combineVertical)
@@ -944,7 +944,6 @@ public:
                         box->_incrementBytes = 0;
                         box->_patternCount = 2 << lookAhead;
                         box->_lChangeToRChange = lookAhead + 1;
-                        box->_shift = 0;
                     }
                 }
                 else {
@@ -957,7 +956,6 @@ public:
                         box->_incrementBytes = 0;
                         box->_patternCount = 4 << (lookAhead << 1);
                         box->_lChangeToRChange = lookAhead + 1;
-                        box->_shift = 1;
                     }
                 }
             }
@@ -974,7 +972,6 @@ public:
                         box->_incrementBytes = (i == 7 ? 1 : 0);
                         box->_patternCount = 2 << lookAhead;
                         box->_lChangeToRChange = lookAhead + 1;
-                        box->_shift = 0;
                     }
                 }
                 else {
@@ -988,7 +985,6 @@ public:
                         int s = (lookAhead & -2);
                         box->_patternCount = 4 << s;
                         box->_lChangeToRChange = s + 2;
-                        box->_shift = 1;
                     }
                 }
             }
@@ -1003,6 +999,7 @@ public:
             box->_incrementBytes = 2;
             box->_patternCount = 0x10000;
             box->_lChangeToRChange = hdots;
+            _logBitsPerPixel = 4;
         }
 
         for (int i = 0; i < 4; ++i) {
@@ -1369,8 +1366,9 @@ public:
                             int xx = x;
                             if (graphics && !hres)
                                 xx >>= 1;
-                            _rgbiPattern[x] = _rgbiFromBits[pattern >> ]
-
+                            _rgbiPattern[x] = _rgbiFromBits[
+                                (pattern >> (x << box->_shift)) &
+                                ((1 << box->_bitCount) - 1)];
                         }
                     }
                     else {
@@ -2344,6 +2342,7 @@ private:
 
     Box _boxes[24];
     Byte _rgbiFromBits[4];
+    int _logBitsPerPixel;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;
