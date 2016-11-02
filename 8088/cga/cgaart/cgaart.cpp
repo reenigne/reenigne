@@ -828,7 +828,6 @@ template<class T> class CGAMatcherT : public ThreadTask
         MatcherTable _table;
         MatchingNTSCDecoder _baseDecoder;
         MatchingNTSCDecoder _deltaDecoder;
-        int _patternCount;
         int _bitOffset;
         int _bitCount;
         int _incrementHDots;
@@ -927,6 +926,7 @@ public:
         _combineVertical = false;
         int boxCount;
         int incrementHDots;
+        int patternCount;
         Box* box = &_boxes[0];
         if (graphics) {
             if (scanlinesPerRow > 2 && combineScanlines)
@@ -937,24 +937,24 @@ public:
                     if (_combineVertical)
                         lookAhead = max(lookAhead, 7);
                     boxCount = 16;
+                    _combineShift = 1 + lookAhead;
                     for (int i = 0; i < 16; ++i) {
                         box->_bitOffset = 7 - (i & 7);
                         box->_bitCount = 1;
                         box->_incrementHDots = 1;
                         box->_incrementBytes = 0;
-                        box->_patternCount = 2 << lookAhead;
                         box->_lChangeToRChange = lookAhead + 1;
                     }
                 }
                 else {
                     lookAhead = max(lookAhead, _combineVertical ? 7 : 3);
                     boxCount = 16;
+                    _combineShift = (1 + lookAhead) << 1;
                     for (int i = 0; i < 16; ++i) {
                         box->_bitOffset = 6 - ((i & 3) << 1);
                         box->_bitCount = 2;
                         box->_incrementHDots = 1;
                         box->_incrementBytes = 0;
-                        box->_patternCount = 4 << (lookAhead << 1);
                         box->_lChangeToRChange = lookAhead + 1;
                     }
                 }
@@ -964,30 +964,34 @@ public:
                     lookAhead = max(lookAhead, 7);
                 if (oneBpp) {
                     boxCount = 8;
+                    _combineShift = 1 + lookAhead;
                     for (int i = 0; i < 8; ++i) {
                         box = &_boxes[i];
                         box->_bitOffset = 7 - i;
                         box->_bitCount = 1;
                         box->_incrementHDots = 1;
                         box->_incrementBytes = (i == 7 ? 1 : 0);
-                        box->_patternCount = 2 << lookAhead;
                         box->_lChangeToRChange = lookAhead + 1;
                     }
                 }
                 else {
                     boxCount = 4;
+                    int s = (lookAhead & -2);
+                    _combineShift = 2 + s;
                     for (int i = 0; i < 4; ++i) {
                         box = &_boxes[i];
                         box->_bitOffset = 6 - (i << 1);
                         box->_bitCount = 2;
                         box->_incrementHDots = 2;
                         box->_incrementBytes = (i == 3 ? 1 : 0);
-                        int s = (lookAhead & -2);
-                        box->_patternCount = 4 << s;
                         box->_lChangeToRChange = s + 2;
                     }
                 }
             }
+            if (_combineVertical)
+                patternCount = 1 << (_combineShift << 1);
+            else
+                patternCount = 1 << _combineShift;
         }
         else {
             int hdots = hres ? 8 : 16;
@@ -997,10 +1001,13 @@ public:
             box->_bitCount = 16;
             box->_incrementHDots = hdots;
             box->_incrementBytes = 2;
-            box->_patternCount = 0x10000;
+            patternCount = 0x10000;
             box->_lChangeToRChange = hdots;
             _logBitsPerPixel = 4;
+            _combineShift = 0;
         }
+
+        int pixelMask = (1 << _logBitsPerPixel) - 1;
 
         for (int i = 0; i < 4; ++i) {
             UInt64 rgbi = _sequencer->process(i << box->_bitOffset,
@@ -1287,65 +1294,6 @@ public:
             int skipSolidColour = 0xf00;
             for (UInt32 pattern = 0; pattern < _box->_patternCount;
                 ++pattern) {
-                UInt32 dataBits[2];
-                int yMask = 1;
-                //switch (mode1) {
-                //    // -HRES+GRPH
-                //    case 0x002:
-                //    case 0x012:
-                //    case 0x402:
-                //    case 0x412:
-                //        dataBits[0] = pattern * 0x1111;
-                //        yMask = 0;
-                //        patternCount = 0x10;
-                //        break;
-                //    //case 0x402:
-                //    //case 0x412:
-                //    //    dataBits[0] = pattern * 0x0101;
-                //    //    yMask = 0;
-                //    //    break;
-                //    case 0x102:
-                //    case 0x112:
-                //        dataBits[0] = (pattern & 0xf) * 0x1111;
-                //        dataBits[1] = (pattern >> 4) * 0x1111;
-                //        break;
-                //    case 0x502:
-                //    case 0x512:
-                //        dataBits[0] = (pattern & 0xff) * 0x0101;
-                //        dataBits[1] = (pattern >> 8) * 0x0101;
-                //        patternCount = 0x10000;
-                //        break;
-
-                //    //  +HRES+GRPH
-                //    case 0x103:
-                //    case 0x503:
-                //        dataBits[0] = (pattern & 0xff) * 0x01010101;
-                //        dataBits[1] = (pattern >> 8) * 0x01010101;
-                //        patternCount = 0x10000;
-                //        break;
-                //    case 0x113:
-                //    case 0x513:
-                //        dataBits[0] = _hres1bpp[pattern & 0xf] * 0x01010101;
-                //        dataBits[1] = _hres1bpp[pattern >> 4] * 0x01010101;
-                //        break;
-                //    case 0x003:
-                //    case 0x403:
-                //        dataBits[0] = pattern * 0x01010101;
-                //        yMask = 0;
-                //        break;
-                //    case 0x013:
-                //    case 0x413:
-                //        dataBits[0] = _hres1bpp[pattern]*0x01010101;
-                //        yMask = 0;
-                //        patternCount = 0x10;
-                //        break;
-
-                //    // -GRPH
-                //    default:
-                //        dataBits[0] = pattern * 0x00010001;
-                //        patternCount = 0x10000;
-                //        yMask = 0;
-                //}
                 if (!graphics) {
                     if (_skip[pattern & 0xff])
                         continue;
@@ -1358,7 +1306,7 @@ public:
                 }
                 int blockLines = _blockHeight;
                 if (graphics)
-                    blockLines = scanlinesPerRow <= 2 ? 1 : 2;
+                    blockLines = _combineVertical ? 2 : 1;
                 Colour rgb(0, 0, 0);
                 for (int y = 0; y < blockLines; ++y) {
                     if (graphics) {
@@ -1366,13 +1314,16 @@ public:
                             int xx = x;
                             if (graphics && !hres)
                                 xx >>= 1;
-                            _rgbiPattern[x] = _rgbiFromBits[
-                                (pattern >> (x << box->_shift)) &
-                                ((1 << box->_bitCount) - 1)];
+                            int p = pattern;
+                            if (_combineVertical && y != 0)
+                                p >>= _combineShift;
+
+                            _rgbiPattern[x] = _rgbiFromBits[pixelMask &
+                                (p >> (xx << _logBitsPerPixel))];
                         }
                     }
                     else {
-                        UInt64 rgbi = _sequencer->process(dataBits[y & yMask],
+                        UInt64 rgbi = _sequencer->process(pattern * 0x00010001,
                             _modeThread, _palette2, y, false, 0);
                         for (int x = 0; x < box->_lChangeToRChange; ++x)
                             _rgbiPattern[x] = (rgbi >> (x << 2)) & 0xf;
@@ -2337,6 +2288,7 @@ private:
     float _diffusionTemporal2;
     bool _combineHorizontal;
     bool _combineVertical;
+    int _combineShift;
 
     Mutex _mutex;
 
