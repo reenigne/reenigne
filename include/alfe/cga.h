@@ -307,6 +307,14 @@ public:
         int ww = _table[0x3fc + phase];
         return (right - bb)*(w - b)/(ww - bb) + b;
     }
+    Byte simulateRightHalfCGA(Byte left, int right, int phase)
+    {
+        int b = _table[((right & 15) << 2) + phase];
+        int w = _table[0x3c0 + ((right & 15) << 2) + phase];
+        int bb = _table[phase];
+        int ww = _table[0x3fc + phase];
+        return (left - bb)*(w - b)/(ww - bb) + b;
+    }
     void simulateLine(const Byte* rgbi, Byte* ntsc, int length, int phase)
     {
         for (int x = 0; x < length; ++x) {

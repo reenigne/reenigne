@@ -1281,7 +1281,9 @@ public:
             for (int i = 0; i < 3*0x10; ++i)
                 _rgbiPalette[i] = levels[palette[i]];
         }
-        float blockArea = static_cast<float>(_lChangeToRChange*_blockHeight);
+        float blockArea = static_cast<float>(_lChangeToRChange);
+        if (_combineVertical)
+            blockArea *= _blockHeight;
 
         _srgb.ensure(_lChangeToRChange);
         static const Byte hres1bpp[0x10] = {0x00, 0x01, 0x04, 0x05, 0x10, 0x11,
@@ -1317,7 +1319,6 @@ public:
                             int p = pattern;
                             if (_combineVertical && y != 0)
                                 p >>= _combineShift;
-
                             _rgbiPattern[x] = _rgbiFromBits[pixelMask &
                                 (p >> (xx << _logBitsPerPixel))];
                         }
@@ -1332,8 +1333,7 @@ public:
                     if (!_isComposite) {
                         SRGB* srgb = &_srgb[0];
                         for (int x = 0; x < _lChangeToRChange; ++x) {
-                            Byte* p =
-                                &_rgbiPalette[3 * ((rgbi >> (x * 4)) & 0xf)];
+                            Byte* p = &_rgbiPalette[3*_rgbiPattern[x]];
                             *srgb = SRGB(p[0], p[1], p[2]);
                             ++srgb;
                         }
@@ -1344,10 +1344,8 @@ public:
                             % _lChangeToRChange;
                         int r = (l + 1)%_lChangeToRChange;
                         for (int x = 0; x < gamutWidth; ++x) {
-                            *ntsc = _composite.simulateCGA(
-                                (rgbi >> (l * 4)) & 0xf,
-                                (rgbi >> (r * 4)) & 0xf,
-                                (x + gamutLeftPadding) & 3);
+                            *ntsc = _composite.simulateCGA(_rgbiPattern[l],
+                                _rgbiPattern[r], (x + gamutLeftPadding) & 3);
                             l = r;
                             r = (r + 1)%_lChangeToRChange;
                             ++ntsc;
@@ -1356,8 +1354,15 @@ public:
                         _gamutDecoder.outputToSRGB(&_srgb[0]);
                     }
                     SRGB* srgb = &_srgb[0];
+                    float lineScale = 1;
+                    if (_combineVertical) {
+                        if (y == 0)
+                            lineScale = (_blockHeight + 1) >> 1;
+                        else
+                            lineScale = _blockHeight >> 1;
+                    }
                     for (int x = 0; x < _lChangeToRChange; ++x)
-                        rgb += _linearizer.linear(srgb[x]);
+                        rgb += lineScale*_linearizer.linear(srgb[x]);
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
                 auto s = Vector3Cast<int>(Vector3Cast<float>(srgb)*srgbScale);
@@ -1388,8 +1393,12 @@ public:
         int phaseRow = phase << 6;
         int phaseRowFlip =
             (_data->getDataByte(CGAData::registerHorizontalTotal) & 1) << 6;
-        for (int y = 0; y <= size.y; ++y) {
+        for (int y = 0;; ++y) {
             *rgbi = overscan;
+            if (y == size.y)
+                break;
+            for (int x = 0; x < size.x + incrementExtra; ++x)
+                rgbi[1 + x] = -1;
             rgbi += _rgbiStride;
         }
 
