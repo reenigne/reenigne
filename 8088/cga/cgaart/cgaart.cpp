@@ -1314,7 +1314,7 @@ public:
                     if (graphics) {
                         for (int x = 0; x < box->_lChangeToRChange; ++x) {
                             int xx = x;
-                            if (graphics && !hres)
+                            if (!oneBpp && !hres)
                                 xx >>= 1;
                             int p = pattern;
                             if (_combineVertical && y != 0)
@@ -1452,14 +1452,12 @@ public:
             }
 
             _d0 = &_rowData[1];
-            _d1 = &_rowData[rowDataStride + 1];
             _inputBlock = inputRow;
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
             _ntscBlock = ntscRow;
             _phaseBlock = phaseRow;
             for (int column = 0; column < horizontalBlocks; ++column) {
-                _mode2 = mode1 + (column << 9 & 0x200);
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
@@ -1556,100 +1554,18 @@ public:
                         break;
                 }
                 tryPattern(bestPattern);
-
-                //switch (_mode2) {
-                //    // -HRES+GRPH
-                //    case 0x002:
-                //    case 0x012:
-                //    case 0x402:
-                //    case 0x412:
-                //        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
-                //        break;
-                //    case 0x202:
-                //    case 0x212:
-                //    case 0x602:
-                //    case 0x612:
-                //        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
-                //        ++_d0;
-                //        break;
-                //    //case 0x402:
-                //    //case 0x412:
-                //    //    *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
-                //    //    break;
-                //    //case 0x602:
-                //    //case 0x612:
-                //    //    *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
-                //    //    ++_d0;
-                //    //    break;
-                //    case 0x102:
-                //        case 0x112:
-                //        *_d0 = (*_d0 & 0xf) + (bestPattern << 4);
-                //        *_d1 = (*_d1 & 0xf) + (bestPattern & 0xf0);
-                //        break;
-                //    case 0x302:
-                //    case 0x312:
-                //        *_d0 = (*_d0 & 0xf0) + (bestPattern & 0xf);
-                //        *_d1 = (*_d1 & 0xf0) + (bestPattern >> 4);
-                //        ++_d0;
-                //        ++_d1;
-                //        break;
-                //    case 0x502:
-                //    case 0x512:
-                //        *_d0 = (*_d0 & 0xf) + (bestPattern & 0xf0);
-                //        *_d1 = (*_d1 & 0xf) + ((bestPattern >> 8) & 0xf0);
-                //        break;
-                //    case 0x702:
-                //    case 0x712:
-                //        *_d0 = (*_d0 & 0xf0) + ((bestPattern >> 4) & 0xf);
-                //        *_d1 = (*_d1 & 0xf0) + ((bestPattern >> 12) & 0xf);
-                //        ++_d0;
-                //        ++_d1;
-                //        break;
-
-                //    // +HRES+GRPH
-                //    case 0x003:
-                //    case 0x203:
-                //    case 0x403:
-                //    case 0x603:
-                //        *_d0 = bestPattern;
-                //        ++_d0;
-                //        _phaseBlock ^= 0x40;
-                //        break;
-                //    case 0x013:
-                //    case 0x213:
-                //    case 0x413:
-                //    case 0x613:
-                //        *_d0 = _hres1bpp[bestPattern];
-                //        ++_d0;
-                //        _phaseBlock ^= 0x40;
-                //        break;
-                //    case 0x103:
-                //    case 0x303:
-                //    case 0x503:
-                //    case 0x703:
-                //        *_d0 = bestPattern;
-                //        *_d1 = bestPattern >> 8;
-                //        ++_d0;
-                //        ++_d1;
-                //        _phaseBlock ^= 0x40;
-                //        break;
-                //    case 0x113:
-                //    case 0x313:
-                //    case 0x513:
-                //    case 0x713:
-                //        *_d0 = _hres1bpp[bestPattern & 0xf];
-                //        *_d1 = _hres1bpp[bestPattern >> 4];
-                //        ++_d0;
-                //        ++_d1;
-                //        _phaseBlock ^= 0x40;
-                //        break;
-
-                //    // -GRPH
-                //    default:
-                //        *_d0 = bestPattern;
-                //        _d0[1] = bestPattern >> 8;
-                //        _d0 += 2;
-                //}
+                if (box->_bitCount == 16) {
+                    *_d0 = bestPattern;
+                    _d0[1] = bestPattern >> 8;
+                }
+                else {
+                    int mask = ((1 << box->_bitCount) - 1) << box->_bitIndex;
+                    *_d0 = (*_d0 & ~mask) + bestPattern << box->_bitIndex;
+                }
+                _d0 += box->_incrementBytes;
+                ++boxIndex;
+                if (boxIndex == boxCount)
+                    boxIndex = 0;
                 _inputBlock += incrementWidth*3*sizeof(float);
                 _errorBlock += incrementWidth;
                 _rgbiBlock += incrementWidth;
@@ -1887,84 +1803,6 @@ private:
     float tryPattern(Box* box, int pattern)
     {
         float metric = 0;
-        UInt32 v[2];
-        int yMask = (_mode2 & 0x102) == 0x102 ? 1 : 0;
-        //switch (_mode2) {
-        //    // -HRES+GRPH
-        //    case 0x002:
-        //    case 0x012:
-        //    case 0x202:
-        //    case 0x212:
-        //    case 0x402:
-        //    case 0x412:
-        //    case 0x602:
-        //    case 0x612:
-        //        v[0] = pattern << 4;
-        //        break;
-        //    //case 0x402:
-        //    //case 0x412:
-        //    //case 0x602:
-        //    //case 0x612:
-        //    //    v[0] = pattern;
-        //    //    break;
-        //    case 0x102:
-        //    case 0x112:
-        //    case 0x302:
-        //    case 0x312:
-        //        v[0] = pattern << 4;
-        //        v[1] = pattern & 0xf0;
-        //        break;
-        //    case 0x502:
-        //    case 0x512:
-        //    case 0x702:
-        //    case 0x712:
-        //        v[0] = pattern;
-        //        v[1] = pattern >> 8;
-        //        break;
-
-        //    // +HRES+GRPH
-        //    case 0x103:
-        //    case 0x503:
-        //        v[0] = (_d0[1] << 8) + pattern;
-        //        v[1] = (_d1[1] << 8) + (pattern >> 8);
-        //        break;
-        //    case 0x303:
-        //    case 0x703:
-        //        v[0] = _d0[1] + (pattern << 8);
-        //        v[1] = _d1[1] + (pattern & 0xff00);
-        //        break;
-        //    case 0x113:
-        //    case 0x513:
-        //        v[0] = (_d0[1] << 8) + _hres1bpp[pattern & 0xf];
-        //        v[1] = (_d1[1] << 8) + _hres1bpp[pattern >> 4];
-        //        break;
-        //    case 0x313:
-        //    case 0x713:
-        //        v[0] = _d0[1] + (_hres1bpp[pattern & 0xf] << 8);
-        //        v[1] = _d1[1] + (_hres1bpp[pattern >> 4] << 8);
-        //        break;
-
-        //    case 0x003:
-        //    case 0x403:
-        //        v[0] = (_d0[1] << 8) + pattern;
-        //        break;
-        //    case 0x203:
-        //    case 0x603:
-        //        v[0] = _d0[1] + (pattern << 8);
-        //        break;
-        //    case 0x013:
-        //    case 0x413:
-        //        v[0] = (_d0[1] << 8) + _hres1bpp[pattern];
-        //        break;
-        //    case 0x213:
-        //    case 0x613:
-        //        v[0] = _d0[1] + (_hres1bpp[pattern] << 8);
-        //        break;
-        //    default:
-        //        v[0] = pattern;
-        //}
-        v[0] = (v[0] & 0xffff) + (_d0[-1] << 24);
-        v[1] = (v[1] & 0xffff) + (_d1[-1] << 24);
         const Byte* inputLine = _inputBlock + _lNtscToLCompare*sizeof(Colour);
         Colour* errorLine = _errorBlock;
         Byte* rgbiLine = _rgbiBlock;
@@ -1972,14 +1810,30 @@ private:
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat2;
-            UInt64 rgbis = _sequencer->process(v[s & yMask],
-                _modeThread + _phaseBlock, _palette2, s, false, 0);
             SRGB* srgb = &_srgb[0];
             auto input = reinterpret_cast<const Colour*>(inputLine);
             auto error = errorLine;
+            if (graphics) {
+                for (int x = 0; x < box->_lChangeToRChange; ++x) {
+                    int xx = x;
+                    if (!oneBpp && !hres)
+                        xx >>= 1;
+                    int p = pattern;
+                    if (_combineVertical && (scanline & 1) != 0)
+                        p >>= _combineShift;
+                    _rgbiPattern[x] = _rgbiFromBits[pixelMask &
+                        (p >> (xx << _logBitsPerPixel))];
+                }
+            }
+            else {
+                UInt64 rgbi = _sequencer->process(pattern + (_d0[-1] << 24),
+                    _modeThread, _palette2, s, false, 0);
+                for (int x = 0; x < box->_lChangeToRChange; ++x)
+                    _rgbiPattern[x] = (rgbi >> (x << 2)) & 0xf;
+            }
             if (!_isComposite) {
                 for (int x = 0; x < _lChangeToRChange; ++x) {
-                    Byte* p = &_rgbiPalette[3*((rgbis >> (x * 4)) & 0xf)];
+                    Byte* p = &_rgbiPalette[3*_rgbiPattern[x]];
                     *srgb = SRGB(p[0], p[1], p[2]);
                     ++srgb;
                 }
@@ -1988,7 +1842,7 @@ private:
                 Byte* rgbi = rgbiLine;
                 int x;
                 for (x = 0; x < _lChangeToRChange; ++x)
-                    rgbi[x] = ((rgbis >> (x * 4)) & 0xf);
+                    rgbi[x] = _rgbiPattern[x];
                 Byte* ntsc = ntscLine + _lNtscToLChange;
                 for (x = -1; x < _lChangeToRChange - 1; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
@@ -2266,7 +2120,6 @@ private:
     int _shift;
     Array<Byte> _rightNTSC;
 
-    int _mode2;
     Byte* _d0;
     Byte* _d1;
     UInt32 _hres1bpp[0x10];
