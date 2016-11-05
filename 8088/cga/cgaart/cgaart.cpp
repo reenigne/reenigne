@@ -925,7 +925,6 @@ public:
         _combineHorizontal = false;
         _combineVertical = false;
         int boxCount;
-        int incrementHDots;
         int patternCount;
         Box* box = &_boxes[0];
         if (graphics) {
@@ -1017,14 +1016,6 @@ public:
 
         _program->setProgress(0);
 
-        if (graphics) {
-            incrementWidth = 4;
-            _lChangeToRChange = 4;
-        }
-        else {
-            incrementWidth = hres ? 8 : 16;
-            _lChangeToRChange = incrementWidth;
-        }
         _lCompareToRCompare = _lChangeToRChange;
         _lNtscToLChange = 0;
         _lNtscToLCompare = 0;
@@ -1387,7 +1378,6 @@ public:
         int row = 0;
         int scanline = 0;
         int scanlineIteration = 0;
-        int horizontalBlocks = size.x/incrementWidth;
         int overscan = (_modeThread & 0x10) != 0 ? 0 : _palette2 & 0xf;
         Byte* rgbi = &_rgbi[0];
         int phaseRow = phase << 6;
@@ -1434,8 +1424,7 @@ public:
 
         // Perform matching
         while (!cancelling()) {
-            if ((mode1 & 0x102) == 0x102) {
-                // Graphics mode with more than 2 scanlines per row
+            if (_combineVertical) {
                 Array<Byte> rowData = _data->getData(row*bytesPerRow,
                     bytesPerRow);
                 memcpy(&_rowData[1], &rowData[0], bytesPerRow);
@@ -1444,20 +1433,20 @@ public:
                 memcpy(&_rowData[1 + rowDataStride], &rowData[0], bytesPerRow);
             }
             else {
-                // Text mode (bank == 0) and graphics modes with 2 scanlines
-                // per row or fewer.
                 Array<Byte> rowData = _data->getData(
                     row*bytesPerRow + (bank << bankShift), bytesPerRow);
                 memcpy(&_rowData[1], &rowData[0], bytesPerRow);
             }
 
             _d0 = &_rowData[1];
+            _d1 = &_rowData[1 + rowDataStride];
             _inputBlock = inputRow;
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
             _ntscBlock = ntscRow;
             _phaseBlock = phaseRow;
-            for (int column = 0; column < horizontalBlocks; ++column) {
+            int column = 0;
+            while (true) {
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
@@ -1559,29 +1548,38 @@ public:
                     _d0[1] = bestPattern >> 8;
                 }
                 else {
-                    int mask = ((1 << box->_bitCount) - 1) << box->_bitIndex;
-                    *_d0 = (*_d0 & ~mask) + bestPattern << box->_bitIndex;
+                    int mask = (1 << box->_bitCount) - 1;
+                    int shift = box->_bitIndex;
+                    *_d0 = (*_d0 & ~(mask << shift)) +
+                        ((bestPattern & mask) << shift);
+                    if (_combineVertical) {
+                        *_d1 = (*_d1 & ~(mask << shift)) +
+                            ((bestPattern >> _combineShift) & mask) << shift;
+                    }
                 }
-                _d0 += box->_incrementBytes;
-                ++boxIndex;
-                if (boxIndex == boxCount)
-                    boxIndex = 0;
+                int incrementBytes = box->_incrementBytes;
+                _d0 += incrementBytes;
+                _d1 += incrementBytes;
+                int incrementWidth = box->_incrementHDots;
+                column += incrementBytes;
+                if (column >= bytesPerRow)
+                    break;
                 _inputBlock += incrementWidth*3*sizeof(float);
                 _errorBlock += incrementWidth;
                 _rgbiBlock += incrementWidth;
                 _ntscBlock += incrementWidth;
-            } // column
+                ++boxIndex;
+                if (boxIndex == boxCount)
+                    boxIndex = 0;
+            }
 
-            if ((mode1 & 0x102) == 0x102) {
-                // Graphics mode with more than 2 scanlines per row
+            if (_combineVertical) {
                 _data->change(0, row*bytesPerRow, bytesPerRow, &_rowData[1]);
                 _data->change(0, row*bytesPerRow + (1 << bankShift),
                     bytesPerRow, &_rowData[1 + rowDataStride]);
                 ++bank;
             }
             else {
-                // Text mode (bank == 0) and graphics modes with 2 scanlines
-                // per row or fewer.
                 _data->change(0, row*bytesPerRow + (bank << bankShift),
                     bytesPerRow, &_rowData[1]);
             }
