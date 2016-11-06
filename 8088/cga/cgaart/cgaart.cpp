@@ -1037,43 +1037,49 @@ public:
             int rChangeToRBase = static_cast<int>(4*lobes);
             int lBaseToLChange = (rChangeToRBase + 4) & ~3;
             int lBaseToRChange = lBaseToLChange + _lChangeToRChange;
-            _baseDecoder.setLength(lBaseToRChange + rChangeToRBase);
-            _baseDecoder.setLumaBandwidth(lumaBandwidth);
-            _baseDecoder.setChromaBandwidth(chromaBandwidth);
-            _baseDecoder.setRollOff(rollOff);
-            _baseDecoder.setLobes(lobes);
-            _baseDecoder.setHue(hue + (hres ? 14 : 4) - 90);
-            _baseDecoder.setSaturation(
-                saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
-            double c = contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
-            _baseDecoder.setContrast(c);
-            _baseDecoder.setBrightness(
-                (-black*c + brightness*5 + (newCGA ? -50 : 0))/256.0);
-            _baseDecoder.setInputScaling(1);
-            for (int i = 0; i < 4; ++i)
-                burst[i] = _composite.simulateCGA(6, 6, i);
-            _baseDecoder.calculateBurst(burst);
-            int lNtscToLBase = -_baseDecoder.inputLeft();
-            int lBaseToRNtsc = _baseDecoder.inputRight();
-            _lNtscToLChange = lNtscToLBase + lBaseToLChange;
-            rChangeToRNtsc = lBaseToRNtsc - lBaseToRChange;
-            _bias = _baseDecoder.bias();
-            _shift = _baseDecoder.shift();
-            _deltaDecoder = _baseDecoder;
-            int lNtscToRNtsc = lNtscToLBase + lBaseToRNtsc;
-            _activeInputs.ensure(lNtscToRNtsc);
-            for (int x = 0; x < lNtscToRNtsc; ++x) {
-                int r = x - _lNtscToLChange;
-                _activeInputs[x] = (r >= -1 && r < _lChangeToRChange) ? 1 : 0;
+            for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
+                Box* box = &_boxes[boxIndex];
+                MatchingNTSCDecoder* base = &box->_baseDecoder;
+                base->setLength(lBaseToRChange + rChangeToRBase);
+                base->setLumaBandwidth(lumaBandwidth);
+                base->setChromaBandwidth(chromaBandwidth);
+                base->setRollOff(rollOff);
+                base->setLobes(lobes);
+                base->setHue(hue + (hres ? 14 : 4) - 90);
+                base->setSaturation(
+                    saturation*1.45*(newCGA ? 1.5 : 1.0)/100);
+                double c = contrast*256*(newCGA ? 1.2 : 1)/(white - black)/100;
+                base->setContrast(c);
+                base->setBrightness(
+                    (-black*c + brightness*5 + (newCGA ? -50 : 0))/256.0);
+                base->setInputScaling(1);
+                for (int i = 0; i < 4; ++i)
+                    burst[i] = _composite.simulateCGA(6, 6, i);
+                base->calculateBurst(burst);
+                int lNtscToLBase = -base->inputLeft();
+                int lBaseToRNtsc = base->inputRight();
+                _lNtscToLChange = lNtscToLBase + lBaseToLChange;
+                rChangeToRNtsc = lBaseToRNtsc - lBaseToRChange;
+                _bias = base->bias();
+                _shift = base->shift();
+                box->_deltaDecoder = *base;
+                int lNtscToRNtsc = lNtscToLBase + lBaseToRNtsc;
+                _activeInputs.ensure(lNtscToRNtsc);
+                for (int x = 0; x < lNtscToRNtsc; ++x) {
+                    int r = x - _lNtscToLChange;
+                    _activeInputs[x] =
+                        (r >= -1 && r < _lChangeToRChange) ? 1 : 0;
+                }
+                _deltaDecoder.calculateBurst(burst,
+                    &_activeInputs[lNtscToLBase]);
+                lBaseToLCompare = _deltaDecoder.outputLeft();
+                int lBaseToRCompare = _deltaDecoder.outputRight();
+                _lCompareToRCompare = lBaseToRCompare - lBaseToLCompare;
+                _lNtscToLDelta = lNtscToLBase + _deltaDecoder.inputLeft();
+                _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
+                lCompareToLChange = _lNtscToLChange - _lNtscToLCompare;
+                rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
             }
-            _deltaDecoder.calculateBurst(burst, &_activeInputs[lNtscToLBase]);
-            lBaseToLCompare = _deltaDecoder.outputLeft();
-            int lBaseToRCompare = _deltaDecoder.outputRight();
-            _lCompareToRCompare = lBaseToRCompare - lBaseToLCompare;
-            _lNtscToLDelta = lNtscToLBase + _deltaDecoder.inputLeft();
-            _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
-            lCompareToLChange = _lNtscToLChange - _lNtscToLCompare;
-            rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
             _gamutDecoder = _baseDecoder;
             _gamutDecoder.setLength(_lChangeToRChange);
             _gamutDecoder.calculateBurst(burst);
