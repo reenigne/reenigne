@@ -1553,3 +1553,11 @@ logBitsPerPixel      bitsPerPixel    patternCount
        (2)                4              16
        (3)                8             256
         4                16           65536
+
+
+
+
+      Do we ever want to look-head into the right border? No, we don't care about those matching
+        However, it shouldn't do any harm to do so unless except in the case that one of an entangled pair is in the border
+        Let's ignore it as an edge effect for now
+

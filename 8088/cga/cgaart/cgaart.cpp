@@ -833,6 +833,10 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _incrementHDots;
         int _incrementBytes;
         int _lChangeToRChange;
+        int _lNtscToLChange;
+
+        MatchingNTSCDecoder _gamutDecoder;
+        int _gamutWidth;
     };
 public:
     CGAMatcherT()
@@ -1017,15 +1021,12 @@ public:
         _program->setProgress(0);
 
         _lCompareToRCompare = _lChangeToRChange;
-        _lNtscToLChange = 0;
         _lNtscToLCompare = 0;
         int rChangeToRNtsc = 0;
-        int incrementExtra = _lChangeToRChange - incrementWidth;
         int lBaseToLCompare = 0;
         int lCompareToLChange = 0;
         int rChangeToRCompare = 0;
         int gamutLeftPadding = 0;
-        int gamutWidth = 0;
         bool newCGA = connector == 2;
         Byte burst[4];
         if (_isComposite) {
@@ -1058,40 +1059,42 @@ public:
                 base->calculateBurst(burst);
                 int lNtscToLBase = -base->inputLeft();
                 int lBaseToRNtsc = base->inputRight();
-                _lNtscToLChange = lNtscToLBase + lBaseToLChange;
+                box->_lNtscToLChange = lNtscToLBase + lBaseToLChange;
                 rChangeToRNtsc = lBaseToRNtsc - lBaseToRChange;
                 _bias = base->bias();
                 _shift = base->shift();
-                box->_deltaDecoder = *base;
+                MatchingNTSCDecoder* delta = &box->_deltaDecoder;
+                *delta = *base;
                 int lNtscToRNtsc = lNtscToLBase + lBaseToRNtsc;
                 _activeInputs.ensure(lNtscToRNtsc);
                 for (int x = 0; x < lNtscToRNtsc; ++x) {
-                    int r = x - _lNtscToLChange;
+                    int r = x - box->_lNtscToLChange;
                     _activeInputs[x] =
                         (r >= -1 && r < _lChangeToRChange) ? 1 : 0;
                 }
-                _deltaDecoder.calculateBurst(burst,
-                    &_activeInputs[lNtscToLBase]);
-                lBaseToLCompare = _deltaDecoder.outputLeft();
-                int lBaseToRCompare = _deltaDecoder.outputRight();
+                delta->calculateBurst(burst, &_activeInputs[lNtscToLBase]);
+                lBaseToLCompare = delta->outputLeft();
+                int lBaseToRCompare = delta->outputRight();
                 _lCompareToRCompare = lBaseToRCompare - lBaseToLCompare;
-                _lNtscToLDelta = lNtscToLBase + _deltaDecoder.inputLeft();
+                _lNtscToLDelta = lNtscToLBase + delta->inputLeft();
                 _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
-                lCompareToLChange = _lNtscToLChange - _lNtscToLCompare;
+                lCompareToLChange = box->_lNtscToLChange - _lNtscToLCompare;
                 rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
+                MatchingNTSCDecoder* gamut = &box->_gamutDecoder;
+                *gamut = *base;
+                gamut->setLength(_lChangeToRChange);
+                gamut->calculateBurst(burst);
+                gamutLeftPadding = gamut->inputLeft();
+                box->_gamutWidth = gamut->inputRight() - gamutLeftPadding;
+                _ntscPattern.ensure(box->_gamutWidth);
             }
-            _gamutDecoder = _baseDecoder;
-            _gamutDecoder.setLength(_lChangeToRChange);
-            _gamutDecoder.calculateBurst(burst);
-            gamutLeftPadding = _gamutDecoder.inputLeft();
-            gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
-            _ntscPattern.ensure(gamutWidth);
         }
 
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             scanlinesPerRow*_scanlinesRepeat2*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(gamma));
+        static const int incrementExtra = 27;
         if (size != _size || _lNtscToLChange > _lTargetToLChange ||
             rChangeToRNtsc + incrementExtra > _rChangeToRTarget ||
             needRescale) {
@@ -1340,7 +1343,7 @@ public:
                         int l = (gamutLeftPadding*(1 - _lChangeToRChange))
                             % _lChangeToRChange;
                         int r = (l + 1)%_lChangeToRChange;
-                        for (int x = 0; x < gamutWidth; ++x) {
+                        for (int x = 0; x < box->_gamutWidth; ++x) {
                             *ntsc = _composite.simulateCGA(_rgbiPattern[l],
                                 _rgbiPattern[r], (x + gamutLeftPadding) & 3);
                             l = r;
@@ -1452,16 +1455,18 @@ public:
             _ntscBlock = ntscRow;
             _phaseBlock = phaseRow;
             int column = 0;
+            int boxIndex = 0;
             while (true) {
+                Box* box = &_boxes[boxIndex];
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
                 const Byte* inputLine = _inputBlock
-                    + _lNtscToLChange*sizeof(Colour);
+                    + box->_lNtscToLChange*sizeof(Colour);
                 Colour* errorLine = _errorBlock + lCompareToLChange;
                 Byte* ntscBaseLine = _ntscBlock;
                 Byte* ntscDeltaLine = _ntscBlock + _lNtscToLDelta;
-                Byte* ntscLine = _ntscBlock + _lNtscToLChange;
+                Byte* ntscLine = _ntscBlock + box->_lNtscToLChange;
 
                 Vector3<SInt16>* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
@@ -1847,7 +1852,7 @@ private:
                 int x;
                 for (x = 0; x < _lChangeToRChange; ++x)
                     rgbi[x] = _rgbiPattern[x];
-                Byte* ntsc = ntscLine + _lNtscToLChange;
+                Byte* ntsc = ntscLine + box->_lNtscToLChange;
                 for (x = -1; x < _lChangeToRChange - 1; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         x & 3);
@@ -2060,7 +2065,6 @@ private:
     Program* _program;
     CGAData* _data;
     CGASequencer* _sequencer;
-    MatchingNTSCDecoder _gamutDecoder;
     CGAComposite _composite;
     Linearizer _linearizer;
 
@@ -2140,7 +2144,6 @@ private:
     int _ntscStride;
     int _rgbiStride;
     SInt16* _deltaDecoded;
-    int _lNtscToLChange;
     int _lNtscToLDelta;
     int _lNtscToLCompare;
     bool _isComposite;
