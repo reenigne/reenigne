@@ -834,9 +834,6 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _incrementBytes;
         int _lChangeToRChange;
         int _lNtscToLChange;
-
-        MatchingNTSCDecoder _gamutDecoder;
-        int _gamutWidth;
     };
 public:
     CGAMatcherT()
@@ -1027,6 +1024,8 @@ public:
         int lCompareToLChange = 0;
         int rChangeToRCompare = 0;
         int gamutLeftPadding = 0;
+        int gamutWidth = 0;
+        int gamutOutputWidth = graphics ? 4 : hres ? 8 : 16
         bool newCGA = connector == 2;
         Byte burst[4];
         if (_isComposite) {
@@ -1080,14 +1079,13 @@ public:
                 _lNtscToLCompare = lNtscToLBase + lBaseToLCompare;
                 lCompareToLChange = box->_lNtscToLChange - _lNtscToLCompare;
                 rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
-                MatchingNTSCDecoder* gamut = &box->_gamutDecoder;
-                *gamut = *base;
-                gamut->setLength(_lChangeToRChange);
-                gamut->calculateBurst(burst);
-                gamutLeftPadding = gamut->inputLeft();
-                box->_gamutWidth = gamut->inputRight() - gamutLeftPadding;
-                _ntscPattern.ensure(box->_gamutWidth);
             }
+            _gamutDecoder = *base;
+            _gamutDecoder.setLength(gamutOutputWidth);
+            _gamutDecoder.calculateBurst(burst);
+            gamutLeftPadding = _gamutDecoder.inputLeft();
+            gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
+            _ntscPattern.ensure(gamutWidth);
         }
 
         // Resample input image to desired size
@@ -1343,7 +1341,7 @@ public:
                         int l = (gamutLeftPadding*(1 - _lChangeToRChange))
                             % _lChangeToRChange;
                         int r = (l + 1)%_lChangeToRChange;
-                        for (int x = 0; x < box->_gamutWidth; ++x) {
+                        for (int x = 0; x < gamutWidth; ++x) {
                             *ntsc = _composite.simulateCGA(_rgbiPattern[l],
                                 _rgbiPattern[r], (x + gamutLeftPadding) & 3);
                             l = r;
@@ -1361,7 +1359,7 @@ public:
                         else
                             lineScale = _blockHeight >> 1;
                     }
-                    for (int x = 0; x < _lChangeToRChange; ++x)
+                    for (int x = 0; x < gamutOutputWidth; ++x)
                         rgb += lineScale*_linearizer.linear(srgb[x]);
                 }
                 SRGB srgb = _linearizer.srgb(rgb/blockArea);
@@ -2164,6 +2162,8 @@ private:
     Box _boxes[24];
     Byte _rgbiFromBits[4];
     int _logBitsPerPixel;
+
+    MatchingNTSCDecoder _gamutDecoder;
 };
 
 typedef CGAMatcherT<void> CGAMatcher;

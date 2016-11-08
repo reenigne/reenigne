@@ -1561,3 +1561,11 @@ logBitsPerPixel      bitsPerPixel    patternCount
         However, it shouldn't do any harm to do so unless except in the case that one of an entangled pair is in the border
         Let's ignore it as an edge effect for now
 
+    Should _gamutDecoder be in box?
+      Yes, the ranges are different
+      How should we account for gaps and length not being a whole number of carrier cycles?
+        Remember that this is the approximate part of the algorithm
+        Idea 1: Pad to whole number of carrier cycles, iterate over all possible values of the missing pixels, take into account duplicated pixels
+        Idea 2: Only use 4 pixels for graphics mode gamut computation (graphics modes should really be using quality 1 and adjusting lookAhead for speed anyway)
+          In this case, _gamutDecoder should not be in box
+
