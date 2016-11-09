@@ -830,10 +830,10 @@ template<class T> class CGAMatcherT : public ThreadTask
         MatchingNTSCDecoder _deltaDecoder;
         int _bitOffset;
         int _bitCount;
-        int _incrementHDots;
         int _incrementBytes;
         int _lChangeToRChange;
         int _lNtscToLChange;
+        Byte _positionForPixel[28];
     };
 public:
     CGAMatcherT()
@@ -927,6 +927,7 @@ public:
         _combineVertical = false;
         int boxCount;
         int patternCount;
+        int boxIncrement = 4;
         Box* box = &_boxes[0];
         if (graphics) {
             if (scanlinesPerRow > 2 && combineScanlines)
@@ -994,15 +995,15 @@ public:
                 patternCount = 1 << _combineShift;
         }
         else {
-            int hdots = hres ? 8 : 16;
+            boxIncrement = hres ? 8 : 16;
             lookAhead = 0;
             boxCount = 1;
             box->_bitOffset = 0;
             box->_bitCount = 16;
-            box->_incrementHDots = hdots;
+            box->_incrementHDots = boxIncrement;
             box->_incrementBytes = 2;
             patternCount = 0x10000;
-            box->_lChangeToRChange = hdots;
+            box->_lChangeToRChange = boxIncrement;
             _logBitsPerPixel = 4;
             _combineShift = 0;
         }
@@ -1025,7 +1026,7 @@ public:
         int rChangeToRCompare = 0;
         int gamutLeftPadding = 0;
         int gamutWidth = 0;
-        int gamutOutputWidth = graphics ? 4 : hres ? 8 : 16
+        int gamutOutputWidth = graphics ? 4 : hres ? 8 : 16;
         bool newCGA = connector == 2;
         Byte burst[4];
         if (_isComposite) {
@@ -1080,7 +1081,7 @@ public:
                 lCompareToLChange = box->_lNtscToLChange - _lNtscToLCompare;
                 rChangeToRCompare = lBaseToRCompare - lBaseToRChange;
             }
-            _gamutDecoder = *base;
+            _gamutDecoder = _boxes[0]._baseDecoder;
             _gamutDecoder.setLength(gamutOutputWidth);
             _gamutDecoder.calculateBurst(burst);
             gamutLeftPadding = _gamutDecoder.inputLeft();
