@@ -833,6 +833,7 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _incrementBytes;
         int _lChangeToRChange;
         int _lNtscToLChange;
+        int _lBoxToLChange;
         Byte _positionForPixel[28];
     };
 public:
@@ -934,6 +935,7 @@ public:
                 _combineVertical = true;
             _logBitsPerPixel = oneBpp ? 0 : 1;
             if (hres) {
+                boxIncrement = 16;
                 if (oneBpp) {
                     if (_combineVertical)
                         lookAhead = max(lookAhead, 7);
@@ -942,7 +944,6 @@ public:
                     for (int i = 0; i < 16; ++i) {
                         box->_bitOffset = 7 - (i & 7);
                         box->_bitCount = 1;
-                        box->_incrementHDots = 1;
                         box->_incrementBytes = 0;
                         box->_lChangeToRChange = lookAhead + 1;
                     }
@@ -954,7 +955,6 @@ public:
                     for (int i = 0; i < 16; ++i) {
                         box->_bitOffset = 6 - ((i & 3) << 1);
                         box->_bitCount = 2;
-                        box->_incrementHDots = 1;
                         box->_incrementBytes = 0;
                         box->_lChangeToRChange = lookAhead + 1;
                     }
@@ -965,27 +965,31 @@ public:
                     lookAhead = max(lookAhead, 7);
                 if (oneBpp) {
                     boxCount = 8;
-                    _combineShift = 1 + lookAhead;
+                    int pixels = lookAhead + 1;
+                    _combineShift = pixels;
                     for (int i = 0; i < 8; ++i) {
                         box = &_boxes[i];
                         box->_bitOffset = 7 - i;
                         box->_bitCount = 1;
-                        box->_incrementHDots = 1;
                         box->_incrementBytes = (i == 7 ? 1 : 0);
-                        box->_lChangeToRChange = lookAhead + 1;
+                        box->_lChangeToRChange = pixels;
+                        for (int i = 0; i < pixels; ++i)
+                            box->_positionForPixel[i] = i;
                     }
                 }
                 else {
                     boxCount = 4;
                     int s = (lookAhead & -2);
-                    _combineShift = 2 + s;
+                    int pixels = s + 2;
+                    _combineShift = pixels;
                     for (int i = 0; i < 4; ++i) {
                         box = &_boxes[i];
                         box->_bitOffset = 6 - (i << 1);
                         box->_bitCount = 2;
-                        box->_incrementHDots = 2;
                         box->_incrementBytes = (i == 3 ? 1 : 0);
-                        box->_lChangeToRChange = s + 2;
+                        box->_lChangeToRChange = pixels;
+                        for (int i = 0; i < pixels; ++i)
+                            box->_positionForPixel[i] = i << 1;
                     }
                 }
             }
@@ -993,6 +997,14 @@ public:
                 patternCount = 1 << (_combineShift << 1);
             else
                 patternCount = 1 << _combineShift;
+            for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
+                Box* box = &_boxes[boxIndex];
+                int i = 0;
+                for (; i < 28; ++i)
+                    if (box->_positionForPixel[i] != -1)
+                        break;
+                box->_lBoxToLChange = i;
+            }
         }
         else {
             boxIncrement = hres ? 8 : 16;
@@ -1003,6 +1015,7 @@ public:
             box->_incrementHDots = boxIncrement;
             box->_incrementBytes = 2;
             patternCount = 0x10000;
+            box->_lBoxToLChange = 0;
             box->_lChangeToRChange = boxIncrement;
             _logBitsPerPixel = 4;
             _combineShift = 0;
@@ -1570,17 +1583,17 @@ public:
                 int incrementBytes = box->_incrementBytes;
                 _d0 += incrementBytes;
                 _d1 += incrementBytes;
-                int incrementWidth = box->_incrementHDots;
                 column += incrementBytes;
                 if (column >= bytesPerRow)
                     break;
-                _inputBlock += incrementWidth*3*sizeof(float);
-                _errorBlock += incrementWidth;
-                _rgbiBlock += incrementWidth;
-                _ntscBlock += incrementWidth;
                 ++boxIndex;
-                if (boxIndex == boxCount)
+                if (boxIndex == boxCount) {
                     boxIndex = 0;
+                    _inputBlock += boxIncrement*3*sizeof(float);
+                    _errorBlock += boxIncrement;
+                    _rgbiBlock += boxIncrement;
+                    _ntscBlock += boxIncrement;
+                }
             }
 
             if (_combineVertical) {
