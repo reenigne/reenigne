@@ -840,7 +840,14 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _lNtscToLDelta;
         float _blockArea;
         int _patternCount;
-        Byte _positionForPixel[31];
+        SInt8 _positionForPixel[31];
+        int position(int pixel)  // Relative to lChange
+        {
+            pixel += _lBlockToLChange;
+            if (pixel < 0 || pixel >= 31)
+                return -1;
+            return _positionForPixel[pixel];
+        }
     };
 public:
     CGAMatcherT()
@@ -933,8 +940,7 @@ public:
         _combineHorizontal = false;
         _combineVertical = false;
         int boxCount;
-        int boxIncrement = 4;
-        Box* box = &_boxes[0];
+        int boxIncrement = hres == _graphics ? 16 : 8;
         int bitCount = 16;
         if (_graphics) {
             bitCount = oneBpp ? 1 : 2;
@@ -942,12 +948,11 @@ public:
                 _combineVertical = true;
             _pixelMask = oneBpp ? 1 : 3;
             if (hres) {
-                boxIncrement = 16;
                 if (oneBpp) {
                     if (_combineVertical)
                         lookAhead = max(lookAhead, 7);
                     for (int i = 0; i < 16; ++i) {
-                        box = &_boxes[i];
+                        Box* box = &_boxes[i];
                         box->_bitOffset = 7 - (i & 7);
                         box->_incrementBytes = 0;
                     }
@@ -955,7 +960,7 @@ public:
                 else {
                     lookAhead = max(lookAhead, _combineVertical ? 7 : 3);
                     for (int i = 0; i < 16; ++i) {
-                        box = &_boxes[i];
+                        Box* box = &_boxes[i];
                         box->_bitOffset = 6 - ((i & 3) << 1);
                         box->_incrementBytes = 0;
                     }
@@ -964,7 +969,7 @@ public:
                 _combineShift = positions*bitCount;
                 boxCount = lookAhead >= 7 ? 12 : 16;
                 for (int i = 0; i < 16; ++i) {
-                    box = &_boxes[i];
+                    Box* box = &_boxes[i];
                     for (int x = 0; x < 31; ++x)
                         box->_positionForPixel[x] = -1;
                     int pixel = 0;
@@ -987,7 +992,7 @@ public:
                     int pixels = lookAhead + 1;
                     _combineShift = pixels;
                     for (int i = 0; i < 8; ++i) {
-                        box = &_boxes[i];
+                        Box* box = &_boxes[i];
                         box->_bitOffset = 7 - i;
                         box->_incrementBytes = (i == 7 ? 1 : 0);
                         for (int x = 0; x < 31; ++x) {
@@ -1003,7 +1008,7 @@ public:
                     int pixels = s + 2;
                     _combineShift = pixels;
                     for (int i = 0; i < 4; ++i) {
-                        box = &_boxes[i];
+                        Box* box = &_boxes[i];
                         box->_bitOffset = 6 - (i << 1);
                         box->_incrementBytes = (i == 3 ? 1 : 0);
                         for (int x = 0; x < 31; ++x) {
@@ -1025,16 +1030,16 @@ public:
                     if (box->_positionForPixel[i] != -1)
                         break;
                 box->_lBlockToLChange = i;
-                for (i = 31; i >= 0; --i)
+                for (i = 30; i >= 0; --i)
                     if (box->_positionForPixel[i] != -1)
                         break;
                 box->_lChangeToRChange = i + 1 - box->_lBlockToLChange;
             }
         }
         else {
-            boxIncrement = hres ? 8 : 16;
             lookAhead = 0;
             boxCount = 1;
+            Box* box = &_boxes[0];
             box->_bitOffset = 0;
             box->_incrementBytes = 2;
             box->_patternCount = 0x10000;
@@ -1044,9 +1049,9 @@ public:
         }
 
         for (int i = 0; i < 4; ++i) {
-            UInt64 rgbi = _sequencer->process(i << box->_bitOffset,
-                _modeThread, _palette2, 0, false, 0);
-            _rgbiFromBits[i] = rgbi & 0xf;
+            UInt64 rgbi = _sequencer->process(i, _modeThread, _palette2, 0,
+                false, 0);
+            _rgbiFromBits[i] = (rgbi >> 28) & 0xf;
         }
 
         _program->setProgress(0);
@@ -1108,14 +1113,9 @@ public:
                 _activeInputs.ensure(lNtscToRNtsc);
                 for (int x = 0; x < lNtscToRNtsc; ++x) {
                     int r = x - box->_lNtscToLChange;
-                    Byte active = 0;
-                    if (r + 1 >= 0 && r + 1 < box->_lChangeToRChange &&
-                        box->_positionForPixel[r + 1] != -1)
-                        active = 1;
-                    if (r >= 0 && r < box->_lChangeToRChange &&
-                        box->_positionForPixel[r] != -1)
-                        active = 1;
-                    _activeInputs[x] = active;
+                    _activeInputs[x] =
+                        box->position(r + 1) != -1 || box->position(r) != -1 ?
+                        1 : 0;
                 }
                 delta->calculateBurst(burst, &_activeInputs[lNtscToLBase]);
                 box->_lBaseToLCompare = delta->outputLeft();
@@ -1424,8 +1424,15 @@ public:
             + maxRChangeToRCompare;
         int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
-        for (int x = 0; x < errorSize; ++x)
-            _error[x] = Colour(0, 0, 0);
+        srand(0);
+        for (int x = 0; x < errorSize; ++x) {
+            float r = static_cast<float>(rand());
+            float g = static_cast<float>(rand());
+            float b = static_cast<float>(rand());
+            Colour c(r, g, b);
+            c /= RAND_MAX;
+            _error[x] = c - Colour(0.5f, 0.5f, 0.5f);
+        }
         _rgbiStride = 1 + size.x + incrementExtra;
         _rgbi.ensure(_rgbiStride*size.y + 1);
         int row = 0;
@@ -1433,9 +1440,6 @@ public:
         int scanlineIteration = 0;
         int overscan = (_modeThread & 0x10) != 0 ? 0 : _palette2 & 0xf;
         Byte* rgbi = &_rgbi[0];
-        int phaseRow = phase << 6;
-        int phaseRowFlip =
-            (_data->getDataByte(CGAData::registerHorizontalTotal) & 1) << 6;
         for (int y = 0;; ++y) {
             *rgbi = overscan;
             if (y == size.y)
@@ -1468,7 +1472,6 @@ public:
         Colour* errorRow = &_error[_errorStride + 1];
         Byte* rgbiRow = &_rgbi[1];
         Byte* ntscRow = &_ntsc[0];
-        phaseRow = phase << 6;
         int bankShift =
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
@@ -1492,11 +1495,10 @@ public:
 
             _d0 = &_rowData[1];
             _d1 = &_rowData[1 + rowDataStride];
-            _inputBlock = inputRow + box->_lBlockToLChange*sizeof(Colour);
-            _errorBlock = errorRow + box->_lBlockToLChange;
-            _rgbiBlock = rgbiRow + box->_lBlockToLChange;
-            _ntscBlock = ntscRow + box->_lBlockToLChange;
-            _phaseBlock = phaseRow;
+            _inputBlock = inputRow;
+            _errorBlock = errorRow;
+            _rgbiBlock = rgbiRow;
+            _ntscBlock = ntscRow;
             int column = 0;
             int boxIndex = 0;
             while (true) {
@@ -1504,12 +1506,13 @@ public:
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
-                const Byte* inputLine = _inputBlock
-                    + box->_lNtscToLChange*sizeof(Colour);
-                Colour* errorLine = _errorBlock + box->_lCompareToLChange;
-                Byte* ntscBaseLine = _ntscBlock;
-                Byte* ntscDeltaLine = _ntscBlock + box->_lNtscToLDelta;
-                Byte* ntscLine = _ntscBlock + box->_lNtscToLChange;
+                const Byte* inputLine = _inputBlock + sizeof(Colour)*
+                    (box->_lNtscToLChange + box->_lBlockToLChange);
+                Colour* errorLine = _errorBlock + box->_lCompareToLChange +
+                    box->_lBlockToLChange;
+                Byte* ntscBaseLine = _ntscBlock + box->_lBlockToLChange;
+                Byte* ntscDeltaLine = ntscBaseLine + box->_lNtscToLDelta;
+                Byte* ntscLine = ntscBaseLine + box->_lNtscToLChange;
 
                 Vector3<SInt16>* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
@@ -1642,7 +1645,6 @@ public:
             ++bank;
             inputRow += _blockHeight*_scaled.stride();
             errorRow += _errorStride*_blockHeight;
-            phaseRow ^= phaseRowFlip;
             rgbiRow += _rgbiStride*_blockHeight;
             ntscRow += _ntscStride*_blockHeight;
             if (bank == banks) {
@@ -1857,10 +1859,10 @@ private:
     {
         float metric = 0;
         const Byte* inputLine = _inputBlock +
-            box->_lNtscToLCompare*sizeof(Colour);
-        Colour* errorLine = _errorBlock;
-        Byte* rgbiLine = _rgbiBlock;
-        Byte* ntscLine = _ntscBlock;
+            (box->_lNtscToLCompare + box->_lBlockToLChange)*sizeof(Colour);
+        Colour* errorLine = _errorBlock + box->_lBlockToLChange;
+        Byte* rgbiLine = _rgbiBlock + box->_lBlockToLChange;
+        Byte* ntscLine = _ntscBlock + box->_lBlockToLChange;
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat2;
@@ -2156,7 +2158,7 @@ private:
     Array<Byte> _rgbiPalette;
     Array<bool> _skip;
 
-    Byte _rgbiPattern[16];
+    Byte _rgbiPattern[28];
     Array<Byte> _ntscPattern;
     Array<Byte> _rowData;
     Array<Byte> _rgbi;
@@ -2177,7 +2179,6 @@ private:
     Byte* _rgbiBlock;
     Byte* _ntscBlock;
     int _blockHeight;
-    int _phaseBlock;
     int _decoderLength;
     int _errorStride;
     int _ntscStride;
@@ -4418,6 +4419,8 @@ private:
                 _profile.setChanged(
                     [&](int value) { _host->prescalerProfileSet(value); });
                 add(&_profile);
+                _lookAhead.setChanged(
+                    [&](int value) { _host->lookAheadSet(value); });
                 _lookAhead.setText("Look ahead: ");
                 for (int i = 0; i < 16; ++i)
                     _lookAhead.add(decimal(i));
