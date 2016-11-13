@@ -1067,13 +1067,15 @@ public:
         int gamutWidth = 0;
         int gamutOutputWidth = _graphics ? 4 : hres ? 8 : 16;
         bool newCGA = connector == 2;
-        Byte burst[4];
         int maxLNtscToLChange = 0;
         int maxRChangeToRNtsc = 0;
         if (_isComposite) {
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
+            Byte burst[4];
+            for (int i = 0; i < 4; ++i)
+                burst[i] = _composite.simulateCGA(6, 6, i);
             double black = _composite.black();
             double white = _composite.white();
             int rChangeToRBase = static_cast<int>(4*lobes);
@@ -1095,8 +1097,6 @@ public:
                 base->setBrightness(
                     (-black*c + brightness*5 + (newCGA ? -50 : 0))/256.0);
                 base->setInputScaling(1);
-                for (int i = 0; i < 4; ++i)
-                    burst[i] = _composite.simulateCGA(6, 6, i);
                 base->calculateBurst(burst);
                 int lNtscToLBase = -base->inputLeft();
                 int lBaseToRNtsc = base->inputRight();
@@ -1218,9 +1218,8 @@ public:
             _scaler.render();
             _scaled = _scaler.output();
         }
-        int mode1 = (_modeThread & 0x13) + (scanlinesPerRow > 2 ? 0x100 : 0) +
-            (_isComposite ? 0x400 : 0);
-        if (mode1 == 0x13 || (mode1 & 0x503) == 2)
+        if (_graphics && ((hres && oneBpp) ||
+            (!hres && scanlinesPerRow <= 2 && !_isComposite)))
             quality = 1;
 
         // Set up gamut table
