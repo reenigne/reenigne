@@ -852,7 +852,7 @@ template<class T> class CGAMatcherT : public ThreadTask
 public:
     CGAMatcherT()
       : _rgbiPalette(3*0x10), _active(false), _skip(0x100),
-        _prescalerProfile(0), _lTargetToLChange(0), _rChangeToRTarget(0),
+        _prescalerProfile(0), _lTargetToLBlock(0), _rBlockToRTarget(0),
         _needRescale(true)
     {
         _scaler.setWidth(1);
@@ -1067,8 +1067,8 @@ public:
         int gamutWidth = 0;
         int gamutOutputWidth = _graphics ? 4 : hres ? 8 : 16;
         bool newCGA = connector == 2;
-        int maxLNtscToLChange = 0;
-        int maxRChangeToRNtsc = 0;
+        int maxLNtscToLBlock = 0;
+        int maxRBlockToRNtsc = 0;
         if (_isComposite) {
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
@@ -1079,9 +1079,10 @@ public:
             double black = _composite.black();
             double white = _composite.white();
             int rChangeToRBase = static_cast<int>(4*lobes);
-            int lBaseToLChange = (rChangeToRBase + 4) & ~3;
             for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
                 Box* box = &_boxes[boxIndex];
+                int lBaseToLChange =
+                    (rChangeToRBase + (box->_lBlockToLChange & 3) + 4) & ~3;
                 int lBaseToRChange = lBaseToLChange + box->_lChangeToRChange;
                 MatchingNTSCDecoder* base = &box->_baseDecoder;
                 base->setLength(lBaseToRChange + rChangeToRBase);
@@ -1101,10 +1102,10 @@ public:
                 int lNtscToLBase = -base->inputLeft();
                 int lBaseToRNtsc = base->inputRight();
                 box->_lNtscToLChange = lNtscToLBase + lBaseToLChange;
-                maxLNtscToLChange =
-                    max(maxLNtscToLChange, box->_lNtscToLChange);
-                maxRChangeToRNtsc =
-                    max(maxRChangeToRNtsc, lBaseToRNtsc - lBaseToRChange);
+                maxLNtscToLBlock = max(maxLNtscToLBlock,
+                    box->_lNtscToLChange - box->_lBlockToLChange);
+                maxRBlockToRNtsc =
+                    max(maxRBlockToRNtsc, lBaseToRNtsc - lBaseToRChange);
                 _bias = base->bias();
                 _shift = base->shift();
                 MatchingNTSCDecoder* delta = &box->_deltaDecoder;
@@ -1143,20 +1144,20 @@ public:
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             scanlinesPerRow*_scanlinesRepeat2*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(gamma));
-        static const int incrementExtra = 27;
-        if (size != _size || maxLNtscToLChange > _lTargetToLChange ||
-            maxRChangeToRNtsc + incrementExtra > _rChangeToRTarget ||
+        static const int incrementExtra = 23;
+        if (size != _size || maxLNtscToLBlock > _lTargetToLBlock ||
+            maxRBlockToRNtsc + incrementExtra > _rBlockToRTarget ||
             needRescale) {
-            _lTargetToLChange = maxLNtscToLChange;
-            _rChangeToRTarget = maxRChangeToRNtsc + incrementExtra;
+            _lTargetToLBlock = maxLNtscToLBlock;
+            _rBlockToRTarget = maxRBlockToRNtsc + incrementExtra;
             auto zoom = Vector2Cast<float>(_activeSize*
                 Vector(1, interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size());
             _scaler.setZoom(zoom);
-            Vector offset(static_cast<int>(_lTargetToLChange / zoom.x), 0);
+            Vector offset(static_cast<int>(_lTargetToLBlock / zoom.x), 0);
             _scaler.setProfile(prescalerProfile);
             _scaler.setOutputSize(size
-                + Vector(_lTargetToLChange + _rChangeToRTarget, 0));
+                + Vector(_lTargetToLBlock + _rBlockToRTarget, 0));
             _scaler.setHorizontalLobes(3);
             _scaler.setVerticalLobes(3);
             _scaler.init();
@@ -1449,17 +1450,17 @@ public:
         }
 
         const Byte* inputStart = _scaled.data() +
-            (_lTargetToLChange - maxLNtscToLChange)*sizeof(Colour);
+            (_lTargetToLBlock - maxLNtscToLBlock)*sizeof(Colour);
         if (_isComposite) {
-            _ntscStride = maxLNtscToLChange + size.x + incrementExtra
-                + maxRChangeToRNtsc;
+            _ntscStride = maxLNtscToLBlock + size.x + incrementExtra
+                + maxRBlockToRNtsc;
             _ntsc.ensure(size.y*_ntscStride);
             const Byte* inputRow = inputStart;
             Byte* outputRow = &_ntsc[0];
             for (int y = 0; y < size.y; ++y) {
                 _boxes[0]._baseDecoder.encodeNTSC(
                     reinterpret_cast<const Colour*>(inputRow),
-                    outputRow, _ntscStride, &_linearizer, -maxLNtscToLChange);
+                    outputRow, _ntscStride, &_linearizer, -maxLNtscToLBlock);
                 inputRow += _scaled.stride();
                 outputRow += _ntscStride;
             }
@@ -1506,7 +1507,7 @@ public:
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
                 const Byte* inputLine = _inputBlock + sizeof(Colour)*
-                    (box->_lNtscToLChange + box->_lBlockToLChange);
+                    (_lTargetToLBlock + box->_lBlockToLChange);
                 Colour* errorLine = _errorBlock + box->_lCompareToLChange +
                     box->_lBlockToLChange;
                 Byte* ntscBaseLine = _ntscBlock + box->_lBlockToLChange;
@@ -1857,11 +1858,12 @@ private:
     float tryPattern(Box* box, int pattern)
     {
         float metric = 0;
-        const Byte* inputLine = _inputBlock +
-            (box->_lNtscToLCompare + box->_lBlockToLChange)*sizeof(Colour);
-        Colour* errorLine = _errorBlock + box->_lBlockToLChange;
-        Byte* rgbiLine = _rgbiBlock + box->_lBlockToLChange;
-        Byte* ntscLine = _ntscBlock + box->_lBlockToLChange;
+        int lBlockToLChange =  box->_lBlockToLChange;
+        const Byte* inputLine = _inputBlock + sizeof(Colour)*(
+            _lTargetToLBlock + lBlockToLChange - box->_lCompareToLChange);
+        Colour* errorLine = _errorBlock + lBlockToLChange;
+        Byte* rgbiLine = _rgbiBlock + lBlockToLChange;
+        Byte* ntscLine = _ntscBlock + lBlockToLChange;
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat2;
@@ -1873,7 +1875,7 @@ private:
                     int p = pattern;
                     if (_combineVertical && (scanline & 1) != 0)
                         p >>= _combineShift;
-                    p >>= box->_positionForPixel[x + box->_lBlockToLChange];
+                    p >>= box->_positionForPixel[x + lBlockToLChange];
                     _rgbiPattern[x] = _rgbiFromBits[p & _pixelMask];
                 }
             }
@@ -1898,10 +1900,10 @@ private:
                 Byte* ntsc = ntscLine + box->_lNtscToLChange;
                 for (x = -1; x < box->_lChangeToRChange - 1; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
-                        x & 3);
+                        (x + lBlockToLChange) & 3);
                 }
                 ntsc[x] = _composite.simulateHalfCGA(rgbi[x],
-                    _rightNTSC[scanline], x & 3);
+                    _rightNTSC[scanline], (x + lBlockToLChange) & 3);
                 box->_deltaDecoder.decodeNTSC(ntscLine + box->_lNtscToLDelta);
                 SInt16* decoded = _deltaDecoded;
                 for (int x = 0; x < box->_lCompareToRCompare; ++x) {
@@ -2144,8 +2146,8 @@ private:
 
     bool _active;
     Vector _size;
-    int _lTargetToLChange;
-    int _rChangeToRTarget;
+    int _lTargetToLBlock;
+    int _rBlockToRTarget;
     Vector _activeSize;
     ScanlineRenderer _scaler;
     AlignedBuffer _scaled;

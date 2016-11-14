@@ -1189,13 +1189,13 @@ change_origin = base_input + leftPadding
 
 
 Name the spans
-  ntsc (base input)
-  target
+  ntsc (base input)       box
+  target                           used in _lTargetToLBlock and _rBlockToRTarget
   error
-  delta (input)
-  base (output)
-  compare (delta output)
-  change (rgbi)
+  delta (delta input)     box
+  base (base output)      box
+  compare (delta output)  box
+  change (rgbi)           box
 
 The points are L and R of the spans
   lNtsc           rNtsc
