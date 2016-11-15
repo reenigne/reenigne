@@ -937,7 +937,6 @@ public:
         _isComposite = connector != 0;
         _graphics = (_mode & 2) != 0;
         bool oneBpp = (_mode & 0x10) != 0;
-        _combineHorizontal = false;
         _combineVertical = false;
         int boxCount;
         int boxIncrement = hres == _graphics ? 16 : 8;
@@ -1081,8 +1080,8 @@ public:
             int rChangeToRBase = static_cast<int>(4*lobes);
             for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
                 Box* box = &_boxes[boxIndex];
-                int lBaseToLChange =
-                    (rChangeToRBase + (box->_lBlockToLChange & 3) + 4) & ~3;
+                int lBaseToLChange = ((rChangeToRBase + 4) & ~3) +
+                    (box->_lBlockToLChange & 3);
                 int lBaseToRChange = lBaseToLChange + box->_lChangeToRChange;
                 MatchingNTSCDecoder* base = &box->_baseDecoder;
                 base->setLength(lBaseToRChange + rChangeToRBase);
@@ -1333,12 +1332,13 @@ public:
         // Populate gamut tables
         for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
             Box* box = &_boxes[boxIndex];
-            _srgb.ensure(box->_lChangeToRChange);
+            int lChangeToRChange = box->_lChangeToRChange;
+            _srgb.ensure(lChangeToRChange);
             _srgb.ensure(box->_lCompareToRCompare);
             box->_table.setSize(entries);
             if (_isComposite)
                 _base.ensure(box->_lCompareToRCompare*_blockHeight);
-            box->_blockArea = static_cast<float>(box->_lChangeToRChange);
+            box->_blockArea = static_cast<float>(lChangeToRChange);
             if (_combineVertical)
                 box->_blockArea *= _blockHeight;
             int skipSolidColour = 0xf00;
@@ -1359,7 +1359,7 @@ public:
                 Colour rgb(0, 0, 0);
                 for (int y = 0; y < blockLines; ++y) {
                     if (_graphics) {
-                        for (int x = 0; x < box->_lChangeToRChange; ++x) {
+                        for (int x = 0; x < lChangeToRChange; ++x) {
                             int p = pattern;
                             if (_combineVertical && y != 0)
                                 p >>= _combineShift;
@@ -1371,13 +1371,13 @@ public:
                     else {
                         UInt64 rgbi = _sequencer->process(pattern * 0x00010001,
                             _modeThread, _palette2, y, false, 0);
-                        for (int x = 0; x < box->_lChangeToRChange; ++x)
+                        for (int x = 0; x < lChangeToRChange; ++x)
                             _rgbiPattern[x] = (rgbi >> (x << 2)) & 0xf;
                     }
 
                     if (!_isComposite) {
                         SRGB* srgb = &_srgb[0];
-                        for (int x = 0; x < box->_lChangeToRChange; ++x) {
+                        for (int x = 0; x < lChangeToRChange; ++x) {
                             Byte* p = &_rgbiPalette[3*_rgbiPattern[x]];
                             *srgb = SRGB(p[0], p[1], p[2]);
                             ++srgb;
@@ -1385,14 +1385,14 @@ public:
                     }
                     else {
                         Byte* ntsc = &_ntscPattern[0];
-                        int l = (gamutLeftPadding*(1 - box->_lChangeToRChange))
-                            % box->_lChangeToRChange;
-                        int r = (l + 1)%box->_lChangeToRChange;
+                        int l = ((gamutLeftPadding - box->_lBlockToLChange)
+                            *(1 - lChangeToRChange)) % lChangeToRChange;
+                        int r = (l + 1)%lChangeToRChange;
                         for (int x = 0; x < gamutWidth; ++x) {
                             *ntsc = _composite.simulateCGA(_rgbiPattern[l],
                                 _rgbiPattern[r], (x + gamutLeftPadding) & 3);
                             l = r;
-                            r = (r + 1)%box->_lChangeToRChange;
+                            r = (r + 1)%lChangeToRChange;
                             ++ntsc;
                         }
                         _gamutDecoder.decodeNTSC(&_ntscPattern[0]);
@@ -1426,12 +1426,13 @@ public:
         _error.ensure(errorSize);
         srand(0);
         for (int x = 0; x < errorSize; ++x) {
-            float r = static_cast<float>(rand());
-            float g = static_cast<float>(rand());
-            float b = static_cast<float>(rand());
-            Colour c(r, g, b);
-            c /= RAND_MAX;
-            _error[x] = c - Colour(0.5f, 0.5f, 0.5f);
+            //float r = static_cast<float>(rand());
+            //float g = static_cast<float>(rand());
+            //float b = static_cast<float>(rand());
+            //Colour c(r, g, b);
+            //c /= RAND_MAX;
+            //_error[x] = c - Colour(0.5f, 0.5f, 0.5f);
+            _error[x] = Colour(0, 0, 0);
         }
         _rgbiStride = 1 + size.x + incrementExtra;
         _rgbi.ensure(_rgbiStride*size.y + 1);
@@ -1494,7 +1495,7 @@ public:
             }
 
             _d0 = &_rowData[1];
-            _d1 = &_rowData[1 + rowDataStride];
+            Byte* d1 = &_rowData[1 + rowDataStride];
             _inputBlock = inputRow;
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
@@ -1611,13 +1612,13 @@ public:
                     *_d0 = (*_d0 & ~(mask << shift)) +
                         ((bestPattern & mask) << shift);
                     if (_combineVertical) {
-                        *_d1 = (*_d1 & ~(mask << shift)) +
+                        *d1 = (*d1 & ~(mask << shift)) +
                             (((bestPattern >> _combineShift) & mask) << shift);
                     }
                 }
                 int incrementBytes = box->_incrementBytes;
                 _d0 += incrementBytes;
-                _d1 += incrementBytes;
+                d1 += incrementBytes;
                 column += incrementBytes;
                 if (column >= bytesPerRow)
                     break;
@@ -2174,7 +2175,6 @@ private:
     Array<Byte> _rightNTSC;
 
     Byte* _d0;
-    Byte* _d1;
     const Byte* _inputBlock;
     Colour* _errorBlock;
     Byte* _rgbiBlock;
@@ -2195,7 +2195,6 @@ private:
     float _diffusionHorizontal2;
     float _diffusionVertical2;
     float _diffusionTemporal2;
-    bool _combineHorizontal;
     bool _combineVertical;
     int _combineShift;
 
