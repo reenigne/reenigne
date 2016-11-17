@@ -897,6 +897,7 @@ public:
         int prescalerProfile;
         int lookAhead;
         bool combineScanlines;
+        int advance;
         {
             Lock lock(&_mutex);
             _diffusionHorizontal2 = _diffusionHorizontal;
@@ -930,6 +931,7 @@ public:
             prescalerProfile = _prescalerProfile;
             lookAhead = _lookAhead;
             combineScanlines = _combineScanlines;
+            advance = _advance;
         }
 
         bool hres = (_mode & 1) != 0;
@@ -939,9 +941,13 @@ public:
         _combineVertical = false;
         int boxCount;
         int boxIncrement = hres == _graphics ? 16 : 8;
+        advance = 2;  // TODO: get rid of if we want to modify this
+        if (advance == 0 && _graphics && !oneBpp)
+            advance = 1;
         int bitCount = 16;
         if (_graphics) {
-            bitCount = oneBpp ? 1 : 2;
+            bitCount = 1 << advance;
+            int advance2 = oneBpp ? 0 : 1;
             if (scanlinesPerRow > 2 && combineScanlines)
                 _combineVertical = true;
             _pixelMask = oneBpp ? 1 : 3;
@@ -985,35 +991,18 @@ public:
             else {
                 if (_combineVertical)
                     lookAhead = max(lookAhead, 7);
-                if (oneBpp) {
-                    boxCount = 8;
-                    int pixels = lookAhead + 1;
-                    _combineShift = pixels;
-                    for (int i = 0; i < 8; ++i) {
-                        Box* box = &_boxes[i];
-                        box->_bitOffset = 7 - i;
-                        box->_incrementBytes = (i == 7 ? 1 : 0);
-                        for (int x = 0; x < 31; ++x) {
-                            int v = x - i;
-                            box->_positionForPixel[x] =
-                                v >= 0 && v < pixels ? v : -1;
-                        }
-                    }
-                }
-                else {
-                    boxCount = 4;
-                    int s = (lookAhead & -2);
-                    int pixels = s + 2;
-                    _combineShift = pixels;
-                    for (int i = 0; i < 4; ++i) {
-                        Box* box = &_boxes[i];
-                        box->_bitOffset = 6 - (i << 1);
-                        box->_incrementBytes = (i == 3 ? 1 : 0);
-                        for (int x = 0; x < 31; ++x) {
-                            int v = (x >> 1) - i;
-                            box->_positionForPixel[x] =
-                                v >= 0 && v < pixels ? v : -1;
-                        }
+                boxCount = advance == 4 ? 1 : 8 >> advance;
+                _combineShift = (lookAhead & -(1 << advance)) + (1 << advance);
+                for (int i = 0; i < boxCount; ++i) {
+                    Box* box = &_boxes[i];
+                    box->_bitOffset = (~i << advance) & 7;
+                    box->_incrementBytes = (i == boxCount - 1 ? 1 : 0);
+                    if (advance == 4)
+                        box->_incrementBytes = 2;
+                    for (int x = 0; x < 31; ++x) {
+                        int v = ((x >> advance2) << advance2) - (i << advance);
+                        box->_positionForPixel[x] =
+                            v >= 0 && v < _combineShift ? v : -1;
                     }
                 }
             }
@@ -1062,6 +1051,14 @@ public:
         bool newCGA = connector == 2;
         int lNtscToLBlock = 0;
         int lBlockToRNtsc = 0;
+        int lBlockToRChange = 0;
+        for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
+            Box* box = &_boxes[boxIndex];
+            box->_lCompareToRCompare = box->_lChangeToRChange;
+            box->_lBlockToLCompare = box->_lBlockToLChange;
+            lBlockToRChange = max(lBlockToRChange,
+                box->_lBlockToLChange + box->_lChangeToRChange);
+        }
         if (_isComposite) {
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
@@ -1136,19 +1133,11 @@ public:
             gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
             _ntscPattern.ensure(gamutWidth);
         }
-        else {
-            for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
-                Box* box = &_boxes[boxIndex];
-                box->_lCompareToRCompare = box->_lChangeToRChange;
-                box->_lBlockToLCompare = box->_lBlockToLChange;
-            }
-        }
 
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             scanlinesPerRow*_scanlinesRepeat2*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(gamma));
-        static const int incrementExtra = 23;
         if (size != _size || lNtscToLBlock > _lTargetToLBlock ||
             lBlockToRNtsc > _lBlockToRTarget || needRescale) {
             _lTargetToLBlock = lNtscToLBlock;
@@ -1434,7 +1423,8 @@ public:
             _error[x] = randomError();
         for (int x = 0; x < size.y + 1; ++x)
             _error[x*_errorStride] = randomError();
-        _rgbiStride = 1 + size.x + incrementExtra;
+        int size1 = size.x - boxIncrement;
+        _rgbiStride = 1 + size1 + lBlockToRChange;
         _rgbi.ensure(_rgbiStride*size.y + 1);
         int row = 0;
         int scanline = 0;
@@ -1445,15 +1435,14 @@ public:
             *rgbi = overscan;
             if (y == size.y)
                 break;
-            for (int x = 0; x < size.x + incrementExtra; ++x)
-                rgbi[1 + x] = -1;
+            for (int x = 1; x < _rgbiStride; ++x)
+                rgbi[x] = -1;
             rgbi += _rgbiStride;
         }
 
         const Byte* inputStart = _scaled.data();
         if (_isComposite) {
-            _ntscStride = lNtscToLBlock + size.x + lBlockToRNtsc
-                - boxIncrement;
+            _ntscStride = lNtscToLBlock + size1 + lBlockToRNtsc;
             _ntsc.ensure(size.y*_ntscStride);
             const Byte* inputRow = inputStart;
             Byte* outputRow = &_ntsc[0];
@@ -1845,6 +1834,12 @@ public:
         _combineScanlines = combineScanlines;
     }
     bool getCombineScanlines() { return _combineScanlines; }
+    void setAdvance(int advance)
+    {
+        Lock lock(&_mutex);
+        _advance = advance;
+    }
+    int getAdvance() { return _advance; }
     void initFromData()
     {
         _mode = _data->getDataByte(CGAData::registerMode);
@@ -2149,6 +2144,7 @@ private:
     int _prescalerProfile;
     int _lookAhead;
     bool _combineScanlines;
+    int _advance;
     bool _needRescale;
 
     bool _active;
