@@ -1189,7 +1189,8 @@ change_origin = base_input + leftPadding
 
 
 Name the spans
-  ntsc (base input)       box
+  input (base)            box
+  ntsc
   target                           used in _lTargetToLBlock and _rBlockToRTarget
   error
   delta (delta input)     box

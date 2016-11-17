@@ -832,12 +832,11 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _incrementBytes;
         int _lChangeToRChange;
         int _lCompareToRCompare;
-        int _lNtscToLChange;
         int _lBlockToLChange;
-        int _lNtscToLCompare;
         int _lBaseToLCompare;
-        int _lCompareToLChange;
-        int _lNtscToLDelta;
+        int _lBlockToLDelta;
+        int _lBlockToLCompare;
+        int _lBlockToLInput;
         float _blockArea;
         int _patternCount;
         SInt8 _positionForPixel[31];
@@ -852,7 +851,7 @@ template<class T> class CGAMatcherT : public ThreadTask
 public:
     CGAMatcherT()
       : _rgbiPalette(3*0x10), _active(false), _skip(0x100),
-        _prescalerProfile(0), _lTargetToLBlock(0), _rBlockToRTarget(0),
+        _prescalerProfile(0), _lTargetToLBlock(0), _lBlockToRTarget(0),
         _needRescale(true)
     {
         _scaler.setWidth(1);
@@ -1055,19 +1054,14 @@ public:
 
         _program->setProgress(0);
 
-        for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
-            Box* box = &_boxes[boxIndex];
-            box->_lCompareToRCompare = box->_lChangeToRChange;
-            box->_lCompareToLChange = 0;
-        }
-        int maxLCompareToLChange = 0;
-        int maxRChangeToRCompare = 0;
+        int lErrorToLBlock = 0;
+        int lBlockToRError = 0;
         int gamutLeftPadding = 0;
         int gamutWidth = 0;
         int gamutOutputWidth = _graphics ? 4 : hres ? 8 : 16;
         bool newCGA = connector == 2;
-        int maxLNtscToLBlock = 0;
-        int maxRBlockToRNtsc = 0;
+        int lNtscToLBlock = 0;
+        int lBlockToRNtsc = 0;
         if (_isComposite) {
             _composite.setBW((_mode & 4) != 0);
             _composite.setNewCGA(newCGA);
@@ -1098,38 +1092,42 @@ public:
                     (-black*c + brightness*5 + (newCGA ? -50 : 0))/256.0);
                 base->setInputScaling(1);
                 base->calculateBurst(burst);
-                int lNtscToLBase = -base->inputLeft();
-                int lBaseToRNtsc = base->inputRight();
-                box->_lNtscToLChange = lNtscToLBase + lBaseToLChange;
-                maxLNtscToLBlock = max(maxLNtscToLBlock,
-                    box->_lNtscToLChange - box->_lBlockToLChange);
-                maxRBlockToRNtsc =
-                    max(maxRBlockToRNtsc, lBaseToRNtsc - lBaseToRChange);
+                int lInputToLBase = -base->inputLeft();
+                int lBaseToRInput = base->inputRight();
+                int lInputToLChange = lInputToLBase + lBaseToLChange;
+                lNtscToLBlock = max(lNtscToLBlock,
+                    lInputToLChange - box->_lBlockToLChange);
+                lBlockToRNtsc = max(lBlockToRNtsc,
+                    lBaseToRInput + box->_lBlockToLChange - lBaseToLChange);
                 _bias = base->bias();
                 _shift = base->shift();
                 MatchingNTSCDecoder* delta = &box->_deltaDecoder;
                 *delta = *base;
-                int lNtscToRNtsc = lNtscToLBase + lBaseToRNtsc;
-                _activeInputs.ensure(lNtscToRNtsc);
-                for (int x = 0; x < lNtscToRNtsc; ++x) {
-                    int r = x - box->_lNtscToLChange;
+                int lInputToRInput = lInputToLBase + lBaseToRInput;
+                _activeInputs.ensure(lInputToRInput);
+                for (int x = 0; x < lInputToRInput; ++x) {
+                    int r = x - lInputToLChange;
                     _activeInputs[x] =
                         box->position(r + 1) != -1 || box->position(r) != -1 ?
                         1 : 0;
                 }
-                delta->calculateBurst(burst, &_activeInputs[lNtscToLBase]);
+                delta->calculateBurst(burst, &_activeInputs[lInputToLBase]);
                 box->_lBaseToLCompare = delta->outputLeft();
                 int lBaseToRCompare = delta->outputRight();
                 box->_lCompareToRCompare =
                     lBaseToRCompare - box->_lBaseToLCompare;
-                box->_lNtscToLDelta = lNtscToLBase + delta->inputLeft();
-                box->_lNtscToLCompare = lNtscToLBase + box->_lBaseToLCompare;
-                box->_lCompareToLChange =
-                    box->_lNtscToLChange - box->_lNtscToLCompare;
-                maxLCompareToLChange =
-                    max(maxLCompareToLChange, box->_lCompareToLChange);
-                maxRChangeToRCompare =
-                    max(maxRChangeToRCompare, lBaseToRCompare - lBaseToRChange);
+                int lBaseToLDelta = delta->inputLeft();
+                int lInputToLCompare = lInputToLBase + box->_lBaseToLCompare;
+                int lCompareToLChange = lInputToLChange - lInputToLCompare;
+                int lCompareToLBlock =
+                    lCompareToLChange - box->_lBlockToLChange;
+                int lBlockToLBase = box->_lBlockToLChange - lBaseToLChange;
+                box->_lBlockToLDelta = lBlockToLBase + lBaseToLDelta;
+                box->_lBlockToLCompare = lBlockToLBase + box->_lBaseToLCompare;
+                box->_lBlockToLInput = lBlockToLBase - lInputToLBase;
+                lErrorToLBlock = max(lErrorToLBlock, lCompareToLBlock);
+                lBlockToRError = max(lBlockToRError,
+                    box->_lCompareToRCompare - lCompareToLBlock);
             }
             _gamutDecoder = _boxes[0]._baseDecoder;
             _gamutDecoder.setLength(gamutOutputWidth);
@@ -1138,17 +1136,23 @@ public:
             gamutWidth = _gamutDecoder.inputRight() - gamutLeftPadding;
             _ntscPattern.ensure(gamutWidth);
         }
+        else {
+            for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
+                Box* box = &_boxes[boxIndex];
+                box->_lCompareToRCompare = box->_lChangeToRChange;
+                box->_lBlockToLCompare = box->_lBlockToLChange;
+            }
+        }
 
         // Resample input image to desired size
         Vector size(_hdotsPerChar*_horizontalDisplayed,
             scanlinesPerRow*_scanlinesRepeat2*_verticalDisplayed);
         _linearizer.setGamma(static_cast<float>(gamma));
         static const int incrementExtra = 23;
-        if (size != _size || maxLNtscToLBlock > _lTargetToLBlock ||
-            maxRBlockToRNtsc + incrementExtra > _rBlockToRTarget ||
-            needRescale) {
-            _lTargetToLBlock = maxLNtscToLBlock;
-            _rBlockToRTarget = maxRBlockToRNtsc + incrementExtra;
+        if (size != _size || lNtscToLBlock > _lTargetToLBlock ||
+            lBlockToRNtsc > _lBlockToRTarget || needRescale) {
+            _lTargetToLBlock = lNtscToLBlock;
+            _lBlockToRTarget = lBlockToRNtsc;
             auto zoom = Vector2Cast<float>(_activeSize*
                 Vector(1, interlaceSync ? 2 : 1))/
                 Vector2Cast<float>(_input.size());
@@ -1156,7 +1160,7 @@ public:
             Vector offset(static_cast<int>(_lTargetToLBlock / zoom.x), 0);
             _scaler.setProfile(prescalerProfile);
             _scaler.setOutputSize(size
-                + Vector(_lTargetToLBlock + _rBlockToRTarget, 0));
+                + Vector(_lTargetToLBlock + _lBlockToRTarget, 0));
             _scaler.setHorizontalLobes(3);
             _scaler.setVerticalLobes(3);
             _scaler.init();
@@ -1420,20 +1424,16 @@ public:
         _rowData.ensure(rowDataStride*2);
         _rowData[0] = 0;
         _rowData[rowDataStride] = 0;
-        _errorStride = 1 + maxLCompareToLChange + size.x + incrementExtra
-            + maxRChangeToRCompare;
+        _errorStride = 1 + lErrorToLBlock + size.x + lBlockToRError;
         int errorSize = _errorStride*(size.y + 1);
         _error.ensure(errorSize);
         srand(0);
-        for (int x = 0; x < errorSize; ++x) {
-            //float r = static_cast<float>(rand());
-            //float g = static_cast<float>(rand());
-            //float b = static_cast<float>(rand());
-            //Colour c(r, g, b);
-            //c /= RAND_MAX;
-            //_error[x] = c - Colour(0.5f, 0.5f, 0.5f);
+        for (int x = 0; x < errorSize; ++x)
             _error[x] = Colour(0, 0, 0);
-        }
+        for (int x = 0; x < _errorStride; ++x)
+            _error[x] = randomError();
+        for (int x = 0; x < size.y + 1; ++x)
+            _error[x*_errorStride] = randomError();
         _rgbiStride = 1 + size.x + incrementExtra;
         _rgbi.ensure(_rgbiStride*size.y + 1);
         int row = 0;
@@ -1450,18 +1450,17 @@ public:
             rgbi += _rgbiStride;
         }
 
-        const Byte* inputStart = _scaled.data() +
-            (_lTargetToLBlock - maxLNtscToLBlock)*sizeof(Colour);
+        const Byte* inputStart = _scaled.data();
         if (_isComposite) {
-            _ntscStride = maxLNtscToLBlock + size.x + incrementExtra
-                + maxRBlockToRNtsc;
+            _ntscStride = lNtscToLBlock + size.x + lBlockToRNtsc
+                - boxIncrement;
             _ntsc.ensure(size.y*_ntscStride);
             const Byte* inputRow = inputStart;
             Byte* outputRow = &_ntsc[0];
             for (int y = 0; y < size.y; ++y) {
                 _boxes[0]._baseDecoder.encodeNTSC(
                     reinterpret_cast<const Colour*>(inputRow),
-                    outputRow, _ntscStride, &_linearizer, -maxLNtscToLBlock);
+                    outputRow, _ntscStride, &_linearizer, -lNtscToLBlock);
                 inputRow += _scaled.stride();
                 outputRow += _ntscStride;
             }
@@ -1469,10 +1468,10 @@ public:
             _rightNTSC.ensure(_blockHeight);
         }
 
-        const Byte* inputRow = inputStart;
-        Colour* errorRow = &_error[_errorStride + 1];
+        const Byte* inputRow = inputStart + sizeof(Colour)*(_lTargetToLBlock);
+        Colour* errorRow = &_error[_errorStride + 1] + lErrorToLBlock;
         Byte* rgbiRow = &_rgbi[1];
-        Byte* ntscRow = &_ntsc[0];
+        Byte* ntscRow = &_ntsc[0] + lNtscToLBlock;
         int bankShift =
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
@@ -1507,20 +1506,20 @@ public:
                 int bestPattern = 0;
                 float bestMetric = std::numeric_limits<float>::max();
                 Colour rgb(0, 0, 0);
-                const Byte* inputLine = _inputBlock + sizeof(Colour)*
-                    (_lTargetToLBlock + box->_lBlockToLChange);
-                Colour* errorLine = _errorBlock + box->_lCompareToLChange +
+                const Byte* inputChangeLine = _inputBlock + sizeof(Colour)*
                     box->_lBlockToLChange;
-                Byte* ntscBaseLine = _ntscBlock + box->_lBlockToLChange;
-                Byte* ntscDeltaLine = ntscBaseLine + box->_lNtscToLDelta;
-                Byte* ntscLine = ntscBaseLine + box->_lNtscToLChange;
+                Colour* errorChangeLine = _errorBlock + box->_lBlockToLChange;
+                Byte* ntscInputLine = _ntscBlock + box->_lBlockToLInput;
+                Byte* ntscDeltaLine = _ntscBlock + box->_lBlockToLDelta;
+                Byte* ntscChangeLine = _ntscBlock + box->_lBlockToLChange;
 
                 Vector3<SInt16>* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
                     // Compute average target colour for block to look up in
                     // table.
-                    auto input = reinterpret_cast<const Colour*>(inputLine);
-                    Colour* error = errorLine;
+                    auto input =
+                        reinterpret_cast<const Colour*>(inputChangeLine);
+                    Colour* error = errorChangeLine;
                     for (int x = 0; x < box->_lChangeToRChange; ++x) {
                         Colour target = *input
                             - _diffusionHorizontal2*error[-1]
@@ -1533,12 +1532,12 @@ public:
                         ++input;
                         ++error;
                     }
-                    inputLine += _scaled.stride();
-                    errorLine += _errorStride;
+                    inputChangeLine += _scaled.stride();
+                    errorChangeLine += _errorStride;
 
                     if (_isComposite) {
                         // Compute base for decoding.
-                        box->_baseDecoder.decodeNTSC(ntscBaseLine);
+                        box->_baseDecoder.decodeNTSC(ntscInputLine);
                         box->_deltaDecoder.decodeNTSC(ntscDeltaLine);
                         SInt16* decoded = box->_baseDecoder.outputData() +
                             box->_lBaseToLCompare*3;
@@ -1554,9 +1553,9 @@ public:
                             deltaDecoded += 3;
                         }
                         _rightNTSC[scanline] =
-                            ntscLine[box->_lChangeToRChange];
-                        ntscLine += _ntscStride;
-                        ntscBaseLine += _ntscStride;
+                            ntscChangeLine[box->_lChangeToRChange];
+                        ntscChangeLine += _ntscStride;
+                        ntscInputLine += _ntscStride;
                         ntscDeltaLine += _ntscStride;
                         baseLine += box->_lCompareToRCompare;
                     }
@@ -1856,15 +1855,22 @@ public:
             _data->getDataByte(CGAData::registerScanlinesRepeat);
     }
 private:
+    Colour randomError()
+    {
+        float r = static_cast<float>(rand());
+        float g = static_cast<float>(rand());
+        float b = static_cast<float>(rand());
+        return Colour(r, g, b)/RAND_MAX - Colour(0.5f, 0.5f, 0.5f);
+    }
     float tryPattern(Box* box, int pattern)
     {
         float metric = 0;
-        int lBlockToLChange =  box->_lBlockToLChange;
-        const Byte* inputLine = _inputBlock + sizeof(Colour)*(
-            _lTargetToLBlock + lBlockToLChange - box->_lCompareToLChange);
-        Colour* errorLine = _errorBlock + lBlockToLChange;
+        int lBlockToLChange = box->_lBlockToLChange;
+        const Byte* inputLine =
+            _inputBlock + sizeof(Colour)*box->_lBlockToLCompare;
+        Colour* errorLine = _errorBlock + box->_lBlockToLCompare;
         Byte* rgbiLine = _rgbiBlock + lBlockToLChange;
-        Byte* ntscLine = _ntscBlock + lBlockToLChange;
+        Byte* ntscLine = _ntscBlock;
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat2;
@@ -1898,14 +1904,14 @@ private:
                 int x;
                 for (x = 0; x < box->_lChangeToRChange; ++x)
                     rgbi[x] = _rgbiPattern[x];
-                Byte* ntsc = ntscLine + box->_lNtscToLChange;
+                Byte* ntsc = ntscLine + box->_lBlockToLChange;
                 for (x = -1; x < box->_lChangeToRChange - 1; ++x) {
                     ntsc[x] = _composite.simulateCGA(rgbi[x], rgbi[x + 1],
                         (x + lBlockToLChange) & 3);
                 }
                 ntsc[x] = _composite.simulateHalfCGA(rgbi[x],
                     _rightNTSC[scanline], (x + lBlockToLChange) & 3);
-                box->_deltaDecoder.decodeNTSC(ntscLine + box->_lNtscToLDelta);
+                box->_deltaDecoder.decodeNTSC(ntscLine + box->_lBlockToLDelta);
                 SInt16* decoded = _deltaDecoded;
                 for (int x = 0; x < box->_lCompareToRCompare; ++x) {
                     Vector3<SInt16> b = baseLine[x];
@@ -2148,7 +2154,7 @@ private:
     bool _active;
     Vector _size;
     int _lTargetToLBlock;
-    int _rBlockToRTarget;
+    int _lBlockToRTarget;
     Vector _activeSize;
     ScanlineRenderer _scaler;
     AlignedBuffer _scaled;
