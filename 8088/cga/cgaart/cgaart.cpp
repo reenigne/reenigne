@@ -941,13 +941,13 @@ public:
         _combineVertical = false;
         int boxCount;
         int boxIncrement = hres == _graphics ? 16 : 8;
-        advance = 2;  // TODO: get rid of if we want to modify this
+        if (_graphics && !hres && advance == 4)
+            boxIncrement = 16;
         if (advance == 0 && _graphics && !oneBpp)
             advance = 1;
         int bitCount = 16;
         if (_graphics) {
             bitCount = 1 << advance;
-            int advance2 = oneBpp ? 0 : 1;
             if (scanlinesPerRow > 2 && combineScanlines)
                 _combineVertical = true;
             _pixelMask = oneBpp ? 1 : 3;
@@ -989,8 +989,11 @@ public:
                 }
             }
             else {
-                if (_combineVertical)
+                if (_combineVertical) {
                     lookAhead = max(lookAhead, 7);
+                    if (advance == 4)
+                        advance = 3;
+                }
                 boxCount = advance == 4 ? 1 : 8 >> advance;
                 _combineShift = (lookAhead & -(1 << advance)) + (1 << advance);
                 for (int i = 0; i < boxCount; ++i) {
@@ -1000,9 +1003,9 @@ public:
                     if (advance == 4)
                         box->_incrementBytes = 2;
                     for (int x = 0; x < 31; ++x) {
-                        int v = ((x >> advance2) << advance2) - (i << advance);
-                        box->_positionForPixel[x] =
-                            v >= 0 && v < _combineShift ? v : -1;
+                        int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
+                        box->_positionForPixel[x] = v >= 0 && v < _combineShift
+                            ? (_combineShift - (v + (oneBpp ? 1 : 2))) : -1;
                     }
                 }
             }
@@ -1211,9 +1214,6 @@ public:
             _scaler.render();
             _scaled = _scaler.output();
         }
-        if (_graphics && ((hres && oneBpp) ||
-            (!hres && scanlinesPerRow <= 2 && !_isComposite)))
-            quality = 1;
 
         // Set up gamut table
         float gDivisions = static_cast<float>(64.0/pow(2, quality*6));
@@ -1591,12 +1591,20 @@ public:
                 }
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
-                    *_d0 = bestPattern;
-                    _d0[1] = bestPattern >> 8;
+                    if (_graphics) {
+                        *_d0 = bestPattern >> 8;
+                        _d0[1] = bestPattern;
+                    }
+                    else {
+                        *_d0 = bestPattern;
+                        _d0[1] = bestPattern >> 8;
+                    }
                 }
                 else {
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset;
+                    int s1 = _combineShift - (1 << advance);
+                    bestPattern >>= s1;
                     *_d0 = (*_d0 & ~(mask << shift)) +
                         ((bestPattern & mask) << shift);
                     if (_combineVertical) {
@@ -3353,6 +3361,7 @@ public:
         _videoCard._matching._lookAhead.set(_matcher->getLookAhead());
         _videoCard._matching._combineScanlines.setCheckState(
             _matcher->getCombineScanlines());
+        _videoCard._matching._advance.set(_matcher->getAdvance());
     }
     void create()
     {
@@ -3453,7 +3462,8 @@ public:
         _videoCard._matching._lookAhead.enableWindow(matchMode);
         _videoCard._matching._combineScanlines.enableWindow(matchMode &&
             mttslpr);
-        _monitor._colour._saturation.enableWindow(composite);
+        _videoCard._matching._advance.enableWindow(matchMode);
+            _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);
     }
@@ -3692,6 +3702,11 @@ public:
     void lookAheadSet(int lookAhead)
     {
         _matcher->setLookAhead(lookAhead);
+        beginConvert();
+    }
+    void advanceSet(int advance)
+    {
+        _matcher->setAdvance(advance);
         beginConvert();
     }
     void combineScanlinesSet(bool combineScanlines)
@@ -4431,6 +4446,15 @@ private:
                     [&](bool value) { _host->combineScanlinesSet(value); });
                 _combineScanlines.setText("Combine Scanlines");
                 add(&_combineScanlines);
+                _advance.setChanged(
+                    [&](int value) { _host->advanceSet(value); });
+                _advance.setText("Advance: ");
+                _advance.add("1");
+                _advance.add("2");
+                _advance.add("4");
+                _advance.add("8");
+                _advance.add("16");
+                add(&_advance);
             }
             void layout()
             {
@@ -4453,17 +4477,15 @@ private:
                 r = max(r, _metric.right());
                 _characterSet.setTopLeft(_quality.bottomLeft() + vSpace);
                 r = max(r, _characterSet.right());
-                int b = _characterSet.bottom();
                 _profile.setTopLeft(_characterSet.topRight() + hSpace);
                 r = max(r, _profile.right());
-                b = max(b, _profile.bottom());
                 _lookAhead.setTopLeft(_profile.topRight() + hSpace);
                 r = max(r, _lookAhead.right());
-                b = max(b, _lookAhead.bottom());
                 _combineScanlines.setTopLeft(_lookAhead.topRight() + hSpace);
                 r = max(r, _combineScanlines.right());
-                b = max(b, _combineScanlines.bottom());
-                setInnerSize(Vector(r, b) + _host->groupBR());
+                _advance.setTopLeft(_characterSet.bottomLeft() + vSpace);
+                r = max(r, _advance.right());
+                setInnerSize(Vector(r, _advance.bottom()) + _host->groupBR());
                 _progressBar.setTopLeft(_matchMode.topRight() + hSpace);
                 _progressBar.setInnerSize(Vector(r - _progressBar.topLeft().x,
                     _matchMode.outerSize().y));
@@ -4482,6 +4504,7 @@ private:
             ProfileDropDown _profile;
             CaptionedDropDownList _lookAhead;
             CheckBox _combineScanlines;
+            CaptionedDropDownList _advance;
         };
         MatchingGroup _matching;
         CGAArtWindow* _host;
@@ -4697,6 +4720,7 @@ public:
         configFile.addDefaultOption("horizontalProfile", 0);
         configFile.addDefaultOption("prescalerProfile", 4);
         configFile.addDefaultOption("lookAhead", 3);
+        configFile.addDefaultOption("advance", 2);
         configFile.addDefaultOption("combineScanlines", true);
         configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("horizontalBleeding", 2);
@@ -4884,6 +4908,7 @@ public:
         s += "prescalerProfile = " + decimal(_matcher->getPrescalerProfile()) +
             ";\n";
         s += "lookAhead = " + decimal(_matcher->getLookAhead()) + ";\n";
+        s += "advance = " + decimal(_matcher->getAdvance()) + ";\n";
         s += "combineScanlines = " +
             String::Boolean(_matcher->getCombineScanlines()) + ";\n";
         s += "scanlineBleeding = " + decimal(_output->getScanlineBleeding()) +
@@ -4920,6 +4945,7 @@ public:
             _config->get<double>("temporalDiffusion"));
         _matcher->setQuality(_config->get<double>("quality"));
         _matcher->setLookAhead(_config->get<int>("lookAhead"));
+        _matcher->setAdvance(_config->get<int>("advance"));
         _matcher->setCombineScanlines(_config->get<bool>("combineScanlines"));
         _matcher->setGamma(_config->get<double>("gamma"));
         _matcher->setClipping(_config->get<int>("clipping"));
