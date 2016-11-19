@@ -1419,10 +1419,6 @@ public:
         srand(0);
         for (int x = 0; x < errorSize; ++x)
             _error[x] = Colour(0, 0, 0);
-        for (int x = 0; x < _errorStride; ++x)
-            _error[x] = randomError();
-        for (int x = 0; x < size.y + 1; ++x)
-            _error[x*_errorStride] = randomError();
         int size1 = size.x - boxIncrement;
         _rgbiStride = 1 + size1 + lBlockToRChange;
         _rgbi.ensure(_rgbiStride*size.y + 1);
@@ -1858,13 +1854,6 @@ public:
             _data->getDataByte(CGAData::registerScanlinesRepeat);
     }
 private:
-    Colour randomError()
-    {
-        float r = static_cast<float>(rand());
-        float g = static_cast<float>(rand());
-        float b = static_cast<float>(rand());
-        return Colour(r, g, b)/RAND_MAX - Colour(0.5f, 0.5f, 0.5f);
-    }
     float tryPattern(Box* box, int pattern)
     {
         float metric = 0;
@@ -3441,15 +3430,12 @@ public:
     {
         bool matchMode = _program->getMatchMode();
         int mode = _matcher->getMode();
-        bool mttslpr = _matcher->getScanlinesPerRow() > 2;
         _videoCard._registers._blink.enableWindow((mode & 2) == 0);
         _videoCard._registers._palette.enableWindow((mode & 0x12) == 2);
         _videoCard._registers._phase.enableWindow((mode & 1) == 1);
         bool composite = (_output->getConnector() != 0);
         _videoCard._matching.enableWindow(_program->matchingPossible());
-        _videoCard._matching._quality.enableWindow(matchMode &&
-            (((((mode & 3) != 2 || composite) && (mode & 0x13) != 0x13) ||
-            mttslpr)));
+        _videoCard._matching._quality.enableWindow(matchMode);
         _videoCard._matching._gamma.enableWindow(matchMode);
         _videoCard._matching._clipping.enableWindow(matchMode);
         _videoCard._matching._metric.enableWindow(matchMode);
@@ -3461,7 +3447,7 @@ public:
         _videoCard._matching._profile.enableWindow(matchMode);
         _videoCard._matching._lookAhead.enableWindow(matchMode);
         _videoCard._matching._combineScanlines.enableWindow(matchMode &&
-            mttslpr);
+            _matcher->getScanlinesPerRow() > 2);
         _videoCard._matching._advance.enableWindow(matchMode);
             _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
