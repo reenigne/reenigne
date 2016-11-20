@@ -838,6 +838,7 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _lBlockToLCompare;
         int _lBlockToLInput;
         float _blockArea;
+        int _combineShift;
         int _patternCount;
         SInt8 _positionForPixel[31];
         int position(int pixel)  // Relative to lChange
@@ -951,10 +952,13 @@ public:
             if (scanlinesPerRow > 2 && combineScanlines)
                 _combineVertical = true;
             _pixelMask = oneBpp ? 1 : 3;
+            if (_combineVertical) {
+                lookAhead = max(lookAhead, 7);
+                if (advance == 4)
+                    advance = 3;
+            }
             if (hres) {
                 if (oneBpp) {
-                    if (_combineVertical)
-                        lookAhead = max(lookAhead, 7);
                     for (int i = 0; i < 16; ++i) {
                         Box* box = &_boxes[i];
                         box->_bitOffset = 7 - (i & 7);
@@ -962,6 +966,11 @@ public:
                     }
                 }
                 else {
+                    if (_combineVertical) {
+                        lookAhead = max(lookAhead, 3);
+                        if (advance == 3)
+                            advance = 2;
+                    }
                     lookAhead = max(lookAhead, _combineVertical ? 7 : 3);
                     for (int i = 0; i < 16; ++i) {
                         Box* box = &_boxes[i];
@@ -969,52 +978,55 @@ public:
                         box->_incrementBytes = 0;
                     }
                 }
-                int positions = 1 + lookAhead;
-                _combineShift = positions*bitCount;
-                boxCount = lookAhead >= 7 ? 12 : 16;
-                for (int i = 0; i < 16; ++i) {
+                int pixels = (lookAhead & -(1 << advance)) + (1 << advance);
+                int firstPixel = (pixels >= 8 ? 4 : 0);
+                for (int i = 0;; ++i) {
                     Box* box = &_boxes[i];
                     for (int x = 0; x < 31; ++x)
                         box->_positionForPixel[x] = -1;
-                    int pixel = 0;
-                    for (int p = 0; p < positions; ++p) {
-                        while (box->_positionForPixel[pixel] != -1)
-                            ++pixel;
-                        int pp = p*bitCount;
-                        box->_positionForPixel[pixel] = pp;
-                        if ((pixel & 4) == 0)
-                            box->_positionForPixel[pixel ^ 8] = pp;
-                        ++pixel;
+                    int p = firstPixel;
+                    int position = 0;
+                    do {
+                        while (p <= 31 && box->_positionForPixel[p] != -1)
+                            ++p;
+                        if (p >= firstPixel + pixels)
+                            break;
+                        int bitPosition = position*bitCount;
+                        box->_positionForPixel[p] = bitPosition;
+                        if ((p & 4) == 0)
+                            box->_positionForPixel[p ^ 8] = bitPosition;
+                        ++p;
                     }
+                    box->_combineShift = positions*bitCount << advance;
+                    ++boxCount;
+                    firstPixel += 1 << advance;
+                    if (firstPixel >= 16)
+                        break;
                 }
             }
             else {
-                if (_combineVertical) {
-                    lookAhead = max(lookAhead, 7);
-                    if (advance == 4)
-                        advance = 3;
-                }
                 boxCount = advance == 4 ? 1 : 8 >> advance;
-                _combineShift = (lookAhead & -(1 << advance)) + (1 << advance);
                 for (int i = 0; i < boxCount; ++i) {
                     Box* box = &_boxes[i];
+                    int c = (lookAhead & -(1 << advance)) + (1 << advance);
+                    box->_combineShift = c;
                     box->_bitOffset = (~i << advance) & 7;
                     box->_incrementBytes = (i == boxCount - 1 ? 1 : 0);
                     if (advance == 4)
                         box->_incrementBytes = 2;
                     for (int x = 0; x < 31; ++x) {
                         int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
-                        box->_positionForPixel[x] = v >= 0 && v < _combineShift
-                            ? (_combineShift - (v + (oneBpp ? 1 : 2))) : -1;
+                        box->_positionForPixel[x] = v >= 0 && v < c
+                            ? (c - (v + (oneBpp ? 1 : 2))) : -1;
                     }
                 }
             }
             for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
                 Box* box = &_boxes[boxIndex];
                 if (_combineVertical)
-                    box->_patternCount = 1 << (_combineShift << 1);
+                    box->_patternCount = 1 << (box->_combineShift << 1);
                 else
-                    box->_patternCount = 1 << _combineShift;
+                    box->_patternCount = 1 << box->_combineShift;
                 int i;
                 for (i = 0; i < 31; ++i)
                     if (box->_positionForPixel[i] != -1)
@@ -1035,7 +1047,7 @@ public:
             box->_patternCount = 0x10000;
             box->_lBlockToLChange = 0;
             box->_lChangeToRChange = boxIncrement;
-            _combineShift = 0;
+            box->_combineShift = 0;
         }
 
         for (int i = 0; i < 4; ++i) {
@@ -1355,7 +1367,7 @@ public:
                         for (int x = 0; x < lChangeToRChange; ++x) {
                             int p = pattern;
                             if (_combineVertical && y != 0)
-                                p >>= _combineShift;
+                                p >>= box->_combineShift;
                             p >>= box->_positionForPixel[x +
                                 box->_lBlockToLChange];
                             _rgbiPattern[x] = _rgbiFromBits[p & _pixelMask];
@@ -1599,13 +1611,14 @@ public:
                 else {
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset;
-                    int s1 = _combineShift - (1 << advance);
+                    int c = box->_combineshift;
+                    int s1 = c - (1 << advance);
                     bestPattern >>= s1;
                     *_d0 = (*_d0 & ~(mask << shift)) +
                         ((bestPattern & mask) << shift);
                     if (_combineVertical) {
                         *d1 = (*d1 & ~(mask << shift)) +
-                            (((bestPattern >> _combineShift) & mask) << shift);
+                            (((bestPattern >> c) & mask) << shift);
                     }
                 }
                 int incrementBytes = box->_incrementBytes;
@@ -1873,7 +1886,7 @@ private:
                 for (int x = 0; x < box->_lChangeToRChange; ++x) {
                     int p = pattern;
                     if (_combineVertical && (scanline & 1) != 0)
-                        p >>= _combineShift;
+                        p >>= box->_combineShift;
                     p >>= box->_positionForPixel[x + lBlockToLChange];
                     _rgbiPattern[x] = _rgbiFromBits[p & _pixelMask];
                 }
@@ -2195,7 +2208,6 @@ private:
     float _diffusionVertical2;
     float _diffusionTemporal2;
     bool _combineVertical;
-    int _combineShift;
 
     Mutex _mutex;
 
