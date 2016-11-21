@@ -838,8 +838,6 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _lBlockToLCompare;
         int _lBlockToLInput;
         float _blockArea;
-        int _combineShift;
-        int _patternCount;
         SInt8 _positionForPixel[31];
         int position(int pixel)  // Relative to lChange
         {
@@ -979,7 +977,8 @@ public:
                     }
                 }
                 int pixels = (lookAhead & -(1 << advance)) + (1 << advance);
-                int firstPixel = (pixels >= 8 ? 4 : 0);
+                int firstPixel = 0;
+                boxCount = 0;
                 for (int i = 0;; ++i) {
                     Box* box = &_boxes[i];
                     for (int x = 0; x < 31; ++x)
@@ -993,23 +992,24 @@ public:
                             break;
                         int bitPosition = position*bitCount;
                         box->_positionForPixel[p] = bitPosition;
-                        if ((p & 4) == 0)
+                        if ((p & 4) == 4)
                             box->_positionForPixel[p ^ 8] = bitPosition;
                         ++p;
-                    }
-                    box->_combineShift = positions*bitCount << advance;
+                        ++position;
+                    } while (true);
                     ++boxCount;
                     firstPixel += 1 << advance;
                     if (firstPixel >= 16)
                         break;
                 }
+                _combineShift = position*bitCount << advance;
             }
             else {
+                int c = (lookAhead & -(1 << advance)) + (1 << advance);
+                _combineShift = c;
                 boxCount = advance == 4 ? 1 : 8 >> advance;
                 for (int i = 0; i < boxCount; ++i) {
                     Box* box = &_boxes[i];
-                    int c = (lookAhead & -(1 << advance)) + (1 << advance);
-                    box->_combineShift = c;
                     box->_bitOffset = (~i << advance) & 7;
                     box->_incrementBytes = (i == boxCount - 1 ? 1 : 0);
                     if (advance == 4)
@@ -1021,12 +1021,12 @@ public:
                     }
                 }
             }
+            if (_combineVertical)
+                _patternCount = 1 << (_combineShift << 1);
+            else
+                _patternCount = 1 << _combineShift;
             for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
                 Box* box = &_boxes[boxIndex];
-                if (_combineVertical)
-                    box->_patternCount = 1 << (box->_combineShift << 1);
-                else
-                    box->_patternCount = 1 << box->_combineShift;
                 int i;
                 for (i = 0; i < 31; ++i)
                     if (box->_positionForPixel[i] != -1)
@@ -1044,10 +1044,10 @@ public:
             Box* box = &_boxes[0];
             box->_bitOffset = 0;
             box->_incrementBytes = 2;
-            box->_patternCount = 0x10000;
             box->_lBlockToLChange = 0;
             box->_lChangeToRChange = boxIncrement;
-            box->_combineShift = 0;
+            _patternCount = 0x10000;
+            _combineShift = 0;
         }
 
         for (int i = 0; i < 4; ++i) {
@@ -1347,7 +1347,7 @@ public:
             if (_combineVertical)
                 box->_blockArea *= _blockHeight;
             int skipSolidColour = 0xf00;
-            for (int pattern = 0; pattern < box->_patternCount; ++pattern) {
+            for (int pattern = 0; pattern < _patternCount; ++pattern) {
                 if (!_graphics) {
                     if (_skip[pattern & 0xff])
                         continue;
@@ -1367,7 +1367,7 @@ public:
                         for (int x = 0; x < lChangeToRChange; ++x) {
                             int p = pattern;
                             if (_combineVertical && y != 0)
-                                p >>= box->_combineShift;
+                                p >>= _combineShift;
                             p >>= box->_positionForPixel[x +
                                 box->_lBlockToLChange];
                             _rgbiPattern[x] = _rgbiFromBits[p & _pixelMask];
@@ -1611,7 +1611,7 @@ public:
                 else {
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset;
-                    int c = box->_combineshift;
+                    int c = _combineShift;
                     int s1 = c - (1 << advance);
                     bestPattern >>= s1;
                     *_d0 = (*_d0 & ~(mask << shift)) +
@@ -1886,7 +1886,7 @@ private:
                 for (int x = 0; x < box->_lChangeToRChange; ++x) {
                     int p = pattern;
                     if (_combineVertical && (scanline & 1) != 0)
-                        p >>= box->_combineShift;
+                        p >>= _combineShift;
                     p >>= box->_positionForPixel[x + lBlockToLChange];
                     _rgbiPattern[x] = _rgbiFromBits[p & _pixelMask];
                 }
@@ -2214,6 +2214,8 @@ private:
     Box _boxes[24];
     Byte _rgbiFromBits[4];
     int _pixelMask;
+    int _combineShift;
+    int _patternCount;
 
     MatchingNTSCDecoder _gamutDecoder;
 };
