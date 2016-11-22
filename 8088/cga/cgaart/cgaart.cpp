@@ -838,11 +838,11 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _lBlockToLCompare;
         int _lBlockToLInput;
         float _blockArea;
-        SInt8 _positionForPixel[31];
+        SInt8 _positionForPixel[35];
         int position(int pixel)  // Relative to lChange
         {
             pixel += _lBlockToLChange;
-            if (pixel < 0 || pixel >= 31)
+            if (pixel < 0 || pixel >= 35)
                 return -1;
             return _positionForPixel[pixel];
         }
@@ -976,37 +976,43 @@ public:
                         box->_incrementBytes = 0;
                     }
                 }
-                int pixels = (lookAhead & -(1 << advance)) + (1 << advance);
+                int positions = (lookAhead & -(1 << advance)) + (1 << advance);
+                _combineShift = positions << 1;
                 int firstPixel = 0;
                 boxCount = 0;
-                for (int i = 0;; ++i) {
-                    Box* box = &_boxes[i];
-                    for (int x = 0; x < 31; ++x)
-                        box->_positionForPixel[x] = -1;
-                    int p = firstPixel;
-                    int position = 0;
-                    do {
-                        while (p <= 31 && box->_positionForPixel[p] != -1)
-                            ++p;
-                        if (p >= firstPixel + pixels)
-                            break;
-                        int bitPosition = position*bitCount;
-                        box->_positionForPixel[p] = bitPosition;
-                        if ((p & 4) == 4)
-                            box->_positionForPixel[p ^ 8] = bitPosition;
-                        ++p;
-                        ++position;
-                    } while (true);
-                    ++boxCount;
+                do {
+                    Box* box = &_boxes[boxCount];
+                    for (int pixel = 0; pixel < 35; ++pixel)
+                        box->_positionForPixel[pixel] = -1;
+                    int pixel = firstPixel;
+                    for (int position = 0; position < positions ++position) {
+                        while (box->_positionForPixel[pixel] != -1)
+                            ++pixel;
+                        int bitPosition = position << 1;
+                        box->_positionForPixel[pixel] = bitPosition;
+                        if ((pixel & 4) != 0)
+                            box->_positionForPixel[pixel ^ 8] = bitPosition;
+                    }
+                    bool newBox = false;
+                    if (boxCount != 0) {
+                        for (int pixel = 0; pixel < 35; ++pixel) {
+                            if ((box->_positionForPixel[pixel] == -1) !=
+                                (_boxes[boxCount-1]._positionForPixel[pixel] ==
+                                -1)) {
+                                newBox = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                        newBox = true;
+                    if (newBox)
+                        ++boxCount;
                     firstPixel += 1 << advance;
-                    if (firstPixel >= 16)
-                        break;
                 }
-                _combineShift = position*bitCount << advance;
             }
             else {
-                int c = (lookAhead & -(1 << advance)) + (1 << advance);
-                _combineShift = c;
+                _combineShift = (lookAhead & -(1 << advance)) + (1 << advance);
                 boxCount = advance == 4 ? 1 : 8 >> advance;
                 for (int i = 0; i < boxCount; ++i) {
                     Box* box = &_boxes[i];
@@ -1014,10 +1020,10 @@ public:
                     box->_incrementBytes = (i == boxCount - 1 ? 1 : 0);
                     if (advance == 4)
                         box->_incrementBytes = 2;
-                    for (int x = 0; x < 31; ++x) {
+                    for (int x = 0; x < 35; ++x) {
                         int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
-                        box->_positionForPixel[x] = v >= 0 && v < c
-                            ? (c - (v + (oneBpp ? 1 : 2))) : -1;
+                        box->_positionForPixel[x] = v >= 0 && v < _combineShift
+                            ? (_combineShift - (v + (oneBpp ? 1 : 2))) : -1;
                     }
                 }
             }
@@ -1028,7 +1034,7 @@ public:
             for (int boxIndex = 0; boxIndex < boxCount; ++boxIndex) {
                 Box* box = &_boxes[boxIndex];
                 int i;
-                for (i = 0; i < 31; ++i)
+                for (i = 0; i < 35; ++i)
                     if (box->_positionForPixel[i] != -1)
                         break;
                 box->_lBlockToLChange = i;
