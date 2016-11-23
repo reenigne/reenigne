@@ -1605,6 +1605,7 @@ public:
                 }
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
+
                     if (_graphics) {
                         *_d0 = bestPattern >> 8;
                         _d0[1] = bestPattern;
@@ -1615,16 +1616,17 @@ public:
                     }
                 }
                 else {
+                    int byte = box->_bitOffset >> 3;
                     int mask = (1 << bitCount) - 1;
-                    int shift = box->_bitOffset;
-                    int c = _combineShift;
-                    int s1 = c - (1 << advance);
+                    int shift = box->_bitOffset & 7;
+                    int s1 = _combineShift - (1 << advance);
                     bestPattern >>= s1;
-                    *_d0 = (*_d0 & ~(mask << shift)) +
+                    _d0[byte] = (_d0[byte] & ~(mask << shift)) +
                         ((bestPattern & mask) << shift);
                     if (_combineVertical) {
-                        *d1 = (*d1 & ~(mask << shift)) +
-                            (((bestPattern >> c) & mask) << shift);
+                        bestPattern >>= _combineShift;
+                        d1[byte] = (d1[byte] & ~(mask << shift)) +
+                            ((bestPattern & mask) << shift);
                     }
                 }
                 int incrementBytes = box->_incrementBytes;
