@@ -1605,10 +1605,15 @@ public:
                 }
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
-
                     if (_graphics) {
-                        *_d0 = bestPattern >> 8;
-                        _d0[1] = bestPattern;
+                        if ((box->_bitOffset & 16) == 0) {
+                            *_d0 = bestPattern >> 8;
+                            _d0[1] = bestPattern;
+                        }
+                        else {
+                            _d0[2] = bestPattern >> 8;
+                            _d0[3] = bestPattern;
+                        }
                     }
                     else {
                         *_d0 = bestPattern;

@@ -1685,3 +1685,9 @@ logBitsPerPixel      bitsPerPixel    patternCount
         Idea 2: Only use 4 pixels for graphics mode gamut computation (graphics modes should really be using quality 1 and adjusting lookAhead for speed anyway)
           In this case, _gamutDecoder should not be in box
 
+
+
+Plan for edges in improper modes:
+  Pretend the image stretches out further and that we are only taking a section of the result
+  Then the black lines in column 1 (phase 0) don't create a corresponding bright line
+  Extend the source image as necessary
