@@ -829,7 +829,6 @@ template<class T> class CGAMatcherT : public ThreadTask
         MatchingNTSCDecoder _baseDecoder;
         MatchingNTSCDecoder _deltaDecoder;
         int _bitOffset;
-        int _incrementBytes;
         int _lChangeToRChange;
         int _lCompareToRCompare;
         int _lBlockToLChange;
@@ -945,6 +944,7 @@ public:
         if (advance == 0 && _graphics && !oneBpp)
             advance = 1;
         int bitCount = 16;
+        int incrementBytes = 2;
         if (_graphics) {
             bitCount = 1 << advance;
             if (scanlinesPerRow > 2 && combineScanlines)
@@ -957,11 +957,8 @@ public:
             }
             if (hres) {
                 if (oneBpp) {
-                    for (int i = 0; i < 16; ++i) {
-                        Box* box = &_boxes[i];
-                        box->_bitOffset = 7 - (i & 7);
-                        box->_incrementBytes = 0;
-                    }
+                    for (int i = 0; i < 16; ++i)
+                        boxes[i]._bitOffset = 7 - (i & 7);
                 }
                 else {
                     if (_combineVertical) {
@@ -973,7 +970,6 @@ public:
                     for (int i = 0; i < 16; ++i) {
                         Box* box = &_boxes[i];
                         box->_bitOffset = 6 - ((i & 3) << 1);
-                        box->_incrementBytes = 0;
                     }
                 }
                 int positions = (lookAhead & -(1 << advance)) + (1 << advance);
@@ -1012,14 +1008,12 @@ public:
                 }
             }
             else {
+                incrementBytes = advance == 4 ? 2 : 1;
                 _combineShift = (lookAhead & -(1 << advance)) + (1 << advance);
                 boxCount = advance == 4 ? 1 : 8 >> advance;
                 for (int i = 0; i < boxCount; ++i) {
                     Box* box = &_boxes[i];
                     box->_bitOffset = (~i << advance) & 7;
-                    box->_incrementBytes = (i == boxCount - 1 ? 1 : 0);
-                    if (advance == 4)
-                        box->_incrementBytes = 2;
                     for (int x = 0; x < 35; ++x) {
                         int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
                         box->_positionForPixel[x] = v >= 0 && v < _combineShift
@@ -1049,7 +1043,6 @@ public:
             boxCount = 1;
             Box* box = &_boxes[0];
             box->_bitOffset = 0;
-            box->_incrementBytes = 2;
             box->_lBlockToLChange = 0;
             box->_lChangeToRChange = boxIncrement;
             _patternCount = 0x10000;
@@ -1634,12 +1627,6 @@ public:
                             ((bestPattern & mask) << shift);
                     }
                 }
-                int incrementBytes = box->_incrementBytes;
-                _d0 += incrementBytes;
-                d1 += incrementBytes;
-                column += incrementBytes;
-                if (column >= bytesPerRow)
-                    break;
                 ++boxIndex;
                 if (boxIndex == boxCount) {
                     boxIndex = 0;
@@ -1647,6 +1634,11 @@ public:
                     _errorBlock += boxIncrement;
                     _rgbiBlock += boxIncrement;
                     _ntscBlock += boxIncrement;
+                    _d0 += incrementBytes;
+                    d1 += incrementBytes;
+                    column += incrementBytes;
+                    if (column >= bytesPerRow)
+                        break;
                 }
             }
 
