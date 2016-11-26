@@ -956,6 +956,7 @@ public:
                     advance = 3;
             }
             if (hres) {
+                incrementBytes = 4;
                 if (oneBpp) {
                     for (int i = 0; i < 16; ++i)
                         boxes[i]._bitOffset = 7 - (i & 7);
@@ -981,14 +982,19 @@ public:
                     for (int pixel = 0; pixel < 35; ++pixel)
                         box->_positionForPixel[pixel] = -1;
                     int pixel = firstPixel;
+                    int minPixel = 35;
                     for (int position = 0; position < positions ++position) {
                         while (box->_positionForPixel[pixel] != -1)
                             ++pixel;
                         int bitPosition = position << 1;
                         box->_positionForPixel[pixel] = bitPosition;
-                        if ((pixel & 4) != 0)
+                        minPixel = min(minPixel, pixel);
+                        if ((pixel & 4) != 0) {
                             box->_positionForPixel[pixel ^ 8] = bitPosition;
+                            minPixel = min(minPixel, pixel ^ 8);
+                        }
                     }
+                    box->_bitOffset = (minPixel >> 2) << 3;
                     bool newBox = false;
                     if (boxCount != 0) {
                         for (int pixel = 0; pixel < 35; ++pixel) {
@@ -1013,7 +1019,7 @@ public:
                 boxCount = advance == 4 ? 1 : 8 >> advance;
                 for (int i = 0; i < boxCount; ++i) {
                     Box* box = &_boxes[i];
-                    box->_bitOffset = (~i << advance) & 7;
+                    box->_bitOffset += (~i << advance) & 7;
                     for (int x = 0; x < 35; ++x) {
                         int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
                         box->_positionForPixel[x] = v >= 0 && v < _combineShift
