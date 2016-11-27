@@ -959,7 +959,7 @@ public:
                 incrementBytes = 4;
                 if (oneBpp) {
                     for (int i = 0; i < 16; ++i)
-                        boxes[i]._bitOffset = 7 - (i & 7);
+                        _boxes[i]._bitOffset = 7 - (i & 7);
                 }
                 else {
                     if (_combineVertical) {
@@ -983,7 +983,7 @@ public:
                         box->_positionForPixel[pixel] = -1;
                     int pixel = firstPixel;
                     int minPixel = 35;
-                    for (int position = 0; position < positions ++position) {
+                    for (int position = 0; position < positions; ++position) {
                         while (box->_positionForPixel[pixel] != -1)
                             ++pixel;
                         int bitPosition = position << 1;
@@ -1011,7 +1011,7 @@ public:
                     if (newBox)
                         ++boxCount;
                     firstPixel += 1 << advance;
-                }
+                } while (firstPixel < 16);
             }
             else {
                 incrementBytes = advance == 4 ? 2 : 1;
