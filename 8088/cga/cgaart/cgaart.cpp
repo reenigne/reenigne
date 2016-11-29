@@ -1439,18 +1439,8 @@ public:
         const Byte* inputStart = _scaled.data();
         if (_isComposite) {
             _ntscStride = lNtscToLBlock + size1 + lBlockToRNtsc;
+            _ntscInput.ensure(_ntscStride*_blockHeight);
             _ntsc.ensure(size.y*_ntscStride);
-            const Byte* inputRow = inputStart;
-            Byte* outputRow = &_ntsc[0];
-            for (int y = 0; y < size.y; ++y) {
-                _boxes[0]._baseDecoder.encodeNTSC(
-                    reinterpret_cast<const Colour*>(inputRow),
-                    outputRow, _ntscStride, &_linearizer, -lNtscToLBlock);
-                inputRow += _scaled.stride();
-                outputRow += _ntscStride;
-            }
-
-            _rightNTSC.ensure(_blockHeight);
         }
 
         const Byte* inputRow = inputStart + sizeof(Colour)*(_lTargetToLBlock);
@@ -1486,6 +1476,18 @@ public:
                 rgbi += _rgbiStride;
             }
             Byte* rgbiRow = &_rgbi[1];
+            if (_isComposite) {
+                const Byte* inputLine =
+                    inputRow - sizeof(Colour)*(_lTargetToLBlock);
+                Byte* outputLine = &_ntscInput[0];
+                for (int y = 0; y < size.y; ++y) {
+                    _boxes[0]._baseDecoder.encodeNTSC(
+                        reinterpret_cast<const Colour*>(inputLine),
+                        outputLine, _ntscStride, &_linearizer, -lNtscToLBlock);
+                    inputLine += _scaled.stride();
+                    outputLine += _ntscStride;
+                }
+            }
 
             _d0 = &_rowData[1];
             Byte* d1 = &_rowData[1 + rowDataStride];
@@ -1505,7 +1507,6 @@ public:
                 Colour* errorChangeLine = _errorBlock + box->_lBlockToLChange;
                 Byte* ntscInputLine = _ntscBlock + box->_lBlockToLInput;
                 Byte* ntscDeltaLine = _ntscBlock + box->_lBlockToLDelta;
-                Byte* ntscChangeLine = _ntscBlock + box->_lBlockToLChange;
 
                 Vector3<SInt16>* baseLine = &_base[0];
                 for (int scanline = 0; scanline < _blockHeight; ++scanline) {
@@ -1546,9 +1547,6 @@ public:
                             decoded += 3;
                             deltaDecoded += 3;
                         }
-                        _rightNTSC[scanline] =
-                            ntscChangeLine[box->_lChangeToRChange];
-                        ntscChangeLine += _ntscStride;
                         ntscInputLine += _ntscStride;
                         ntscDeltaLine += _ntscStride;
                         baseLine += box->_lCompareToRCompare;
@@ -1929,16 +1927,16 @@ private:
                         }
                         else {
                             ntsc[x] = _composite.simulateHalfCGA(rgbi[x],
-                                _rightNTSC[scanline], phase);
+                                _ntscInput[scanline], phase);
                         }
                     }
                     else {
                         if (rbgi[x + 1] != 16) {
                             ntsc[x] = _composite.simulateRightHalfCGA(
-                                _rightNTSC[scanline], rgbi[x + 1], phase);
+                                _ntscInput[scanline], rgbi[x + 1], phase);
                         }
                         else
-                            ntsc[x] = _rightNTSC[scanline];
+                            ntsc[x] = _ntscInput[scanline];
                     }
                 }
                 box->_deltaDecoder.decodeNTSC(ntscLine + box->_lBlockToLDelta);
@@ -2202,6 +2200,7 @@ private:
     Array<Byte> _rowData;
     Array<Byte> _rgbi;
     Array<Byte> _ntsc;
+    Array<Byte> _ntscInput;
     Array<SRGB> _srgb;
     Bitmap<SRGB> _input;
     Array<Colour> _error;
@@ -2209,7 +2208,6 @@ private:
     Array<Vector3<SInt16>> _base;
     int _bias;
     int _shift;
-    Array<Byte> _rightNTSC;
 
     Byte* _d0;
     const Byte* _inputBlock;
