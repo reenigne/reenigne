@@ -1441,6 +1441,15 @@ public:
             _ntscStride = lNtscToLBlock + size1 + lBlockToRNtsc;
             _ntscInput.ensure(_ntscStride*_blockHeight);
             _ntsc.ensure(size.y*_ntscStride);
+            const Byte* inputRow = inputStart;
+            Byte* outputRow = &_ntsc[0];
+            for (int y = 0; y < size.y; ++y) {
+                _boxes[0]._baseDecoder.encodeNTSC(
+                    reinterpret_cast<const Colour*>(inputRow),
+                    outputRow, _ntscStride, &_linearizer, -lNtscToLBlock);
+                inputRow += _scaled.stride();
+                outputRow += _ntscStride;
+            }
         }
 
         const Byte* inputRow = inputStart + sizeof(Colour)*(_lTargetToLBlock);
@@ -1480,11 +1489,9 @@ public:
                 const Byte* inputLine =
                     inputRow - sizeof(Colour)*(_lTargetToLBlock);
                 Byte* outputLine = &_ntscInput[0];
-                for (int y = 0; y < size.y; ++y) {
-                    _boxes[0]._baseDecoder.encodeNTSC(
-                        reinterpret_cast<const Colour*>(inputLine),
-                        outputLine, _ntscStride, &_linearizer, -lNtscToLBlock);
-                    inputLine += _scaled.stride();
+                for (int y = 0; y < _blockHeight; ++y) {
+                    memcpy(inputLine, outputLine, _ntscStride);
+                    inputLine += _ntscStride;
                     outputLine += _ntscStride;
                 }
             }
