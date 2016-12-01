@@ -1502,6 +1502,7 @@ public:
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
             _ntscBlock = ntscRow;
+            _ntscInputBlock = &_ntscInput[0];
             int column = 0;
             int boxIndex = 0;
             while (true) {
@@ -1637,6 +1638,7 @@ public:
                     _errorBlock += boxIncrement;
                     _rgbiBlock += boxIncrement;
                     _ntscBlock += boxIncrement;
+                    _ntscInputBlock += boxIncrement;
                     _d0 += incrementBytes;
                     d1 += incrementBytes;
                     column += incrementBytes;
@@ -1884,6 +1886,7 @@ private:
         Colour* errorLine = _errorBlock + box->_lBlockToLCompare;
         Byte* rgbiLine = _rgbiBlock + lBlockToLChange;
         Byte* ntscLine = _ntscBlock;
+        Byte* ntscInputLine = _ntscInputBlock;
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat2;
@@ -1934,16 +1937,16 @@ private:
                         }
                         else {
                             ntsc[x] = _composite.simulateHalfCGA(rgbi[x],
-                                _ntscInput[scanline], phase);
+                                ntscInputLine[x], phase);
                         }
                     }
                     else {
                         if (rbgi[x + 1] != 16) {
                             ntsc[x] = _composite.simulateRightHalfCGA(
-                                _ntscInput[scanline], rgbi[x + 1], phase);
+                                ntscInputLine[x], rgbi[x + 1], phase);
                         }
                         else
-                            ntsc[x] = _ntscInput[scanline];
+                            ntsc[x] = ntscInputLine[x];
                     }
                 }
                 box->_deltaDecoder.decodeNTSC(ntscLine + box->_lBlockToLDelta);
@@ -2062,6 +2065,7 @@ private:
             inputLine += _scaled.stride();
             errorLine += _errorStride;
             ntscLine += _ntscStride;
+            ntscInputLine += _ntscStride;
             rgbiLine += _rgbiStride;
             baseLine += box->_lCompareToRCompare;
         }
@@ -2221,6 +2225,7 @@ private:
     Colour* _errorBlock;
     Byte* _rgbiBlock;
     Byte* _ntscBlock;
+    Byte* _ntscInputBlock;
     int _blockHeight;
     int _decoderLength;
     int _errorStride;
