@@ -1490,7 +1490,7 @@ public:
                     inputRow - sizeof(Colour)*(_lTargetToLBlock);
                 Byte* outputLine = &_ntscInput[0];
                 for (int y = 0; y < _blockHeight; ++y) {
-                    memcpy(inputLine, outputLine, _ntscStride);
+                    memcpy(outputLine, inputLine, _ntscStride);
                     inputLine += _ntscStride;
                     outputLine += _ntscStride;
                 }
@@ -1502,7 +1502,7 @@ public:
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
             _ntscBlock = ntscRow;
-            _ntscInputBlock = &_ntscInput[0];
+            _ntscInputBlock = &_ntscInput[lNtscToLBlock];
             int column = 0;
             int boxIndex = 0;
             while (true) {
@@ -1886,7 +1886,7 @@ private:
         Colour* errorLine = _errorBlock + box->_lBlockToLCompare;
         Byte* rgbiLine = _rgbiBlock + lBlockToLChange;
         Byte* ntscLine = _ntscBlock;
-        Byte* ntscInputLine = _ntscInputBlock;
+        Byte* ntscInputLine = _ntscInputBlock + box->_lBlockToLChange;
         Vector3<SInt16>* baseLine = &_base[0];
         for (int scanline = 0; scanline < _blockHeight; ++scanline) {
             int s = scanline / _scanlinesRepeat2;
@@ -1937,7 +1937,7 @@ private:
                         }
                         else {
                             ntsc[x] = _composite.simulateHalfCGA(rgbi[x],
-                                ntscInputLine[x], phase);
+                                ntscInputLine[x + 1], phase);
                         }
                     }
                     else {
