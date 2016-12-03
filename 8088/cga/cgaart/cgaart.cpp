@@ -1931,7 +1931,7 @@ private:
                 for (x = -1; x < box->_lChangeToRChange; ++x) {
                     int phase = (x + lBlockToLChange) & 3;
                     if (rgbi[x] != 16) {
-                        if (rbgi[x + 1] != 16) {
+                        if (rgbi[x + 1] != 16) {
                             ntsc[x] = _composite.simulateCGA(rgbi[x],
                                 rgbi[x + 1], phase);
                         }
@@ -1941,7 +1941,7 @@ private:
                         }
                     }
                     else {
-                        if (rbgi[x + 1] != 16) {
+                        if (rgbi[x + 1] != 16) {
                             ntsc[x] = _composite.simulateRightHalfCGA(
                                 ntscInputLine[x], rgbi[x + 1], phase);
                         }
@@ -1961,11 +1961,14 @@ private:
                 }
             }
             srgb = &_srgb[0];
+            Byte* rgbi = rgbiLine;
             for (int x = 0; x < box->_lCompareToRCompare; ++x) {
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
-                Colour target = *input - _diffusionHorizontal2*error[-1] -
-                    _diffusionVertical2*error[-_errorStride];
+                Colour target =
+                    *input - _diffusionVertical2*error[-_errorStride];
+                if (*rgbi != 16)
+                    target -= _diffusionHorizontal2*error[-1];
                 switch (_clipping2) {
                     case 1:
                         target.x = clamp(0.0f, target.x, 1.0f);
@@ -2061,6 +2064,7 @@ private:
                 ++input;
                 ++error;
                 ++srgb;
+                ++rgbi;
             }
             inputLine += _scaled.stride();
             errorLine += _errorStride;
