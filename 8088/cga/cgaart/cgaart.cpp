@@ -1564,7 +1564,8 @@ public:
                 auto s = Vector3Cast<int>(
                     Vector3Cast<float>(srgb)*srgbScale - 0.5f);
                 // Iterate through closest patterns to find the best match.
-                for (int z = 0;; ++z) {
+                int z;
+                for (z = 0; z < srgbDiv.y; ++z) {
                     bool foundPatterns = false;
                     // Always search at least a 2x2x2 region of the gamut in
                     // case we're on the boundary between two entries on any
@@ -1600,6 +1601,8 @@ public:
                     if (foundPatterns)
                         break;
                 }
+                if (z == srgbDiv.y)
+                    throw Exception("No patterns found!");
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
                     if (_graphics) {
