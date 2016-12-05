@@ -1565,7 +1565,7 @@ public:
                     Vector3Cast<float>(srgb)*srgbScale - 0.5f);
                 // Iterate through closest patterns to find the best match.
                 int z;
-                for (z = 0; z < srgbDiv.y; ++z) {
+                for (z = 0;; ++z) {
                     bool foundPatterns = false;
                     // Always search at least a 2x2x2 region of the gamut in
                     // case we're on the boundary between two entries on any
@@ -1593,16 +1593,14 @@ public:
                                     ++patterns;
                                 }
                                 if (r > rMin && r < rMax && g > gMin &&
-                                    g < gMax)
-                                    b += z*2;
+                                    g < gMax && b == bMin)
+                                    b = bMax - 1;
                             }
                         }
                     }
                     if (foundPatterns)
                         break;
                 }
-                if (z == srgbDiv.y)
-                    throw Exception("No patterns found!");
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
                     if (_graphics) {
