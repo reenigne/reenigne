@@ -945,7 +945,6 @@ public:
         int bitCount = 16;
         int incrementBytes = 2;
         if (_graphics) {
-            bitCount = 1 << advance;
             if (scanlinesPerRow > 2 && combineScanlines)
                 _combineVertical = true;
             _pixelMask = oneBpp ? 1 : 3;
@@ -964,6 +963,7 @@ public:
                     }
                     lookAhead = max(lookAhead, _combineVertical ? 7 : 3);
                 }
+                bitCount = 2 << advance;
                 int positions = (lookAhead & -(1 << advance)) + (1 << advance);
                 _combineShift = positions << 1;
                 int firstPixel = 0;
@@ -1005,6 +1005,7 @@ public:
                 } while (firstPixel < 16);
             }
             else {
+                bitCount = 1 << advance;
                 incrementBytes = advance == 4 ? 2 : 1;
                 _combineShift = (lookAhead & -(1 << advance)) + (1 << advance);
                 boxCount = advance == 4 ? 1 : 8 >> advance;
