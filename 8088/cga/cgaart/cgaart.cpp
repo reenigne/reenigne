@@ -1048,9 +1048,9 @@ public:
         }
 
         for (int i = 0; i < 4; ++i) {
-            UInt64 rgbi = _sequencer->process(i, _modeThread, _palette2, 0,
-                false, 0);
-            _rgbiFromBits[i] = (rgbi >> 28) & 0xf;
+            UInt64 rgbi = _sequencer->process(i*0x55555555, _modeThread,
+                _palette2, 0, false, 0);
+            _rgbiFromBits[i] = (rgbi >> 12) & 0xf;
         }
 
         _program->setProgress(0);
