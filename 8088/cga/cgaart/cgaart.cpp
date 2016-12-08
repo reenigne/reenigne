@@ -1623,8 +1623,7 @@ public:
                     int byte = box->_bitOffset >> 3;
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset & 7;
-                    int s1 = _combineShift - (1 << advance);
-                    bestPattern >>= s1;
+                    bestPattern >>= _combineShift - bitCount;
                     _d0[byte] = (_d0[byte] & ~(mask << shift)) +
                         ((bestPattern & mask) << shift);
                     if (_combineVertical) {
