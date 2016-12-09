@@ -985,7 +985,7 @@ public:
                             minPixel = min(minPixel, pixel ^ 8);
                         }
                     }
-                    box->_bitOffset = (minPixel >> 2) << 3;
+                    box->_bitOffset = minPixel << 1;
                     bool newBox = false;
                     if (boxCount != 0) {
                         for (int pixel = 0; pixel < 35; ++pixel) {
@@ -1011,7 +1011,7 @@ public:
                 boxCount = advance == 4 ? 1 : 8 >> advance;
                 for (int i = 0; i < boxCount; ++i) {
                     Box* box = &_boxes[i];
-                    box->_bitOffset = (~i << advance) & 7;
+                    box->_bitOffset = (i << advance) & 7;
                     for (int x = 0; x < 35; ++x) {
                         int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
                         box->_positionForPixel[x] = v >= 0 && v < _combineShift
@@ -1605,13 +1605,63 @@ public:
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
                     if (_graphics) {
-                        if ((box->_bitOffset & 16) == 0) {
-                            *_d0 = bestPattern >> 8;
-                            _d0[1] = bestPattern;
+                        int lowByte;
+                        int highByte;
+                        if (!oneBpp) {
+                            lowByte = ((bestPattern & 3) << 6) +
+                                ((bestPattern & 0x0c) << 2) +
+                                ((bestPattern & 0x30) >> 2) +
+                                ((bestPattern & 0xc0) >> 6);
+                            highByte = ((bestPattern & 0x300) >> 2) +
+                                ((bestPattern & 0xc00) >> 6) +
+                                ((bestPattern & 0x3000) >> 10) +
+                                ((bestPattern & 0xc000) >> 14);
                         }
                         else {
-                            _d0[2] = bestPattern >> 8;
-                            _d0[3] = bestPattern;
+                            if (!hres) {
+                                lowByte = ((bestPattern & 1) << 7) +
+                                    ((bestPattern & 2) << 5) +
+                                    ((bestPattern & 4) << 3) +
+                                    ((bestPattern & 8) << 1) +
+                                    ((bestPattern & 0x10) >> 1) +
+                                    ((bestPattern & 0x20) >> 3) +
+                                    ((bestPattern & 0x40) >> 5) +
+                                    ((bestPattern & 0x80) >> 7);
+                                highByte = ((bestPattern & 0x100) >> 1) +
+                                    ((bestPattern & 0x200) >> 3) +
+                                    ((bestPattern & 0x400) >> 5) +
+                                    ((bestPattern & 0x800) >> 7) +
+                                    ((bestPattern & 0x1000) >> 9) +
+                                    ((bestPattern & 0x2000) >> 11) +
+                                    ((bestPattern & 0x4000) >> 13) +
+                                    ((bestPattern & 0x8000) >> 15);
+                            }
+                            else {
+                                lowByte = ((bestPattern & 1) << 6) +
+                                    ((bestPattern & 2) << 3) +
+                                    (bestPattern & 4) +
+                                    ((bestPattern & 8) >> 3);
+                                highByte = ((bestPattern & 0x10) << 2) +
+                                    ((bestPattern & 0x20) >> 1) +
+                                    ((bestPattern & 0x40) >> 4) +
+                                    ((bestPattern & 0x80) >> 7);
+                                _d0[2] = ((bestPattern & 0x100) >> 2) +
+                                    ((bestPattern & 0x200) >> 5) +
+                                    ((bestPattern & 0x400) >> 8) +
+                                    ((bestPattern & 0x800) >> 11);
+                                _d0[3] = ((bestPattern & 0x1000) >> 6) +
+                                    ((bestPattern & 0x2000) >> 9) +
+                                    ((bestPattern & 0x4000) >> 12) +
+                                    ((bestPattern & 0x8000) >> 15);
+                            }
+                        }
+                        if ((box->_bitOffset & 16) == 0) {
+                            *_d0 = lowByte;
+                            _d0[1] = highByte;
+                        }
+                        else {
+                            _d0[2] = lowByte;
+                            _d0[3] = highByte;
                         }
                     }
                     else {
