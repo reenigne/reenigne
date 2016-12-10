@@ -1670,6 +1670,10 @@ public:
                     }
                 }
                 else {
+                    if (!oneBpp) {
+
+                    }
+
                     int byte = box->_bitOffset >> 3;
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset & 7;
@@ -1928,6 +1932,10 @@ public:
             _data->getDataByte(CGAData::registerScanlinesRepeat);
     }
 private:
+    void fixEndianness(Byte* data, int bytes, )
+    {
+    }
+
     float tryPattern(Box* box, int pattern)
     {
         float metric = 0;
