@@ -1015,7 +1015,7 @@ public:
                     for (int x = 0; x < 35; ++x) {
                         int v = (x & -1 << (oneBpp ? 0 : 1)) - (i << advance);
                         box->_positionForPixel[x] = v >= 0 && v < _combineShift
-                            ? (_combineShift - (v + (oneBpp ? 1 : 2))) : -1;
+                            ? v : -1;
                     }
                 }
             }
@@ -1604,76 +1604,37 @@ public:
                 }
                 tryPattern(box, bestPattern);
                 if (bitCount == 16) {
-                    if (_graphics) {
-                        int lowByte;
-                        int highByte;
-                        if (!oneBpp) {
-                            lowByte = ((bestPattern & 3) << 6) +
-                                ((bestPattern & 0x0c) << 2) +
-                                ((bestPattern & 0x30) >> 2) +
-                                ((bestPattern & 0xc0) >> 6);
-                            highByte = ((bestPattern & 0x300) >> 2) +
-                                ((bestPattern & 0xc00) >> 6) +
-                                ((bestPattern & 0x3000) >> 10) +
-                                ((bestPattern & 0xc000) >> 14);
-                        }
-                        else {
-                            if (!hres) {
-                                lowByte = ((bestPattern & 1) << 7) +
-                                    ((bestPattern & 2) << 5) +
-                                    ((bestPattern & 4) << 3) +
-                                    ((bestPattern & 8) << 1) +
-                                    ((bestPattern & 0x10) >> 1) +
-                                    ((bestPattern & 0x20) >> 3) +
-                                    ((bestPattern & 0x40) >> 5) +
-                                    ((bestPattern & 0x80) >> 7);
-                                highByte = ((bestPattern & 0x100) >> 1) +
-                                    ((bestPattern & 0x200) >> 3) +
-                                    ((bestPattern & 0x400) >> 5) +
-                                    ((bestPattern & 0x800) >> 7) +
-                                    ((bestPattern & 0x1000) >> 9) +
-                                    ((bestPattern & 0x2000) >> 11) +
-                                    ((bestPattern & 0x4000) >> 13) +
-                                    ((bestPattern & 0x8000) >> 15);
-                            }
-                            else {
-                                lowByte = ((bestPattern & 1) << 6) +
-                                    ((bestPattern & 2) << 3) +
-                                    (bestPattern & 4) +
-                                    ((bestPattern & 8) >> 3);
-                                highByte = ((bestPattern & 0x10) << 2) +
-                                    ((bestPattern & 0x20) >> 1) +
-                                    ((bestPattern & 0x40) >> 4) +
-                                    ((bestPattern & 0x80) >> 7);
-                                _d0[2] = ((bestPattern & 0x100) >> 2) +
-                                    ((bestPattern & 0x200) >> 5) +
-                                    ((bestPattern & 0x400) >> 8) +
-                                    ((bestPattern & 0x800) >> 11);
-                                _d0[3] = ((bestPattern & 0x1000) >> 6) +
-                                    ((bestPattern & 0x2000) >> 9) +
-                                    ((bestPattern & 0x4000) >> 12) +
-                                    ((bestPattern & 0x8000) >> 15);
-                            }
-                        }
-                        if ((box->_bitOffset & 16) == 0) {
-                            *_d0 = lowByte;
-                            _d0[1] = highByte;
-                        }
-                        else {
-                            _d0[2] = lowByte;
-                            _d0[3] = highByte;
-                        }
-                    }
-                    else {
+                    if (!_graphics ||
+                        ((box->_bitOffset & 16) == 0 && (!oneBpp || !hres))) {
                         *_d0 = bestPattern;
                         _d0[1] = bestPattern >> 8;
                     }
+                    else {
+                        if (oneBpp && hres) {
+                            *_d0 = (bestPattern & 1) +
+                                ((bestPattern & 2) << 1) +
+                                ((bestPattern & 4) << 2) +
+                                ((bestPattern & 8) << 3);
+                            _d0[1] = ((bestPattern & 0x10) >> 4) +
+                                ((bestPattern & 0x20) >> 3) +
+                                ((bestPattern & 0x40) >> 2) +
+                                ((bestPattern & 0x80) >> 1);
+                            _d0[2] = ((bestPattern & 0x100) >> 8) +
+                                ((bestPattern & 0x200) >> 7) +
+                                ((bestPattern & 0x400) >> 6) +
+                                ((bestPattern & 0x800) >> 5);
+                            _d0[3] = ((bestPattern & 0x1000) >> 12) +
+                                ((bestPattern & 0x2000) >> 11) +
+                                ((bestPattern & 0x4000) >> 10) +
+                                ((bestPattern & 0x8000) >> 9);
+                        }
+                        else {
+                            _d0[2] = bestPattern;
+                            _d0[3] = bestPattern >> 8;
+                        }
+                    }
                 }
                 else {
-                    if (!oneBpp) {
-
-                    }
-
                     int byte = box->_bitOffset >> 3;
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset & 7;
@@ -1702,6 +1663,13 @@ public:
                 }
             }
 
+            if (_graphics) {
+                fixEndianness(&_rowData[1], bytesPerRow, oneBpp);
+                if (_combineVertical) {
+                    fixEndianness(&_rowData[1 + rowDataStride], bytesPerRow,
+                        oneBpp);
+                }
+            }
             if (_combineVertical) {
                 _data->change(0, row*bytesPerRow, bytesPerRow, &_rowData[1]);
                 _data->change(0, row*bytesPerRow + (1 << bankShift),
@@ -1932,8 +1900,21 @@ public:
             _data->getDataByte(CGAData::registerScanlinesRepeat);
     }
 private:
-    void fixEndianness(Byte* data, int bytes, )
+    void fixEndianness(Byte* data, int bytes, bool oneBpp)
     {
+        for (int i = 0; i < bytes; ++i) {
+            Byte b = *data;
+            if (!oneBpp) {
+                *data = ((b & 3) << 6) + ((b & 0x0c) << 2) +
+                    ((b & 0x30) >> 2) + ((b & 0xc0) >> 6);
+            }
+            else {
+                *data = ((b & 1) << 7) + ((b & 2) << 5) + ((b & 4) << 3) +
+                    ((b & 8) << 1) + ((b & 0x10) >> 1) + ((b & 0x20) >> 3) +
+                    ((b & 0x40) >> 5) + ((b & 0x80) >> 7);
+            }
+            ++data;
+        }
     }
 
     float tryPattern(Box* box, int pattern)
