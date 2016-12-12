@@ -1611,22 +1611,22 @@ public:
                     }
                     else {
                         if (oneBpp && hres) {
-                            *_d0 = (bestPattern & 1) +
-                                ((bestPattern & 2) << 1) +
-                                ((bestPattern & 4) << 2) +
-                                ((bestPattern & 8) << 3);
-                            _d0[1] = ((bestPattern & 0x10) >> 4) +
-                                ((bestPattern & 0x20) >> 3) +
-                                ((bestPattern & 0x40) >> 2) +
-                                ((bestPattern & 0x80) >> 1);
-                            _d0[2] = ((bestPattern & 0x100) >> 8) +
-                                ((bestPattern & 0x200) >> 7) +
-                                ((bestPattern & 0x400) >> 6) +
-                                ((bestPattern & 0x800) >> 5);
-                            _d0[3] = ((bestPattern & 0x1000) >> 12) +
-                                ((bestPattern & 0x2000) >> 11) +
-                                ((bestPattern & 0x4000) >> 10) +
-                                ((bestPattern & 0x8000) >> 9);
+                            *_d0 = ((bestPattern & 1) << 1) +
+                                ((bestPattern & 2) << 2) +
+                                ((bestPattern & 4) << 3) +
+                                ((bestPattern & 8) << 4);
+                            _d0[1] = ((bestPattern & 0x10) >> 3) +
+                                ((bestPattern & 0x20) >> 2) +
+                                ((bestPattern & 0x40) >> 1) +
+                                (bestPattern & 0x80);
+                            _d0[2] = ((bestPattern & 0x100) >> 7) +
+                                ((bestPattern & 0x200) >> 6) +
+                                ((bestPattern & 0x400) >> 5) +
+                                ((bestPattern & 0x800) >> 4);
+                            _d0[3] = ((bestPattern & 0x1000) >> 11) +
+                                ((bestPattern & 0x2000) >> 10) +
+                                ((bestPattern & 0x4000) >> 19) +
+                                ((bestPattern & 0x8000) >> 8);
                         }
                         else {
                             _d0[2] = bestPattern;
