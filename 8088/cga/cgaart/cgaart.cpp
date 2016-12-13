@@ -1072,12 +1072,14 @@ public:
                 box->_lBlockToLChange + box->_lChangeToRChange);
         }
         if (_isComposite) {
-            _composite.setBW((_mode & 4) != 0);
+            _composite.setBW(false);
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
             Byte burst[4];
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, i);
+            _composite.setBW((_mode & 4) != 0);
+            _composite.initChroma();
             double black = _composite.black();
             double white = _composite.white();
             int rChangeToRBase = static_cast<int>(4*lobes);
@@ -2322,6 +2324,7 @@ public:
         double aspectRatio;
         static const int decoderPadding = 32;
         Vector2<float> zoomVector;
+        bool bw;
         {
             Lock lock(&_mutex);
             if (!_active)
@@ -2340,7 +2343,8 @@ public:
             zoom = _zoom;
             aspectRatio = _aspectRatio;
             Byte mode = _data->getDataByte(CGAData::registerMode);
-            _composite.setBW((mode & 4) != 0);
+            bw = (mode & 4) != 0;
+            _composite.setBW(false);
             bool newCGA = connector == 2;
             _composite.setNewCGA(newCGA);
             _composite.initChroma();
@@ -2617,6 +2621,8 @@ public:
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, (i + 3) & 3);
             _decoder.calculateBurst(burst);
+            _composite.setBW(bw);
+            _composite.initChroma();
 #if FIR_DECODING
 #if FIR_FP
             float* input = _decoder.inputData();

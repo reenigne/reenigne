@@ -5,7 +5,7 @@
 
 typedef unsigned char Byte;
 typedef unsigned short int Word;
-typedef unsigned long int DWord;
+typedef unsigned int DWord;
 
 Word registers[12];
 Byte* byteRegisters[8];
@@ -16,9 +16,9 @@ Word address;
 Word flags = 2;
 Byte modRM;
 bool wordSize;
-Word data;
-Word destination;
-Word source;
+DWord data;
+DWord destination;
+DWord source;
 int segment;
 int rep = 0;
 bool repeating = false;
@@ -29,6 +29,7 @@ Word remainder;
 Byte opcode;
 int aluOperation;
 const char* filename;
+int length;
 
 Word cs() { return registers[9]; }
 void error(const char* operation)
@@ -37,21 +38,12 @@ void error(const char* operation)
         strerror(errno));
     exit(1);
 }
-void runtimeError()
+void runtimeError(const char* message)
 {
-    fprintf(stderr, "CS:IP = %04x:%04x\n", cs(), ip);
+    fprintf(stderr, "%s\nCS:IP = %04x:%04x\n", message, cs(), ip);
     exit(1);
 }
-void divideOverflow()
-{
-    fprintf(stderr, "Divide overflow\n");
-    runtimeError();
-}
-void registerInvalid()
-{
-    fprintf(stderr, "This instruction needs a memory address\n");
-    runtimeError();
-}
+void divideOverflow() { runtimeError("Divide overflow"); }
 DWord physicalAddress(Word offset, int seg = -1)
 {
     if (seg == -1) {
@@ -64,7 +56,7 @@ DWord physicalAddress(Word offset, int seg = -1)
     if (a < 0x10100 || a >= 0x1FFFE) {
         fprintf(stderr, "Accessing invalid address %04x:%04x.\n",
             segmentAddress, offset);
-        runtimeError();
+        runtimeError("");
     }
     return a;
 }
@@ -247,7 +239,13 @@ void stoS(Word data)
     setDI(di() + stringIncrement());
     write(data, address, 0);
 }
-void push(Word value) { setSP(sp() - 2); writeWord(value, sp(), 2); }
+void push(Word value)
+{
+    setSP(sp() - 2);
+    if (sp() == length + 0x100)
+        runtimeError("Stack overflow");
+    writeWord(value, sp(), 2);
+}
 Word pop() { Word r = readWord(sp(), 2); setSP(sp() + 2); return r; }
 void setCA() { setCF(true); setAF(true); }
 void doAF() { setAF(((data ^ source ^ destination) & 0x10) != 0); }
@@ -338,7 +336,6 @@ Word readEA2()
     return read(address);
 }
 Word readEA() { address = ea(); return readEA2(); }
-void startWriteEA() { address = ea(); }
 void finishWriteEA(Word data)
 {
     if (!useMemory) {
@@ -350,12 +347,12 @@ void finishWriteEA(Word data)
     else
         write(data, address);
 }
-void writeEA(Word data) { startWriteEA(); finishWriteEA(data); }
+void writeEA(Word data) { ea(); finishWriteEA(data); }
 void farLoad()
 {
     if (!useMemory)
-        registerInvalid();
-    savedIP = readEA();
+        runtimeError("This instruction needs a memory address");
+    savedIP = readEA2();
     address += 2;
     savedCS = readEA2();
 }
@@ -396,7 +393,7 @@ int main(int argc, char* argv[])
     }
     if (fseek(fp, 0, SEEK_END) != 0)
         error("seeking");
-    int length = ftell(fp);
+    length = ftell(fp);
     if (length == -1)
         error("telling");
     if (fseek(fp, 0, SEEK_SET) != 0)
@@ -422,18 +419,15 @@ int main(int argc, char* argv[])
         registers[8 + i] = segment;
 
     Byte* byteData = (Byte*)&registers[0];
-    if (registers[2] == 0) {
-        // Little-endian
-        byteRegisters[0] = &byteData[0];
-        byteRegisters[1] = &byteData[2];
-        byteRegisters[2] = &byteData[4];
-        byteRegisters[3] = &byteData[6];
-        byteRegisters[4] = &byteData[1];
-        byteRegisters[5] = &byteData[3];
-        byteRegisters[6] = &byteData[5];
-        byteRegisters[7] = &byteData[7];
-    }
-    else {
+    byteRegisters[0] = &byteData[0];
+    byteRegisters[1] = &byteData[2];
+    byteRegisters[2] = &byteData[4];
+    byteRegisters[3] = &byteData[6];
+    byteRegisters[4] = &byteData[1];
+    byteRegisters[5] = &byteData[3];
+    byteRegisters[6] = &byteData[5];
+    byteRegisters[7] = &byteData[7];
+    if (byteRegisters[1] == 0) {
         // Big-endian
         byteRegisters[0] = &byteData[1];
         byteRegisters[1] = &byteData[3];
@@ -446,7 +440,7 @@ int main(int argc, char* argv[])
     }
 
     bool prefix = false;
-    for (long i = 0; i < 1000000000; ++i) {
+    for (int i = 0; i < 1000000000; ++i) {
         if (!repeating) {
             if (!prefix) {
                 segmentOverride = -1;
@@ -559,8 +553,8 @@ int main(int argc, char* argv[])
             case 0xdc: case 0xdd: case 0xde: case 0xdf:  // escape
             case 0xe4: case 0xe5: case 0xe6: case 0xe7:
             case 0xec: case 0xed: case 0xee: case 0xef:  // IN, OUT
-                fprintf(stderr, "Invalid opcode %02x\n", opcode);
-                runtimeError();
+                fprintf(stderr, "Invalid opcode %02x", opcode);
+                runtimeError("");
                 break;
             case 0x70: case 0x71: case 0x72: case 0x73:
             case 0x74: case 0x75: case 0x76: case 0x77:
@@ -574,7 +568,7 @@ int main(int argc, char* argv[])
                     case 0x08: jump = sf(); break;
                     case 0x0a: jump = pf(); break;
                     case 0x0c: jump = sf() != of(); break;
-                    case 0x0e: jump = sf() != of() || zf(); break;
+                    default:   jump = sf() != of() || zf(); break;
                 }
                 jumpShort(fetchByte(), jump == ((opcode & 1) == 0));
                 break;
@@ -600,25 +594,27 @@ int main(int argc, char* argv[])
                 setReg(data);
                 break;
             case 0x88: case 0x89:  // MOV rmv,rv
-                startWriteEA();
-                writeEA(getReg());
+                ea();
+                finishWriteEA(getReg());
                 break;
             case 0x8a: case 0x8b:  // MOV rv,rmv
                 setReg(readEA());
                 break;
             case 0x8c:  // MOV rmw,segreg
-                startWriteEA();
-                writeEA(registers[modRMReg() + 8]);
+                ea();
+                wordSize = 1;
+                finishWriteEA(registers[modRMReg() + 8]);
                 break;
             case 0x8d:  // LEA
                 address = ea();
                 if (!useMemory)
-                    registerInvalid();
+                    runtimeError("LEA needs a memory address");
                 setReg(address);
                 break;
             case 0x8e:  // MOV segreg,rmw
+                wordSize = 1;
                 data = readEA();
-                registers[modRMReg()] = data;
+                registers[modRMReg() + 8] = data;
                 break;
             case 0x8f:  // POP rmw
                 writeEA(pop());
@@ -670,7 +666,7 @@ int main(int argc, char* argv[])
                 doRep();
                 break;
             case 0xa8: case 0xa9:  // TEST accum,iv
-                data = readEA();
+                data = fetch(wordSize);
                 test(getAccum(), data);
                 break;
             case 0xaa: case 0xab:  // STOSv
@@ -705,18 +701,20 @@ int main(int argc, char* argv[])
                 farJump();
                 break;
             case 0xc4: case 0xc5:  // LES/LDS
+                ea();
                 farLoad();
                 setReg(savedIP);
-                registers[8 + (wordSize ? 0 : 3)] = savedCS;
+                registers[8 + (!wordSize ? 0 : 3)] = savedCS;
                 break;
             case 0xc6: case 0xc7:  // MOV rmv,iv
-                writeEA(fetch(wordSize));
+                ea();
+                finishWriteEA(fetch(wordSize));
                 break;
             case 0xcd:
                 data = fetchByte();
                 if (data != 0x21) {
-                    fprintf(stderr, "Unknown interrupt 0x%02x\n", data);
-                    runtimeError();
+                    fprintf(stderr, "Unknown interrupt 0x%02x", data);
+                    runtimeError("");
                 }
                 switch (ah()) {
                     case 2:
@@ -724,10 +722,11 @@ int main(int argc, char* argv[])
                         break;
                     case 0x4c:
                         printf("*** EXIT code %i\n", al());
+                        exit(0);
                         break;
                     default:
-                        fprintf(stderr, "Unknown DOS call 0x%02x\n", data);
-                        runtimeError();
+                        fprintf(stderr, "Unknown DOS call 0x%02x", data);
+                        runtimeError("");
                 }
                 break;
             case 0xcf:
@@ -795,6 +794,7 @@ int main(int argc, char* argv[])
                             setPZS();
                             break;
                     }
+                    --source;
                 }
                 finishWriteEA(data);
                 break;
@@ -802,12 +802,10 @@ int main(int argc, char* argv[])
                 data = fetchByte();
                 if (data == 0)
                     divideOverflow();
-                else {
-                    setAH(al() / data);
-                    setAL(al() % data);
-                    wordSize = true;
-                    setPZS();
-                }
+                setAH(al() / data);
+                setAL(al() % data);
+                wordSize = true;
+                setPZS();
                 break;
             case 0xd5:  // AAD
                 data = fetchByte();
@@ -861,13 +859,13 @@ int main(int argc, char* argv[])
                         test(data, fetch(wordSize));
                         break;
                     case 2:  // NOT iv
-                        writeEA(~data);
+                        finishWriteEA(~data);
                         break;
                     case 3:  // NEG iv
                         source = data;
                         destination = 0;
                         sub();
-                        writeEA(data);
+                        finishWriteEA(data);
                         break;
                     case 4: case 5:  // MUL rmv, IMUL rmv
                         source = data;
@@ -958,37 +956,36 @@ int main(int argc, char* argv[])
                 setDF(wordSize);
                 break;
             case 0xfe: case 0xff:  // misc
+                ea();
                 switch (modRMReg()) {
                     case 0: case 1:  // incdec rmv
-                        destination = readEA();
+                        destination = readEA2();
                         finishWriteEA(incdec(modRMReg() != 0));
                         break;
                     case 2:  // CALL rmv
-                        call(readEA());
+                        call(readEA2());
                         break;
                     case 3:  // CALL mp
                         farLoad();
                         farCall();
                         break;
                     case 4:  // JMP rmw
-                        ip = readEA();
+                        ip = readEA2();
                         break;
                     case 5:  // JMP mp
                         farLoad();
                         farJump();
                         break;
                     case 6:  // PUSH rmw
-                        push(readEA());
+                        push(readEA2());
                         break;
                     case 7:  // invalid
-                        fprintf(stderr, "Invalid instruction FF %02x\n",
-                            opcode);
-                        runtimeError();
+                        fprintf(stderr, "Invalid instruction FF %02x", modRM);
+                        runtimeError("");
                         break;
                 }
                 break;
         }
     }
-    fprintf(stderr, "Timed out\n");
-    runtimeError();
+    runtimeError("Timed out");
 }
