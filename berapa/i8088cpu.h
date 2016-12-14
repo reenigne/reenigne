@@ -1699,9 +1699,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                 }
                                 else {
                                     if ((_source & 0x80) != 0)
-                                        ah() += _destination;
+                                        ah() -= _destination;
                                     if ((_destination & 0x80) != 0)
-                                        ah() += _source;
+                                        ah() -= _source;
                                     setCF(ah() ==
                                         ((al() & 0x80) == 0 ? 0 : 0xff));
                                     _wait = 80;
@@ -1716,9 +1716,9 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                                 else {
                                     dx() = _data >> 16;
                                     if ((_source & 0x8000) != 0)
-                                        dx() += _destination;
+                                        dx() -= _destination;
                                     if ((_destination & 0x8000) != 0)
-                                        dx() += _source;
+                                        dx() -= _source;
                                     _data |= dx();
                                     setCF(dx() ==
                                         ((ax() & 0x8000) == 0 ? 0 : 0xffff));
@@ -1739,7 +1739,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                             }
                             if (!_wordSize) {
                                 _destination = ax();
-                                if (modRMReg() == 4) {
+                                if (modRMReg() == 6) {
                                     div();
                                     if (_data > 0xff) {
                                         interrupt(0);
@@ -1765,7 +1765,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                             else {
                                 _destination = (dx() << 16) + ax();
                                 div();
-                                if (modRMReg() == 4) {
+                                if (modRMReg() == 6) {
                                     if (_data > 0xffff) {
                                         interrupt(0);
                                         break;
@@ -2045,11 +2045,13 @@ private:
     void div()
     {
         bool negative = false;
+        bool dividendNegative = false;
         if (modRMReg() == 7) {
             if ((_destination & 0x80000000) != 0) {
                 _destination =
                     static_cast<UInt32>(-static_cast<SInt32>(_destination));
                 negative = !negative;
+                dividendNegative = true;
             }
             if ((_source & 0x8000) != 0) {
                 _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
@@ -2066,10 +2068,10 @@ private:
             product -= _source;
         }
         _remainder = _destination - product;
-        if (negative) {
+        if (negative)
             _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
+        if (dividendNegative)
             _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
-        }
     }
     void jumpShort() { setIP(_ip + signExtend(_data)); }
     void interrupt(UInt8 number)

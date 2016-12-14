@@ -102,10 +102,12 @@ int modRMReg() { return (modRM >> 3) & 7; }
 void div()
 {
     bool negative = false;
+    bool dividendNegative = false;
     if (modRMReg() == 7) {
         if ((destination & 0x80000000) != 0) {
             destination = (unsigned)-(signed)destination;
             negative = !negative;
+            dividendNegative = true;
         }
         if ((source & 0x8000) != 0) {
             source = (unsigned)-(signed)source & 0xffff;
@@ -121,10 +123,10 @@ void div()
         product -= source;
     }
     remainder = destination - product;
-    if (negative) {
+    if (negative)
         data = (unsigned)-(signed)data;
+    if (dividendNegative)
         remainder = (unsigned)-(signed)remainder;
-    }
 }
 void jumpShort(Byte data, bool jump) { if (jump) ip += signExtend(data); }
 void setCF(bool cf) { flags = (flags & ~1) | (cf ? 1 : 0); }
@@ -352,9 +354,8 @@ void farLoad()
 {
     if (!useMemory)
         runtimeError("This instruction needs a memory address");
-    savedIP = readEA2();
-    address += 2;
-    savedCS = readEA2();
+    savedIP = readWord(address);
+    savedCS = readWord(address + 2);
 }
 void farJump() { setCS(savedCS); ip = savedIP; }
 void farCall() { push(cs()); push(ip); farJump(); }
@@ -703,7 +704,7 @@ int main(int argc, char* argv[])
             case 0xc4: case 0xc5:  // LES/LDS
                 ea();
                 farLoad();
-                setReg(savedIP);
+                *modRMRW() = savedIP;
                 registers[8 + (!wordSize ? 0 : 3)] = savedCS;
                 break;
             case 0xc6: case 0xc7:  // MOV rmv,iv
@@ -880,9 +881,9 @@ int main(int argc, char* argv[])
                                 setCF(ah() != 0);
                             else {
                                 if ((source & 0x80) != 0)
-                                    setAH(ah() + destination);
+                                    setAH(ah() - destination);
                                 if ((destination & 0x80) != 0)
-                                    setAH(ah() + source);
+                                    setAH(ah() - source);
                                 setCF(ah() ==
                                     ((al() & 0x80) == 0 ? 0 : 0xff));
                             }
@@ -895,9 +896,9 @@ int main(int argc, char* argv[])
                             }
                             else {
                                 if ((source & 0x8000) != 0)
-                                    setDX(dx() + destination);
+                                    setDX(dx() - destination);
                                 if ((destination & 0x8000) != 0)
-                                    setDX(dx() + source);
+                                    setDX(dx() - source);
                                 data |= dx();
                                 setCF(dx() ==
                                     ((ax() & 0x8000) == 0 ? 0 : 0xffff));
@@ -912,7 +913,7 @@ int main(int argc, char* argv[])
                             divideOverflow();
                         if (!wordSize) {
                             destination = ax();
-                            if (modRMReg() == 4) {
+                            if (modRMReg() == 6) {
                                 div();
                                 if (data > 0xff)
                                     divideOverflow();
@@ -932,7 +933,7 @@ int main(int argc, char* argv[])
                         else {
                             destination = (dx() << 16) + ax();
                             div();
-                            if (modRMReg() == 4) {
+                            if (modRMReg() == 6) {
                                 if (data > 0xffff)
                                     divideOverflow();
                             }
@@ -957,6 +958,12 @@ int main(int argc, char* argv[])
                 break;
             case 0xfe: case 0xff:  // misc
                 ea();
+                if ((!wordSize && modRMReg() >= 2 && modRMReg() <= 6) ||
+                    modRMReg() == 7) {
+                    fprintf(stderr, "Invalid instruction %02x %02x", opcode,
+                        modRM);
+                    runtimeError("");
+                }
                 switch (modRMReg()) {
                     case 0: case 1:  // incdec rmv
                         destination = readEA2();
@@ -978,10 +985,6 @@ int main(int argc, char* argv[])
                         break;
                     case 6:  // PUSH rmw
                         push(readEA2());
-                        break;
-                    case 7:  // invalid
-                        fprintf(stderr, "Invalid instruction FF %02x", modRM);
-                        runtimeError("");
                         break;
                 }
                 break;
