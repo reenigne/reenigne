@@ -441,7 +441,7 @@ public:
         _calibrateWindow->restart();
     }
 
-    virtual void draw()										
+    virtual void draw()
     {
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(Vector(1536, 1024));
@@ -856,44 +856,23 @@ private:
             Block b(i);
             int fg = b.foreground();
             int bg = b.background();
+            int bits = b.bits();
             int patch;
             int line;
             int set;
-            switch (b.bits()) {
-                case 0x00: patch = 2; line = 0; set = (bg << 4) | bg; break;
-                case 0x01: patch = 0; line = 1; set = (fg << 4) | bg; break;
-                case 0x02: patch = 1; line = 0; set = (bg << 4) | fg; break;
-                case 0x03: patch = 2; line = 0; set = (fg << 4) | bg; break;
-                case 0x04: patch = 5; line = 3; set = (fg << 4) | bg; break;
-                case 0x05: patch = 3; line = 0; set = (bg << 4) | fg; break;
-                case 0x06: patch = 4; line = 0; set = (bg << 4) | fg; break;
-                case 0x07: patch = 1; line = 1; set = (fg << 4) | bg; break;
-                case 0x08: patch = 1; line = 1; set = (bg << 4) | fg; break;
-                case 0x09: patch = 4; line = 0; set = (fg << 4) | bg; break;
-                case 0x0a: patch = 3; line = 0; set = (fg << 4) | bg; break;
-                case 0x0b: patch = 5; line = 3; set = (bg << 4) | fg; break;
-                case 0x0c: patch = 2; line = 0; set = (bg << 4) | fg; break;
-                case 0x0d: patch = 1; line = 0; set = (fg << 4) | bg; break;
-                case 0x0e: patch = 0; line = 1; set = (bg << 4) | fg; break;
-                case 0x0f: patch = 2; line = 0; set = (fg << 4) | fg; break;
+            if (fg < bg) {
+                int t = fg;
+                fg = bg;
+                bg = t;
+                bits = !bits;
             }
+
             Vector p;
-            switch (set % 3) {
-                case 0:
-                    p = Vector(0, 0);
-                    break;
-                case 1:
-                    if (patch < 3)
-                        p = Vector(6, 0);
-                    else
-                        p = Vector(-3, 1);
-                    break;
-                case 2:
-                    p = Vector(3, 1);
-                    break;
-            }
-            p += Vector(patch + line*10, (set/3)*2);
-            p = Vector(p.x*32 + 221, p.y + 18);
+            p.x = b.bits()*80;
+            static const int yTable[16] = {2, 18, 33, 47, 60, 72, 83, 93,
+                102, 110, 117, 123, 128, 132, 135, 137};
+            p.y = foreground + yTable[background];
+            p += Vector(221, p.y + 18);
             double o;
             for (int j = 0; j < 9; ++j) {
                 double yy = _decoder.getSample(p.x + j, p.y, &o)*48 + 85;
