@@ -871,7 +871,7 @@ private:
             p.x = b.bits()*80;
             static const int yTable[16] = {2, 18, 33, 47, 60, 72, 83, 93,
                 102, 110, 117, 123, 128, 132, 135, 137};
-            p.y = foreground + yTable[background];
+            p.y = fg + yTable[bg];
             p += Vector(221, p.y + 18);
             double o;
             for (int j = 0; j < 9; ++j) {
@@ -1085,7 +1085,7 @@ public:
     {
         setText("CGA Calibration");
         setInnerSize(Vector(1536, 1024));
-        _bitmap.setPosition(Vector(0, 0));
+        _bitmap.setTopLeft(Vector(0, 0));
         RootWindow::create();
         _animated.start();
     }
