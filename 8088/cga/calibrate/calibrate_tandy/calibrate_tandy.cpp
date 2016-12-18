@@ -355,8 +355,9 @@ public:
         for (int i = 0; i < 4096; ++i)
             _fitnesses[i] = 1000000;
 
-        _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
-        _vbiCapPipe.write<int>(1);
+//        _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
+//        _vbiCapPipe.write<int>(1);
+        _vbiCapPipe = File("captured.png.raw", true).openRead();
 
         int samples = 450*1024;
         int sampleSpaceBefore = 256;
@@ -368,8 +369,6 @@ public:
         for (int i = 0; i < sampleSpaceAfter; ++i)
             _b[i + samples] = 0;
         _decoder.setInputBuffer(_b);
-
-        setInnerSize(Vector(1536, 1024));
 
         double brightness = -0.124;
         double contrast = 1.052;
@@ -428,6 +427,7 @@ public:
 
         _paused = false;
 
+        setInnerSize(Vector(1536, 1024));
         BitmapWindow::create();
 
         _iteration = 0;
@@ -849,7 +849,11 @@ private:
     {
         if (_doneCapture)
             return true;
-        _vbiCapPipe.read(_b, 1024*450);
+        static bool doneRead = false;
+        if (!doneRead) {
+            _vbiCapPipe.read(_b, 1024*450);
+            doneRead = true;
+        }
         _decoder.decode();
 
         for (int i = 0; i < 4096; ++i) {
@@ -872,7 +876,7 @@ private:
             static const int yTable[16] = {2, 18, 33, 47, 60, 72, 83, 93,
                 102, 110, 117, 123, 128, 132, 135, 137};
             p.y = fg + yTable[bg];
-            p += Vector(221, p.y + 18);
+            p += Vector(221, 18);
             double o;
             for (int j = 0; j < 9; ++j) {
                 double yy = _decoder.getSample(p.x + j, p.y, &o)*48 + 85;
@@ -999,6 +1003,7 @@ private:
     Array<Byte> _buffer;
     Byte* _b;
     AutoStream _vbiCapPipe;
+
     bool _doneCapture;
     NTSCCaptureDecoder _decoder;
 
