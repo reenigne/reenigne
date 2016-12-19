@@ -876,7 +876,7 @@ private:
             static const int yTable[16] = {2, 18, 33, 47, 60, 72, 83, 93,
                 102, 110, 117, 123, 128, 132, 135, 137};
             p.y = fg + yTable[bg];
-            p += Vector(221, 18);
+            p += Vector(221, 44);
             double o;
             for (int j = 0; j < 9; ++j) {
                 double yy = _decoder.getSample(p.x + j, p.y, &o)*48 + 85;
