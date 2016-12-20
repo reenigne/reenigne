@@ -876,10 +876,10 @@ private:
             static const int yTable[16] = {2, 18, 33, 47, 60, 72, 83, 93,
                 102, 110, 117, 123, 128, 132, 135, 137};
             p.y = fg + yTable[bg];
-            p += Vector(221, 44);
+            p += Vector(240, 30);
             double o;
             for (int j = 0; j < 9; ++j) {
-                double yy = _decoder.getSample(p.x + j, p.y, &o)*48 + 85;
+                double yy = _decoder.getSample(p.x + j, p.y, &o)*4.8 + 85;
                 double xx = j + o;
                 int y = static_cast<int>(255-yy);
                 if (y < 0)
