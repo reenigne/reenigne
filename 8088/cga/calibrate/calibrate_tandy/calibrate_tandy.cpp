@@ -879,7 +879,7 @@ private:
             p += Vector(240, 30);
             double o;
             for (int j = 0; j < 9; ++j) {
-                double yy = _decoder.getSample(p.x + j, p.y, &o)*4.8 + 85;
+                double yy = _decoder.getSample(p.x + j, p.y, &o)*48 - 560;
                 double xx = j + o;
                 int y = static_cast<int>(255-yy);
                 if (y < 0)
