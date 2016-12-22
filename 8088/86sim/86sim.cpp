@@ -30,6 +30,7 @@ Byte opcode;
 int aluOperation;
 const char* filename;
 int length;
+int ios = 0;
 
 Word cs() { return registers[9]; }
 void error(const char* operation)
@@ -46,6 +47,9 @@ void runtimeError(const char* message)
 void divideOverflow() { runtimeError("Divide overflow"); }
 DWord physicalAddress(Word offset, int seg = -1)
 {
+    ++ios;
+    if (ios == 0)
+	runtimeError("Cycle counter overflowed.");
     if (seg == -1) {
         seg = segment;
         if (segmentOverride != -1)
@@ -420,25 +424,10 @@ int main(int argc, char* argv[])
         registers[8 + i] = segment;
 
     Byte* byteData = (Byte*)&registers[0];
-    byteRegisters[0] = &byteData[0];
-    byteRegisters[1] = &byteData[2];
-    byteRegisters[2] = &byteData[4];
-    byteRegisters[3] = &byteData[6];
-    byteRegisters[4] = &byteData[1];
-    byteRegisters[5] = &byteData[3];
-    byteRegisters[6] = &byteData[5];
-    byteRegisters[7] = &byteData[7];
-    if (byteRegisters[1] == 0) {
-        // Big-endian
-        byteRegisters[0] = &byteData[1];
-        byteRegisters[1] = &byteData[3];
-        byteRegisters[2] = &byteData[5];
-        byteRegisters[3] = &byteData[7];
-        byteRegisters[4] = &byteData[0];
-        byteRegisters[5] = &byteData[2];
-        byteRegisters[6] = &byteData[4];
-        byteRegisters[7] = &byteData[6];
-    }
+    int bigEndian = (byteData[2] == 0 ? 1 : 0);
+    int byteNumbers[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+    for (int i = 0 ; i < 8; ++i)
+      byteRegisters[i] = &byteData[byteNumbers[i] ^ bigEndian];
 
     bool prefix = false;
     for (int i = 0; i < 1000000000; ++i) {
@@ -722,6 +711,8 @@ int main(int argc, char* argv[])
                         printf("%c", dl());
                         break;
                     case 0x4c:
+                        printf("*** Bytes: %i\n", length);
+		        printf("*** Cycles: %i\n", ios);
                         printf("*** EXIT code %i\n", al());
                         exit(0);
                         break;
