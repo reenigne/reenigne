@@ -13,7 +13,8 @@ enum TestState
     untested,
     unsupported,
     warning,
-    error
+    error,
+    missing
 };
 
 class TestResult
@@ -33,6 +34,23 @@ public:
 
 class Program : public ProgramBase
 {
+    bool parse(CharacterSource* s, String m)
+    {
+        CharacterSource t = *s;
+        do {
+
+        }
+    }
+
+    void parseTestLog(CharacterSource s, bool right)
+    {
+        do {
+            if (parse(&s, "***")) {
+
+            }
+        } while (true);
+    }
+
     void run()
     {
         if (_arguments.count() < 2) {
@@ -43,8 +61,7 @@ class Program : public ProgramBase
         String l1 = File(_arguments[1], true).contents();
         String l2 = File(_arguments[2], true).contents();
         HashTable<String, TestResults> results;
-        CharacterSource s1(l1);
-        CharacterSource s2(l2);
-
+        parseTestLog(l1, false);
+        parseTestLog(l2, true);
     }
 };
