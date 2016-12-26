@@ -712,7 +712,7 @@ int main(int argc, char* argv[])
                         break;
                     case 0x4c:
                         printf("*** Bytes: %i\n", length);
-		        printf("*** Cycles: %i\n", ios);
+                        printf("*** Cycles: %i\n", ios);
                         printf("*** EXIT code %i\n", al());
                         exit(0);
                         break;
