@@ -2,6 +2,7 @@
 #include "alfe/hash_table.h"
 #include "alfe/rational.h"
 #include "alfe/space.h"
+#include <inttypes.h>
 
 enum TestState
 {
@@ -26,6 +27,7 @@ public:
     TestState _state;
     int _bytes;
     int _cycles;
+    bool passed() { return _state == pass || _state == xpass; }
 };
 
 class TestResults
@@ -60,20 +62,23 @@ class Program : public ProgramBase
             CharacterSource s2 = s;
             if (s2.get() == -1)
                 return;
+            bool eof;
             if (parse(&s, "*** ")) {
                 if (parse(&s, "Bytes: ")) {
                     Rational r;
                     if (Space::parseNumber(&s, &r))
                         result._bytes = r.value<int>();
+                    s.delimitString(_eol, &eof);
                 }
                 if (parse(&s, "Cycles: ")) {
                     Rational r;
                     if (Space::parseNumber(&s, &r))
                         result._cycles = r.value<int>();
+                    s.delimitString(_eol, &eof);
                 }
             }
-            bool eof;
-            for (int i = 0; i < 11; ++i) {
+            int i;
+            for (i = 0; i < 11; ++i) {
                 if (parse(&s, _states[i])) {
                     result._state = _testStates[i];
                     String name = s.delimitString(_eol, &eof);
@@ -95,7 +100,8 @@ class Program : public ProgramBase
                     break;
                 }
             }
-
+            if (i == 11)
+                s.delimitString(_eol, &eof);
         } while (true);
     }
 
@@ -124,6 +130,77 @@ class Program : public ProgramBase
         _eol = String(codePoint(10));
         parseTestLog(l1, false);
         parseTestLog(l2, true);
+
+        int64_t cyclesBefore = 0;
+        int64_t cyclesAfter = 0;
+        int64_t bytesBefore = 0;
+        int64_t bytesAfter = 0;
+        for (auto e : _results) {
+            String name = e.key();
+            CharacterSource s(name);
+            int optimization = 0;
+            do {
+                int c = s.get();
+                if (c == -1)
+                    break;
+                if (c == '-') {
+                    c = s.get();
+                    if (c == -1)
+                        break;
+                    if (c == 'O') {
+                        c = s.get();
+                        switch (c) {
+                            case '1':
+                            case '2':
+                            case '3':
+                                optimization = 1;
+                                break;
+                            case 's':
+                                optimization = 2;
+                                break;
+                        }
+                        break;
+                    }
+                }
+            } while (true);
+            TestResults results = e.value();
+            if (results._left.passed()) {
+                if (results._right.passed()) {
+                    if (optimization == 1) {
+                        cyclesBefore += results._left._cycles;
+                        cyclesAfter += results._right._cycles;
+                    }
+                    if (optimization == 2) {
+                        bytesBefore += results._left._bytes;
+                        bytesAfter += results._right._bytes;
+                    }
+                }
+                else {
+                    if (optimization == 1) {
+                        cyclesBefore += results._left._cycles;
+                        cyclesAfter += results._left._cycles;
+                    }
+                    if (optimization == 2) {
+                        bytesBefore += results._left._bytes;
+                        bytesAfter += results._left._bytes;
+                    }
+                }
+            }
+            else {
+                if (results._right.passed()) {
+                    if (optimization == 1) {
+                        cyclesBefore += results._right._cycles;
+                        cyclesAfter += results._right._cycles;
+                    }
+                    if (optimization == 2) {
+                        bytesBefore += results._right._bytes;
+                        bytesAfter += results._right._bytes;
+                    }
+                }
+            }
+        }
+        printf("Cycles: Before %" PRId64 ", after: %" PRId64 "\n", cyclesBefore, cyclesAfter);
+        printf("Bytes: Before %" PRId64 ", after: %" PRId64 "\n", bytesBefore, bytesAfter);
     }
     String _eol;
     String _states[11];
