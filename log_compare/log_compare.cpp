@@ -44,12 +44,12 @@ class Program : public ProgramBase
         CharacterSource ss = *s;
         CharacterSource ms(m);
         do {
-            int sc = ss.get();
             int mc = ms.get();
             if (mc == -1) {
                 *s = ss;
                 return true;
             }
+            int sc = ss.get();
             if (sc != mc)
                 return false;
         } while (true);
@@ -68,13 +68,13 @@ class Program : public ProgramBase
                     Rational r;
                     if (Space::parseNumber(&s, &r))
                         result._bytes = r.value<int>();
-                    s.delimitString(_eol, &eof);
+                    continue;
                 }
                 if (parse(&s, "Cycles: ")) {
                     Rational r;
                     if (Space::parseNumber(&s, &r))
                         result._cycles = r.value<int>();
-                    s.delimitString(_eol, &eof);
+                    continue;
                 }
             }
             int i;
@@ -124,17 +124,19 @@ class Program : public ProgramBase
         _states[9] = "WARNING";     _testStates[9] = warning;
         _states[10] = "ERROR";      _testStates[10] = error;
         for (int i = 0; i < 11; ++i)
-            _states[i] += "; ";
+            _states[i] += ": ";
         String l1 = File(_arguments[1], true).contents();
         String l2 = File(_arguments[2], true).contents();
         _eol = String(codePoint(10));
         parseTestLog(l1, false);
         parseTestLog(l2, true);
 
-        int64_t cyclesBefore = 0;
-        int64_t cyclesAfter = 0;
-        int64_t bytesBefore = 0;
-        int64_t bytesAfter = 0;
+        double cyclesBefore = 0;
+        double cyclesAfter = 0;
+        double bytesBefore = 0;
+        double bytesAfter = 0;
+        int speedTests = 0;
+        int sizeTests = 0;
         for (auto e : _results) {
             String name = e.key();
             CharacterSource s(name);
@@ -164,43 +166,61 @@ class Program : public ProgramBase
                 }
             } while (true);
             TestResults results = e.value();
-            if (results._left.passed()) {
-                if (results._right.passed()) {
-                    if (optimization == 1) {
+            if (optimization == 1) {
+                if (!results._left.passed())
+                    results._left._cycles = -1;
+                if (!results._right.passed())
+                    results._right._cycles = -1;
+                if (results._left._cycles != -1) {
+                    if (results._right._cycles != -1) {
                         cyclesBefore += results._left._cycles;
                         cyclesAfter += results._right._cycles;
+                        ++speedTests;
                     }
-                    if (optimization == 2) {
-                        bytesBefore += results._left._bytes;
-                        bytesAfter += results._right._bytes;
+                    else {
+                        cyclesBefore += results._left._cycles;
+                        cyclesAfter += results._left._cycles;
+                        ++speedTests;
                     }
                 }
                 else {
-                    if (optimization == 1) {
-                        cyclesBefore += results._left._cycles;
-                        cyclesAfter += results._left._cycles;
-                    }
-                    if (optimization == 2) {
-                        bytesBefore += results._left._bytes;
-                        bytesAfter += results._left._bytes;
+                    if (results._right._cycles != -1) {
+                        cyclesBefore += results._right._cycles;
+                        cyclesAfter += results._right._cycles;
+                        ++speedTests;
                     }
                 }
             }
-            else {
-                if (results._right.passed()) {
-                    if (optimization == 1) {
-                        cyclesBefore += results._right._cycles;
-                        cyclesAfter += results._right._cycles;
+            if (optimization == 2) {
+                if (!results._left.passed())
+                    results._left._bytes = -1;
+                if (!results._right.passed())
+                    results._right._bytes = -1;
+                if (results._left._bytes != -1) {
+                    if (results._right._bytes != -1) {
+                        bytesBefore += results._left._bytes;
+                        bytesAfter += results._right._bytes;
+                        ++sizeTests;
                     }
-                    if (optimization == 2) {
+                    else {
+                        bytesBefore += results._left._bytes;
+                        bytesAfter += results._left._bytes;
+                        ++sizeTests;
+                    }
+                }
+                else {
+                    if (results._right._bytes != -1) {
                         bytesBefore += results._right._bytes;
                         bytesAfter += results._right._bytes;
+                        ++sizeTests;
                     }
                 }
             }
         }
-        printf("Cycles: Before %" PRId64 ", after: %" PRId64 "\n", cyclesBefore, cyclesAfter);
-        printf("Bytes: Before %" PRId64 ", after: %" PRId64 "\n", bytesBefore, bytesAfter);
+        printf("Cycles: Before %f, after: %f in %i tests\n",
+            cyclesBefore/speedTests, cyclesAfter/speedTests, speedTests);
+        printf("Bytes: Before %f, after: %f in %i tests\n",
+            bytesBefore/sizeTests, bytesAfter/sizeTests, sizeTests);
     }
     String _eol;
     String _states[11];

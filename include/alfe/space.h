@@ -132,7 +132,8 @@ public:
                                         return false;
                     okay = true;
                     *source = s2;
-                    *span += span2;
+                    if (span != 0)
+                        *span += span2;
                 } while (true);
             }
         }
@@ -152,7 +153,8 @@ public:
                 *result = Rational(n, denominator);
                 return true;
             }
-            *span += span2;
+            if (span != 0)
+                *span += span2;
         } while (true);
     }
 private:
