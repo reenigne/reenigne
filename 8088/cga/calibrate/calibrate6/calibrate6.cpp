@@ -355,8 +355,9 @@ public:
         for (int i = 0; i < 4096; ++i)
             _fitnesses[i] = 1000000;
 
-        _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
-        _vbiCapPipe.write<int>(1);
+        //_vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
+        //_vbiCapPipe.write<int>(1);
+        _vbiCapPipe = File("q:\\captured_cga.png.raw", true).openRead();
 
         int samples = 450*1024;
         int sampleSpaceBefore = 256;
@@ -368,8 +369,6 @@ public:
         for (int i = 0; i < sampleSpaceAfter; ++i)
             _b[i + samples] = 0;
         _decoder.setInputBuffer(_b);
-
-        setInnerSize(Vector(1536, 1024));
 
         double brightness = -0.124;
         double contrast = 1.052;
@@ -428,6 +427,7 @@ public:
 
         _paused = false;
 
+        setInnerSize(Vector(1536, 1024));
         BitmapWindow::create();
 
         _iteration = 0;
@@ -441,7 +441,7 @@ public:
         _calibrateWindow->restart();
     }
 
-    virtual void draw()										
+    virtual void draw()
     {
         if (!_bitmap.valid())
             _bitmap = Bitmap<DWORD>(Vector(1536, 1024));
@@ -849,7 +849,11 @@ private:
     {
         if (_doneCapture)
             return true;
-        _vbiCapPipe.read(_b, 1024*450);
+        static bool doneRead = false;
+        if (!doneRead) {
+            _vbiCapPipe.read(_b, 1024*450);
+            doneRead = true;
+        }
         _decoder.decode();
 
         for (int i = 0; i < 4096; ++i) {
@@ -1106,7 +1110,7 @@ public:
     {
         setText("CGA Calibration");
         setInnerSize(Vector(1536, 1024));
-        _bitmap.setPosition(Vector(0, 0));
+        _bitmap.setTopLeft(Vector(0, 0));
         RootWindow::create();
         _animated.start();
     }
