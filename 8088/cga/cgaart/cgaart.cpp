@@ -963,9 +963,10 @@ public:
                     }
                     lookAhead = max(lookAhead, _combineVertical ? 7 : 3);
                 }
-                bitCount = 2 << advance;
+                int bpp = oneBpp ? 1 : 2;
+                bitCount = bpp << advance;
                 int positions = (lookAhead & -(1 << advance)) + (1 << advance);
-                _combineShift = positions << 1;
+                _combineShift = positions*bpp;
                 int firstPixel = 0;
                 boxCount = 0;
                 do {
@@ -977,7 +978,7 @@ public:
                     for (int position = 0; position < positions; ++position) {
                         while (box->_positionForPixel[pixel] != -1)
                             ++pixel;
-                        int bitPosition = position << 1;
+                        int bitPosition = position*bpp;
                         box->_positionForPixel[pixel] = bitPosition;
                         minPixel = min(minPixel, pixel);
                         if ((pixel & 4) != 0) {
