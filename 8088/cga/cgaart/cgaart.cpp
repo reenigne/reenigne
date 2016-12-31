@@ -838,6 +838,7 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _lBlockToLInput;
         float _blockArea;
         SInt8 _positionForPixel[35];
+        SInt8 _bitForPosition[16];
         int position(int pixel)  // Relative to lChange
         {
             pixel += _lBlockToLChange;
