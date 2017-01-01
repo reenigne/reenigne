@@ -838,7 +838,6 @@ template<class T> class CGAMatcherT : public ThreadTask
         int _lBlockToLInput;
         float _blockArea;
         SInt8 _positionForPixel[35];
-        SInt8 _bitForPosition[16];
         int position(int pixel)  // Relative to lChange
         {
             pixel += _lBlockToLChange;
@@ -1607,6 +1606,24 @@ public:
                         break;
                 }
                 tryPattern(box, bestPattern);
+                if (oneBpp && hres) {
+                    bestPattern = ((bestPattern & 1) << 1) +
+                        ((bestPattern & 2) << 2) +
+                        ((bestPattern & 4) << 3) +
+                        ((bestPattern & 8) << 4) +
+                        ((bestPattern & 0x10) << 5) +
+                        ((bestPattern & 0x20) << 6) +
+                        ((bestPattern & 0x40) << 7) +
+                        ((bestPattern & 0x80) << 8) +
+                        ((bestPattern & 0x100) << 9) +
+                        ((bestPattern & 0x200) << 10) +
+                        ((bestPattern & 0x400) << 11) +
+                        ((bestPattern & 0x800) << 12) +
+                        ((bestPattern & 0x1000) << 13) +
+                        ((bestPattern & 0x2000) << 14) +
+                        ((bestPattern & 0x4000) << 15) +
+                        ((bestPattern & 0x8000) << 16);
+                }
                 if (bitCount == 16) {
                     if (!_graphics ||
                         ((box->_bitOffset & 16) == 0 && (!oneBpp || !hres))) {
@@ -1615,22 +1632,10 @@ public:
                     }
                     else {
                         if (oneBpp && hres) {
-                            *_d0 = ((bestPattern & 1) << 1) +
-                                ((bestPattern & 2) << 2) +
-                                ((bestPattern & 4) << 3) +
-                                ((bestPattern & 8) << 4);
-                            _d0[1] = ((bestPattern & 0x10) >> 3) +
-                                ((bestPattern & 0x20) >> 2) +
-                                ((bestPattern & 0x40) >> 1) +
-                                (bestPattern & 0x80);
-                            _d0[2] = ((bestPattern & 0x100) >> 7) +
-                                ((bestPattern & 0x200) >> 6) +
-                                ((bestPattern & 0x400) >> 5) +
-                                ((bestPattern & 0x800) >> 4);
-                            _d0[3] = ((bestPattern & 0x1000) >> 11) +
-                                ((bestPattern & 0x2000) >> 10) +
-                                ((bestPattern & 0x4000) >> 19) +
-                                ((bestPattern & 0x8000) >> 8);
+                            *_d0 = bestPattern;
+                            _d0[1] = bestPattern >> 8;
+                            _d0[2] = bestPattern >> 16;
+                            _d0[3] = bestPattern >> 24;
                         }
                         else {
                             _d0[2] = bestPattern;
@@ -1643,12 +1648,40 @@ public:
                     int mask = (1 << bitCount) - 1;
                     int shift = box->_bitOffset & 7;
                     bestPattern >>= _combineShift - bitCount;
-                    _d0[byte] = (_d0[byte] & ~(mask << shift)) +
-                        ((bestPattern & mask) << shift);
-                    if (_combineVertical) {
-                        bestPattern >>= _combineShift;
-                        d1[byte] = (d1[byte] & ~(mask << shift)) +
+                    if (oneBpp && hres) {
+                        if (bitCount == 8) {
+                            *_d0 = bestPattern;
+                            _d0[1] = bestPattern >> 8;
+                            if (_combineVertical) {
+                                d1[0] = bestPattern >> 16;
+                                d1[1] = bestPattern >> 24;
+                            }
+                        }
+                        else {
+                            if (bitCount == 4) {
+                                *_d0 = bestPattern;
+                                if (_combineVertical)
+                                    d1[0] = bestPattern >> 8;
+                            }
+                            else {
+                                _d0[byte] = (_d0[byte] & ~(mask << shift)) +
+                                    ((bestPattern & mask) << shift);
+                                if (_combineVertical) {
+                                    bestPattern >>= _combineShift;
+                                    d1[byte] = (d1[byte] & ~(mask << shift)) +
+                                        ((bestPattern & mask) << shift);
+                                }
+                            }
+                        }
+                    }
+                    else {
+                        _d0[byte] = (_d0[byte] & ~(mask << shift)) +
                             ((bestPattern & mask) << shift);
+                        if (_combineVertical) {
+                            bestPattern >>= _combineShift;
+                            d1[byte] = (d1[byte] & ~(mask << shift)) +
+                                ((bestPattern & mask) << shift);
+                        }
                     }
                 }
                 ++boxIndex;
