@@ -1649,19 +1649,20 @@ public:
                     int shift = box->_bitOffset & 7;
                     bestPattern >>= _combineShift - bitCount;
                     if (oneBpp && hres) {
+                        mask = (1 << (bitCount << 1)) - 1;
                         if (bitCount == 8) {
-                            *_d0 = bestPattern;
-                            _d0[1] = bestPattern >> 8;
+                            _d0[byte] = bestPattern;
+                            _d0[byte + 1] = bestPattern >> 8;
                             if (_combineVertical) {
-                                d1[0] = bestPattern >> 16;
-                                d1[1] = bestPattern >> 24;
+                                d1[byte] = bestPattern >> 16;
+                                d1[byte + 1] = bestPattern >> 24;
                             }
                         }
                         else {
                             if (bitCount == 4) {
-                                *_d0 = bestPattern;
+                                _d0[byte] = bestPattern;
                                 if (_combineVertical)
-                                    d1[0] = bestPattern >> 8;
+                                    d1[byte] = bestPattern >> 8;
                             }
                             else {
                                 _d0[byte] = (_d0[byte] & ~(mask << shift)) +
