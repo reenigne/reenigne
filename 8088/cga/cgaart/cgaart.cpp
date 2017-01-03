@@ -5075,7 +5075,9 @@ public:
         _matcher->setInterlaceSync(_config->get<bool>("interlaceSync"));
         _matcher->setInterlacePhase(_config->get<bool>("interlacePhase"));
         _matcher->setFlicker(_config->get<bool>("flicker"));
-        _matcher->setPhase(_config->get<bool>("phase"));
+        bool phase = _config->get<bool>("phase");
+        _matcher->setPhase(phase ? 0 : 1);
+        _output->setPhase(phase ? 0 : 1);
         _matcher->setCharacterSet(_config->get<int>("characterSet"));
         _matcher->setMode(_config->get<int>("mode"));
         _matcher->setPalette(_config->get<int>("palette"));
