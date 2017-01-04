@@ -1500,8 +1500,9 @@ public:
                 }
             }
 
-            _d0 = &_rowData[1];
-            Byte* d1 = &_rowData[1 + rowDataStride];
+            int phaseOffset = phase*2;
+            _d0 = &_rowData[1 + phaseOffset];
+            Byte* d1 = &_rowData[1 + rowDataStride + phaseOffset];
             _inputBlock = inputRow;
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
