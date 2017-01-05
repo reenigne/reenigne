@@ -1463,6 +1463,7 @@ public:
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
         row = 0;
+        int phaseOffset = phase*2;
 
         // Perform matching
         while (!cancelling()) {
@@ -1500,7 +1501,6 @@ public:
                 }
             }
 
-            int phaseOffset = phase*2;
             _d0 = &_rowData[1 + phaseOffset];
             Byte* d1 = &_rowData[1 + rowDataStride + phaseOffset];
             _inputBlock = inputRow;
@@ -1697,6 +1697,8 @@ public:
                     _d0 += incrementBytes;
                     d1 += incrementBytes;
                     column += incrementBytes;
+                    if ((incrementBytes & 2) != 0)
+                        phaseOffset ^= phase*2;
                     if (column >= bytesPerRow)
                         break;
                 }
@@ -3727,6 +3729,7 @@ public:
     {
         _matcher->setPhase(value ? 0 : 1);
         _output->setPhase(value ? 0 : 1);
+        beginConvert();
     }
     void interlaceSet(int value)
     {
