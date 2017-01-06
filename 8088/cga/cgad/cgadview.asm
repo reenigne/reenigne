@@ -8,10 +8,21 @@ cpu 8086
   mov sp,stackHigh-2
   sti
 
+  mov si,0x81
+searchLoop
+  lodsb
+  cmp al,0x20
+  je foundEnd
+  cmp al,0x10
+  jne searchLoop
+foundEnd:
+  dec si
+  mov byte[si],0
+
   ; Load meta file
 
   mov ax,0x3d00
-  mov dx,vramFileName
+  mov dx,0x81
   int 0x21               ; open file
   jc error
   mov bx,ax
