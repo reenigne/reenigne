@@ -13,11 +13,13 @@ searchLoop
   lodsb
   cmp al,0x20
   je foundEnd
-  cmp al,0x10
+  cmp al,0x0d
   jne searchLoop
 foundEnd:
   dec si
   mov byte[si],0
+  cmp si,0x81
+  je error
 
   ; Load meta file
 
