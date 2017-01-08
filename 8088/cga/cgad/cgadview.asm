@@ -35,13 +35,13 @@ foundEnd:
   jc error
   cmp dx,0
   jne error
-  mov [vramSize],ax
+  mov [cgadSize],ax
   mov ax,0x4200          ; seek to start
   int 0x21
   jc error
-  mov cx,[vramSize]
+  mov cx,[cgadSize]
   mov ah,0x3f
-  mov dx,vramStart
+  mov dx,cgadStart
   int 0x21               ; read file
   jc error
   mov ah,0x3e
@@ -54,6 +54,15 @@ error:
   ret
 
 success:
+  cmp word[cgadStart],0x4743    ; 'CG'
+  jne error
+  cmp word[cgadStart+2],0x4441  ; 'AD'
+  jne error
+  cmp word[cgadStart+4],0       ; version low
+  jne error
+  cmp word[cgadStart+6],0       ; version high
+  jne error
+
   mov ax,6
   int 0x10
   mov dx,0x3d8
@@ -62,8 +71,8 @@ success:
   mov ax,0xb800
   mov es,ax
   xor di,di
-  mov si,vramStart
-  mov cx,[vramSize]
+  mov si,cgadStart
+  mov cx,[cgadSize]
   cli
   rep movsb
 
@@ -75,13 +84,12 @@ success:
 
   int 0x20
 
-vramSize: dw 0
+cgadSize: dw 0
 
-vramFileName: db "vram.dat",0
 errorMessage: db "File error$"
 
 stackLow:
   times 128 dw 0
 stackHigh:
 
-vramStart:
+cgadStart:
