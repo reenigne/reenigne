@@ -1349,7 +1349,7 @@ public:
                 box->_blockArea *= _blockHeight;
             int skipSolidColour = 0xf00;
             for (int pattern = 0; pattern < _patternCount; ++pattern) {
-                if (!_graphics) {
+                if (!_graphics && !oneBpp) {
                     if (_skip[pattern & 0xff])
                         continue;
                     int foreground = pattern & 0xf00;

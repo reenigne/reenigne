@@ -175,6 +175,17 @@ class Program : public ProgramBase
                     if (results._right._cycles != -1) {
                         cyclesBefore += results._left._cycles;
                         cyclesAfter += results._right._cycles;
+                        if (results._right._cycles != results._left._cycles) {
+                            String s = "Regression";
+                            if (results._right._cycles < results._left._cycles)
+                                s = "Improvement";
+                            console.write(s + " from " +
+                                decimal(results._left._cycles) + " to " +
+                                decimal(results._right._cycles) + " (" +
+                                decimal(results._right._cycles -
+                                    results._left._cycles) +
+                                ") cycles in test " + e.key() + ".\n");
+                        }
                         ++speedTests;
                     }
                     else {
@@ -200,6 +211,17 @@ class Program : public ProgramBase
                     if (results._right._bytes != -1) {
                         bytesBefore += results._left._bytes;
                         bytesAfter += results._right._bytes;
+                        if (results._right._bytes > results._left._bytes) {
+                            String s = "Regression";
+                            if (results._right._bytes < results._left._bytes)
+                                s = "Improvement";
+                            console.write(s + " from " +
+                                decimal(results._left._bytes) + " to " +
+                                decimal(results._right._bytes) + " (" +
+                                decimal(results._right._bytes -
+                                    results._left._bytes) +
+                                ") bytes in test " + e.key() + ".\n");
+                        }
                         ++sizeTests;
                     }
                     else {
@@ -217,10 +239,12 @@ class Program : public ProgramBase
                 }
             }
         }
-        printf("Cycles: Before %f, after: %f in %i tests\n",
-            cyclesBefore/speedTests, cyclesAfter/speedTests, speedTests);
-        printf("Bytes: Before %f, after: %f in %i tests\n",
-            bytesBefore/sizeTests, bytesAfter/sizeTests, sizeTests);
+        printf("Cycles: Before %f, after: %f (%f%%) in %i tests\n",
+            cyclesBefore/speedTests, cyclesAfter/speedTests,
+            100*(cyclesAfter - cyclesBefore)/cyclesAfter, speedTests);
+        printf("Bytes: Before %f, after: %f (%f%%) in %i tests\n",
+            bytesBefore/sizeTests, bytesAfter/sizeTests,
+            100*(bytesAfter - bytesBefore)/bytesAfter, sizeTests);
     }
     String _eol;
     String _states[11];

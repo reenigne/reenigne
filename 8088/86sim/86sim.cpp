@@ -248,7 +248,7 @@ void stoS(Word data)
 void push(Word value)
 {
     setSP(sp() - 2);
-    if (sp() == length + 0x100)
+    if (sp() <= length + 0x100)
         runtimeError("Stack overflow");
     writeWord(value, sp(), 2);
 }
