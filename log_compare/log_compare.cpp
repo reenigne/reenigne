@@ -137,6 +137,14 @@ class Program : public ProgramBase
         double bytesAfter = 0;
         int speedTests = 0;
         int sizeTests = 0;
+        int fasterTests = 0;
+        int slowerTests = 0;
+        int largerTests = 0;
+        int smallerTests = 0;
+        double cyclesFaster = 0;
+        double cyclesSlower = 0;
+        double bytesLarger = 0;
+        double bytesSmaller = 0;
         for (auto e : _results) {
             String name = e.key();
             CharacterSource s(name);
@@ -175,16 +183,25 @@ class Program : public ProgramBase
                     if (results._right._cycles != -1) {
                         cyclesBefore += results._left._cycles;
                         cyclesAfter += results._right._cycles;
-                        if (results._right._cycles != results._left._cycles) {
-                            String s = "Regression";
-                            if (results._right._cycles < results._left._cycles)
-                                s = "Improvement";
-                            console.write(s + " from " +
+                        int delta = results._right._cycles -
+                            results._left._cycles;
+                        if (results._right._cycles < results._left._cycles) {
+                            console.write("Improvement from " +
                                 decimal(results._left._cycles) + " to " +
                                 decimal(results._right._cycles) + " (" +
-                                decimal(results._right._cycles -
-                                    results._left._cycles) +
+                                decimal(delta) +
                                 ") cycles in test " + e.key() + ".\n");
+                            ++fasterTests;
+                            cyclesFaster += delta;
+                        }
+                        if (results._right._cycles > results._left._cycles) {
+                            console.write("Regression from " +
+                                decimal(results._left._cycles) + " to " +
+                                decimal(results._right._cycles) + " (" +
+                                decimal(delta) +
+                                ") cycles in test " + e.key() + ".\n");
+                            ++slowerTests;
+                            cyclesSlower += delta;
                         }
                         ++speedTests;
                     }
@@ -211,16 +228,25 @@ class Program : public ProgramBase
                     if (results._right._bytes != -1) {
                         bytesBefore += results._left._bytes;
                         bytesAfter += results._right._bytes;
-                        if (results._right._bytes > results._left._bytes) {
-                            String s = "Regression";
-                            if (results._right._bytes < results._left._bytes)
-                                s = "Improvement";
-                            console.write(s + " from " +
+                        int delta = results._right._bytes -
+                            results._left._bytes;
+                        if (results._right._bytes < results._left._bytes) {
+                            console.write("Improvement from " +
                                 decimal(results._left._bytes) + " to " +
                                 decimal(results._right._bytes) + " (" +
-                                decimal(results._right._bytes -
-                                    results._left._bytes) +
+                                decimal(delta) +
                                 ") bytes in test " + e.key() + ".\n");
+                            ++smallerTests;
+                            bytesSmaller += delta;
+                        }
+                        if (results._right._bytes > results._left._bytes) {
+                            console.write("Regression from " +
+                                decimal(results._left._bytes) + " to " +
+                                decimal(results._right._bytes) + " (" +
+                                decimal(delta) +
+                                ") bytes in test " + e.key() + ".\n");
+                            ++largerTests;
+                            bytesLarger += delta;
                         }
                         ++sizeTests;
                     }
@@ -239,9 +265,19 @@ class Program : public ProgramBase
                 }
             }
         }
+        printf("Speed:\n");
+        printf("%i tests got faster by an average of %f cycles.\n",
+            fasterTests, cyclesFaster/fasterTests);
+        printf("%i tests got slower by an average of %f cycles.\n",
+            slowerTests, cyclesSlower/slowerTests);
         printf("Cycles: Before %f, after: %f (%f%%) in %i tests\n",
             cyclesBefore/speedTests, cyclesAfter/speedTests,
             100*(cyclesAfter - cyclesBefore)/cyclesAfter, speedTests);
+        printf("Size:\n");
+        printf("%i tests got smaller by an average of %f bytes.\n",
+            smallerTests, bytesSmaller/smallerTests);
+        printf("%i tests got larger by an average of %f bytes.\n",
+            largerTests, bytesLarger/largerTests);
         printf("Bytes: Before %f, after: %f (%f%%) in %i tests\n",
             bytesBefore/sizeTests, bytesAfter/sizeTests,
             100*(bytesAfter - bytesBefore)/bytesAfter, sizeTests);
