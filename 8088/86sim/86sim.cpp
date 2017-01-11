@@ -838,8 +838,10 @@ int main(int argc, char* argv[])
                 jumpShort(fetchByte(), true);
                 break;
             case 0xf2: case 0xf3:  // REP
-                rep = opcode == 0xf2 ? 1 : 2;
-                prefix = true;
+                if (cx() != 0) {
+                    rep = opcode == 0xf2 ? 1 : 2;
+                    prefix = true;
+                }
                 break;
             case 0xf5:  // CMC
                 flags ^= 1;
