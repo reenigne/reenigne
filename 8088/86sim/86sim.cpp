@@ -226,12 +226,14 @@ Word lodS()
     setSI(si() + stringIncrement());
     return read(address);
 }
-void doRep()
+void doRep(bool compare)
 {
-    if (rep != 0) {
-        setCX(cx() - 1);
-        repeating = cx() != 0 && zf() != (rep == 1);
-    }
+    if (rep == 1 && !compare)
+        runtimeError("REPNE prefix with non-compare string instruction");
+    if (rep == 0 || cx() == 0)
+        return;
+    setCX(cx() - 1);
+    repeating = cx() != 0 && (!compare || zf() != (rep == 1));
 }
 Word lodDIS()
 {
@@ -439,6 +441,9 @@ int main(int argc, char* argv[])
             prefix = false;
             opcode = fetchByte();
         }
+        if (rep != 0 && (opcode < 0xa4 || opcode >= 0xb0 || opcode == 0xa8 ||
+            opcode == 0xa9))
+            runtimeError("REP prefix with non-string instruction");
         wordSize = ((opcode & 1) != 0);
         bool sourceIsRM = ((opcode & 2) != 0);
         int operation = (opcode >> 3) & 7;
@@ -646,34 +651,41 @@ int main(int argc, char* argv[])
                 write(getAccum(), fetchWord());
                 break;
             case 0xa4: case 0xa5:  // MOVSv
-                stoS(lodS());
-                doRep();
+                if (rep == 0 || cx() != 0)
+                    stoS(lodS());
+                doRep(false);
                 break;
             case 0xa6: case 0xa7:  // CMPSv
-                lodDIS();
-                source = data;
-                sub();
-                doRep();
+                if (rep == 0 || cx() != 0) {
+                    destination = lodS();
+                    source = lodDIS();
+                    sub();
+                }
+                doRep(true);
                 break;
             case 0xa8: case 0xa9:  // TEST accum,iv
                 data = fetch(wordSize);
                 test(getAccum(), data);
                 break;
             case 0xaa: case 0xab:  // STOSv
-                stoS(getAccum());
-                doRep();
+                if (rep == 0 || cx() != 0)
+                    stoS(getAccum());
+                doRep(false);
                 break;
             case 0xac: case 0xad:  // LODSv
-                data = lodS();
-                setAccum();
-                doRep();
+                if (rep == 0 || cx() != 0) {
+                    data = lodS();
+                    setAccum();
+                }
+                doRep(false);
                 break;
             case 0xae: case 0xaf:  // SCASv
-                lodDIS();
-                destination = getAccum();
-                source = data;
-                sub();
-                doRep();
+                if (rep == 0 || cx() != 0) {
+                    destination = getAccum();
+                    source = lodDIS();
+                    sub();
+                }
+                doRep(true);
                 break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
             case 0xb4: case 0xb5: case 0xb6: case 0xb7:
@@ -838,10 +850,8 @@ int main(int argc, char* argv[])
                 jumpShort(fetchByte(), true);
                 break;
             case 0xf2: case 0xf3:  // REP
-                if (cx() != 0) {
-                    rep = opcode == 0xf2 ? 1 : 2;
-                    prefix = true;
-                }
+                rep = opcode == 0xf2 ? 1 : 2;
+                prefix = true;
                 break;
             case 0xf5:  // CMC
                 flags ^= 1;
