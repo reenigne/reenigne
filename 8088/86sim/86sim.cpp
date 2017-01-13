@@ -392,8 +392,8 @@ int main(int argc, char* argv[])
     FILE* fp = fopen(filename, "rb");
     if (fp == 0)
         error("opening");
-    ram = (Byte*)malloc(0x10000);
-    memset(ram, 0, 0x10000);
+    ram = (Byte*)malloc(0x100000);
+    memset(ram, 0, 0x100000);
     if (ram == 0) {
         fprintf(stderr, "Out of memory\n");
         exit(1);
@@ -405,6 +405,18 @@ int main(int argc, char* argv[])
         error("telling");
     if (fseek(fp, 0, SEEK_SET) != 0)
         error("seeking");
+    if (length >= 2) {
+        Word header;
+        if (fread(&header, 2, 1, fp) != 1)
+            error("reading");
+        if (header == 0x5a4d) {
+            if (length < 0x20) {
+                fprintf(stderr, "%s has an exe
+        }
+
+    }
+    Byte* fileData = (Byte*)malloc(length);
+
     if (length > 0x10000 - 0x100) {
         fprintf(stderr, "%s is too long to be a .com file\n", filename);
         exit(1);
