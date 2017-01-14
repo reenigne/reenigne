@@ -405,24 +405,26 @@ int main(int argc, char* argv[])
         error("telling");
     if (fseek(fp, 0, SEEK_SET) != 0)
         error("seeking");
-    if (length >= 2) {
+    int loadLength = min(length, 0xff00);
+    Word segment = 0x0202;
+    for (int i = 0; i < 4; ++i)
+        registers[8 + i] = segment;
+    if (fread(&ram[segment << 4], loadLength, 1, fp) != 1)
+        error("reading");
+    if (loadLength >= 2 && readWord(0) == 0x5a4d) {  // .exe file?
+        if (loadLength < 0x20) {
+            fprintf(stderr, "%s is too short to be an .exe file\n", filename);
+            exit(1);
+        }
+
         Word header;
         if (fread(&header, 2, 1, fp) != 1)
             error("reading");
-        if (header == 0x5a4d) {
-            if (length < 0x20) {
-                fprintf(stderr, "%s has an exe
-        }
-
     }
-    Byte* fileData = (Byte*)malloc(length);
-
     if (length > 0x10000 - 0x100) {
         fprintf(stderr, "%s is too long to be a .com file\n", filename);
         exit(1);
     }
-    if (fread(&ram[0x100], length, 1, fp) != 1)
-        error("reading");
     fclose(fp);
 
     Word segment = 0x1000;
@@ -434,8 +436,6 @@ int main(int argc, char* argv[])
     registers[5] = 0x091C;
     setSI(0x0100);
     setDI(0xFFFE);
-    for (int i = 0; i < 4; ++i)
-        registers[8 + i] = segment;
 
     Byte* byteData = (Byte*)&registers[0];
     int bigEndian = (byteData[2] == 0 ? 1 : 0);
