@@ -416,6 +416,16 @@ int main(int argc, char* argv[])
             fprintf(stderr, "%s is too short to be an .exe file\n", filename);
             exit(1);
         }
+        Word bytesInLastBlock = readWord(2);
+        Word blocks = readWord(4);
+        int exeLength = (blocks - (bytesInLastBlock == 0 ? 0 : 1)*512) +
+            bytesInLastBlock;
+        if (exeLength > length) {
+            fprintf(stderr, "%s is truncated\n", filename);
+            exit(1);
+        }
+
+
 
         Word header;
         if (fread(&header, 2, 1, fp) != 1)
