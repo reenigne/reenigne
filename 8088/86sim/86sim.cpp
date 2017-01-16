@@ -405,45 +405,54 @@ int main(int argc, char* argv[])
         error("telling");
     if (fseek(fp, 0, SEEK_SET) != 0)
         error("seeking");
-    int loadLength = min(length, 0xff00);
     Word segment = 0x0202;
+    int loadOffset = segment << 4;
+    int loadLength = min(length, 0x100000 - loadOffset);
     for (int i = 0; i < 4; ++i)
         registers[8 + i] = segment;
-    if (fread(&ram[segment << 4], loadLength, 1, fp) != 1)
+    if (fread(&ram[loadOffset], loadLength, 1, fp) != 1)
         error("reading");
-    if (loadLength >= 2 && readWord(0) == 0x5a4d) {  // .exe file?
-        if (loadLength < 0x20) {
+    fclose(fp);
+    if (length >= 2 && readWord(0) == 0x5a4d) {  // .exe file?
+        if (length < 0x21) {
             fprintf(stderr, "%s is too short to be an .exe file\n", filename);
             exit(1);
         }
         Word bytesInLastBlock = readWord(2);
-        Word blocks = readWord(4);
-        int exeLength = (blocks - (bytesInLastBlock == 0 ? 0 : 1)*512) +
+        int exeLength = (readWord(4) - (bytesInLastBlock == 0 ? 0 : 1) << 9) +
             bytesInLastBlock;
-        if (exeLength > length) {
-            fprintf(stderr, "%s is truncated\n", filename);
+        int headerParagraphs = readWord(8);
+        int headerLength = headerParagraphs << 4;
+        if (exeLength > length || headerLength > length ||
+            headerLength > exeLength) {
+            fprintf(stderr, "%s is corrupt\n", filename);
             exit(1);
         }
-
-
-
-        Word header;
-        if (fread(&header, 2, 1, fp) != 1)
-            error("reading");
+        int relocationCount = readWord(6);
+        segment += headerParagraphs;
+        int relocationData = readWord(24);
+        for (int i = 0; i < relocationCount; ++i) {
+            int offset = readWord(relocationData);
+            registers[9] = readWord(relocationData + 2);
+            writeWord(readWord(offset, 1) + segment, offset, 1);
+        }
+        registers[10] = readWord(14) + segment;  // SS
+        setSP(readWord(16));
+        setIP(readWord(20));
+        registers[9] = readWord(22) + segment;  // CS
     }
-    if (length > 0x10000 - 0x100) {
-        fprintf(stderr, "%s is too long to be a .com file\n", filename);
-        exit(1);
+    else {
+        if (length > 0xff00) {
+            fprintf(stderr, "%s is too long to be a .com file\n", filename);
+            exit(1);
+        }
+        setSP(0xFFFE);
     }
-    fclose(fp);
-
-    Word segment = 0x1000;
     setAX(0x0000);
     setCX(0x00FF);
     setDX(segment);
-    registers[3] = 0x0000;
-    setSP(0xFFFE);
-    registers[5] = 0x091C;
+    registers[3] = 0x0000;  // BX
+    registers[5] = 0x091C;  // BP
     setSI(0x0100);
     setDI(0xFFFE);
 
