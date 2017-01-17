@@ -215,6 +215,7 @@ public:
     {
         return _string.subString(start, end - start);
     }
+    int length() const { return _string.length(); }
     int getByte()
     {
         int l = _location.offset();

@@ -11,6 +11,8 @@ Word registers[12];
 Byte* byteRegisters[8];
 Word ip = 0x100;
 Byte* ram;
+Byte* initialized;
+Word loadSegment = 0x0202;
 bool useMemory;
 Word address;
 Word flags = 2;
@@ -45,7 +47,7 @@ void runtimeError(const char* message)
     exit(1);
 }
 void divideOverflow() { runtimeError("Divide overflow"); }
-DWord physicalAddress(Word offset, int seg = -1)
+DWord physicalAddress(Word offset, int seg, bool write)
 {
     ++ios;
     if (ios == 0)
@@ -56,17 +58,20 @@ DWord physicalAddress(Word offset, int seg = -1)
             seg = segmentOverride;
     }
     Word segmentAddress = registers[8 + seg];
-    DWord a = (segmentAddress << 4) + offset;
-    if (a < 0x10100 || a >= 0x1FFFE) {
+    DWord a = ((segmentAddress << 4) + offset) & 0xfffff;
+    if (!write && (initialized[a >> 3] & (1 << (p & 7))) == 0 ||
+        a < loadSegment << 4) {
         fprintf(stderr, "Accessing invalid address %04x:%04x.\n",
             segmentAddress, offset);
         runtimeError("");
     }
+    if (write)
+        initialized[a >> 3] |= 1 << (p & 7);
     return a;
 }
 Byte readByte(Word offset, int seg = -1)
 {
-    return ram[physicalAddress(offset, seg) - 0x10000];
+    return ram[physicalAddress(offset, seg, false)];
 }
 Word readWord(Word offset, int seg = -1)
 {
@@ -79,7 +84,7 @@ Word read(Word offset, int seg = -1)
 }
 void writeByte(Byte value, Word offset, int seg = -1)
 {
-    ram[physicalAddress(offset, seg) - 0x10000] = value;
+    ram[physicalAddress(offset, seg, true)] = value;
 }
 void writeWord(Word value, Word offset, int seg = -1)
 {
@@ -393,7 +398,9 @@ int main(int argc, char* argv[])
     if (fp == 0)
         error("opening");
     ram = (Byte*)malloc(0x100000);
+    initialized = (Byte*)malloc(0x20000);
     memset(ram, 0, 0x100000);
+    memset(initialized, 0, 0x20000);
     if (ram == 0) {
         fprintf(stderr, "Out of memory\n");
         exit(1);
@@ -405,11 +412,10 @@ int main(int argc, char* argv[])
         error("telling");
     if (fseek(fp, 0, SEEK_SET) != 0)
         error("seeking");
-    Word segment = 0x0202;
-    int loadOffset = segment << 4;
+    int loadOffset = loadSegment << 4;
     int loadLength = min(length, 0x100000 - loadOffset);
     for (int i = 0; i < 4; ++i)
-        registers[8 + i] = segment;
+        registers[8 + i] = loadSegment;
     if (fread(&ram[loadOffset], loadLength, 1, fp) != 1)
         error("reading");
     fclose(fp);
@@ -429,17 +435,18 @@ int main(int argc, char* argv[])
             exit(1);
         }
         int relocationCount = readWord(6);
-        segment += headerParagraphs;
+        Word imageSegment = loadSegment + headerParagraphs;
         int relocationData = readWord(24);
         for (int i = 0; i < relocationCount; ++i) {
             int offset = readWord(relocationData);
             registers[9] = readWord(relocationData + 2);
-            writeWord(readWord(offset, 1) + segment, offset, 1);
+            writeWord(readWord(offset, 1) + imageSegment, offset, 1);
         }
-        registers[10] = readWord(14) + segment;  // SS
+        loadSegment = imageSegment;  // Prevent further access to header
+        registers[10] = readWord(14) + loadSegment;  // SS
         setSP(readWord(16));
         setIP(readWord(20));
-        registers[9] = readWord(22) + segment;  // CS
+        registers[9] = readWord(22) + loadSegment;  // CS
     }
     else {
         if (length > 0xff00) {
