@@ -416,6 +416,7 @@ public:
         h.add(stateMovS,           "stateMovS");
         h.add(stateMovS2,          "stateMovS2");
         h.add(stateRepAction,      "stateRepAction");
+        h.add(stateRepCompareAction, "stateRepCompareAction");
         h.add(stateCmpS,           "stateCmpS");
         h.add(stateCmpS2,          "stateCmpS2");
         h.add(stateCmpS3,          "stateCmpS3");
@@ -1254,15 +1255,18 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateMovS:
                     _wait = (_rep != 0 ? 9 : 10);
-                    lodS(stateMovS2);
+                    if (_rep != 0 && cx() == 0)
+                        _state = stateRepAction;
+                    else
+                        lodS(stateMovS2);
                     break;
                 case stateMovS2:
                     _afterRep = stateMovS;
                     stoS(stateRepAction);
                     break;
-                case stateRepAction:
+                case stateRepCompareAction:
                     _state = stateEndInstruction;
-                    if (_rep != 0) {
+                    if (_rep != 0 && cx() != 0) {
                         --cx();
                         _afterCheckInt = _afterRep;
                         if (cx() == 0 || (zf() == (_rep == 1)))
@@ -1270,7 +1274,23 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                         _state = stateCheckInt;
                     }
                     break;
-                case stateCmpS: _wait = 14; lodS(stateCmpS2); break;
+                case stateRepAction:
+                    _state = stateEndInstruction;
+                    if (_rep != 0 && cx() != 0) {
+                        --cx();
+                        _afterCheckInt = _afterRep;
+                        if (cx() == 0)
+                            _afterCheckInt = stateEndInstruction;
+                        _state = stateCheckInt;
+                    }
+                    break;
+                case stateCmpS:
+                    _wait = 14;
+                    if (_rep != 0 && cx() == 0)
+                        _state = stateRepCompareAction;
+                    else
+                        lodS(stateCmpS2);
+                    break;
                 case stateCmpS2:
                     _destination = _data;
                     lodDIS(stateCmpS3);
@@ -1279,7 +1299,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _source = _data;
                     sub();
                     _afterRep = stateCmpS;
-                    _state = stateRepAction;
+                    _state = stateRepCompareAction;
                     break;
 
                 case stateTestAccumImm:
@@ -1292,26 +1312,39 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateStoS:
                     _wait = (_rep != 0 ? 6 : 7);
-                    _data = getAccum();
-                    _afterRep = stateStoS;
-                    stoS(stateRepAction);
+                    if (_rep != 0 && cx() == 0)
+                        _state = stateRepAction;
+                    else {
+                        _data = getAccum();
+                        _afterRep = stateStoS;
+                        stoS(stateRepAction);
+                    }
                     break;
                 case stateLodS:
                     _wait = (_rep != 0 ? 9 : 8);
-                    lodS(stateLodS2);
+                    if (_rep != 0 && cx() == 0)
+                        _state = stateRepAction;
+                    else
+                        lodS(stateLodS2);
                     break;
                 case stateLodS2:
                     setAccum();
                     _afterRep = stateLodS;
                     _state = stateRepAction;
                     break;
-                case stateScaS: _wait = 11; lodDIS(stateScaS2); break;
+                case stateScaS:
+                    _wait = 11;
+                    if (_rep != 0 && cx() == 0)
+                        _state = stateRepCompareAction;
+                    else
+                        lodDIS(stateScaS2);
+                    break;
                 case stateScaS2:
                     _destination = getAccum();
                     _source = _data;
                     sub();
                     _afterRep = stateScaS;
-                    _state = stateRepAction;
+                    _state = stateRepCompareAction;
                     break;
 
                 case stateMovRegImm:
@@ -1995,7 +2028,7 @@ private:
         stateSAHF, stateLAHF,
         stateMovAccumInd, stateMovAccumInd2, stateMovAccumInd3,
         stateMovIndAccum, stateMovIndAccum2,
-        stateMovS, stateMovS2, stateRepAction,
+        stateMovS, stateMovS2, stateRepAction, stateRepCompareAction,
         stateCmpS, stateCmpS2, stateCmpS3,
         stateTestAccumImm, stateTestAccumImm2,
         stateStoS,
