@@ -1255,9 +1255,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateMovS:
                     _wait = (_rep != 0 ? 9 : 10);
-                    if (_rep != 0 && cx() == 0)
-                        _state = stateRepAction;
-                    else
+                    if (repCheck())
                         lodS(stateMovS2);
                     break;
                 case stateMovS2:
@@ -1286,9 +1284,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateCmpS:
                     _wait = 14;
-                    if (_rep != 0 && cx() == 0)
-                        _state = stateRepCompareAction;
-                    else
+                    if (repCheck())
                         lodS(stateCmpS2);
                     break;
                 case stateCmpS2:
@@ -1312,9 +1308,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
 
                 case stateStoS:
                     _wait = (_rep != 0 ? 6 : 7);
-                    if (_rep != 0 && cx() == 0)
-                        _state = stateRepAction;
-                    else {
+                    if (repCheck()) {
                         _data = getAccum();
                         _afterRep = stateStoS;
                         stoS(stateRepAction);
@@ -1322,9 +1316,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateLodS:
                     _wait = (_rep != 0 ? 9 : 8);
-                    if (_rep != 0 && cx() == 0)
-                        _state = stateRepAction;
-                    else
+                    if (repCheck())
                         lodS(stateLodS2);
                     break;
                 case stateLodS2:
@@ -1334,9 +1326,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     break;
                 case stateScaS:
                     _wait = 11;
-                    if (_rep != 0 && cx() == 0)
-                        _state = stateRepCompareAction;
-                    else
+                    if (repCheck())
                         lodDIS(stateScaS2);
                     break;
                 case stateScaS2:
@@ -2143,6 +2133,14 @@ private:
         di() += stringIncrement();
         _segment = 0;
         initIO(state, ioWrite, _wordSize);
+    }
+    bool repCheck()
+    {
+        if (_rep != 0 && cx() == 0) {
+            _state = stateRepAction;
+            return false;
+        }
+        return true;
     }
     void end(int wait) { _wait = wait; _state = stateEndInstruction; }
     void push(UInt16 data, State state = stateEndInstruction)
