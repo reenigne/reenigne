@@ -2137,7 +2137,10 @@ private:
     bool repCheck()
     {
         if (_rep != 0 && cx() == 0) {
-            _state = stateRepAction;
+            if (_state == stateScaS || _state == stateCmpS
+                _state = stateRepCompareAction;
+            else
+                _state = stateRepAction;
             return false;
         }
         return true;
