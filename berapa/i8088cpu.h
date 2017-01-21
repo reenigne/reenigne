@@ -416,7 +416,6 @@ public:
         h.add(stateMovS,           "stateMovS");
         h.add(stateMovS2,          "stateMovS2");
         h.add(stateRepAction,      "stateRepAction");
-        h.add(stateRepCompareAction, "stateRepCompareAction");
         h.add(stateCmpS,           "stateCmpS");
         h.add(stateCmpS2,          "stateCmpS2");
         h.add(stateCmpS3,          "stateCmpS3");
@@ -1262,22 +1261,15 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _afterRep = stateMovS;
                     stoS(stateRepAction);
                     break;
-                case stateRepCompareAction:
-                    _state = stateEndInstruction;
-                    if (_rep != 0 && cx() != 0) {
-                        --cx();
-                        _afterCheckInt = _afterRep;
-                        if (cx() == 0 || (zf() == (_rep == 1)))
-                            _afterCheckInt = stateEndInstruction;
-                        _state = stateCheckInt;
-                    }
-                    break;
                 case stateRepAction:
                     _state = stateEndInstruction;
                     if (_rep != 0 && cx() != 0) {
                         --cx();
                         _afterCheckInt = _afterRep;
                         if (cx() == 0)
+                            _afterCheckInt = stateEndInstruction;
+                        if ((_afterRep == stateCmpS || _afterRep == stateScaS)
+                            && (zf() == (_rep == 1)))
                             _afterCheckInt = stateEndInstruction;
                         _state = stateCheckInt;
                     }
@@ -1295,7 +1287,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _source = _data;
                     sub();
                     _afterRep = stateCmpS;
-                    _state = stateRepCompareAction;
+                    _state = stateRepAction;
                     break;
 
                 case stateTestAccumImm:
@@ -1334,7 +1326,7 @@ stateLoadD,        stateLoadD,        stateMisc,         stateMisc};
                     _source = _data;
                     sub();
                     _afterRep = stateScaS;
-                    _state = stateRepCompareAction;
+                    _state = stateRepAction;
                     break;
 
                 case stateMovRegImm:
@@ -2018,7 +2010,7 @@ private:
         stateSAHF, stateLAHF,
         stateMovAccumInd, stateMovAccumInd2, stateMovAccumInd3,
         stateMovIndAccum, stateMovIndAccum2,
-        stateMovS, stateMovS2, stateRepAction, stateRepCompareAction,
+        stateMovS, stateMovS2, stateRepAction,
         stateCmpS, stateCmpS2, stateCmpS3,
         stateTestAccumImm, stateTestAccumImm2,
         stateStoS,
@@ -2137,10 +2129,7 @@ private:
     bool repCheck()
     {
         if (_rep != 0 && cx() == 0) {
-            if (_state == stateScaS || _state == stateCmpS
-                _state = stateRepCompareAction;
-            else
-                _state = stateRepAction;
+            _state = stateRepAction;
             return false;
         }
         return true;
