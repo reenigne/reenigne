@@ -12,6 +12,8 @@ Byte* byteRegisters[8];
 Word ip = 0x100;
 Byte* ram;
 Byte* initialized;
+int* fileDescriptors;
+int fileDescriptorCount = 6;
 Word loadSegment = 0x0202;
 bool useMemory;
 Word address;
@@ -45,6 +47,15 @@ void runtimeError(const char* message)
 {
     fprintf(stderr, "%s\nCS:IP = %04x:%04x\n", message, cs(), ip);
     exit(1);
+}
+void* alloc(size_t bytes)
+{
+    void* r = malloc(bytes);
+    if (r == 0) {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+    return r;
 }
 void divideOverflow() { runtimeError("Divide overflow"); }
 DWord physicalAddress(Word offset, int seg, bool write)
@@ -397,14 +408,10 @@ int main(int argc, char* argv[])
     FILE* fp = fopen(filename, "rb");
     if (fp == 0)
         error("opening");
-    ram = (Byte*)malloc(0x100000);
-    initialized = (Byte*)malloc(0x20000);
+    ram = (Byte*)alloc(0x100000);
+    initialized = (Byte*)alloc(0x20000);
     memset(ram, 0, 0x100000);
     memset(initialized, 0, 0x20000);
-    if (ram == 0) {
-        fprintf(stderr, "Out of memory\n");
-        exit(1);
-    }
     if (fseek(fp, 0, SEEK_END) != 0)
         error("seeking");
     length = ftell(fp);
@@ -462,7 +469,13 @@ int main(int argc, char* argv[])
     registers[5] = 0x091C;  // BP
     setSI(0x0100);
     setDI(0xFFFE);
-
+    fileDescriptors = (int*)alloc(6*sizeof(int));
+    fileDescriptors[0] = STDIN_FILENO;
+    fileDescriptors[1] = STDOUT_FILENO;
+    fileDescriptors[2] = STDERR_FILENO;
+    fileDescriptors[3] = STDOUT_FILENO;
+    fileDescriptors[4] = STDOUT_FILENO;
+    fileDescriptors[5] = -1;
     Byte* byteData = (Byte*)&registers[0];
     int bigEndian = (byteData[2] == 0 ? 1 : 0);
     int byteNumbers[8] = {0, 2, 4, 6, 1, 3, 5, 7};
@@ -757,6 +770,42 @@ int main(int argc, char* argv[])
                     runtimeError("");
                 }
                 switch (ah()) {
+                    case 0x39:
+                        if (mkdir(ram + physicalAddress(dx(), 3, false), 0700) == 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+                    case 0x3a:
+                        if (rmdir(ram + physicalAddress(dx(), 3, false)) == 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+                    case 0x3b:
+                        if (chdir(ram + physicalAddress(dx(), 3, false)) == 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+                    case 0x3c:
+                        setAX(
+                        if (creat(ram + physicalAddress(dx(), 3, false), 0700) == 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+
+
+
                     case 2:
                         printf("%c", dl());
                         break;
