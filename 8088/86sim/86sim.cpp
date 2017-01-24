@@ -57,6 +57,21 @@ void* alloc(size_t bytes)
     }
     return r;
 }
+int getDescriptor()
+{
+    for (int i = 0; i < fileDescriptorCount; ++i)
+        if (fileDescriptors[i] == -1)
+            return i;
+    int newCount = fileDescriptorCount << 1;
+    int* newDescriptors = (int*)alloc(newCount*sizeof(int));
+    for (int i = 0; i < fileDescriptorCount; ++i)
+        newDescriptors[i] = fileDescriptors[i];
+    free(fileDescriptors);
+    int oldCount = fileDescriptorCount;
+    fileDescriptorCount = newCount;
+    fileDescriptors = newDescriptors;
+    return oldCount;
+}
 void divideOverflow() { runtimeError("Divide overflow"); }
 DWord physicalAddress(Word offset, int seg, bool write)
 {
@@ -397,6 +412,7 @@ Word incdec(bool decrement)
     return data;
 }
 void call(Word address) { push(ip); ip = address; }
+Byte* dsdx() { reutrn ram + physicalAddress(dx(), 3, false); }
 
 int main(int argc, char* argv[])
 {
@@ -499,6 +515,7 @@ int main(int argc, char* argv[])
         bool sourceIsRM = ((opcode & 2) != 0);
         int operation = (opcode >> 3) & 7;
         bool jump;
+        int fileDescriptor;
         switch (opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
             case 0x08: case 0x09: case 0x0a: case 0x0b:
@@ -771,7 +788,8 @@ int main(int argc, char* argv[])
                 }
                 switch (ah()) {
                     case 0x39:
-                        if (mkdir(ram + physicalAddress(dx(), 3, false), 0700) == 0)
+                        if (mkdir(ram + physicalAddress(dx(), 3, false), 0700)
+                            == 0)
                             setCF(false);
                         else {
                             setCF(true);
@@ -795,14 +813,57 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x3c:
-                        setAX(
-                        if (creat(ram + physicalAddress(dx(), 3, false), 0700) == 0)
+                        fileDescriptor = creat(ram + physicalAddress(dx(), 3, false), 0700);
+                        if (fileDescriptor != -1) {
                             setCF(false);
+                            int guestDescriptor = getDescriptor();
+                            setAX(guestDescriptor);
+                            fileDescriptors[guestDescriptor] = fileDescriptor;
+                        }
                         else {
                             setCF(true);
                             setAX(errno);
                         }
                         break;
+                    case 0x3d:
+                        fileDescriptor = open(ram + physicalAddress(dx(), 3, false), al() & 3, 0700);
+                        if (fileDescriptor != -1) {
+                            setCF(false);
+                            setAX(getDescriptor());
+                            fileDescriptors[ax()] = fileDescriptor;
+                        }
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+                    case 0x3e:
+                        fileDescriptor = fileDescriptors[bx()];
+                        if (fileDescriptor == -1) {
+                            setCF(true);
+                            setAX(6);  // Invalid handle
+                            break;
+                        }
+                        if (close(fileDescriptor) != 0) {
+                            setCF(true);
+                            setAX(errno);
+                            break;
+                        }
+                        else {
+                            fileDescriptors[bx()] = -1;
+                            setCF(false);
+                        }
+                        break;
+                    case 0x3f:
+                        fileDescriptor = fileDescriptors[bx()];
+                        if (fileDescriptor == -1) {
+                            setCF(true);
+                            setAX(6);  // Invalid handle
+                            break;
+                        }
+                        if (read(fileDescriptor, ram + physicalAddress(dx(), 3, false),
+
+
 
 
 
