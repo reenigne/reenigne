@@ -412,7 +412,7 @@ Word incdec(bool decrement)
     return data;
 }
 void call(Word address) { push(ip); ip = address; }
-Byte* dsdx() { reutrn ram + physicalAddress(dx(), 3, false); }
+Byte* dsdx() { return ram + physicalAddress(dx(), 3, false); }
 
 int main(int argc, char* argv[])
 {
@@ -788,8 +788,7 @@ int main(int argc, char* argv[])
                 }
                 switch (ah()) {
                     case 0x39:
-                        if (mkdir(ram + physicalAddress(dx(), 3, false), 0700)
-                            == 0)
+                        if (mkdir(dsdx()), 0700) == 0)
                             setCF(false);
                         else {
                             setCF(true);
@@ -797,7 +796,7 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x3a:
-                        if (rmdir(ram + physicalAddress(dx(), 3, false)) == 0)
+                        if (rmdir(dsdx()) == 0)
                             setCF(false);
                         else {
                             setCF(true);
@@ -805,7 +804,7 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x3b:
-                        if (chdir(ram + physicalAddress(dx(), 3, false)) == 0)
+                        if (chdir(dsdx()) == 0)
                             setCF(false);
                         else {
                             setCF(true);
@@ -813,7 +812,7 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x3c:
-                        fileDescriptor = creat(ram + physicalAddress(dx(), 3, false), 0700);
+                        fileDescriptor = creat(dsdx(), 0700);
                         if (fileDescriptor != -1) {
                             setCF(false);
                             int guestDescriptor = getDescriptor();
@@ -826,7 +825,7 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x3d:
-                        fileDescriptor = open(ram + physicalAddress(dx(), 3, false), al() & 3, 0700);
+                        fileDescriptor = open(dsdx(), al() & 3, 0700);
                         if (fileDescriptor != -1) {
                             setCF(false);
                             setAX(getDescriptor());
@@ -847,7 +846,6 @@ int main(int argc, char* argv[])
                         if (close(fileDescriptor) != 0) {
                             setCF(true);
                             setAX(errno);
-                            break;
                         }
                         else {
                             fileDescriptors[bx()] = -1;
@@ -861,20 +859,111 @@ int main(int argc, char* argv[])
                             setAX(6);  // Invalid handle
                             break;
                         }
-                        if (read(fileDescriptor, ram + physicalAddress(dx(), 3, false),
-
-
-
-
-
-                    case 2:
-                        printf("%c", dl());
+                        data = read(fileDescriptor, dsdx(), cx());
+                        if (data == -1) {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        else {
+                            setCF(false);
+                            setAX(data);
+                        }
+                        break;
+                    case 0x40:
+                        fileDescriptor = fileDescriptors[bx()];
+                        if (fileDescriptor == -1) {
+                            setCF(true);
+                            setAX(6);  // Invalid handle
+                            break;
+                        }
+                        data = write(fileDescriptor, dsdx(), cx());
+                        if (data == -1) {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        else {
+                            setCF(false);
+                            setAX(data);
+                        }
+                        break;
+                    case 0x41:
+                        if (unlink(dsdx()) == 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+                    case 0x42:
+                        fileDescriptor = fileDescriptors[bx()];
+                        if (fileDescriptor == -1) {
+                            setCF(true);
+                            setAX(6);  // Invalid handle
+                            break;
+                        }
+                        data = lseek(fileDescriptor, (cx() << 16) + dx(),
+                            al());
+                        if (data != -1) {
+                            setCF(false);
+                            setDX(data >> 16);
+                            setAX(data);
+                        }
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
+                        break;
+                    case 0x44:
+                        if (al() != 0) {
+                            fprintf(stderr, "Unknown IOCTL 0x%02x", al());
+                            runtimeError("");
+                        }
+                        fileDescriptor = fileDescriptors[bx()];
+                        if (fileDescriptor == -1) {
+                            setCF(true);
+                            setAX(6);  // Invalid handle
+                            break;
+                        }
+                        data = isatty(fileDescriptor);
+                        if (data == 1) {
+                            setDX(0x80);
+                            setCF(false);
+                        }
+                        else {
+                            if (errno == NOTATTY) {
+                                setDX(0);
+                                setCF(false);
+                            }
+                            else {
+                                setAX(errno);
+                                setCF(true);
+                            }
+                        }
+                        break;
+                    case 0x47:
+                        data = physicalAddress(si(), 3, false);
+                        if (data > 0xfffc0)
+                            runTimeError("Address wrapping NYI");
+                        if (getcwd(ram + data, 64) != 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
                         break;
                     case 0x4c:
                         printf("*** Bytes: %i\n", length);
                         printf("*** Cycles: %i\n", ios);
                         printf("*** EXIT code %i\n", al());
                         exit(0);
+                        break;
+                    case 0x56:
+                        if (rename(dsdx(), ram + physicalAddress(di(), 0, false)) == 0)
+                            setCF(false);
+                        else {
+                            setCF(true);
+                            setAX(errno);
+                        }
                         break;
                     default:
                         fprintf(stderr, "Unknown DOS call 0x%02x", data);
