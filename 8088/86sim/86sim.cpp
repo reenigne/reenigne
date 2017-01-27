@@ -416,6 +416,13 @@ Word incdec(bool decrement)
 }
 void call(Word address) { push(ip); ip = address; }
 char* dsdx() { return (char*)ram + physicalAddress(dx(), 3, false); }
+int dosError(int e)
+{
+    if (e == ENOENT)
+        return 2;
+    fprintf(stderr, "%s\n", strerror(e));
+    runtimeError("");
+}
 
 int main(int argc, char* argv[])
 {
@@ -796,7 +803,7 @@ int main(int argc, char* argv[])
                             setCF(false);
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x3a:
@@ -804,7 +811,7 @@ int main(int argc, char* argv[])
                             setCF(false);
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x3b:
@@ -812,7 +819,7 @@ int main(int argc, char* argv[])
                             setCF(false);
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x3c:
@@ -825,7 +832,7 @@ int main(int argc, char* argv[])
                         }
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x3d:
@@ -837,7 +844,7 @@ int main(int argc, char* argv[])
                         }
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x3e:
@@ -849,7 +856,7 @@ int main(int argc, char* argv[])
                         }
                         if (close(fileDescriptor) != 0) {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         else {
                             fileDescriptors[bx()] = -1;
@@ -866,7 +873,7 @@ int main(int argc, char* argv[])
                         data = read(fileDescriptor, dsdx(), cx());
                         if (data == (DWord)-1) {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         else {
                             setCF(false);
@@ -883,7 +890,7 @@ int main(int argc, char* argv[])
                         data = write(fileDescriptor, dsdx(), cx());
                         if (data == (DWord)-1) {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         else {
                             setCF(false);
@@ -895,7 +902,7 @@ int main(int argc, char* argv[])
                             setCF(false);
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x42:
@@ -914,7 +921,7 @@ int main(int argc, char* argv[])
                         }
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x44:
@@ -939,7 +946,7 @@ int main(int argc, char* argv[])
                                 setCF(false);
                             }
                             else {
-                                setAX(errno);
+                                setAX(dosError(errno));
                                 setCF(true);
                             }
                         }
@@ -952,7 +959,7 @@ int main(int argc, char* argv[])
                             setCF(false);
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     case 0x4c:
@@ -967,7 +974,7 @@ int main(int argc, char* argv[])
                             setCF(false);
                         else {
                             setCF(true);
-                            setAX(errno);
+                            setAX(dosError(errno));
                         }
                         break;
                     default:
