@@ -76,27 +76,35 @@ int getDescriptor()
     return oldCount;
 }
 void divideOverflow() { runtimeError("Divide overflow"); }
+DWord initialize(DWord address, bool write)
+{
+    if ((!write && (initialized[address >> 3] & (1 << (a & 7))) == 0) ||
+        address < (DWord)loadSegment << 4) {
+        fprintf(stderr, "Accessing invalid address %05x.\n", address);
+        runtimeError("");
+    }
+    if (write)
+        initialized[a >> 3] |= 1 << (a & 7);
+    return address;
+}
+DWord initString(DWord address)
+{
+    DWord a = address;
+    while (ram[initialize(a, false)] != 0)
+        ++a;
+    return address;
+}
 DWord physicalAddress(Word offset, int seg, bool write)
 {
     ++ios;
     if (ios == 0)
-	runtimeError("Cycle counter overflowed.");
+        runtimeError("Cycle counter overflowed.");
     if (seg == -1) {
         seg = segment;
         if (segmentOverride != -1)
             seg = segmentOverride;
     }
-    Word segmentAddress = registers[8 + seg];
-    DWord a = ((segmentAddress << 4) + offset) & 0xfffff;
-    if ((!write && (initialized[a >> 3] & (1 << (a & 7))) == 0) ||
-        a < (DWord)loadSegment << 4) {
-        fprintf(stderr, "Accessing invalid address %04x:%04x.\n",
-            segmentAddress, offset);
-        runtimeError("");
-    }
-    if (write)
-        initialized[a >> 3] |= 1 << (a & 7);
-    return a;
+    return initialize(((registers[8 + seg] << 4) + offset) & 0xfffff, write);
 }
 Byte readByte(Word offset, int seg = -1)
 {
@@ -415,7 +423,10 @@ Word incdec(bool decrement)
     return data;
 }
 void call(Word address) { push(ip); ip = address; }
-char* dsdx() { return (char*)ram + physicalAddress(dx(), 3, false); }
+char* dsdx()
+{
+    return (char*)ram + initString(physicalAddress(dx(), 3, false));
+}
 int dosError(int e)
 {
     if (e == ENOENT)
@@ -952,12 +963,16 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x47:
-                        data = physicalAddress(si(), 3, false);
+                        data = initString(physicalAddress(si(), 3, false));
                         if (data > 0xfffc0)
                             runtimeError("Address wrapping NYI");
                         if (getcwd((char*)ram + data, 64) != 0)
                             setCF(false);
                         else {
+                            for (int i = 0; i < 64; ++i) {
+                                if (ram[initialize(data + i, true)] == 0)
+                                    break;
+                            }
                             setCF(true);
                             setAX(dosError(errno));
                         }
