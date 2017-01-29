@@ -15,9 +15,10 @@ Byte* byteRegisters[8];
 Word ip = 0x100;
 Byte* ram;
 Byte* initialized;
+char* pathBuffers[2];
 int* fileDescriptors;
 int fileDescriptorCount = 6;
-Word loadSegment = 0x0202;
+Word loadSegment = 0x0212;
 bool useMemory;
 Word address;
 Word flags = 2;
@@ -76,24 +77,6 @@ int getDescriptor()
     return oldCount;
 }
 void divideOverflow() { runtimeError("Divide overflow"); }
-DWord initialize(DWord address, bool write)
-{
-    if ((!write && (initialized[address >> 3] & (1 << (a & 7))) == 0) ||
-        address < (DWord)loadSegment << 4) {
-        fprintf(stderr, "Accessing invalid address %05x.\n", address);
-        runtimeError("");
-    }
-    if (write)
-        initialized[a >> 3] |= 1 << (a & 7);
-    return address;
-}
-DWord initString(DWord address)
-{
-    DWord a = address;
-    while (ram[initialize(a, false)] != 0)
-        ++a;
-    return address;
-}
 DWord physicalAddress(Word offset, int seg, bool write)
 {
     ++ios;
@@ -104,7 +87,36 @@ DWord physicalAddress(Word offset, int seg, bool write)
         if (segmentOverride != -1)
             seg = segmentOverride;
     }
-    return initialize(((registers[8 + seg] << 4) + offset) & 0xfffff, write);
+    Word segmentAddress = registers[8 + seg];
+    DWord a = ((segmentAddress << 4) + offset) & 0xfffff;
+    if (write)
+        initialized[a >> 3] |= 1 << (a & 7);
+    if ((initialized[a >> 3] & (1 << (a & 7))) == 0 ||
+        a < (DWord)loadSegment << 4) {
+        fprintf(stderr, "Accessing invalid address %04x:%04x.\n",
+            segmentAddress, offset);
+        runtimeError("");
+    }
+    return a;
+}
+char* initString(Word offset, int seg, bool write, int buffer, int bytes = 0x10000)
+{
+    for (int i = 0; i < bytes; ++i) {
+        char p;
+        if (write) {
+            p = pathBuffers[buffer][i];
+            ram[physicalAddress(offset + i, seg, true)] = p;
+        }
+        else {
+            p = ram[physicalAddress(offset + i, seg, false)];
+            pathBuffers[buffer][i] = p;
+        }
+        if (p == 0 && bytes == 0x10000)
+            break;
+    }
+    if (!write)
+        pathBuffers[buffer][0xffff] = 0;
+    return pathBuffers[buffer];
 }
 Byte readByte(Word offset, int seg = -1)
 {
@@ -423,9 +435,9 @@ Word incdec(bool decrement)
     return data;
 }
 void call(Word address) { push(ip); ip = address; }
-char* dsdx()
+char* dsdx(bool write = false, int bytes = 0x10000)
 {
-    return (char*)ram + initString(physicalAddress(dx(), 3, false));
+    return initString(dx(), 3, write, 0, bytes);
 }
 int dosError(int e)
 {
@@ -433,6 +445,7 @@ int dosError(int e)
         return 2;
     fprintf(stderr, "%s\n", strerror(e));
     runtimeError("");
+    return 0;
 }
 
 int main(int argc, char* argv[])
@@ -447,6 +460,8 @@ int main(int argc, char* argv[])
         error("opening");
     ram = (Byte*)alloc(0x100000);
     initialized = (Byte*)alloc(0x20000);
+    pathBuffers[0] = (char*)alloc(0x10000);
+    pathBuffers[1] = (char*)alloc(0x10000);
     memset(ram, 0, 0x100000);
     memset(initialized, 0, 0x20000);
     if (fseek(fp, 0, SEEK_END) != 0)
@@ -459,39 +474,43 @@ int main(int argc, char* argv[])
     int loadOffset = loadSegment << 4;
     if (length > 0x100000 - loadOffset)
         length = 0x100000 - loadOffset;
-    for (int i = 0; i < 4; ++i)
-        registers[8 + i] = loadSegment;
     if (fread(&ram[loadOffset], length, 1, fp) != 1)
         error("reading");
     fclose(fp);
-    if (length >= 2 && readWord(0) == 0x5a4d) {  // .exe file?
+    for (int i = 0; i < length; ++i) {
+        registers[8] = loadSegment + (i >> 4);
+        physicalAddress(i & 15, 0, true);
+    }
+    for (int i = 0; i < 4; ++i)
+        registers[8 + i] = loadSegment - 0x10;
+    if (length >= 2 && readWord(0x100) == 0x5a4d) {  // .exe file?
         if (length < 0x21) {
             fprintf(stderr, "%s is too short to be an .exe file\n", filename);
             exit(1);
         }
-        Word bytesInLastBlock = readWord(2);
-        int exeLength = ((readWord(4) - (bytesInLastBlock == 0 ? 0 : 1))
+        Word bytesInLastBlock = readWord(0x102);
+        int exeLength = ((readWord(0x104) - (bytesInLastBlock == 0 ? 0 : 1))
             << 9) + bytesInLastBlock;
-        int headerParagraphs = readWord(8);
+        int headerParagraphs = readWord(0x108);
         int headerLength = headerParagraphs << 4;
         if (exeLength > length || headerLength > length ||
             headerLength > exeLength) {
             fprintf(stderr, "%s is corrupt\n", filename);
             exit(1);
         }
-        int relocationCount = readWord(6);
+        int relocationCount = readWord(0x106);
         Word imageSegment = loadSegment + headerParagraphs;
-        int relocationData = readWord(24);
+        int relocationData = readWord(0x118);
         for (int i = 0; i < relocationCount; ++i) {
-            int offset = readWord(relocationData);
-            registers[9] = readWord(relocationData + 2);
+            int offset = readWord(relocationData + 0x100);
+            registers[9] = readWord(relocationData + 0x102);
             writeWord(readWord(offset, 1) + imageSegment, offset, 1);
         }
         loadSegment = imageSegment;  // Prevent further access to header
-        registers[10] = readWord(14) + loadSegment;  // SS
-        setSP(readWord(16));
-        ip = readWord(20);
-        registers[9] = readWord(22) + loadSegment;  // CS
+        registers[10] = readWord(0x10e) + loadSegment;  // SS
+        setSP(readWord(0x110));
+        ip = readWord(0x114);
+        registers[9] = readWord(0x116) + loadSegment;  // CS
     }
     else {
         if (length > 0xff00) {
@@ -500,6 +519,14 @@ int main(int argc, char* argv[])
         }
         setSP(0xFFFE);
     }
+    // Some testcases copy uninitialized stack data, so mark as initialized
+    // any locations that could possibly be stack.
+    for (DWord d = (loadSegment << 4) + length;
+        d < (DWord)((registers[10] << 4) + sp()); ++d) {
+        registers[8] = d >> 4;
+        writeByte(0, d & 15, 0);
+    }
+    registers[8] = loadSegment - 0x10;
     setAX(0x0000);
     setCX(0x00FF);
     setDX(segment);
@@ -518,7 +545,7 @@ int main(int argc, char* argv[])
     int bigEndian = (byteData[2] == 0 ? 1 : 0);
     int byteNumbers[8] = {0, 2, 4, 6, 1, 3, 5, 7};
     for (int i = 0 ; i < 8; ++i)
-      byteRegisters[i] = &byteData[byteNumbers[i] ^ bigEndian];
+        byteRegisters[i] = &byteData[byteNumbers[i] ^ bigEndian];
 
     bool prefix = false;
     for (int i = 0; i < 1000000000; ++i) {
@@ -865,7 +892,8 @@ int main(int argc, char* argv[])
                             setAX(6);  // Invalid handle
                             break;
                         }
-                        if (close(fileDescriptor) != 0) {
+                        if (fileDescriptor >= 5 &&
+                            close(fileDescriptor) != 0) {
                             setCF(true);
                             setAX(dosError(errno));
                         }
@@ -881,7 +909,7 @@ int main(int argc, char* argv[])
                             setAX(6);  // Invalid handle
                             break;
                         }
-                        data = read(fileDescriptor, dsdx(), cx());
+                        data = read(fileDescriptor, dsdx(true, cx()), cx());
                         if (data == (DWord)-1) {
                             setCF(true);
                             setAX(dosError(errno));
@@ -898,7 +926,7 @@ int main(int argc, char* argv[])
                             setAX(6);  // Invalid handle
                             break;
                         }
-                        data = write(fileDescriptor, dsdx(), cx());
+                        data = write(fileDescriptor, dsdx(false, cx()), cx());
                         if (data == (DWord)-1) {
                             setCF(true);
                             setAX(dosError(errno));
@@ -963,16 +991,11 @@ int main(int argc, char* argv[])
                         }
                         break;
                     case 0x47:
-                        data = initString(physicalAddress(si(), 3, false));
-                        if (data > 0xfffc0)
-                            runtimeError("Address wrapping NYI");
-                        if (getcwd((char*)ram + data, 64) != 0)
+                        if (getcwd(pathBuffers[0], 64) != 0) {
                             setCF(false);
+                            initString(si(), 3, true, 0);
+                        }
                         else {
-                            for (int i = 0; i < 64; ++i) {
-                                if (ram[initialize(data + i, true)] == 0)
-                                    break;
-                            }
                             setCF(true);
                             setAX(dosError(errno));
                         }
@@ -984,8 +1007,7 @@ int main(int argc, char* argv[])
                         exit(0);
                         break;
                     case 0x56:
-                        if (rename(dsdx(), (char*)ram +
-                            physicalAddress(di(), 0, false)) == 0)
+                        if (rename(dsdx(), initString(di(), 0, false, 1)) == 0)
                             setCF(false);
                         else {
                             setCF(true);
