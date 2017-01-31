@@ -38,7 +38,7 @@ Byte opcode;
 int aluOperation;
 const char* filename;
 int length;
-int ios = 0;
+int ios;
 
 Word cs() { return registers[9]; }
 void error(const char* operation)
@@ -526,6 +526,7 @@ int main(int argc, char* argv[])
         registers[8] = d >> 4;
         writeByte(0, d & 15, 0);
     }
+    ios = 0;
     registers[8] = loadSegment - 0x10;
     setAX(0x0000);
     setCX(0x00FF);
