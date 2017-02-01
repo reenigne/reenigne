@@ -2171,3 +2171,215 @@ blueLED:              ; 0fd0 - 0ff0
 columnTable:          ; 0ff0 - 1000
   .word gs(column0), gs(column1), gs(column2), gs(column3), gs(column4), gs(column5), gs(column6), gs(column7)
 
+
+
+.global font
+font:          1248
+  .byte 0x04 ; ..*..
+  .byte 0x0a ; .*.*.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x1f ; *****
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+
+  .byte 0x0f ; ****.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0f ; ****.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0f ; ****.
+
+  .byte 0x0e ; .***.
+  .byte 0x11 ; *...*
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x11 ; *...*
+  .byte 0x0e ; .***.
+
+  .byte 0x0f ; ****.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0f ; ****.
+
+  .byte 0x1f ; *****
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x0f ; ****.
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x1f ; *****
+
+  .byte 0x1f ; *****
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x0f ; ****.
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+
+  .byte 0x0e ; .***.
+  .byte 0x11 ; *...*
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x19 ; *..**
+  .byte 0x11 ; *...*
+  .byte 0x0e ; .***.
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x1f ; *****
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+
+  .byte 0x0e ; .***.
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x0e ; .***.
+
+  .byte 0x10 ; ....*
+  .byte 0x10 ; ....*
+  .byte 0x10 ; ....*
+  .byte 0x10 ; ....*
+  .byte 0x10 ; ....*
+  .byte 0x11 ; *...*
+  .byte 0x0e ; .***.
+
+  .byte 0x11 ; *...*
+  .byte 0x09 ; *..*.
+  .byte 0x05 ; *.*..
+  .byte 0x03 ; **...
+  .byte 0x05 ; *.*..
+  .byte 0x09 ; *..*.
+  .byte 0x11 ; *...*
+
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x1f ; *****
+
+  .byte 0x11 ; *...*
+  .byte 0x1b ; **.**
+  .byte 0x15 ; *.*.*
+  .byte 0x15 ; *.*.*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x13 ; **..*
+  .byte 0x15 ; *.*.*
+  .byte 0x19 ; *..**
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+
+  .byte 0x0e ; .***.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0e ; .***.
+
+  .byte 0x0f ; ****.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0f ; ****.
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+  .byte 0x01 ; *....
+
+  .byte 0x0e ; .***.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x15 ; *.*.*
+  .byte 0x09 ; *..*.
+  .byte 0x16 ; .**.*
+
+  .byte 0x0f ; ****.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0f ; ****.
+  .byte 0x05 ; *.*..
+  .byte 0x09 ; *..*.
+  .byte 0x11 ; *...*
+
+  .byte 0x0e ; .***.
+  .byte 0x11 ; *...*
+  .byte 0x01 ; *....
+  .byte 0x0e ; .***.
+  .byte 0x10 ; ....*
+  .byte 0x11 ; *...*
+  .byte 0x0e ; .***.
+
+  .byte 0x1f ; *****
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0e ; .***.
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0a ; .*.*.
+  .byte 0x0a ; .*.*.
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x15 ; *.*.*
+  .byte 0x15 ; *.*.*
+  .byte 0x15 ; *.*.*
+  .byte 0x0a ; .*.*.
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0a ; .*.*.
+  .byte 0x04 ; ..*..
+  .byte 0x0a ; .*.*.
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+
+  .byte 0x11 ; *...*
+  .byte 0x11 ; *...*
+  .byte 0x0a ; .*.*.
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+  .byte 0x04 ; ..*..
+
+  .byte 0x1f ; *****
+  .byte 0x10 ; ....*
+  .byte 0x08 ; ...*.
+  .byte 0x04 ; ..*..
+  .byte 0x02 ; .*...
+  .byte 0x01 ; *....
+  .byte 0x1f ; *****
+
