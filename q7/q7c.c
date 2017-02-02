@@ -988,4 +988,23 @@ void main(void)
 
 
 
-
+void updateFrame()
+{
+    Byte* screen = &frameBuffer[0];
+    for (int i = 0; i < 7; ++i) {
+        int c = chars[i];
+        Byte* line = screen;
+        for (int y = 0; y < 7; ++i) {
+            Byte* p = line;
+            for (int x = 0; x < 5; ++i) {
+                if ((c & (1 << x)) != 0)
+                    *p = 255;
+                else
+                    *p = 0;
+                ++p;
+            }
+            line += 7*5;
+        }
+        screen += 5;
+    }
+}
