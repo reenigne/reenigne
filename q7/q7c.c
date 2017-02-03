@@ -871,119 +871,61 @@ void idleLoop()
 
 
 
-
-#include <conio.h>
-#include <dos.h>
-#include <stdlib.h>
-#include <time.h>
-#include <input.h>
-#include <def.h>
-#include <grafx.h>
-
-void cput(char *s)
-{
-  _AH=9;
-  _DX=(int)s;
-  geninterrupt(0x21);
-}
-
-void puti(int i)
-{
-  char *b="$$$$$$";
-  itoa(i,b,10);
-  cput(b);
-}
-
 void main(void)
 {
-  int a[7],i,r,t,k,m=0,x,y;
-  boolean f=FALSE;
-  char *ch;
-  char *words[100]=
-    {"ADVISOR","ANOTHER","ANTIQUE","AUDIBLE","CENTRAL","CENTURY","CERTAIN",
-     "CHANGES","CHAPTER","CHARGED","CLUSTER","COMBINE","COMPLEX","COMPUTE",
-     "CONFUSE","COUNTRY","COURAGE","CRYSTAL","DECIMAL","DEFIANT","DESTINY",
-     "DETAILS","DIPLOMA","DOLPHIN","DRAWING","ECHOING","ENGLISH","ENTROPY",
-     "EPSILON","EXACTLY","EXPLAIN","FIGURED","FLIGHTS","FORMULA","FORTUNE",
-     "FRIENDS","GRAVITY","HARMONY","HOLIDAY","HONESTY","IMPULSE","INSTEAD",
-     "JOURNAL","JOURNEY","JUPITER","JUSTICE","KINGDOM","LEADING","LIBERTY",
-     "MACHINE","MAGNETS","MEDIANS","METHODS","MIRACLE","MIXTURE","MUSICAL",
-     "NETWORK","NUCLEAR","NUMBERS","OBELISK","OBJECTS","OBSCURE","OPTIMAL",
-     "ORANGES","ORGANIC","OUTLINE","PICTURE","PREDICT","PROBLEM","PROJECT",
-     "PROMISE","QUALITY","QUICKLY","RAINBOW","READING","REALITY","REBUILD",
-     "REPLICA","RESPOND","ROMANCE","ROUTINE","SCHOLAR","SECTION","SPECIAL",
-     "SQUARED","STRANGE","SUBLIME","SURFACE","TALKING","TRIUMPH","TURBINE",
-     "VERTIGO","VOLTAGE","VOYAGER","WHISPER","WHISTLE","WILDEST","WIZARDS",
-     "WONDERS","WORSHIP"};
+    int a[7]
+    int m = 0;
+    char *ch;
 
-  randomize();
+    randomize();
 
-  ch=words[random(100)];
+    while (true) {
+        // Pick a random word and scramble it
+        ch = words[random(100)];
+        for (int i = 0; i < 7; ++i)
+            a[i] = i;
+        do {
+            for (int i = 0; i < 7; ++i) {
+                int r = random(7);
+                int t = a[i];
+                a[i] = a[r];
+                a[r] = t;
+            }
+            for (int i = 0; i < 7; ++i)
+                if (a[i] != i)
+                    break;
+        } while (i == 7);
 
-  _AX=3;
-  geninterrupt(0x10);
-
-  for (i=0;i<7;i++)
-    a[i]=i;
-  do {
-    for (i=0;i<7;i++) {
-      r=random(7);
-      t=a[i];
-      a[i]=a[r];
-      a[r]=t;
+        // Main game loop
+        do {
+            int k = getkey();
+            if (k == 'Z') {
+                int t = a[1];
+                for (int i = 1; i < 6; ++i)
+                    a[i] = a[i + 1];
+                a[6] = t;
+                ++m;
+            }
+            if (k == 'X') {
+                t = a[0];
+                a[0] = a[1];
+                a[1] = t;
+                ++m;
+            }
+            if (k == 27) {
+                // Lose
+                break;
+            }
+            int i;
+            for (i = 0; i < 7; ++i)
+                if (a[i] != i)
+                    break;
+            if (i == 7) {
+                // Win
+                break;
+            }
+        } while (true);
     }
-    for (i=0;i<7;i++)
-      if (a[i]!=i)
-        break;
-  } while (i==7);
-  cput("Initial:\r\n$");
-  for (i=0;i<7;i++)
-    pokeb(0xb800,18+(a[i]<<1),ch[i]);
-  cput("\r\nMoves:$");
-  setcurpos(0,19);
-  cput("Keys: Z X\r\n$");
-  cput("Escape: give up\r\n\r\n$");
-  do {
-    if (f)
-      do {
-        k=getkey();
-        if (k=='Z' || k=='z') {
-          t=a[1];
-          for (i=1;i<6;i++)
-            a[i]=a[i+1];
-          a[6]=t;
-          m++;
-        }
-        if (k=='X' || k=='x') {
-          t=a[0];
-          a[0]=a[1];
-          a[1]=t;
-          m++;
-        }
-        if (k==27) {
-          cput("You failed to complete the puzzle.\r\n$");
-          exit(0);
-        }
-      } while (kbhit());
-    else
-      f=TRUE;
-    setcurpos(7,2);
-    puti(m);
-    setcurpos(0,22);
-    for (i=0;i<7;i++)
-      for (y=0;y<16;y++)
-        for (x=0;x<8;x++)
-          if (ega16chars[ch[i]][y]&(128>>x))
-            pokeb(0xb800,(y*80+x+a[i]*11+241)<<1,219);
-          else
-            pokeb(0xb800,(y*80+x+a[i]*11+241)<<1,32);
-    for (i=0;i<7;i++)
-      if (a[i]!=i)
-        break;
-  } while (i<7);
-  cput("Puzzle completed in $");
-  puti(m);
-  cput(" moves!\r\n$");
 }
 
 
