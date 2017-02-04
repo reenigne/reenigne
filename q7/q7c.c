@@ -869,19 +869,16 @@ void idleLoop()
 }
 
 
-
+int a[7];
+const char *chars;
 
 void main(void)
 {
-    int a[7]
     int m = 0;
-    char *ch;
-
-    randomize();
 
     while (true) {
         // Pick a random word and scramble it
-        ch = words[random(100)];
+        chars = &words[random(100)*7];
         for (int i = 0; i < 7; ++i)
             a[i] = i;
         do {
@@ -934,7 +931,7 @@ void updateFrame()
 {
     Byte* screen = &frameBuffer[0];
     for (int i = 0; i < 7; ++i) {
-        int c = chars[i];
+        int c = chars[a[i]];
         Byte* line = screen;
         for (int y = 0; y < 7; ++i) {
             Byte* p = line;
