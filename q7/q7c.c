@@ -871,6 +871,7 @@ void idleLoop()
 
 int a[7];
 const char *chars;
+int random;
 
 void main(void)
 {
@@ -878,7 +879,7 @@ void main(void)
 
     while (true) {
         // Pick a random word and scramble it
-        chars = &words[random(100)*7];
+        chars = &words[random];
         for (int i = 0; i < 7; ++i)
             a[i] = i;
         do {
