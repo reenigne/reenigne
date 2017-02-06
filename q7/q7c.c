@@ -872,57 +872,65 @@ void idleLoop()
 int a[7];
 const char *chars;
 int random;
+bool won = false;
+
+void zPressed()
+{
+    int t = a[1];
+    for (int i = 1; i < 6; ++i)
+        a[i] = a[i + 1];
+    a[6] = t;
+    ++m;
+    updateFrame();
+}
+
+void xPressed()
+{
+    t = a[0];
+    a[0] = a[1];
+    a[1] = t;
+    ++m;
+    updateFrame();
+}
+
+void startPressed()
+{
+    // Pick a random word and scramble it
+    chars = &words[random];
+    for (int i = 0; i < 7; ++i)
+        a[i] = i;
+    do {
+        for (int i = 0; i < 7; ++i) {
+            int r = random(7);
+            int t = a[i];
+            a[i] = a[r];
+            a[r] = t;
+        }
+        for (int i = 0; i < 7; ++i)
+            if (a[i] != i)
+                break;
+    } while (i == 7);
+    m = 0;
+}
 
 void main(void)
 {
-    int m = 0;
-
     while (true) {
-        // Pick a random word and scramble it
-        chars = &words[random];
-        for (int i = 0; i < 7; ++i)
-            a[i] = i;
-        do {
-            for (int i = 0; i < 7; ++i) {
-                int r = random(7);
-                int t = a[i];
-                a[i] = a[r];
-                a[r] = t;
-            }
-            for (int i = 0; i < 7; ++i)
-                if (a[i] != i)
-                    break;
-        } while (i == 7);
-
         // Main game loop
-        do {
-            int k = getkey();
-            if (k == 'Z') {
-                int t = a[1];
-                for (int i = 1; i < 6; ++i)
-                    a[i] = a[i + 1];
-                a[6] = t;
-                ++m;
-            }
-            if (k == 'X') {
-                t = a[0];
-                a[0] = a[1];
-                a[1] = t;
-                ++m;
-            }
-            if (k == 27) {
-                // Lose
+        int k = getkey();
+        if (k == 'Z')
+            zPressed();
+        if (k == 'X')
+            xPressed();
+        if (k == 27)
+            startPressed();
+        won = false;
+        int i;
+        for (i = 0; i < 7; ++i)
+            if (a[i] != i)
                 break;
-            }
-            int i;
-            for (i = 0; i < 7; ++i)
-                if (a[i] != i)
-                    break;
-            if (i == 7) {
-                // Win
-                break;
-            }
-        } while (true);
+        if (i == 7)
+            won = true;
     }
 }
 
