@@ -19,14 +19,10 @@ typedef struct
     bool bit7:1;
 } flags_t;
 
-extern uint16_t velocities[0x10];
-extern uint8_t volumes[0x10];
-extern int8_t waveform[0x100];
 volatile extern uint8_t lightBuffers[2][0x100];
 volatile extern int8_t waterBuffers[2][0x100];
 volatile extern uint8_t switchBuffer[0x100];
 extern uint8_t frameBuffer[0x100];
-extern uint16_t frequencies[0x10];
 extern uint8_t editor;
 extern uint8_t waveformPreset;
 volatile extern uint8_t sendState;
@@ -899,6 +895,8 @@ void updateFrame()
             break;
     if (i == 7)
         won = true;
+
+
 }
 
 void zPressed()

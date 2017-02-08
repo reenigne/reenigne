@@ -959,7 +959,7 @@ columnTable:          ; 0ff0 - 1000
 
 
 .global font
-font:          1248
+font:        ; 1248
   .byte 0x04 ; ..*..
   .byte 0x0a ; .*.*.
   .byte 0x11 ; *...*
@@ -1168,20 +1168,110 @@ font:          1248
   .byte 0x01 ; *....
   .byte 0x1f ; *****
 
-  char *words[100]=
-    {"ADVISOR","ANOTHER","ANTIQUE","AUDIBLE","CENTRAL","CENTURY","CERTAIN",
-     "CHANGES","CHAPTER","CHARGED","CLUSTER","COMBINE","COMPLEX","COMPUTE",
-     "CONFUSE","COUNTRY","COURAGE","CRYSTAL","DECIMAL","DEFIANT","DESTINY",
-     "DETAILS","DIPLOMA","DOLPHIN","DRAWING","ECHOING","ENGLISH","ENTROPY",
-     "EPSILON","EXACTLY","EXPLAIN","FIGURED","FLIGHTS","FORMULA","FORTUNE",
-     "FRIENDS","GRAVITY","HARMONY","HOLIDAY","HONESTY","IMPULSE","INSTEAD",
-     "JOURNAL","JOURNEY","JUPITER","JUSTICE","KINGDOM","LEADING","LIBERTY",
-     "MACHINE","MAGNETS","MEDIANS","METHODS","MIRACLE","MIXTURE","MUSICAL",
-     "NETWORK","NUCLEAR","NUMBERS","OBELISK","OBJECTS","OBSCURE","OPTIMAL",
-     "ORANGES","ORGANIC","OUTLINE","PICTURE","PREDICT","PROBLEM","PROJECT",
-     "PROMISE","QUALITY","QUICKLY","RAINBOW","READING","REALITY","REBUILD",
-     "REPLICA","RESPOND","ROMANCE","ROUTINE","SCHOLAR","SECTION","SPECIAL",
-     "SQUARED","STRANGE","SUBLIME","SURFACE","TALKING","TRIUMPH","TURBINE",
-     "VERTIGO","VOLTAGE","VOYAGER","WHISPER","WHISTLE","WILDEST","WIZARDS",
-     "WONDERS","WORSHIP"};
+.global words
+words:
+  .ascii "ADVISOR"
+  .ascii "ANOTHER"
+  .ascii "ANTIQUE"
+  .ascii "AUDIBLE"
+  .ascii "CENTRAL"
+  .ascii "CENTURY"
+  .ascii "CERTAIN"
+  .ascii "CHANGES"
+  .ascii "CHAPTER"
+  .ascii "CHARGED"
+  .ascii "CLUSTER"
+  .ascii "COMBINE"
+  .ascii "COMPLEX"
+  .ascii "COMPUTE"
+  .ascii "CONFUSE"
+  .ascii "COUNTRY"
+  .ascii "COURAGE"
+  .ascii "CRYSTAL"
+  .ascii "DECIMAL"
+  .ascii "DEFIANT"
+  .ascii "DESTINY"
+  .ascii "DETAILS"
+  .ascii "DIPLOMA"
+  .ascii "DOLPHIN"
+  .ascii "DRAWING"
+  .ascii "ECHOING"
+  .ascii "ENGLISH"
+  .ascii "ENTROPY"
+  .ascii "EPSILON"
+  .ascii "EXACTLY"
+  .ascii "EXPLAIN"
+  .ascii "FIGURED"
+  .ascii "FLIGHTS"
+  .ascii "FORMULA"
+  .ascii "FORTUNE"
+  .ascii "FRIENDS"
+  .ascii "GRAVITY"
+  .ascii "HARMONY"
+  .ascii "HOLIDAY"
+  .ascii "HONESTY"
+  .ascii "IMPULSE"
+  .ascii "INSTEAD"
+  .ascii "JOURNAL"
+  .ascii "JOURNEY"
+  .ascii "JUPITER"
+  .ascii "JUSTICE"
+  .ascii "KINGDOM"
+  .ascii "LEADING"
+  .ascii "LIBERTY"
+  .ascii "MACHINE"
+  .ascii "MAGNETS"
+  .ascii "MEDIANS"
+  .ascii "METHODS"
+  .ascii "MIRACLE"
+  .ascii "MIXTURE"
+  .ascii "MUSICAL"
+  .ascii "NETWORK"
+  .ascii "NUCLEAR"
+  .ascii "NUMBERS"
+  .ascii "OBELISK"
+  .ascii "OBJECTS"
+  .ascii "OBSCURE"
+  .ascii "OPTIMAL"
+  .ascii "ORANGES"
+  .ascii "ORGANIC"
+  .ascii "OUTLINE"
+  .ascii "PICTURE"
+  .ascii "PREDICT"
+  .ascii "PROBLEM"
+  .ascii "PROJECT"
+  .ascii "PROMISE"
+  .ascii "QUALITY"
+  .ascii "QUICKLY"
+  .ascii "RAINBOW"
+  .ascii "READING"
+  .ascii "REALITY"
+  .ascii "REBUILD"
+  .ascii "REPLICA"
+  .ascii "RESPOND"
+  .ascii "ROMANCE"
+  .ascii "ROUTINE"
+  .ascii "SCHOLAR"
+  .ascii "SECTION"
+  .ascii "SPECIAL"
+  .ascii "SQUARED"
+  .ascii "STRANGE"
+  .ascii "SUBLIME"
+  .ascii "SURFACE"
+  .ascii "TALKING"
+  .ascii "TRIUMPH"
+  .ascii "TURBINE"
+  .ascii "VERTIGO"
+  .ascii "VOLTAGE"
+  .ascii "VOYAGER"
+  .ascii "WHISPER"
+  .ascii "WHISTLE"
+  .ascii "WILDEST"
+  .ascii "WIZARDS"
+  .ascii "WONDERS"
+  .ascii "WORSHIP"
+
+.global seven
+seven:
+  .byte 0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f
 
