@@ -474,6 +474,31 @@ int main(int argc, char* argv[])
     int loadOffset = loadSegment << 4;
     if (length > 0x100000 - loadOffset)
         length = 0x100000 - loadOffset;
+    int arg = 1;
+    int argPosition = 0;
+    int i;
+    registers[8] = loadSegment - 0x10;
+    for (i = 1; i < 128; ++i) {
+        char a;
+        if (arg == argc)
+            a = 13;
+        else {
+            a = argv[arg][argPosition];
+            ++argPosition;
+            if (a == 0) {
+                a = ' ';
+            if (arg == argc)
+                a = 13;
+            else {
+                ++arg;
+                argPosition = 0;
+            }
+        }
+        writeByte(a, i + 0x80);
+        if (a == 13)
+            break;
+    }
+    ram[
     if (fread(&ram[loadOffset], length, 1, fp) != 1)
         error("reading");
     fclose(fp);
