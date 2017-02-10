@@ -474,31 +474,40 @@ int main(int argc, char* argv[])
     int loadOffset = loadSegment << 4;
     if (length > 0x100000 - loadOffset)
         length = 0x100000 - loadOffset;
-    int arg = 1;
     int argPosition = 0;
-    int i;
     registers[8] = loadSegment - 0x10;
-    for (i = 1; i < 128; ++i) {
-        char a;
-        if (arg == argc)
-            a = 13;
-        else {
-            a = argv[arg][argPosition];
-            ++argPosition;
-            if (a == 0) {
-                a = ' ';
-            if (arg == argc)
-                a = 13;
-            else {
-                ++arg;
-                argPosition = 0;
-            }
+    int i = 0x81;
+    for (int a = 2; a < argc; ++a) {
+        if (a > 2) {
+            writeByte(' ', i);
+            ++i;
         }
-        writeByte(a, i + 0x80);
-        if (a == 13)
-            break;
+        char* arg = argv[a];
+        bool quote = strchr(arg, ' ') != 0;
+        if (quote) {
+            writeByte('\"', i);
+            ++i;
+        }
+        for (; *arg != 0; ++arg) {
+            int c = *arg;
+            if (c == '\"') {
+                writeByte('\\', i);
+                ++i;
+            }
+            writeByte(c, i);
+            ++i;
+        }
+        if (quote) {
+            writeByte('\"', i);
+            ++i;
+        }
     }
-    ram[
+    if (i > 0xff) {
+        fprintf(stderr, "Arguments too long.\n");
+        exit(1);
+    }
+    writeByte(i - 0x81, 0x80);
+    writeByte(i, 13);
     if (fread(&ram[loadOffset], length, 1, fp) != 1)
         error("reading");
     fclose(fp);
