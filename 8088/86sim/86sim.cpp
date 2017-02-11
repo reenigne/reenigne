@@ -39,6 +39,7 @@ int aluOperation;
 const char* filename;
 int length;
 int ios;
+bool running = false;
 
 Word cs() { return registers[9]; }
 void error(const char* operation)
@@ -89,10 +90,13 @@ DWord physicalAddress(Word offset, int seg, bool write)
     }
     Word segmentAddress = registers[8 + seg];
     DWord a = ((segmentAddress << 4) + offset) & 0xfffff;
-    if (write)
+    bool bad = false;
+    if (write) {
+        if (a < ((DWord)loadSegment << 4) - 0x100 && running)
+             bad = true;
         initialized[a >> 3] |= 1 << (a & 7);
-    if ((initialized[a >> 3] & (1 << (a & 7))) == 0 ||
-        a < (DWord)loadSegment << 4) {
+    }
+    if ((initialized[a >> 3] & (1 << (a & 7))) == 0 || bad) {
         fprintf(stderr, "Accessing invalid address %04x:%04x.\n",
             segmentAddress, offset);
         runtimeError("");
@@ -278,6 +282,7 @@ Word lodS()
 {
     address = si();
     setSI(si() + stringIncrement());
+    segment = 3;
     return read(address);
 }
 void doRep(bool compare)
@@ -474,9 +479,21 @@ int main(int argc, char* argv[])
     int loadOffset = loadSegment << 4;
     if (length > 0x100000 - loadOffset)
         length = 0x100000 - loadOffset;
-    int argPosition = 0;
+    int envSegment = loadSegment - 0x1c;
+    registers[8] = envSegment;
+    writeByte(0, 0);  // No environment for now
+    writeWord(1, 1);
+    int i;
+    for (i = 0; filename[i] != 0; ++i)
+        writeByte(filename[i], i + 3);
+    if (i + 4 >= 0xc0) {
+        fprintf(stderr, "Program name too long.\n");
+        exit(1);
+    }
+    writeWord(0, i + 3);
     registers[8] = loadSegment - 0x10;
-    int i = 0x81;
+    writeWord(envSegment, 0x2c);
+    i = 0x81;
     for (int a = 2; a < argc; ++a) {
         if (a > 2) {
             writeByte(' ', i);
@@ -507,7 +524,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
     writeByte(i - 0x81, 0x80);
-    writeByte(i, 13);
+    writeByte(13, i);
     if (fread(&ram[loadOffset], length, 1, fp) != 1)
         error("reading");
     fclose(fp);
@@ -581,7 +598,7 @@ int main(int argc, char* argv[])
     int byteNumbers[8] = {0, 2, 4, 6, 1, 3, 5, 7};
     for (int i = 0 ; i < 8; ++i)
         byteRegisters[i] = &byteData[byteNumbers[i] ^ bigEndian];
-
+    running = true;
     bool prefix = false;
     for (int i = 0; i < 1000000000; ++i) {
         if (!repeating) {
