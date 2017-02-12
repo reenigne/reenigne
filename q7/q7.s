@@ -811,24 +811,7 @@ copyDataLoop:                      ; do {
 
 .section .bss
 
-.global waveform
-waveform:              ; 100-200
-  .skip 0x100
-.global frequencies
-frequencies:           ; 200-220
-  .skip 0x20
-positions:             ; 220-240
-  .skip 0x20
-.global velocities
-velocities:            ; 240-260
-  .skip 0x20
-.global volumes
-volumes:               ; 260-270
-  .skip 0x10
 lineBuffer:            ; 270-280
-  .skip 0x10
-.global microtoneKeys
-microtoneKeys:         ; 280-290
   .skip 0x10
 randomData:            ; 290-294
   .skip 4
@@ -836,31 +819,11 @@ randomOn:              ; 294-295
   .skip 1
 randomOff:             ; 295-296
   .skip 1
-.global noiseUpdatePointer
-noiseUpdatePointer:    ; 296-297
-  .skip 1
 patternInLoop:         ; 297-298
   .skip 1
 .global patternsPerLoop
 patternsPerLoop:       ; 298-299
   .skip 1
-adcChannel:            ; 299-29a
-  .skip 1
-.global editor
-editor:                ; 29a-29b
-  .skip 1
-.global waveformPreset
-waveformPreset:        ; 29b-29c
-  .skip 1
-.global decayConstant
-decayConstant:         ; 29c-29d
-  .skip 1
-.global decayConstantOverride
-decayConstantOverride: ; 29d-29e
-  .skip 1
-.global framesPerBeatOverride
-framesPerBeatOverride: ; 29e-2a0
-  .skip 2
 .global flags2
 flags2:                ; 2a0-2a1  bit 0: fingerDown  bit 1: microtoneMode  bit 2: spaceAvailable  bit 3: fixedTuning  bit 4: updateNoise  bit 5: clearMode  bit 6: escapeTouched
   .skip 1
@@ -893,16 +856,13 @@ stack:                 ; 2ab-300  ; 85 bytes
 stackEnd:
 .global frameBuffer
 frameBuffer:           ; 300-400
-  .skip 0x100
+  .skip 336
 .global waterBuffers
 waterBuffers:          ; 400-600
   .skip 0x200
 .global lightBuffers
 lightBuffers:          ; 600-800
   .skip 0x200
-.global switchBuffer
-switchBuffer:          ; 800-900
-  .skip 0x100
 
 
 ; Register allocation:
