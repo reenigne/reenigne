@@ -57,13 +57,21 @@ __vector_13:  ; TIMER1_OVF_vect
   std Z+\column, r24             ; 2    --lineBuffer[column]
 .endm
 
+  illuminate 0x10
+  illuminate 0x11
+  illuminate 0x12
+  illuminate 0x13
+
+  out 0x2e, r23                  ; 1  SPDR = r23  (Output shift register data for upper rows.)
+
+  illuminate 0x14
+  illuminate 0x15
+
+
   illuminate 0x08                ; 8
   illuminate 0x09                ; 8
   illuminate 0x0a                ; 8
   illuminate 0x0b                ; 8
-
-  out 0x2e, r23                  ; 1  SPDR = r23  (Output shift register data for upper rows.)
-
   illuminate 0x0c                ; 8
   illuminate 0x0d                ; 8
   illuminate 0x0e                ; 8
@@ -812,7 +820,7 @@ copyDataLoop:                      ; do {
 .section .bss
 
 lineBuffer:            ; 270-280
-  .skip 0x10
+  .skip 0x18
 randomData:            ; 290-294
   .skip 4
 randomOn:              ; 294-295
