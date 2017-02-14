@@ -41,6 +41,7 @@ __vector_13:  ; TIMER1_OVF_vect
   lpm r23, Z+                    ; 3  r23 = lo8(rowRegisterData[lineInFrame])
   out 0x2e, r23                  ; 1  SPDR = r23  (Output shift register data for lower rows. Need to wait at least 16 cycles before loading next byte.)
   lpm r23, Z                     ; 2  r23 = hi8(rowRegisterData[lineInFrame])
+  out 0x08, r23                  ;    Output upper rows
 
   ldi r30, lo8(lineBuffer)       ; 1  lo8(Z) = lo8(lineBuffer) = 0x70
   ldi r31, hi8(lineBuffer)       ; 1  hi8(Z) = hi8(lineBuffer) = 0x02
@@ -57,13 +58,12 @@ __vector_13:  ; TIMER1_OVF_vect
   std Z+\column, r24             ; 2    --lineBuffer[column]
 .endm
 
+
+
   illuminate 0x10
   illuminate 0x11
   illuminate 0x12
   illuminate 0x13
-
-  out 0x2e, r23                  ; 1  SPDR = r23  (Output shift register data for upper rows.)
-
   illuminate 0x14
   illuminate 0x15
 
@@ -425,23 +425,23 @@ main:
   out 0x05, r31
 
   ; DDRC value:   0x07  (Port C Data Direction Register)
-  ;   DDC0           1  Switch selector A           - output
-  ;   DDC1           2  Switch selector B           - output
-  ;   DDC2           4  Switch selector C           - output
-  ;   DDC3           0  Decay potentiometer (ADC3)  - input
-  ;   DDC4           0  Tempo potentiometer (ADC4)  - input
-  ;   DDC5           0  Tuning potentiometer (ADC5) - input
+  ;   DDC0           1  row 1  - output
+  ;   DDC1           2  row 2  - output
+  ;   DDC2           4  row 3  - output
+  ;   DDC3           8  row 4  - output
+  ;   DDC4        0x10  row 5  - output
+  ;   DDC5        0x20  row 6  - output
   ;   DDC6           0  ~RESET
-  ldi r31, 0x07
+  ldi r31, 0x3f
   out 0x07, r31
 
   ; PORTC value:  0x00  (Port C Data Register)
-  ;   PORTC0         0  Switch selector A           - low
-  ;   PORTC1         0  Switch selector B           - low
-  ;   PORTC2         0  Switch selector C           - low
-  ;   PORTC3         0  Volume potentiometer (ADC3)
-  ;   PORTC4         0  Tempo potentiometer (ADC4)
-  ;   PORTC5         0  Tuning potentiometer (ADC5)
+  ;   PORTC0         0  row 1  - output
+  ;   PORTC1         0  row 2  - output
+  ;   PORTC2         0  row 3  - output
+  ;   PORTC3         0  row 4  - output
+  ;   PORTC4         0  row 5  - output
+  ;   PORTC5         0  row 6  - output
   ;   PORTC6         0  ~RESET
   ldi r31, 0x00
   out 0x08, r31
