@@ -739,7 +739,7 @@ main:
   ldi r31, 0x40
   mov r17, r31                    ; flags = 0  (waitingForSync = false,  lifeMode = false,  receivedSync = false,  outputSyncPulseActive = false,  gotRandom = false,  randomMode = false,  patternMode = true,  switchTouched = false)
   ldi r18, 1                      ; r18 = 1
-  ldi r19, 0x10                   ; r19 = 0x10
+  ldi r19, 0x0e                   ; r19 = 0x10
 
 ; Initialize variables
   sts patternsPerLoop, r18
