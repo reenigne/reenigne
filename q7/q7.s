@@ -107,90 +107,6 @@ TODO: wait until...
 ;    OCR2B = (total >> 12) + 0x80;
 
 
-;    // Update water
-;    if (lightBuffers[lightPage][switchInFrame] != 0 && sampleInLine == beatInPattern && (frameInBeat>>8) < 4) {
-;        // Put energy into the water as we play
-;        waterBuffers[waterPage^1][switchInFrame] = 16;
-;    }
-;    else {
-;        // Allow the energy to spread out
-;        uint16_t total = 0;
-;        if (sampleInLine > 0)
-;            total = waterBuffers[waterPage][switchInFrame - 1];
-;        if (sampleInLine < 0x0f)
-;            total += waterBuffers[waterPage][switchInFrame + 1];
-;        if (lineInFrame > 0)
-;            total += waterBuffers[waterPage][switchInFrame - 0x10];
-;        if (lineInFrame < 0x0f)
-;            total += waterBuffers[waterPage][switchInFrame + 0x10];
-;        total >>= 1;
-;        total -= waterBuffers[waterPage^1][switchInFrame];
-;        total -= (total >> 8);
-;        waterBuffers[waterPage^1][switchInFrame] = total;
-;    }
-
-updateWater:
-  mov r31, r10                   ; 1 1 1 1  hi8(Z) = lightPage
-  ld r25, Z                      ; 2 2 2 2  Z = lightBuffers[lightPage][switchInFrame]
-  mov r31, r15                   ; 1 1 1 1  hi8(Z) = waterPage
-  tst r25                        ; 1 1 1 1  if (!lightOn)
-  breq waveEquation              ; 2 1 1 1      goto waveEquation
-  cp r3, r9                      ; 0 1 1 1  if (sampleInLine != beatInPattern)
-  brne waveEquation              ; 0 2 1 1      goto waveEquation
-  mov r24, r6                    ; 0 0 1 1  r24 = frameInBeat >> 8
-  cpi r24, 4                     ; 0 0 1 1  if ((frameInBeat >> 8) >= 4)
-  brsh waveEquation              ; 0 0 2 1      goto waveEquation
-  ldi r23, 16                    ; 0 0 0 1  r23 = 16
-  eor r31, r18                   ; 0 0 0 1  hi8(Z) ^= 1
-  rjmp storeWaterLevel           ; 0 0 0 2  goto storeWaterLevel
-waveEquation:
-  ldi r24, 0                     ; 1
-  ldi r23, 0                     ; 1        r24:r23 = 0  (total = 0)
-  subi r30, 1                    ; 1        lo8(Z) = switchInFrame - 1
-  cp r3, r2                      ; 1        if (sampleInLine != 0)
-  breq doneLeft                  ; 2 1
-  ld r23, Z                      ; 0 2          r23 = waterBuffers[waterPage][switchInFrame - 1]
-  sbrc r23, 7                    ; 0 1 2
-  subi r24, 1                    ; 0 1 0        r24:r23 = waterBuffers[waterPage][switchInFrame - 1]  (sign extend)
-doneLeft:
-  mov r21, r3                    ; 1
-  subi r30, -2                   ; 1        lo8(Z) = switchInFrame + 1
-  cpi r21, 15                    ; 1        if (sampleInLine != 0x0f)
-  breq doneRight                 ; 2 1
-  ld r25, Z                      ; 0 2          r25 = waterBuffers[waterPage][switchInFrame + 1]
-  muls r25, r18                  ; 0 2          r1:r0 = waterBuffers[waterPage][switchInFrame + 1]*1 (sign extend)
-  add r23, r0                    ; 0 1
-  adc r24, r1                    ; 0 1          r24:r23 += waterBuffers[waterPage][switchInFrame + 1]
-doneRight:
-  mov r20, r4                    ; 1
-  subi r30, 0x11                 ; 1        lo8(Z) = switchInFrame - 0x10
-  cpi r20, 0                     ; 1        if (lineInFrame != 0)
-  breq doneUp                    ; 2 1
-  ld r25, Z                      ; 0 2          r25 = waterBuffers[waterPage][switchInFrame - 0x10]
-  muls r25, r18                  ; 0 2          r1:r0 = waterBuffers[waterPage][switchInFrame - 0x10]*1 (sign extend)
-  add r23, r0                    ; 0 1
-  adc r24, r1                    ; 0 1          r24:r23 += waterBuffers[waterPage][switchInFrame - 0x10]
-doneUp:
-  subi r30, -0x20                ; 1        lo8(Z) = switchInFrame + 0x10
-  cpi r20, 15                    ; 1        if (lineInFrame != 0x0f)
-  breq doneDown                  ; 2 1
-  ld r25, Z                      ; 0 2          r25 = waterBuffers[waterPage][switchInFrame + 0x10]
-  muls r25, r18                  ; 0 2          r1:r0 = waterBuffers[waterPage][switchInFrame + 0x10]*1 (sign extend)
-  add r23, r0                    ; 0 1
-  adc r24, r1                    ; 0 1          r24:r23 += waterBuffers[waterPage][switchInFrame - 0x10]
-doneDown:
-  subi r30, 0x10                 ; 1        lo8(Z) = switchInFrame
-  asr r24                        ; 1
-  ror r23                        ; 1        r24:r23 >>= 1  (total >>= 1)
-  eor r31, r18                   ; 1        hi8(Z) ^= 1
-  ld r25, Z                      ; 2        r25 = waterBuffers[1-waterPage][switchInFrame]
-  muls r25, r18                  ; 2        r1:r0 = waterBuffers[1-waterPage][switchInFrame]*1 (sign extend)
-  sub r23, r0                    ; 1
-  sbc r24, r1                    ; 2        r24:r23 -= waterBuffers[1-waterPage][switchInFrame]
-  sub r23, r24                   ; 2        total -= (total >> 8)
-storeWaterLevel:
-  st Z, r23                      ; 2        waterBuffers[1-waterPage][switchInFrame] = total
-
 ;    // Update counters
 ;    ++switchInFrame;
 ;    ++sampleInLine;
@@ -201,42 +117,6 @@ storeWaterLevel:
 ;        if (lineInFrame == 0x10) {
 ;            // Per frame code
 ;            lineInFrame = 0;
-;            if (outputSyncPulseActive) {
-;                outputSyncPulseActive = false;
-;                PORTD = 0x91;
-;            }
-;            waterPage ^= 1;
-;            if (!waitingForSync) {
-;                frameInBeat += 0x100;
-;                if (frameInBeat >= framesPerBeat) {
-;                    // Per beat code
-;                    frameInBeat -= framesPerBeat;
-;                    framesPerBeat = nextFramesPerBeat;
-;                    ++beatInPattern;
-;                    beatInPattern &= 0x0f;
-;                    if (beatInPattern == beatsPerPattern) {
-;                        beatInPattern = 0x10;
-;                        waitingForSync = true;
-;                        outputSyncPulseActive = true;
-;                        PORTD = 0x95;
-;                        if (lifeMode)
-;                            lightPage ^= 1;
-;                        else {
-;                            ++patternInLoop;
-;                            if (patternInLoop == patternsPerLoop)
-;                                patternInLoop = 0;
-;                        }
-;                    }
-;                }
-;            }
-;        }
-;        if (waitingForSync)
-;            if ((PINB & 1) != 0)
-;                receivedSync = true;
-;        if (lineInFrame == 0 && receivedSync) {
-;            receivedSync = false;
-;            waitingForSync = false;
-;            beatInPattern = 0;
 ;        }
 ;        // Update line buffer
 ;        if (patternMode)
@@ -263,100 +143,11 @@ storeWaterLevel:
   rjmp checkDecay                ; 2 0 0 0 0 0 0 0
   mov r3, r2                     ; 0 1 1 1 1 1 1 1                  sampleInLine = 0
   inc r4                         ; 0 1 1 1 1 1 1 1                  ++lineInFrame
-  cp r4, r19                     ; 0 1 1 1 1 1 1 1                  if (lineInFrame == 0x10)
-  brne checkWaitingForSync       ; 0 2 1 1 1 1 1 1
+  cp r4, r19                     ; 0 1 1 1 1 1 1 1                  if (lineInFrame == 0x0e)
+  brne noNewFrame                ; 0 2 1 1 1 1 1 1
   mov r4, r2                     ; 0 0 1 1 1 1 1 1                      lineInFrame = 0
-  sbrs r17, 3                    ; 0 0 1 1 1 1 1 1                      if (flags & 8)  (outputSyncPulseActive)                       2
-  rjmp outputSyncPulseNotActive  ; 0 0 2 2 2 2 2 2                                                                                    0
-  andi r17, 0xf7                 ; 0 0 0 0 0 0 0 0                          flags &= 0xf7  (outputSyncPulseActive = false)            1
-  ldi r31, 0x91                  ; 0 0 0 0 0 0 0 0                          r31 = 0x91                                                1
-  out 0x0b, r31                  ; 0 0 0 0 0 0 0 0                          PORTD = 0x91                                              1
-outputSyncPulseNotActive:
-  eor r15, r18                   ; 0 0 1 1 1 1 1 1                      waterPage ^= 1
-  sbrc r17, 0                    ; 0 0 1 2 2 2 2 2                      if (!waitingForSync)
-  rjmp waitingForSync            ; 0 0 2 0 0 0 0 0
-  inc r6                         ; 0 0 0 1 1 1 1 1                          ++hi8(frameInBeat)
-  cp r5, r7                      ; 0 0 0 1 1 1 1 1
-  cpc r6, r8                     ; 0 0 0 1 1 1 1 1                          if (frameInBeat >= framesPerBeat)
-  brlt checkReceivedSync         ; 0 0 0 2 1 1 1 1
-  sub r5, r7                     ; 0 0 0 0 1 1 1 1
-  sbc r6, r8                     ; 0 0 0 0 1 1 1 1                              frameInBeat -= framesPerBeat
-  lds r7, nextFramesPerBeatLow   ; 0 0 0 0 2 2 2 2
-  lds r8, nextFramesPerBeatHigh  ; 0 0 0 0 2 2 2 2                              framesPerBeat = nextFramesPerBeat
-  inc r9                         ; 0 0 0 0 1 1 1 1                              ++beatInPattern
-  ldi r31, 0x0f                  ; 0 0 0 0 1 1 1 1
-  and r9, r31                    ; 0 0 0 0 1 1 1 1                              beatInPattern &= 0x0f;
-  cp r9, r14                     ; 0 0 0 0 1 1 1 1                              if (beatInPattern == beatsPerPattern)
-  brne checkReceivedSync         ; 0 0 0 0 2 1 1 1
-  mov r9, r19                    ; 0 0 0 0 0 1 1 1                                  beatInPattern = 0x10
-  ori r17, 9                     ; 0 0 0 0 0 1 1 1                                  flags |= 9  (waitingForSync = true, outputSyncPulseActive = true)
-  ldi r31, 0x95                  ; 0 0 0 0 0 1 1 1                                  r31 = 0x95
-  out 0x0b, r31                  ; 0 0 0 0 0 1 1 1                                  PORTD = 0x95
-  sbrs r17, 1                    ; 0 0 0 0 0 1 2 1                                  if ((flags & 2) != 0)  (lifeMode != 0)
-  rjmp notLifeMode               ; 0 0 0 0 0 2 0 2
-  eor r10, r18                   ; 0 0 0 0 0 0 1 0                                      lightPage ^= 1
-  rjmp waitingForSync            ; 0 0 0 0 0 0 2 0                                  else
-notLifeMode:
-  lds r31, patternInLoop         ; 0 0 0 0 0 2 0 2
-  inc r31                        ; 0 0 0 0 0 1 0 1                                      ++patternInLoop
-  lds r30, patternsPerLoop       ; 0 0 0 0 0 2 0 2
-  cp r31, r30                    ; 0 0 0 0 0 1 0 1                                      if (patternInLoop == patternsPerLoop)
-  brne noRestartLoop             ; 0 0 0 0 0 2 0 1
-  ldi r31, 0                     ; 0 0 0 0 0 0 0 1                                          patternInLoop = 0
-noRestartLoop:
-  sts patternInLoop, r31         ; 0 0 0 0 0 2 0 2
-  rjmp waitingForSync            ; 0 0 0 0 0 2 0 2
-checkWaitingForSync:
-  sbrs r17, 0                    ; 1 2 2 2 2 2                      if (flags & 1)  (waitingForSync)
-  rjmp checkReceivedSync         ; 2 0 0 0 0 0
-waitingForSync:
-  in r31, 0x03                   ; 0 1 1 1 1 1                          r31 = PINB
-  sbrs r31, 0                    ; 0 1 2 1 2 1                          if ((PINB & 1) != 0)
-  rjmp checkReceivedSync         ; 0 2 0 2 0 2
-  ori r17, 4                     ; 0 0 1 0 1 0                              flags |= 4  (receivedSync = true)
-  rjmp receivedSync              ; 0 0 2 0 2 0
-checkReceivedSync:
-  sbrs r17, 2                    ; 0 1 0 2 0 2                      if ((flags & 4) != 0)  (receivedSync)
-  rjmp updateLineBuffer          ; 0 2 0 0 0 0
-receivedSync:
-  cp r4, r2                      ; 0 0 1 1 1 1                          if (lineInFrame == 0)
-  brne updateLineBuffer          ; 0 0 2 2 1 1
-  andi r17, 0xfa                 ; 0 0 0 0 1 1                              flags &= 0xfa  (waitingForSync = false, receivedSync = false)
-  mov r9, r2                     ; 0 0 0 0 1 1                              beatInPattern = 0
+noNewFrame:
 
-updateLineBuffer:
-  sbrs r17, 6                    ; 1 2                              if ((flags & 0x40) != 0)  (patternMode != 0)
-  rjmp frameBufferMode           ; 2 0
-
-  mov r30, r4                    ; 0 1                                  lo8(Z) = lineInFrame
-  swap r30                       ; 0 1                                  lo8(Z) = lineInFrame<<4
-  mov r31, r15                   ; 0 1                                  hi8(Z) = waterPage
-  mov r29, r10                   ; 0 1                                  hi8(Y) = lightPage
-  mov r28, r30                   ; 0 1                                  lo8(Y) = lineInFrame<<4
-
-.macro initRow column          ; 9
-  ldd r25, Z+\column           ; 2 2  r25 = waterBuffers[waterPage][(lineInFrame << 4) | column]
-  ldd r24, Y+\column           ; 2 2  r24 = lightBuffers[lightPage][(lineInFrame << 4) | column]
-  lsr r25                      ; 1 1  r25 = waterBuffers[waterPage][(lineInFrame << 4) | column] >> 1
-  sbrc r24, 0                  ; 1 2  if (lightBuffers[lightPage][(lineInFrame << 4) | column])
-  subi r25, -10                ; 1 0      r25 += 10
-  sts lineBuffer+\column, r25  ; 2 2  lineBuffer[column] = r25
-.endm
-
-  unroll initRow                 ; 0 144
-
-  add r28, r9                    ; 0 1    lo8(Y) = (lineInFrame<<4) | beatInPattern
-  ld r24, Y                      ; 0 2    r24 = lightBuffers[lightPage][(lineInFrame << 4) | column]
-  tst r24                        ; 0 1    if (lightBuffers[lightPage][(lineInFrame << 4) | column])
-  breq checkDecay                ; 0 2 1
-  ldi r31, hi8(lineBuffer)       ; 0 0 1
-  ldi r30, lo8(lineBuffer)       ; 0 0 1
-  add r30, r9                    ; 0 0 1
-  ldi r25, 0x0f                  ; 0 0 1
-  st Z, r25                      ; 0 0 2
-
-  rjmp checkDecay                ; 0 2
-frameBufferMode:                 ;                              else
   ldi r26, 10                    ; 1 0                              r26 = 10
   ldi r27, 0                     ; 1 0                              r27 = 0
   ldi r31, hi8(frameBuffer)      ; 1 0                              hi8(Z) = hi8(frameBuffer)
