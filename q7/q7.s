@@ -67,6 +67,8 @@ __vector_13:  ; TIMER1_OVF_vect
   illuminate 0x14
   illuminate 0x15
 
+  out 0x2e, r25
+  eor r25, r25
 
   illuminate 0x08                ; 8
   illuminate 0x09                ; 8
@@ -119,21 +121,8 @@ TODO: wait until...
 ;            lineInFrame = 0;
 ;        }
 ;        // Update line buffer
-;        if (patternMode)
-;            for (uint8_t column = 0; column < 0x10; ++column) {
-;                uint8_t led = (lineInFrame<<4) | column;
-;                uint8_t value = waterBuffers[waterPage][led] >> 1;
-;                if (lightBuffers[lightPage][led]) {
-;                    if (column == beatInPattern)
-;                        value = 0x0f;
-;                    else
-;                        value += 10;
-;                }
-;                lineBuffer[column] = value;
-;            }
-;        else
-;            for (uint8_t column = 0; column < 0x10; ++column)
-;                lineBuffer[column] = frameBuffer[(lineInFrame<<4) | column];
+;        for (uint8_t column = 0; column < 0x18; ++column)
+;            lineBuffer[column] = frameBuffer[(lineInFrame<<4) | column];
 ;    }
 
   inc r11                        ; 1 1 1 1 1 1 1 1              ++switchInframe
@@ -159,7 +148,30 @@ noNewFrame:
   sts lineBuffer+\column, r24  ; 2  lineBuffer[column] = frameBuffer[(lineInFrame << 4) | column]
 .endm
 
-  unroll initFromFrameBuffer     ; 64 0
+  initFromFrameBuffer 0x00
+  initFromFrameBuffer 0x01
+  initFromFrameBuffer 0x02
+  initFromFrameBuffer 0x03
+  initFromFrameBuffer 0x04
+  initFromFrameBuffer 0x05
+  initFromFrameBuffer 0x06
+  initFromFrameBuffer 0x07
+  initFromFrameBuffer 0x08
+  initFromFrameBuffer 0x09
+  initFromFrameBuffer 0x0a
+  initFromFrameBuffer 0x0b
+  initFromFrameBuffer 0x0c
+  initFromFrameBuffer 0x0d
+  initFromFrameBuffer 0x0e
+  initFromFrameBuffer 0x0f
+  initFromFrameBuffer 0x10
+  initFromFrameBuffer 0x11
+  initFromFrameBuffer 0x12
+  initFromFrameBuffer 0x13
+  initFromFrameBuffer 0x14
+  initFromFrameBuffer 0x15
+  initFromFrameBuffer 0x16
+  initFromFrameBuffer 0x17
 
 
   inc r16
@@ -656,12 +668,6 @@ stackEnd:
 .global frameBuffer
 frameBuffer:           ; 300-400
   .skip 336
-.global waterBuffers
-waterBuffers:          ; 400-600
-  .skip 0x200
-.global lightBuffers
-lightBuffers:          ; 600-800
-  .skip 0x200
 
 
 ; Register allocation:
