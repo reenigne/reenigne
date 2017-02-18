@@ -135,13 +135,14 @@ TODO: wait until...
   cp r4, r19                     ; 0 1 1 1 1 1 1 1                  if (lineInFrame == 0x0e)
   brne noNewFrame                ; 0 2 1 1 1 1 1 1
   mov r4, r2                     ; 0 0 1 1 1 1 1 1                      lineInFrame = 0
+  mov r12, lo8(frameBuffer)
+  mov r13, hi8(frameBuffer)
 noNewFrame:
 
   ldi r26, 10                    ; 1 0                              r26 = 10
   ldi r27, 0                     ; 1 0                              r27 = 0
-  ldi r31, hi8(frameBuffer)      ; 1 0                              hi8(Z) = hi8(frameBuffer)
-  mov r30, r4                    ; 1 0                              lo8(Z) = lineInFrame
-  swap r30                       ; 1 0                              lo8(Z) = lineInFrame << 4
+  mov r30,r12
+  mov r31,r13
 
 .macro initFromFrameBuffer column  ; 4
   ld r24, Z+                   ; 2  r24 = frameBuffer[(lineInFrame << 4) | column]
@@ -172,6 +173,9 @@ noNewFrame:
   initFromFrameBuffer 0x15
   initFromFrameBuffer 0x16
   initFromFrameBuffer 0x17
+
+  mov r12,r30
+  mov r13,r31
 
 
   inc r16
