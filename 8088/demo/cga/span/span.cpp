@@ -3,19 +3,20 @@
 #include "alfe/user.h"
 #include "alfe/bitmap.h"
 
-typedef Vector3<float> Point;
+typedef Vector3<float> Point3;
+typedef Vector2<float> Point2;
 
 DWORD cgaColours[4] = {0, 0x55ffff, 0xff55ff, 0xffffff};
 
-Point cubeCorners[8] = {
-    Point(-1, -1, -1),
-    Point(-1, -1,  1),
-    Point(-1,  1, -1),
-    Point(-1,  1,  1),
-    Point( 1, -1, -1),
-    Point( 1, -1,  1),
-    Point( 1,  1, -1),
-    Point( 1,  1,  1)};
+Point3 cubeCorners[8] = {
+    Point3(-1, -1, -1),
+    Point3(-1, -1,  1),
+    Point3(-1,  1, -1),
+    Point3(-1,  1,  1),
+    Point3( 1, -1, -1),
+    Point3( 1, -1,  1),
+    Point3( 1,  1, -1),
+    Point3( 1,  1,  1)};
 
 class Quad
 {
@@ -28,7 +29,6 @@ public:
         _points[2] = p2;
         _points[3] = p3;
     }
-
     int _points[4];
     int _colour;
 };
@@ -64,13 +64,13 @@ public:
         _distance = distance;
         _offset = offset;
     }
-    Point modelToScreen(Point model)
+    Point2 modelToScreen(Point3 model)
     {
-        Point r(
+        Point3 r(
             _xx*model.x + _yx*model.y /*+ _zx*model.z*/,
             _xy*model.x + _yy*model.y + _zy*model.z,
             _xz*model.x + _yz*model.y + _zz*model.z + _distance);
-        return Point(r.x/r.z + _offset.x, r.y/r.z + _offset.y, r.z);
+        return Point2(r.x/r.z + _offset.x, r.y/r.z + _offset.y); //, r.z);
     }
 private:
     float _distance;
@@ -86,6 +86,53 @@ private:
     float _zz;
 };
 
+void fillTriangle(Point2 a, Point2 b, Point2 c)
+{
+    if (a.y > b.y) swap(a, b);
+    if (b.y > c.y) swap(b, c);
+    if (a.y > b.y) swap(a, b);
+    if (y1 != y0) dA = ((x1 - x0)<<8)/(y1 - y0) else dA = (x1 - x0)<<8;
+    if (y2 != y0) dB = ((x2 - x0)<<8)/(y2 - y0) else dB = 0;
+    if (y2 != y1) dC = ((x2 - x1)<<8)/(y2 - y1) else dC = 0;
+
+    xL = x0<<8;
+    xR = xL;
+    y = y0;
+
+    if (dA > dB) {
+        UInt8 count = 1 + y1 - y0;
+        while (count-->0) {
+            hLine(xL>>8, xR>>8, y);
+            xL += dB;
+            xR += dA;
+            ++y;
+        }
+        xR = x1;
+        UInt8 count = y2 - y1;
+        while (count-->0) {
+            hLine(xL>>8, xR>>8, y);
+            xL += dB;
+            xR += dC;
+            ++y;
+        }
+    } else {
+        UInt8 count = 1 + y1 - y0;
+        while (count-->0) {
+            hLine(xL>>8, xR>>8, y);
+            xL += dA;
+            xR += dB;
+            ++y;
+        }
+        xR = x1;
+        UInt8 count = y2 - y1;
+        while (count-->0) {
+            hLine(xL>>8, xR>>8, y);
+            xL += dC;
+            xR += dB;
+            ++y;
+        }
+    }
+}
 
 class SpanWindow;
 
@@ -126,7 +173,17 @@ public:
             corners[i] = p.modelToScreen(cubeCorners[i]);
 
         for (int i = 0; i < 6; ++i) {
-            Point p0 =
+            Quad* face = &cubeFaces[i];
+            Point p0 = corners[face->_points[0]];
+            Point p1 = corners[face->_points[1]];
+            Point p2 = corners[face->_points[2]];
+            Point p3 = corners[face->_points[3]];
+            Point e1 = p1 - p0;
+            Point e2 = p2 - p0;
+            float d = e1.x*e2.y - e1.y*e1.x;
+            if (d > 0) {
+
+            }
         }
 
 
