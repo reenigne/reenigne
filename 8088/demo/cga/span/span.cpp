@@ -91,16 +91,16 @@ void fillTriangle(Point2 a, Point2 b, Point2 c)
     if (a.y > b.y) swap(a, b);
     if (b.y > c.y) swap(b, c);
     if (a.y > b.y) swap(a, b);
-    if (y1 != y0) dA = ((x1 - x0)<<8)/(y1 - y0) else dA = (x1 - x0)<<8;
-    if (y2 != y0) dB = ((x2 - x0)<<8)/(y2 - y0) else dB = 0;
-    if (y2 != y1) dC = ((x2 - x1)<<8)/(y2 - y1) else dC = 0;
+    if (b.y != a.y) dA = ((b.x - a.x)<<8)/(b.y - a.y) else dA = (b.x - a.x)<<8;
+    if (c.y != a.y) dB = ((c.x - a.x)<<8)/(c.y - a.y) else dB = 0;
+    if (c.y != b.y) dC = ((c.x - b.x)<<8)/(c.y - b.y) else dC = 0;
 
-    xL = x0<<8;
+    xL = a.x<<8;
     xR = xL;
     y = y0;
 
     if (dA > dB) {
-        UInt8 count = 1 + y1 - y0;
+        UInt8 count = 1 + b.y - a.y;
         while (count-->0) {
             hLine(xL>>8, xR>>8, y);
             xL += dB;
@@ -108,7 +108,7 @@ void fillTriangle(Point2 a, Point2 b, Point2 c)
             ++y;
         }
         xR = x1;
-        UInt8 count = y2 - y1;
+        UInt8 count = c.y - b.y;
         while (count-->0) {
             hLine(xL>>8, xR>>8, y);
             xL += dB;
@@ -116,15 +116,15 @@ void fillTriangle(Point2 a, Point2 b, Point2 c)
             ++y;
         }
     } else {
-        UInt8 count = 1 + y1 - y0;
+        UInt8 count = 1 + b.y - a.y;
         while (count-->0) {
             hLine(xL>>8, xR>>8, y);
             xL += dA;
             xR += dB;
             ++y;
         }
-        xR = x1;
-        UInt8 count = y2 - y1;
+        xR = b.x;
+        UInt8 count = c.y - b.y;
         while (count-->0) {
             hLine(xL>>8, xR>>8, y);
             xL += dC;
