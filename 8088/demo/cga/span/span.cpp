@@ -91,9 +91,10 @@ void fillTriangle(Point2 a, Point2 b, Point2 c)
     if (a.y > b.y) swap(a, b);
     if (b.y > c.y) swap(b, c);
     if (a.y > b.y) swap(a, b);
-    if (b.y != a.y) dA = ((b.x - a.x)<<8)/(b.y - a.y) else dA = (b.x - a.x)<<8;
-    if (c.y != a.y) dB = ((c.x - a.x)<<8)/(c.y - a.y) else dB = 0;
-    if (c.y != b.y) dC = ((c.x - b.x)<<8)/(c.y - b.y) else dC = 0;
+    float dab = (b.x - a.x)/(b.y - a.y);
+    float dac = (c.x - a.x)/(c.y - a.y);
+    float dbc = (c.x - b.x)/(c.y - b.y);
+
 
     xL = a.x<<8;
     xR = xL;
