@@ -1,10 +1,24 @@
+#include "alfe/main.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <time.h>
+
+#ifdef _WIN32
+#define STDIN_FILENO _fileno(stdin)
+#define STDOUT_FILENO _fileno(stdout)
+#define STDERR_FILENO _fileno(stderr)
+#include <direct.h>
+#include <io.h>
+#define mkdir(x, y) _mkdir(x)
+#else
+#include <unistd.h>
+#include <sys/time.h>
+#endif
 
 typedef unsigned char Byte;
 typedef unsigned short int Word;
@@ -18,7 +32,7 @@ Byte* initialized;
 char* pathBuffers[2];
 int* fileDescriptors;
 int fileDescriptorCount = 6;
-Word loadSegment = 0x0212;
+Word loadSegment = 0x0cbe;
 bool useMemory;
 Word address;
 Word flags = 2;
@@ -33,7 +47,7 @@ bool repeating = false;
 Word savedIP;
 Word savedCS;
 int segmentOverride = -1;
-Word remainder;
+Word remain;
 Byte opcode;
 int aluOperation;
 const char* filename;
@@ -93,7 +107,7 @@ DWord physicalAddress(Word offset, int seg, bool write)
     DWord a = ((segmentAddress << 4) + offset) & 0xfffff;
     bool bad = false;
     if (write) {
-        if (a < ((DWord)loadSegment << 4) - 0x100 && running)
+        if (a >= 0x500 && a < ((DWord)loadSegment << 4) - 0x100 && running)
              bad = true;
         initialized[a >> 3] |= 1 << (a & 7);
     }
@@ -186,11 +200,11 @@ void div()
         --data;
         product -= source;
     }
-    remainder = destination - product;
+    remain = destination - product;
     if (negative)
         data = (unsigned)-(signed)data;
     if (dividendNegative)
-        remainder = (unsigned)-(signed)remainder;
+        remain = (unsigned)-(signed)remain;
 }
 void jumpShort(Byte data, bool jump) { if (jump) ip += signExtend(data); }
 void setCF(bool cf) { flags = (flags & ~1) | (cf ? 1 : 0); }
@@ -242,6 +256,7 @@ bool pf() { return (flags & 4) != 0; }
 bool af() { return (flags & 0x10) != 0; }
 bool zf() { return (flags & 0x40) != 0; }
 bool sf() { return (flags & 0x80) != 0; }
+bool intf() { return (flags & 0x200) != 0; }
 void setIF(bool intf) { flags = (flags & ~0x200) | (intf ? 0x200 : 0); }
 void setDF(bool df) { flags = (flags & ~0x400) | (df ? 0x400 : 0); }
 bool df() { return (flags & 0x400) != 0; }
@@ -255,6 +270,9 @@ Word sp() { return registers[4]; }
 Word bp() { return registers[5]; }
 Word si() { return registers[6]; }
 Word di() { return registers[7]; }
+Word es() { return registers[8]; }
+Word ss() { return registers[10]; }
+Word ds() { return registers[11]; }
 Byte al() { return *byteRegisters[0]; }
 Byte cl() { return *byteRegisters[1]; }
 Byte dl() { return *byteRegisters[2]; }
@@ -267,14 +285,23 @@ void setRW(Word value) { registers[opcode & 7] = value; }
 void setAX(Word value) { registers[0] = value; }
 void setCX(Word value) { registers[1] = value; }
 void setDX(Word value) { registers[2] = value; }
+void setBX(Word value) { registers[3] = value; }
 void setSP(Word value) { registers[4] = value; }
 void setSI(Word value) { registers[6] = value; }
 void setDI(Word value) { registers[7] = value; }
 void setAL(Byte value) { *byteRegisters[0] = value; }
 void setCL(Byte value) { *byteRegisters[1] = value; }
+void setDL(Byte value) { *byteRegisters[2] = value; }
+void setBL(Byte value) { *byteRegisters[3] = value; }
 void setAH(Byte value) { *byteRegisters[4] = value; }
+void setCH(Byte value) { *byteRegisters[5] = value; }
+void setDH(Byte value) { *byteRegisters[6] = value; }
+void setBH(Byte value) { *byteRegisters[7] = value; }
 void setRB(Byte value) { *byteRegisters[opcode & 7] = value; }
+void setES(Word value) { registers[8] = value; }
 void setCS(Word value) { registers[9] = value; }
+void setSS(Word value) { registers[10] = value; }
+void setDS(Word value) { registers[11] = value; }
 int stringIncrement()
 {
     int r = (wordSize ? 2 : 1);
@@ -311,7 +338,7 @@ void stoS(Word data)
 void push(Word value)
 {
     setSP(sp() - 2);
-    if (sp() <= stackLow)
+    if (sp() < stackLow)
         runtimeError("Stack overflow");
     writeWord(value, sp(), 2);
 }
@@ -455,13 +482,15 @@ int dosError(int e)
     return 0;
 }
 
-int main(int argc, char* argv[])
+void main1(Array<String> arguments)
 {
-    if (argc < 2) {
-        printf("Usage: %s <program name>\n", argv[0]);
+    if (arguments.count() < 2) {
+        console.write("Usage: " + arguments[0] + " <program name> [args]\n");
         exit(0);
     }
-    filename = argv[1];
+    int iosToTimerIRQ = 0;
+    NullTerminatedString arg1(arguments[1]);
+    filename = arg1;
     FILE* fp = fopen(filename, "rb");
     if (fp == 0)
         error("opening");
@@ -481,8 +510,16 @@ int main(int argc, char* argv[])
     int loadOffset = loadSegment << 4;
     if (length > 0x100000 - loadOffset)
         length = 0x100000 - loadOffset;
+    setES(0);
+    int interrupts[5] = {0, 4, 5, 6, 0x1c};
+    for (int i = 0; i < 5; ++i) {
+        writeWord(0, interrupts[i]*4);
+        writeWord(0, interrupts[i]*4 + 2);
+    }
+    writeWord(0x600, 0x70);
+    writeByte(0xcf, 0x600);
     int envSegment = loadSegment - 0x1c;
-    registers[8] = envSegment;
+    setES(envSegment);
     writeByte(0, 0);  // No environment for now
     writeWord(1, 1);
     int i;
@@ -493,15 +530,17 @@ int main(int argc, char* argv[])
         exit(1);
     }
     writeWord(0, i + 3);
-    registers[8] = loadSegment - 0x10;
+    setES(loadSegment - 0x10);
     writeWord(envSegment, 0x2c);
+    writeWord(0x9fff, 0x02);
     i = 0x81;
-    for (int a = 2; a < argc; ++a) {
+    for (int a = 2; a < arguments.count(); ++a) {
         if (a > 2) {
             writeByte(' ', i);
             ++i;
         }
-        char* arg = argv[a];
+        NullTerminatedString aa(arguments[a]);
+        const char* arg = aa;
         bool quote = strchr(arg, ' ') != 0;
         if (quote) {
             writeByte('\"', i);
@@ -531,7 +570,7 @@ int main(int argc, char* argv[])
         error("reading");
     fclose(fp);
     for (int i = 0; i < length; ++i) {
-        registers[8] = loadSegment + (i >> 4);
+        setES(loadSegment + (i >> 4));
         physicalAddress(i & 15, 0, true);
     }
     for (int i = 0; i < 4; ++i)
@@ -556,20 +595,21 @@ int main(int argc, char* argv[])
         int relocationData = readWord(0x118);
         for (int i = 0; i < relocationCount; ++i) {
             int offset = readWord(relocationData + 0x100);
-            registers[9] = readWord(relocationData + 0x102) + imageSegment;
+            setCS(readWord(relocationData + 0x102) + imageSegment);
             writeWord(readWord(offset, 1) + imageSegment, offset, 1);
             relocationData += 4;
         }
         loadSegment = imageSegment;  // Prevent further access to header
         Word ss = readWord(0x10e) + loadSegment;  // SS
-        registers[10] = ss;
+        setSS(ss);
         setSP(readWord(0x110));
-        stackLow =
-            ((((exeLength - headerLength + 15) >> 4) + loadSegment) - ss) << 4;
-        if (stackLow < 0)
+        stackLow = ((exeLength - headerLength + 15) >> 4) + loadSegment;
+        if (stackLow < ss)
             stackLow = 0;
+        else
+            stackLow = (stackLow - (int)ss) << 4;
         ip = readWord(0x114);
-        registers[9] = readWord(0x116) + loadSegment;  // CS
+        setCS(readWord(0x116) + loadSegment);  // CS
     }
     else {
         if (length > 0xff00) {
@@ -583,11 +623,11 @@ int main(int argc, char* argv[])
     // any locations that could possibly be stack.
     for (DWord d = (loadSegment << 4) + length;
         d < (DWord)((registers[10] << 4) + sp()); ++d) {
-        registers[8] = d >> 4;
+        setES(d >> 4);
         writeByte(0, d & 15, 0);
     }
     ios = 0;
-    registers[8] = loadSegment - 0x10;
+    setES(loadSegment - 0x10);
     setAX(0x0000);
     setCX(0x00FF);
     setDX(segment);
@@ -609,7 +649,19 @@ int main(int argc, char* argv[])
         byteRegisters[i] = &byteData[byteNumbers[i] ^ bigEndian];
     running = true;
     bool prefix = false;
+    int lastios = 0;
     for (int i = 0; i < 1000000000; ++i) {
+        iosToTimerIRQ -= ios - lastios;
+        lastios = ios;
+        if (!prefix && intf() && iosToTimerIRQ <= 0) {
+            iosToTimerIRQ += 65536;
+            push(flags);
+            push(cs());
+            push(ip);
+            setCS(0);
+            ip = readWord(0x70, 1);
+            setCS(readWord(0x72, 1));
+        }
         if (!repeating) {
             if (!prefix) {
                 segmentOverride = -1;
@@ -892,191 +944,280 @@ int main(int argc, char* argv[])
                 break;
             case 0xcd:
                 data = fetchByte();
-                if (data != 0x21) {
-                    fprintf(stderr, "Unknown interrupt 0x%02x", data);
-                    runtimeError("");
-                }
-                switch (ah()) {
-                    case 0x39:
-                        if (mkdir(dsdx(), 0700) == 0)
-                            setCF(false);
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
+                switch (data) {
+                    case 0x12:
+                        setAX(640);
+                        break;
+                    case 0x1a:
+                        switch (ah()) {
+                            case 0:
+                                {
+                                    time_t t = time(0);
+                                    struct tm* lt = localtime(&t);
+                                    data = (lt->tm_hour*60 + lt->tm_min)*60 +
+                                        lt->tm_sec;
+                                    setDX(data);
+                                    setCX(data >> 16);
+                                }
+                                break;
+                            default:
+                                fprintf(stderr, "Unknown BIOS clock call "
+                                    "0x%02x", ah());
+                                runtimeError("");
                         }
                         break;
-                    case 0x3a:
-                        if (rmdir(dsdx()) == 0)
-                            setCF(false);
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x3b:
-                        if (chdir(dsdx()) == 0)
-                            setCF(false);
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x3c:
-                        fileDescriptor = creat(dsdx(), 0700);
-                        if (fileDescriptor != -1) {
-                            setCF(false);
-                            int guestDescriptor = getDescriptor();
-                            setAX(guestDescriptor);
-                            fileDescriptors[guestDescriptor] = fileDescriptor;
-                        }
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x3d:
-                        fileDescriptor = open(dsdx(), al() & 3, 0700);
-                        if (fileDescriptor != -1) {
-                            setCF(false);
-                            setAX(getDescriptor());
-                            fileDescriptors[ax()] = fileDescriptor;
-                        }
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x3e:
-                        fileDescriptor = fileDescriptors[bx()];
-                        if (fileDescriptor == -1) {
-                            setCF(true);
-                            setAX(6);  // Invalid handle
-                            break;
-                        }
-                        if (fileDescriptor >= 5 &&
-                            close(fileDescriptor) != 0) {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        else {
-                            fileDescriptors[bx()] = -1;
-                            setCF(false);
-                        }
-                        break;
-                    case 0x3f:
-                        fileDescriptor = fileDescriptors[bx()];
-                        if (fileDescriptor == -1) {
-                            setCF(true);
-                            setAX(6);  // Invalid handle
-                            break;
-                        }
-                        data = read(fileDescriptor, dsdx(true, cx()), cx());
-                        if (data == (DWord)-1) {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        else {
-                            setCF(false);
-                            setAX(data);
-                        }
-                        break;
-                    case 0x40:
-                        fileDescriptor = fileDescriptors[bx()];
-                        if (fileDescriptor == -1) {
-                            setCF(true);
-                            setAX(6);  // Invalid handle
-                            break;
-                        }
-                        data = write(fileDescriptor, dsdx(false, cx()), cx());
-                        if (data == (DWord)-1) {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        else {
-                            setCF(false);
-                            setAX(data);
-                        }
-                        break;
-                    case 0x41:
-                        if (unlink(dsdx()) == 0)
-                            setCF(false);
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x42:
-                        fileDescriptor = fileDescriptors[bx()];
-                        if (fileDescriptor == -1) {
-                            setCF(true);
-                            setAX(6);  // Invalid handle
-                            break;
-                        }
-                        data = lseek(fileDescriptor, (cx() << 16) + dx(),
-                            al());
-                        if (data != (DWord)-1) {
-                            setCF(false);
-                            setDX(data >> 16);
-                            setAX(data);
-                        }
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x44:
-                        if (al() != 0) {
-                            fprintf(stderr, "Unknown IOCTL 0x%02x", al());
-                            runtimeError("");
-                        }
-                        fileDescriptor = fileDescriptors[bx()];
-                        if (fileDescriptor == -1) {
-                            setCF(true);
-                            setAX(6);  // Invalid handle
-                            break;
-                        }
-                        data = isatty(fileDescriptor);
-                        if (data == 1) {
-                            setDX(0x80);
-                            setCF(false);
-                        }
-                        else {
-                            if (errno == ENOTTY) {
-                                setDX(0);
+                    case 0x21:
+                        switch (ah()) {
+                            case 0x0e:
                                 setCF(false);
-                            }
-                            else {
-                                setAX(dosError(errno));
-                                setCF(true);
-                            }
-                        }
-                        break;
-                    case 0x47:
-                        if (getcwd(pathBuffers[0], 64) != 0) {
-                            setCF(false);
-                            initString(si(), 3, true, 0);
-                        }
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
-                        }
-                        break;
-                    case 0x4c:
-                        printf("*** Bytes: %i\n", length);
-                        printf("*** Cycles: %i\n", ios);
-                        printf("*** EXIT code %i\n", al());
-                        exit(0);
-                        break;
-                    case 0x56:
-                        if (rename(dsdx(), initString(di(), 0, false, 1)) == 0)
-                            setCF(false);
-                        else {
-                            setCF(true);
-                            setAX(dosError(errno));
+                                break;
+                            case 0x19:
+                                setCF(false);
+                                setAL(0);
+                                break;
+                            case 0x25:
+                                {
+                                    Word t = es();
+                                    setES(0);
+                                    writeWord(dx(), al()*4, 0);
+                                    writeWord(ds(), al()*4 + 2, 0);
+                                    setES(t);
+                                }
+                                break;
+                            case 0x2c:
+                                {
+#ifdef _WIN32
+                                    SYSTEMTIME t;
+                                    GetLocalTime(&t);
+                                    setCH((Byte)t.wHour);
+                                    setCL((Byte)t.wMinute);
+                                    setDH((Byte)t.wSecond);
+                                    setDL(t.wMilliseconds / 1000);
+#else
+                                    time_t t = time(0);
+                                    struct tm* lt = localtime(&t);
+                                    struct timeval tv;
+                                    struct timezone tz;
+                                    gettimeofday(&tv, &tz);
+                                    setCH(lt->tm_hour);
+                                    setCL(lt->tm_min);
+                                    setDH(lt->tm_sec);
+                                    setDL(tv.tv_usec / 10000);
+#endif
+                                }
+                                break;
+                            case 0x30:
+                                setAX(0x1403);
+                                break;
+                            case 0x35:
+                                setES(0);
+                                setBX(readWord(al()*4, 0));
+                                setES(readWord(al()*4 + 2, 0));
+                                break;
+                            case 0x39:
+                                if (mkdir(dsdx(), 0700) == 0)
+                                    setCF(false);
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x3a:
+                                if (rmdir(dsdx()) == 0)
+                                    setCF(false);
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x3b:
+                                if (chdir(dsdx()) == 0)
+                                    setCF(false);
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x3c:
+                                fileDescriptor = creat(dsdx(), 0700);
+                                if (fileDescriptor != -1) {
+                                    setCF(false);
+                                    int guestDescriptor = getDescriptor();
+                                    setAX(guestDescriptor);
+                                    fileDescriptors[guestDescriptor] =
+                                        fileDescriptor;
+                                }
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x3d:
+                                fileDescriptor = open(dsdx(), al() & 3, 0700);
+                                if (fileDescriptor != -1) {
+                                    setCF(false);
+                                    setAX(getDescriptor());
+                                    fileDescriptors[ax()] = fileDescriptor;
+                                }
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x3e:
+                                fileDescriptor = fileDescriptors[bx()];
+                                if (fileDescriptor == -1) {
+                                    setCF(true);
+                                    setAX(6);  // Invalid handle
+                                    break;
+                                }
+                                if (fileDescriptor >= 5 &&
+                                    close(fileDescriptor) != 0) {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                else {
+                                    fileDescriptors[bx()] = -1;
+                                    setCF(false);
+                                }
+                                break;
+                            case 0x3f:
+                                fileDescriptor = fileDescriptors[bx()];
+                                if (fileDescriptor == -1) {
+                                    setCF(true);
+                                    setAX(6);  // Invalid handle
+                                    break;
+                                }
+                                data = read(fileDescriptor, dsdx(true, cx()),
+                                    cx());
+                                if (data == (DWord)-1) {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                else {
+                                    setCF(false);
+                                    setAX(data);
+                                }
+                                break;
+                            case 0x40:
+                                fileDescriptor = fileDescriptors[bx()];
+                                if (fileDescriptor == -1) {
+                                    setCF(true);
+                                    setAX(6);  // Invalid handle
+                                    break;
+                                }
+                                data = write(fileDescriptor, dsdx(false, cx()),
+                                    cx());
+                                if (data == (DWord)-1) {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                else {
+                                    setCF(false);
+                                    setAX(data);
+                                }
+                                break;
+                            case 0x41:
+                                if (unlink(dsdx()) == 0)
+                                    setCF(false);
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x42:
+                                fileDescriptor = fileDescriptors[bx()];
+                                if (fileDescriptor == -1) {
+                                    setCF(true);
+                                    setAX(6);  // Invalid handle
+                                    break;
+                                }
+                                data = lseek(fileDescriptor,
+                                    (cx() << 16) + dx(), al());
+                                if (data != (DWord)-1) {
+                                    setCF(false);
+                                    setDX(data >> 16);
+                                    setAX(data);
+                                }
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x44:
+                                switch (al()) {
+                                    case 0:
+                                        fileDescriptor = fileDescriptors[bx()];
+                                        if (fileDescriptor == -1) {
+                                            setCF(true);
+                                            setAX(6);  // Invalid handle
+                                            break;
+                                        }
+                                        data = isatty(fileDescriptor);
+                                        if (data == 1) {
+                                            setDX(0x80);
+                                            setCF(false);
+                                        }
+                                        else {
+                                            if (errno == ENOTTY) {
+                                                setDX(0);
+                                                setCF(false);
+                                            }
+                                            else {
+                                                setAX(dosError(errno));
+                                                setCF(true);
+                                            }
+                                        }
+                                        break;
+                                    case 8:
+                                        setCF(false);
+                                        setAX(bl() < 3 ? 0 : 1);
+                                        break;
+                                    case 0x0e:
+                                        setCF(false);
+                                        setAL(0);
+                                        break;
+                                    default:
+                                        fprintf(stderr, "Unknown IOCTL 0x%02x",
+                                            al());
+                                        runtimeError("");
+                                }
+                                break;
+                            case 0x47:
+                                if (getcwd(pathBuffers[0], 64) != 0) {
+                                    setCF(false);
+                                    initString(si(), 3, true, 0);
+                                }
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            case 0x4a:
+                                break;
+                            case 0x4c:
+                                printf("*** Bytes: %i\n", length);
+                                printf("*** Cycles: %i\n", ios);
+                                printf("*** EXIT code %i\n", al());
+                                exit(0);
+                                break;
+                            case 0x56:
+                                if (rename(dsdx(), initString(di(), 0, false,
+                                    1)) == 0)
+                                    setCF(false);
+                                else {
+                                    setCF(true);
+                                    setAX(dosError(errno));
+                                }
+                                break;
+                            default:
+                                fprintf(stderr, "Unknown DOS call 0x%02x",
+                                    ah());
+                                runtimeError("");
                         }
                         break;
                     default:
-                        fprintf(stderr, "Unknown DOS call 0x%02x", ah());
+                        fprintf(stderr, "Unknown interrupt 0x%02x", data);
                         runtimeError("");
                 }
                 break;
@@ -1278,7 +1419,7 @@ int main(int argc, char* argv[])
                                 if (data > 0x7f && data < 0xffffff80)
                                     divideOverflow();
                             }
-                            setAH((Byte)remainder);
+                            setAH((Byte)remain);
                             setAL(data);
                         }
                         else {
@@ -1292,7 +1433,7 @@ int main(int argc, char* argv[])
                                 if (data > 0x7fff && data < 0xffff8000)
                                     divideOverflow();
                             }
-                            setDX(remainder);
+                            setDX(remain);
                             setAX(data);
                         }
                         break;
@@ -1343,3 +1484,12 @@ int main(int argc, char* argv[])
     }
     runtimeError("Timed out");
 }
+
+class Program : public ProgramBase
+{
+public:
+    void run()
+    {
+        main1(_arguments);
+    }
+};

@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="span.cpp">
+    <ClCompile Include="reem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
