@@ -822,11 +822,11 @@ int main(int argc, char* argv[])
                 setAH(flags & 0xd7);
                 break;
             case 0xa0: case 0xa1:  // MOV accum,xv
-                data = read(fetchWord());
+                data = read(fetchWord(), 3);
                 setAccum();
                 break;
             case 0xa2: case 0xa3:  // MOV xv,accum
-                write(getAccum(), fetchWord());
+                write(getAccum(), fetchWord(), 3);
                 break;
             case 0xa4: case 0xa5:  // MOVSv
                 if (rep == 0 || cx() != 0)

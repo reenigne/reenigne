@@ -444,6 +444,7 @@ public:
             }
         }
     }
+    void unappend(int elements = 1) { body()->setSize(count() - elements); }
     // Like append but with default construction instead of copying.
     void expand(int length)
     {

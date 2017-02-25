@@ -189,7 +189,6 @@ public:
 
 
         _bitmap = setNextBitmap(_bitmap);
-        invalidate();
     }
 private:
     SpanWindow* _spanWindow;

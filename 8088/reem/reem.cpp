@@ -1,4 +1,7 @@
 #include "alfe/main.h"
+#include "alfe/config_file.h"
+#include "alfe/user.h"
+#include "alfe/bitmap.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,10 +23,6 @@
 #include <sys/time.h>
 #endif
 
-typedef unsigned char Byte;
-typedef unsigned short int Word;
-typedef unsigned int DWord;
-
 Word registers[12];
 Byte* byteRegisters[8];
 Word ip = 0x100;
@@ -33,6 +32,11 @@ char* pathBuffers[2];
 int* fileDescriptors;
 int fileDescriptorCount = 6;
 Word loadSegment = 0x0cbe;
+DWord reRegions[] = {
+    0x10cb1, 0x3acb4,
+    0x3af30, 0x3b288,
+    0x3b832, 0x3bae0
+};
 bool useMemory;
 Word address;
 Word flags = 2;
@@ -41,7 +45,7 @@ bool wordSize;
 DWord data;
 DWord destination;
 DWord source;
-int segment;
+int segment = 3;
 int rep = 0;
 bool repeating = false;
 Word savedIP;
@@ -107,8 +111,14 @@ DWord physicalAddress(Word offset, int seg, bool write)
     DWord a = ((segmentAddress << 4) + offset) & 0xfffff;
     bool bad = false;
     if (write) {
-        if (a >= 0x500 && a < ((DWord)loadSegment << 4) - 0x100 && running)
-             bad = true;
+        if (running) {
+            if (a >= 0x500 && a < ((DWord)loadSegment << 4) - 0x100)
+                 bad = true;
+            if (a >= 0xa0000 && a < 0xb8000)
+                bad = true;
+            if (a >= 0xc0000)
+                bad = true;
+        }
         initialized[a >> 3] |= 1 << (a & 7);
     }
     if ((initialized[a >> 3] & (1 << (a & 7))) == 0 || bad) {
@@ -233,11 +243,8 @@ void setPF()
         4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4};
     flags = (flags & ~4) | table[data & 0xff];
 }
-void setZF()
-{
-    flags = (flags & ~0x40) |
-        ((data & (!wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
-}
+void setZF(bool zf) { flags = (flags & ~0x40) | (zf ? 0x40 : 0); }
+void setZF() { setZF((data & (!wordSize ? 0xff : 0xffff)) == 0); }
 void setSF()
 {
     flags = (flags & ~0x80) |
@@ -452,7 +459,54 @@ void farLoad()
     savedCS = readWord(address + 2);
 }
 void farJump() { setCS(savedCS); ip = savedIP; }
-void farCall() { push(cs()); push(ip); farJump(); }
+HashTable<DWord, DWord> functions;
+AppendableArray<DWord> callStack;
+bool inREArea(DWord physicalAddress)
+{
+    for (int i = 0; i < sizeof(reRegions)/4; i += 2) {
+        //if (physicalAddress >= reRegions[i] &&
+        //    physicalAddress < reRegions[i + 1])
+            return true;
+    }
+    return false;
+}
+void recordCall(Word newCS, Word newIP)
+{
+    DWord segOff = (newCS << 16) + newIP;
+    DWord physicalAddress = (newCS << 4) + newIP;
+    if (!inREArea(physicalAddress))
+        return;
+    callStack.append((cs() << 16) + ip);
+    if (functions.hasKey(physicalAddress)) {
+        DWord oldSegOff = functions[physicalAddress];
+        if (oldSegOff != segOff) {
+            fprintf(stderr, "Function at %05x called via both %04x:%04x and "
+                "%04x:%04x", physicalAddress, oldSegOff >> 16,
+                oldSegOff & 0xffff, segOff >> 16, segOff & 0xffff);
+            runtimeError("");
+        }
+    }
+    else {
+        functions.add(physicalAddress, segOff);
+        for (int i = 0; i < callStack.count(); ++i) {
+            DWord a = callStack[i];
+            printf("%04x:%04x ", a >> 16, a & 0xffff);
+        }
+        printf("%04x:%04x\n", newCS, newIP);
+    }
+}
+void recordReturn()
+{
+    if (inREArea((cs() << 4) + ip - 1))
+        callStack.unappend();
+}
+void farCall()
+{
+    recordCall(savedCS, savedIP);
+    push(cs());
+    push(ip);
+    farJump();
+}
 Word incdec(bool decrement)
 {
     source = 1;
@@ -468,7 +522,7 @@ Word incdec(bool decrement)
     setPZS();
     return data;
 }
-void call(Word address) { push(ip); ip = address; }
+void call(Word address) { recordCall(cs(), address); push(ip); ip = address; }
 char* dsdx(bool write = false, int bytes = 0x10000)
 {
     return initString(dx(), 3, write, 0, bytes);
@@ -481,6 +535,39 @@ int dosError(int e)
     runtimeError("");
     return 0;
 }
+int getFileDescriptor()
+{
+    if (bx() >= fileDescriptorCount)
+        return -1;
+    return fileDescriptors[bx()];
+}
+
+void outportb(Word port, Word value)
+{
+    switch (port) {
+        case 0x42:
+        case 0x61:
+            break;
+        default:
+            fprintf(stderr, "Unknown output port %04x\n", port);
+            runtimeError("");
+    }
+}
+
+Byte inportb(Word port)
+{
+    Byte cgaStatus = 0;
+    switch (port) {
+        case 0x61:
+            return 0;
+        case 0x3da:
+            cgaStatus ^= 8;
+            return cgaStatus;
+        default:
+            fprintf(stderr, "Unknown input port %04x\n", port);
+            runtimeError("");
+    }
+}
 
 void main1(Array<String> arguments)
 {
@@ -491,6 +578,9 @@ void main1(Array<String> arguments)
     int iosToTimerIRQ = 0;
     NullTerminatedString arg1(arguments[1]);
     filename = arg1;
+#ifdef _WIN32
+    _set_fmode(_O_BINARY);
+#endif
     FILE* fp = fopen(filename, "rb");
     if (fp == 0)
         error("opening");
@@ -510,62 +600,6 @@ void main1(Array<String> arguments)
     int loadOffset = loadSegment << 4;
     if (length > 0x100000 - loadOffset)
         length = 0x100000 - loadOffset;
-    setES(0);
-    int interrupts[5] = {0, 4, 5, 6, 0x1c};
-    for (int i = 0; i < 5; ++i) {
-        writeWord(0, interrupts[i]*4);
-        writeWord(0, interrupts[i]*4 + 2);
-    }
-    writeWord(0x600, 0x70);
-    writeByte(0xcf, 0x600);
-    int envSegment = loadSegment - 0x1c;
-    setES(envSegment);
-    writeByte(0, 0);  // No environment for now
-    writeWord(1, 1);
-    int i;
-    for (i = 0; filename[i] != 0; ++i)
-        writeByte(filename[i], i + 3);
-    if (i + 4 >= 0xc0) {
-        fprintf(stderr, "Program name too long.\n");
-        exit(1);
-    }
-    writeWord(0, i + 3);
-    setES(loadSegment - 0x10);
-    writeWord(envSegment, 0x2c);
-    writeWord(0x9fff, 0x02);
-    i = 0x81;
-    for (int a = 2; a < arguments.count(); ++a) {
-        if (a > 2) {
-            writeByte(' ', i);
-            ++i;
-        }
-        NullTerminatedString aa(arguments[a]);
-        const char* arg = aa;
-        bool quote = strchr(arg, ' ') != 0;
-        if (quote) {
-            writeByte('\"', i);
-            ++i;
-        }
-        for (; *arg != 0; ++arg) {
-            int c = *arg;
-            if (c == '\"') {
-                writeByte('\\', i);
-                ++i;
-            }
-            writeByte(c, i);
-            ++i;
-        }
-        if (quote) {
-            writeByte('\"', i);
-            ++i;
-        }
-    }
-    if (i > 0xff) {
-        fprintf(stderr, "Arguments too long.\n");
-        exit(1);
-    }
-    writeByte(i - 0x81, 0x80);
-    writeByte(13, i);
     if (fread(&ram[loadOffset], length, 1, fp) != 1)
         error("reading");
     fclose(fp);
@@ -619,6 +653,68 @@ void main1(Array<String> arguments)
         setSP(0xFFFE);
         stackLow = length + 0x100;
     }
+    setDS(0);
+    int interrupts[5] = {0, 4, 5, 6, 0x1c};
+    for (int i = 0; i < 5; ++i) {
+        writeWord(0, interrupts[i]*4);
+        writeWord(0, interrupts[i]*4 + 2);
+    }
+    writeWord(0x600, 0x70);
+    writeByte(0xcf, 0x600);
+    writeWord(0x3d4, 0x463);
+    int envSegment = loadSegment - 0x1c;
+    setDS(envSegment);
+    const char* env = "PATH=C:\\";
+    int envLen = strlen(env);
+    for (int i = 0; i < envLen; ++i)
+        writeByte(env[i], i);
+    writeByte(0, envLen);
+    writeByte(0, envLen + 1);
+    writeWord(1, envLen + 2);
+    int i;
+    for (i = 0; filename[i] != 0; ++i)
+        writeByte(filename[i], i + 4 + envLen);
+    if (i + 4 >= 0xc0) {
+        fprintf(stderr, "Program name too long.\n");
+        exit(1);
+    }
+    writeWord(0, i + 3 + envLen);
+    setDS(loadSegment - 0x10);
+    writeWord(envSegment, 0x2c);
+    writeWord(0x9fff, 0x02);
+    i = 0x81;
+    for (int a = 2; a < arguments.count(); ++a) {
+        if (a > 2) {
+            writeByte(' ', i);
+            ++i;
+        }
+        NullTerminatedString aa(arguments[a]);
+        const char* arg = aa;
+        bool quote = strchr(arg, ' ') != 0;
+        if (quote) {
+            writeByte('\"', i);
+            ++i;
+        }
+        for (; *arg != 0; ++arg) {
+            int c = *arg;
+            if (c == '\"') {
+                writeByte('\\', i);
+                ++i;
+            }
+            writeByte(c, i);
+            ++i;
+        }
+        if (quote) {
+            writeByte('\"', i);
+            ++i;
+        }
+    }
+    if (i > 0xff) {
+        fprintf(stderr, "Arguments too long.\n");
+        exit(1);
+    }
+    writeByte(i - 0x81, 0x80);
+    writeByte(13, i);
     // Some testcases copy uninitialized stack data, so mark as initialized
     // any locations that could possibly be stack.
     for (DWord d = (loadSegment << 4) + length;
@@ -627,6 +723,7 @@ void main1(Array<String> arguments)
         writeByte(0, d & 15, 0);
     }
     ios = 0;
+    setDS(loadSegment - 0x10);
     setES(loadSegment - 0x10);
     setAX(0x0000);
     setCX(0x00FF);
@@ -767,20 +864,6 @@ void main1(Array<String> arguments)
             case 0x5c: case 0x5d: case 0x5e: case 0x5f:  // POP rw
                 setRW(pop());
                 break;
-            case 0x60: case 0x61: case 0x62: case 0x63:
-            case 0x64: case 0x65: case 0x66: case 0x67:
-            case 0x68: case 0x69: case 0x6a: case 0x6b:
-            case 0x6c: case 0x6d: case 0x6e: case 0x6f:
-            case 0xc0: case 0xc1: case 0xc8: case 0xc9:  // invalid
-            case 0xcc: case 0xf0: case 0xf1: case 0xf4:  // INT 3, LOCK, HLT
-            case 0x9b: case 0xce: case 0x0f:  // WAIT, INTO, POP CS
-            case 0xd8: case 0xd9: case 0xda: case 0xdb:
-            case 0xdc: case 0xdd: case 0xde: case 0xdf:  // escape
-            case 0xe4: case 0xe5: case 0xe6: case 0xe7:
-            case 0xec: case 0xed: case 0xee: case 0xef:  // IN, OUT
-                fprintf(stderr, "Invalid opcode %02x", opcode);
-                runtimeError("");
-                break;
             case 0x70: case 0x71: case 0x72: case 0x73:
             case 0x74: case 0x75: case 0x76: case 0x77:
             case 0x78: case 0x79: case 0x7a: case 0x7b:
@@ -874,10 +957,12 @@ void main1(Array<String> arguments)
                 setAH(flags & 0xd7);
                 break;
             case 0xa0: case 0xa1:  // MOV accum,xv
+                segment = 3;
                 data = read(fetchWord());
                 setAccum();
                 break;
             case 0xa2: case 0xa3:  // MOV xv,accum
+                segment = 3;
                 write(getAccum(), fetchWord());
                 break;
             case 0xa4: case 0xa5:  // MOVSv
@@ -926,6 +1011,7 @@ void main1(Array<String> arguments)
                 setRW(fetchWord());
                 break;
             case 0xc2: case 0xc3: case 0xca: case 0xcb:  // RET
+                recordReturn();
                 savedIP = pop();
                 savedCS = (opcode & 8) == 0 ? cs() : pop();
                 if (!wordSize)
@@ -945,8 +1031,34 @@ void main1(Array<String> arguments)
             case 0xcd:
                 data = fetchByte();
                 switch (data) {
+                    case 0x10:
+                        switch (ah()) {
+                            case 0:
+                                break;
+                            case 0x0f:
+                                setAX(0x2804);
+                                setBH(0);
+                                break;
+                            default:
+                                fprintf(stderr, "Unknown BIOS video call "
+                                    "0x%02x", ah());
+                                runtimeError("");
+                        }
+                        break;
                     case 0x12:
                         setAX(640);
+                        break;
+                    case 0x16:
+                        switch (ah()) {
+                            case 1:
+                                setZF(true);
+                                setAX(0);
+                                break;
+                            default:
+                                fprintf(stderr, "Unknown BIOS keyboard call "
+                                    "0x%02x", ah());
+                                runtimeError("");
+                        }
                         break;
                     case 0x1a:
                         switch (ah()) {
@@ -1053,6 +1165,7 @@ void main1(Array<String> arguments)
                                 }
                                 break;
                             case 0x3d:
+                                printf("Opening file %s\n", dsdx());
                                 fileDescriptor = open(dsdx(), al() & 3, 0700);
                                 if (fileDescriptor != -1) {
                                     setCF(false);
@@ -1065,7 +1178,7 @@ void main1(Array<String> arguments)
                                 }
                                 break;
                             case 0x3e:
-                                fileDescriptor = fileDescriptors[bx()];
+                                fileDescriptor = getFileDescriptor();
                                 if (fileDescriptor == -1) {
                                     setCF(true);
                                     setAX(6);  // Invalid handle
@@ -1082,14 +1195,17 @@ void main1(Array<String> arguments)
                                 }
                                 break;
                             case 0x3f:
-                                fileDescriptor = fileDescriptors[bx()];
+                                fileDescriptor = getFileDescriptor();
                                 if (fileDescriptor == -1) {
                                     setCF(true);
                                     setAX(6);  // Invalid handle
                                     break;
                                 }
-                                data = read(fileDescriptor, dsdx(true, cx()),
+                                printf("Reading %i bytes from %i to %04x:%04x\n", cx(),
+                                    bx(), ds(), dx());
+                                data = read(fileDescriptor, pathBuffers[0],
                                     cx());
+                                dsdx(true, cx());
                                 if (data == (DWord)-1) {
                                     setCF(true);
                                     setAX(dosError(errno));
@@ -1100,7 +1216,7 @@ void main1(Array<String> arguments)
                                 }
                                 break;
                             case 0x40:
-                                fileDescriptor = fileDescriptors[bx()];
+                                fileDescriptor = getFileDescriptor();
                                 if (fileDescriptor == -1) {
                                     setCF(true);
                                     setAX(6);  // Invalid handle
@@ -1126,7 +1242,7 @@ void main1(Array<String> arguments)
                                 }
                                 break;
                             case 0x42:
-                                fileDescriptor = fileDescriptors[bx()];
+                                fileDescriptor = getFileDescriptor();
                                 if (fileDescriptor == -1) {
                                     setCF(true);
                                     setAX(6);  // Invalid handle
@@ -1147,7 +1263,7 @@ void main1(Array<String> arguments)
                             case 0x44:
                                 switch (al()) {
                                     case 0:
-                                        fileDescriptor = fileDescriptors[bx()];
+                                        fileDescriptor = getFileDescriptor();
                                         if (fileDescriptor == -1) {
                                             setCF(true);
                                             setAX(6);  // Invalid handle
@@ -1212,6 +1328,18 @@ void main1(Array<String> arguments)
                                 break;
                             default:
                                 fprintf(stderr, "Unknown DOS call 0x%02x",
+                                    ah());
+                                runtimeError("");
+                        }
+                        break;
+                    case 0x33:
+                        switch (ah()) {
+                            case 0x00:
+                                setAX(-1);
+                                setBX(2);
+                                break;
+                            default:
+                                fprintf(stderr, "Unknown mouse call 0x%02x",
                                     ah());
                                 runtimeError("");
                         }
@@ -1323,6 +1451,22 @@ void main1(Array<String> arguments)
             case 0xe3:  // JCXZ cb
                 jumpShort(fetchByte(), cx() == 0);
                 break;
+            case 0xe4:  // IN AL,ib
+                setAL(inportb(fetchByte()));
+                break;
+            case 0xe5:  // IN AX,ib
+                data = fetchByte();
+                setAL(inportb(data));
+                setAH(inportb(data + 1));
+                break;
+            case 0xe6:  // OUT ib,AL
+                outportb(fetchByte(), al());
+                break;
+            case 0xe7:  // OUT ib,AX
+                data = fetchByte();
+                outportb(data, al());
+                outportb(data + 1, ah());
+                break;
             case 0xe8:  // CALL cw
                 data = fetchWord();
                 call(ip + data);
@@ -1337,6 +1481,20 @@ void main1(Array<String> arguments)
                 break;
             case 0xeb:  // JMP cb
                 jumpShort(fetchByte(), true);
+                break;
+            case 0xec:  // IN AL,DX
+                setAL(inportb(dx()));
+                break;
+            case 0xed:  // IN AX,DX
+                setAL(inportb(dx()));
+                setAH(inportb(dx() + 1));
+                break;
+            case 0xee:  // OUT DX,AX
+                outportb(dx(), al());
+                outportb(dx() + 1, ah());
+                break;
+            case 0xef:  // OUT DX,AL
+                outportb(dx(), al());
                 break;
             case 0xf2: case 0xf3:  // REP
                 rep = opcode == 0xf2 ? 1 : 2;
@@ -1462,7 +1620,8 @@ void main1(Array<String> arguments)
                         finishWriteEA(incdec(modRMReg() != 0));
                         break;
                     case 2:  // CALL rmv
-                        call(readEA2());
+                        data = readEA2();
+                        call(data);
                         break;
                     case 3:  // CALL mp
                         farLoad();
@@ -1480,6 +1639,11 @@ void main1(Array<String> arguments)
                         break;
                 }
                 break;
+            default:
+                fprintf(stderr, "Invalid opcode %02x", opcode);
+                runtimeError("");
+                break;
+
         }
     }
     runtimeError("Timed out");
@@ -1492,4 +1656,73 @@ public:
     {
         main1(_arguments);
     }
+};
+
+
+class CGAWindow;
+
+class CGABitmapWindow : public BitmapWindow
+{
+public:
+    CGABitmapWindow()
+    {
+    }
+    void setCGAWindow(CGAWindow* window)
+    {
+        _spanWindow = window;
+    }
+    void paint()
+    {
+        _spanWindow->restart();
+    }
+    virtual void draw()
+    {
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(Vector(320, 200));
+
+        int address = 0xb8000;
+        for (int y = 0; y < 200; ++y) {
+
+            if (y & 1)
+        }
+        _bitmap.fill(0);
+
+
+        _bitmap = setNextBitmap(_bitmap);
+        invalidate();
+    }
+private:
+    CGAWindow* _spanWindow;
+    Bitmap<DWORD> _bitmap;
+};
+
+class CGAWindow : public RootWindow
+{
+public:
+    CGAWindow()
+    {
+        _bitmap.setCGAWindow(this);
+
+        add(&_bitmap);
+        add(&_animated);
+
+        _animated.setDrawWindow(&_bitmap);
+        _animated.setRate(60);
+    }
+    void restart() { _animated.restart(); }
+    void create()
+    {
+        setText("CGA");
+        setInnerSize(Vector(320, 200));
+        _bitmap.setTopLeft(Vector(0, 0));
+        RootWindow::create();
+        _animated.start();
+    }
+private:
+    CGABitmapWindow _bitmap;
+    AnimatedWindow _animated;
+};
+
+class Program : public WindowProgram<CGAWindow>
+{
 };

@@ -21,6 +21,7 @@ private:
 
 template<class T> UInt32 hash(const T& t) { return t.hash(); }
 UInt32 hash(int t) { return Hash(typeid(int)).mixin(t); }
+UInt32 hash(DWord t) { return Hash(typeid(int)).mixin(t); }
 UInt32 hash(UInt64 t)
 {
     return Hash(typeid(UInt64)).mixin(static_cast<UInt32>(t)).
