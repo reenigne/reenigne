@@ -217,14 +217,39 @@ private:
 template<class WindowClass> class WindowProgram : public ProgramBase
 {
 public:
-    void run()
+    WindowProgram() : _quitting(false) { }
+    void createWindow()
     {
         _window.setParent(0);
         _window.setWindows(&_windows);
         _window.create();
         _window.show(_nCmdShow);
-
+    }
+    void pumpMessages()
+    {
+        if (_quitting)
+            return;
         MSG msg;
+        do {
+            BOOL fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
+            if (fMessage == 0)
+                break;
+            if (msg.message == WM_QUIT)
+                break;
+            if (!IsDialogMessage(_window.hWnd(), &msg)) {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+            _windows.check();
+        } while (true);
+        if (msg.message == WM_QUIT) {
+            _quitting = true;
+            _returnValue = static_cast<int>(msg.wParam);
+        }
+    }
+    void run()
+    {
+        createWindow();
         do {
             bool more = idle();
             if (!more) {
@@ -233,26 +258,15 @@ public:
                     INFINITE, QS_ALLINPUT);
                 IF_FALSE_THROW(r != WAIT_FAILED);
             }
-            do {
-                BOOL fMessage = PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE);
-                if (fMessage == 0)
-                    break;
-                if (msg.message == WM_QUIT)
-                    break;
-                if (!IsDialogMessage(_window.hWnd(), &msg)) {
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                }
-                _windows.check();
-            } while (true);
-        } while (msg.message != WM_QUIT);
-        _returnValue = static_cast<int>(msg.wParam);
+            pumpMessages();
+        } while (!_quitting);
     }
 protected:
     // idle() returns true if there is more idle processing to do, false if
     // there isn't and we should wait for a message before calling again.
     virtual bool idle() { return false; }
 
+    bool _quitting;
     Event _interruptMessageLoop;
     WindowClass _window;
 };

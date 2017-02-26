@@ -32,11 +32,8 @@ char* pathBuffers[2];
 int* fileDescriptors;
 int fileDescriptorCount = 6;
 Word loadSegment = 0x0cbe;
-DWord reRegions[] = {
-    0x10cb1, 0x3acb4,
-    0x3af30, 0x3b288,
-    0x3b832, 0x3bae0
-};
+int regions;
+DWord* reRegions;
 bool useMemory;
 Word address;
 Word flags = 2;
@@ -463,9 +460,9 @@ HashTable<DWord, DWord> functions;
 AppendableArray<DWord> callStack;
 bool inREArea(DWord physicalAddress)
 {
-    for (int i = 0; i < sizeof(reRegions)/4; i += 2) {
-        //if (physicalAddress >= reRegions[i] &&
-        //    physicalAddress < reRegions[i + 1])
+    for (int i = 0; i < regions; ++i) {
+        if (physicalAddress >= reRegions[i*2] &&
+            physicalAddress < reRegions[i*2 + 1])
             return true;
     }
     return false;
@@ -569,13 +566,123 @@ Byte inportb(Word port)
     }
 }
 
-void main1(Array<String> arguments)
+
+DWORD cgaColours[4] = {0, 0x55ffff, 0xff55ff, 0xffffff};
+
+class CGABitmapWindow : public BitmapWindow
+{
+public:
+    void update()
+    {
+        if (!_bitmap.valid())
+            _bitmap = Bitmap<DWORD>(Vector(320, 200));
+        int address = 0xb8000;
+        Byte* outputRow = _bitmap.data();
+        for (int y = 0; y < 200; ++y) {
+            DWORD* output = reinterpret_cast<DWORD*>(outputRow);
+            for (int x = 0; x < 80; ++x) {
+                Byte b = ram[address];
+                for (int xx = 6; xx >= 0; xx -= 2) {
+                    *output = cgaColours[(b >> xx) & 3];
+                    ++output;
+                }
+                ++address;
+            }
+            if ((y & 1) == 0)
+                address += 0x2000 - 80;
+            else
+                address -= 0x2000;
+            outputRow += _bitmap.stride();
+        }
+        _bitmap = setNextBitmap(_bitmap);
+    }
+private:
+    Bitmap<DWORD> _bitmap;
+};
+
+class CGAWindow : public RootWindow
+{
+public:
+    CGAWindow()
+    {
+        add(&_bitmap);
+    }
+    void create()
+    {
+        setText("CGA");
+        setInnerSize(Vector(320, 200));
+        _bitmap.setInnerSize(Vector(320, 200));
+        _bitmap.setTopLeft(Vector(0, 0));
+        RootWindow::create();
+    }
+    void update()
+    {
+        _bitmap.update();
+    }
+private:
+    CGABitmapWindow _bitmap;
+};
+
+void main1(Array<String> arguments, Program* program);
+
+class Program : public WindowProgram<CGAWindow>
+{
+public:
+    void run()
+    {
+        createWindow();
+        main1(_arguments, this);
+    }
+    void update()
+    {
+        _window.update();
+        pumpMessages();
+    }
+};
+
+void main1(Array<String> arguments, Program* program)
 {
     if (arguments.count() < 2) {
-        console.write("Usage: " + arguments[0] + " <program name> [args]\n");
+        console.write("Usage: " + arguments[0] + " <config file>\n");
         exit(0);
     }
+
+    List<StructuredType::Member> regionTypeMembers;
+    regionTypeMembers.add(StructuredType::Member("start", IntegerType()));
+    regionTypeMembers.add(StructuredType::Member("end", IntegerType()));
+    StructuredType regionType("Region", regionTypeMembers);
+    List<StructuredType::Member> functionTypeMembers;
+    functionTypeMembers.add(StructuredType::Member("address", IntegerType()));
+    functionTypeMembers.add(StructuredType::Member("name", StringType()));
+    StructuredType functionType("Function", functionTypeMembers);
+    ConfigFile configFile;
+    List<Value> emptyList;
+    configFile.addOption("commandLine", StringType());
+    configFile.addDefaultOption("loadSegment", 0x1000);
+    Type regionsType = ArrayType(regionType);
+    configFile.addDefaultOption("reRegions", regionsType,
+        Value(regionsType, emptyList));
+    Type functionsType = ArrayType(functionType);
+    configFile.addDefaultOption("functions", functionsType,
+        Value(functionsType, emptyList));
+    configFile.load(File(arguments[1], true));
+    String commandLine = configFile.get<String>("commandLine");
+    loadSegment = configFile.get<int>("loadSegment");
+    List<Value> reRegionsValue = configFile.get<List<Value>>("reRegions");
+    regions = reRegionsValue.count();
+    reRegions = (DWord*)alloc(regions*2*sizeof(DWord));
+    int r = 0;
+    for (auto i : reRegionsValue) {
+        auto stv = i.value<HashTable<Identifier, Value>>();
+        reRegions[r] = stv["start"].value<int>();
+        reRegions[r + 1] = stv["end"].value<int>();
+        r += 2;
+    }
+    List<Value> functionsValue = configFile.get<List<Value>>("functions");
+
+
     int iosToTimerIRQ = 0;
+    int iosToFrame = 0;
     NullTerminatedString arg1(arguments[1]);
     filename = arg1;
 #ifdef _WIN32
@@ -748,8 +855,10 @@ void main1(Array<String> arguments)
     bool prefix = false;
     int lastios = 0;
     for (int i = 0; i < 1000000000; ++i) {
-        iosToTimerIRQ -= ios - lastios;
+        int iosElapsed = ios - lastios;
         lastios = ios;
+        iosToTimerIRQ -= iosElapsed;
+        iosToFrame -= iosElapsed;
         if (!prefix && intf() && iosToTimerIRQ <= 0) {
             iosToTimerIRQ += 65536;
             push(flags);
@@ -758,6 +867,10 @@ void main1(Array<String> arguments)
             setCS(0);
             ip = readWord(0x70, 1);
             setCS(readWord(0x72, 1));
+        }
+        if (iosToFrame <= 0) {
+            iosToFrame += 19912;
+            program->update();
         }
         if (!repeating) {
             if (!prefix) {
@@ -1165,7 +1278,7 @@ void main1(Array<String> arguments)
                                 }
                                 break;
                             case 0x3d:
-                                printf("Opening file %s\n", dsdx());
+                                //printf("Opening file %s\n", dsdx());
                                 fileDescriptor = open(dsdx(), al() & 3, 0700);
                                 if (fileDescriptor != -1) {
                                     setCF(false);
@@ -1201,8 +1314,8 @@ void main1(Array<String> arguments)
                                     setAX(6);  // Invalid handle
                                     break;
                                 }
-                                printf("Reading %i bytes from %i to %04x:%04x\n", cx(),
-                                    bx(), ds(), dx());
+                                //printf("Reading %i bytes from %i to "
+                                //    "%04x:%04x\n", cx(), bx(), ds(), dx());
                                 data = read(fileDescriptor, pathBuffers[0],
                                     cx());
                                 dsdx(true, cx());
@@ -1333,14 +1446,19 @@ void main1(Array<String> arguments)
                         }
                         break;
                     case 0x33:
-                        switch (ah()) {
+                        switch (ax()) {
                             case 0x00:
                                 setAX(-1);
                                 setBX(2);
                                 break;
+                            case 0x03:
+                                setCX(320);
+                                setDX(100);
+                                setBX(0);
+                                break;
                             default:
                                 fprintf(stderr, "Unknown mouse call 0x%02x",
-                                    ah());
+                                    ax());
                                 runtimeError("");
                         }
                         break;
@@ -1648,81 +1766,3 @@ void main1(Array<String> arguments)
     }
     runtimeError("Timed out");
 }
-
-class Program : public ProgramBase
-{
-public:
-    void run()
-    {
-        main1(_arguments);
-    }
-};
-
-
-class CGAWindow;
-
-class CGABitmapWindow : public BitmapWindow
-{
-public:
-    CGABitmapWindow()
-    {
-    }
-    void setCGAWindow(CGAWindow* window)
-    {
-        _spanWindow = window;
-    }
-    void paint()
-    {
-        _spanWindow->restart();
-    }
-    virtual void draw()
-    {
-        if (!_bitmap.valid())
-            _bitmap = Bitmap<DWORD>(Vector(320, 200));
-
-        int address = 0xb8000;
-        for (int y = 0; y < 200; ++y) {
-
-            if (y & 1)
-        }
-        _bitmap.fill(0);
-
-
-        _bitmap = setNextBitmap(_bitmap);
-        invalidate();
-    }
-private:
-    CGAWindow* _spanWindow;
-    Bitmap<DWORD> _bitmap;
-};
-
-class CGAWindow : public RootWindow
-{
-public:
-    CGAWindow()
-    {
-        _bitmap.setCGAWindow(this);
-
-        add(&_bitmap);
-        add(&_animated);
-
-        _animated.setDrawWindow(&_bitmap);
-        _animated.setRate(60);
-    }
-    void restart() { _animated.restart(); }
-    void create()
-    {
-        setText("CGA");
-        setInnerSize(Vector(320, 200));
-        _bitmap.setTopLeft(Vector(0, 0));
-        RootWindow::create();
-        _animated.start();
-    }
-private:
-    CGABitmapWindow _bitmap;
-    AnimatedWindow _animated;
-};
-
-class Program : public WindowProgram<CGAWindow>
-{
-};

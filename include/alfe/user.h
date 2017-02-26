@@ -3,6 +3,8 @@
 #ifndef INCLUDED_USER_H
 #define INCLUDED_USER_H
 
+#include "alfe/bitmap.h"
+
 // TODO: Xlib port
 
 #include <windows.h>
