@@ -153,6 +153,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\alfe\config_file.h" />
+    <ClInclude Include="..\..\include\alfe\expression.h" />
     <ClInclude Include="..\..\include\alfe\main.h" />
     <ClInclude Include="..\..\include\alfe\type.h" />
     <ClInclude Include="..\..\include\alfe\user.h" />

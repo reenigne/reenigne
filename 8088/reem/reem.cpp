@@ -659,10 +659,10 @@ void main1(Array<String> arguments, Program* program)
     List<Value> emptyList;
     configFile.addOption("commandLine", StringType());
     configFile.addDefaultOption("loadSegment", 0x1000);
-    Type regionsType = ArrayType(regionType);
+    Type regionsType = ArrayType(regionType, IntegerType());
     configFile.addDefaultOption("reRegions", regionsType,
         Value(regionsType, emptyList));
-    Type functionsType = ArrayType(functionType);
+    Type functionsType = ArrayType(functionType, IntegerType());
     configFile.addDefaultOption("functions", functionsType,
         Value(functionsType, emptyList));
     configFile.load(File(arguments[1], true));
@@ -683,7 +683,7 @@ void main1(Array<String> arguments, Program* program)
 
     int iosToTimerIRQ = 0;
     int iosToFrame = 0;
-    NullTerminatedString arg1(arguments[1]);
+    NullTerminatedString arg1(commandLine);
     filename = arg1;
 #ifdef _WIN32
     _set_fmode(_O_BINARY);

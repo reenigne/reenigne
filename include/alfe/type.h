@@ -1571,15 +1571,14 @@ protected:
                     return false;
                 }
                 for (int i = 0; i < _members.count(); ++i) {
-                    String name = decimal(i);
-                    if (!_names.hasKey(name)) {
+                    if (!_members[i].name().empty()) {
                         *why = "Array cannot be initialized with a structured "
                             "value containing named members";
                         return false;
                     }
                     String reason;
-                    if (!member(name).canConvertTo(contained, &reason)) {
-                        *why = "Cannot convert child member " + name;
+                    if (!_members[i].type().canConvertTo(contained, &reason)) {
+                        *why = "Cannot convert child member " + decimal(i);
                         if (!reason.empty())
                             *why += ": " + reason;
                         return false;
@@ -1591,8 +1590,7 @@ protected:
             if (toTuple.valid()) {
                 int count = _members.count();
                 for (int i = _members.count() - 1; i >= 0; --i) {
-                    String name = decimal(i);
-                    if (!_names.hasKey(name)) {
+                    if (!_members[i].name().empty()) {
                         *why = "Tuple cannot be initialized with a structured "
                             "value containing named members";
                         return false;
@@ -1603,9 +1601,9 @@ protected:
                         return false;
                     }
                     String reason;
-                    if (!member(name).
+                    if (!_members[i].type().
                         canConvertTo(toTuple.lastMember(), &reason)) {
-                        *why = "Cannot convert child member " + name;
+                        *why = "Cannot convert child member " + decimal(i);
                         if (!reason.empty())
                             *why += ": " + reason;
                         return false;

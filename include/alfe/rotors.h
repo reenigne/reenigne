@@ -20,15 +20,17 @@ template<class T> class Rotor2_static_cast;
 // 2D Rotors are isomorphic to unit complex numbers, and
 // 3D Rotors are isomorphic to unit quaternions.
 
+// Rotors R and -R have the same meaning geometrically, so they form a
+// double-cover.
+
 template<class T> class Rotor2
 {
 public:
     Rotor2() : _c(1), _s(0) { }
-    Rotor2(T angle)
+    Rotor2(T a)
     {
-        T a = static_cast<T>(angle*tau);
-        _c = cos(a);
-        _s = sin(a);
+        _c = cos(a/2);
+        _s = sin(a/2);
     }
     // Construct a rotor that rotates a onto b
     Rotor2(Vector2<T>& a, Vector2<T>& b)
@@ -64,8 +66,14 @@ public:
     {
         return *this * other.conjugate();
     }
-    // The negative rotor rotates by an extra half-rotation
-    Rotor2 operator-() const { return Rotor2(-_c, -_s); }
+    void toMatrix(T* matrix)
+    {
+        matrix[0] = 1 - 2*(_s*_s);
+        matrix[1] =     2*(_s*_c);
+        matrix[2] =   - 2*(_s*_c);
+        matrix[3] = 1 - 2*(_s*_s);
+    }
+
     // The conjugate rotor rotates in the opposite direction
     Rotor2 conjugate() const { return Rotor2(_c, -_s); }
 private:
@@ -91,9 +99,9 @@ template<class T> class Rotor3
 {
 public:
     Rotor3() : _sc(1), _yz(0), _zx(0), _xy(0) { }
-    static Rotor3<T> yz(T a) { return Rotor3<T>(cos(a), sin(a), 0, 0); }
-    static Rotor3<T> zx(T a) { return Rotor3<T>(cos(a), 0, sin(a), 0); }
-    static Rotor3<T> xy(T a) { return Rotor3<T>(cos(a), 0, 0, sin(a)); }
+    static Rotor3<T> yz(T a) { return Rotor3<T>(cos(a/2), sin(a/2), 0, 0); }
+    static Rotor3<T> zx(T a) { return Rotor3<T>(cos(a/2), 0, sin(a/2), 0); }
+    static Rotor3<T> xy(T a) { return Rotor3<T>(cos(a/2), 0, 0, sin(a/2)); }
 
     //    // Construct a rotor that rotates a onto b
     //Rotor3(Vector3<T>& a, Vector3<T>& b)
@@ -136,10 +144,6 @@ public:
     {
         return *this * other.conjugate();
     }
-
-    // There is no 3D version of operator-() because it's not well-defined -
-    // consider the case of the identity Rotor - there are a continuum of
-    // possible rotors that rotate 180 degrees.
 
     // The conjugate rotor rotates in the opposite direction.
     Rotor3 conjugate() const { return Rotor3(_sc, -_yz, -zx, -xy); }

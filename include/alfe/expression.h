@@ -220,19 +220,22 @@ protected:
         }
         if (Space::parseCharacter(&s2, '{', &span)) {
             List<Expression> expressions;
+            bool foundExpression = false;
             do {
-                e = parse(&s2);
-                if (!e.valid())
-                    return e;
-                expressions.add(e);
                 Span span2;
-                bool seenComma = Space::parseCharacter(&s2, ',', &span2);
                 if (Space::parseCharacter(&s2, '}', &span2)) {
                     *source = s2;
                     return create<ArrayLiteralBody>(expressions, span + span2);
                 }
-                if (!seenComma)
+                if (foundExpression &&
+                    !Space::parseCharacter(&s2, ',', &span2)) {
                     return Expression();
+                }
+                e = parse(&s2);
+                if (!e.valid())
+                    return e;
+                expressions.add(e);
+                foundExpression = true;
             } while (true);
         }
         return e;
