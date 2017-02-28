@@ -736,7 +736,7 @@ font:        ; 1248
   .byte 0x1f ; *****
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x0f ; ****.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -744,7 +744,7 @@ font:        ; 1248
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x0f ; ****.
-
+  .byte 0
   .byte 0x0e ; .***.
   .byte 0x11 ; *...*
   .byte 0x01 ; *....
@@ -752,7 +752,7 @@ font:        ; 1248
   .byte 0x01 ; *....
   .byte 0x11 ; *...*
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x0f ; ****.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -760,7 +760,7 @@ font:        ; 1248
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x0f ; ****.
-
+  .byte 0
   .byte 0x1f ; *****
   .byte 0x01 ; *....
   .byte 0x01 ; *....
@@ -768,7 +768,7 @@ font:        ; 1248
   .byte 0x01 ; *....
   .byte 0x01 ; *....
   .byte 0x1f ; *****
-
+  .byte 0
   .byte 0x1f ; *****
   .byte 0x01 ; *....
   .byte 0x01 ; *....
@@ -776,7 +776,7 @@ font:        ; 1248
   .byte 0x01 ; *....
   .byte 0x01 ; *....
   .byte 0x01 ; *....
-
+  .byte 0
   .byte 0x0e ; .***.
   .byte 0x11 ; *...*
   .byte 0x01 ; *....
@@ -784,7 +784,7 @@ font:        ; 1248
   .byte 0x19 ; *..**
   .byte 0x11 ; *...*
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -792,7 +792,7 @@ font:        ; 1248
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x0e ; .***.
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
@@ -800,7 +800,7 @@ font:        ; 1248
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x10 ; ....*
   .byte 0x10 ; ....*
   .byte 0x10 ; ....*
@@ -808,7 +808,7 @@ font:        ; 1248
   .byte 0x10 ; ....*
   .byte 0x11 ; *...*
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x09 ; *..*.
   .byte 0x05 ; *.*..
@@ -816,7 +816,7 @@ font:        ; 1248
   .byte 0x05 ; *.*..
   .byte 0x09 ; *..*.
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x01 ; *....
   .byte 0x01 ; *....
   .byte 0x01 ; *....
@@ -824,7 +824,7 @@ font:        ; 1248
   .byte 0x01 ; *....
   .byte 0x01 ; *....
   .byte 0x1f ; *****
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x1b ; **.**
   .byte 0x15 ; *.*.*
@@ -832,7 +832,7 @@ font:        ; 1248
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x13 ; **..*
@@ -840,7 +840,7 @@ font:        ; 1248
   .byte 0x19 ; *..**
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x0e ; .***.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -848,7 +848,7 @@ font:        ; 1248
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x0f ; ****.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -856,7 +856,7 @@ font:        ; 1248
   .byte 0x01 ; *....
   .byte 0x01 ; *....
   .byte 0x01 ; *....
-
+  .byte 0
   .byte 0x0e ; .***.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -864,7 +864,7 @@ font:        ; 1248
   .byte 0x15 ; *.*.*
   .byte 0x09 ; *..*.
   .byte 0x16 ; .**.*
-
+  .byte 0
   .byte 0x0f ; ****.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -872,7 +872,7 @@ font:        ; 1248
   .byte 0x05 ; *.*..
   .byte 0x09 ; *..*.
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x0e ; .***.
   .byte 0x11 ; *...*
   .byte 0x01 ; *....
@@ -880,7 +880,7 @@ font:        ; 1248
   .byte 0x10 ; ....*
   .byte 0x11 ; *...*
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x1f ; *****
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
@@ -888,7 +888,7 @@ font:        ; 1248
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -896,7 +896,7 @@ font:        ; 1248
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x0e ; .***.
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -904,7 +904,7 @@ font:        ; 1248
   .byte 0x0a ; .*.*.
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
@@ -912,7 +912,7 @@ font:        ; 1248
   .byte 0x15 ; *.*.*
   .byte 0x15 ; *.*.*
   .byte 0x0a ; .*.*.
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x0a ; .*.*.
@@ -920,7 +920,7 @@ font:        ; 1248
   .byte 0x0a ; .*.*.
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
-
+  .byte 0
   .byte 0x11 ; *...*
   .byte 0x11 ; *...*
   .byte 0x0a ; .*.*.
@@ -928,7 +928,7 @@ font:        ; 1248
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
   .byte 0x04 ; ..*..
-
+  .byte 0
   .byte 0x1f ; *****
   .byte 0x10 ; ....*
   .byte 0x08 ; ...*.
@@ -936,6 +936,7 @@ font:        ; 1248
   .byte 0x02 ; .*...
   .byte 0x01 ; *....
   .byte 0x1f ; *****
+  .byte 0
 
 .global words
 words:

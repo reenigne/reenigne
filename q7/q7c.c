@@ -25,7 +25,7 @@
 extern uint8_t frameBuffer[336];
 extern uint8_t PROGMEM words[700];
 extern uint8_t PROGMEM seven[10];
-extern uint8_t PROGMEM font[26*7]
+extern uint8_t PROGMEM font[26*8]
 
 //extern uint8_t editor;
 //extern uint8_t waveformPreset;
@@ -887,12 +887,13 @@ void updateFrame()
     Byte* screen = &frameBuffer[0];
     int i;
     for (i = 0; i < 7; ++i) {
-        int c = chars[a[i]];
+        Byte* cp = &font[(chars[a[i]] - 'A') << 3];
         Byte* line = screen;
         for (int y = 0; y < 7; ++i) {
             Byte* p = line;
+            Byte b = *cp++;
             for (int x = 0; x < 5; ++i) {
-                if ((c & (1 << x)) != 0)
+                if ((b & (1 << x)) != 0)
                     *p = 255;
                 else
                     *p = 0;

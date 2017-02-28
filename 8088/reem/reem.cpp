@@ -458,6 +458,7 @@ void farLoad()
 void farJump() { setCS(savedCS); ip = savedIP; }
 HashTable<DWord, DWord> functions;
 AppendableArray<DWord> callStack;
+HashTable<DWord, String> functionNames;
 bool inREArea(DWord physicalAddress)
 {
     for (int i = 0; i < regions; ++i) {
@@ -467,6 +468,33 @@ bool inREArea(DWord physicalAddress)
     }
     return false;
 }
+
+class Decompiler
+{
+public:
+
+private:
+    Byte* _ram;
+};
+
+void decompileFunction(DWord physicalAddress)
+{
+    do {
+        Byte opcode = ram[physicalAddress];
+        switch (opcode) {
+            case 0x50: case 0x51: case 0x52: case 0x53:
+            case 0x54: case 0x55: case 0x56: case 0x57:  // PUSH rw
+                addInstruction
+                break;
+            default:
+                fprintf(stderr, "Unknown opcode %02x at %05x\n", opcode,
+                    physicalAddress);
+                runtimeError("");
+                break;
+        }
+    } while (true);
+}
+
 void recordCall(Word newCS, Word newIP)
 {
     DWord segOff = (newCS << 16) + newIP;
@@ -474,6 +502,7 @@ void recordCall(Word newCS, Word newIP)
     if (!inREArea(physicalAddress))
         return;
     callStack.append((cs() << 16) + ip);
+    callStack.append(physicalAddress);
     if (functions.hasKey(physicalAddress)) {
         DWord oldSegOff = functions[physicalAddress];
         if (oldSegOff != segOff) {
@@ -482,20 +511,27 @@ void recordCall(Word newCS, Word newIP)
                 oldSegOff & 0xffff, segOff >> 16, segOff & 0xffff);
             runtimeError("");
         }
+        return;
     }
-    else {
-        functions.add(physicalAddress, segOff);
-        for (int i = 0; i < callStack.count(); ++i) {
-            DWord a = callStack[i];
-            printf("%04x:%04x ", a >> 16, a & 0xffff);
-        }
-        printf("%04x:%04x\n", newCS, newIP);
+    functions.add(physicalAddress, segOff);
+    for (int i = 0; i < callStack.count(); i += 2) {
+        DWord caller = callStack[i];
+        DWord callee = callStack[i + 1];
+        String name;
+        if (functionNames.hasKey(callee))
+            name = functionNames[callee];
+        else
+            name = "sub_" + hex(callee, 5, false);
+        NullTerminatedString n(name);
+        printf(":%04x %s", caller & 0xffff, (const char*)n);
     }
+    printf("\n");
+    decompileFunction(physicalAddress);
 }
 void recordReturn()
 {
     if (inREArea((cs() << 4) + ip - 1))
-        callStack.unappend();
+        callStack.unappend(2);
 }
 void farCall()
 {
@@ -679,7 +715,11 @@ void main1(Array<String> arguments, Program* program)
         r += 2;
     }
     List<Value> functionsValue = configFile.get<List<Value>>("functions");
-
+    for (auto i : functionsValue) {
+        auto stv = i.value<HashTable<Identifier, Value>>();
+        functionNames.add(stv["address"].value<int>(),
+            stv["name"].value<String>());
+    }
 
     int iosToTimerIRQ = 0;
     int iosToFrame = 0;
