@@ -1,3 +1,8 @@
+#include "alfe/main.h"
+
+#ifndef INCLUDED_STATEMENT_H
+#define INCLUDED_STATEMENT_H
+
 template<class T> class StatementT;
 typedef StatementT<void> Statement;
 
@@ -940,3 +945,5 @@ protected:
         void (*_execute)(RunTimeStack* stack);
     };
 };
+
+#endif // INCLUDED_STATEMENT_H

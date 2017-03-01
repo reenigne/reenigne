@@ -2,6 +2,7 @@
 #include "alfe/config_file.h"
 #include "alfe/user.h"
 #include "alfe/bitmap.h"
+#include "alfe/statement.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -472,28 +473,35 @@ bool inREArea(DWord physicalAddress)
 class Decompiler
 {
 public:
+    void decompileFunction(DWord physicalAddress)
+    {
+        do {
+            Byte opcode = _ram[physicalAddress];
+            switch (opcode) {
+                case 0x50: case 0x51: case 0x52: case 0x53:
+                case 0x54: case 0x55: case 0x56: case 0x57:  // PUSH rw
+                    push(rw(opcode & 0xf));
+                    break;
+                default:
+                    fprintf(stderr, "Unknown opcode %02x at %05x\n", opcode,
+                        physicalAddress);
+                    runtimeError("");
+                    break;
+            }
+        } while (true);
+    }
 
 private:
+    Expression rw(int n)
+    {
+
+    }
+    void push(Expression e)
+    {
+    }
+
     Byte* _ram;
 };
-
-void decompileFunction(DWord physicalAddress)
-{
-    do {
-        Byte opcode = ram[physicalAddress];
-        switch (opcode) {
-            case 0x50: case 0x51: case 0x52: case 0x53:
-            case 0x54: case 0x55: case 0x56: case 0x57:  // PUSH rw
-                addInstruction
-                break;
-            default:
-                fprintf(stderr, "Unknown opcode %02x at %05x\n", opcode,
-                    physicalAddress);
-                runtimeError("");
-                break;
-        }
-    } while (true);
-}
 
 void recordCall(Word newCS, Word newIP)
 {

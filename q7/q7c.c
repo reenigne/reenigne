@@ -72,7 +72,7 @@ extern uint8_t PROGMEM font[26*8]
 //register uint8_t switchesTouched __asm__ ("r13");
 //register uint8_t beatsPerPattern __asm__ ("r14");
 //register uint8_t waterPage __asm__ ("r15");
-//register uint8_t lightsLit __asm__ ("r16");
+register uint8_t random __asm__ ("r16");
 //register flags_t flags __asm__ ("r17");
 //register uint8_t const1 __asm__ ("r18");
 //register uint8_t const0x10 __asm__ ("r19");
@@ -871,7 +871,6 @@ extern uint8_t PROGMEM font[26*8]
 
 int a[7];
 const char *chars;
-int random;
 bool won = false;
 int m = 0;
 

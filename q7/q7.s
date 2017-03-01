@@ -58,8 +58,6 @@ __vector_13:  ; TIMER1_OVF_vect
   std Z+\column, r24             ; 2    --lineBuffer[column]
 .endm
 
-
-
   illuminate 0x10
   illuminate 0x11
   illuminate 0x12
@@ -177,13 +175,13 @@ noNewFrame:
   mov r12,r30
   mov r13,r31
 
-
+  ; Increment random number
   inc r16
   cp r16,100
   jne doneInterrupt
   mov r16, r2
-
 doneInterrupt:
+
   sei                            ; 1  Enable interrupts a bit early so that we can postpone the epilogue until after the next interrupt if we need to.
   pop r0                         ; 2
   out 0x3f, r0                   ; 1
@@ -198,6 +196,29 @@ doneInterrupt:
   pop r30                        ; 2
   pop r31                        ; 2
   reti                           ; 4
+
+
+
+;SIGNAL(TIMER1_OVF_vect)
+;{
+.global __vector_13              ; 7
+__vector_13:  ; TIMER1_OVF_vect
+  push r31                       ; 2
+  push r30                       ; 2
+  push r29                       ; 2
+  push r28                       ; 2
+  push r27                       ; 2
+  push r26                       ; 2
+  push r25                       ; 2
+  push r24                       ; 2
+  push r1                        ; 2
+  push r0                        ; 2
+  in r0, 0x3f                    ; 1
+  push r0                        ; 2
+
+; Read TCNT1 into r17:r16
+in r5,TCNT1L
+in r6,TCNT1H
 
 
 ; The toolchain links in code that at the start of the program, sets SP = 0x8ff (top of RAM) and the status flags all to 0 before calling main.
@@ -440,11 +461,11 @@ main:
   ldi r31, 0x00
   sts 0x82, r31
 
-  ; ICR1 value: 0x0400  (Timer/Counter 1 Input Capture Register)
-  ;   Timer 1 overflow frequency (15.625KHz at 16MHz clock frequency)
-  ldi r31, 0x04
+  ; ICR1 value: 0x4ec0  (Timer/Counter 1 Input Capture Register)
+  ;   Timer 1 overflow frequency (793Hz at 16MHz clock frequency)
+  ldi r31, 0x4e
   sts 0x87, r31
-  ldi r31, 0x00
+  ldi r31, 0xc0
   sts 0x86, r31
 
   ; OCR1A value: blue LED brightness
@@ -680,8 +701,8 @@ frameBuffer:           ; 300-400
 ;   0                           r2
 ;   sampleInLine                r3  (only 4 bits used - duplicates low bits of r11)
 ;   lineInFrame                 r4  (only 4 bits used - duplicates high bits of r11)
-;   frameInBeat low             r5
-;   frameInBeat high            r6
+;   scramble low                r5
+;   scramble high               r6
 ;   framesPerBeat low           r7
 ;   framesPerBeat high          r8
 ;   beatInPattern               r9  (only 4 bits used)
