@@ -199,10 +199,10 @@ doneInterrupt:
 
 
 
-;SIGNAL(TIMER1_OVF_vect)
+;SIGNAL(PCINT2_vect)
 ;{
-.global __vector_13              ; 7
-__vector_13:  ; TIMER1_OVF_vect
+.global __vector_5              ; 7
+__vector_5:  ; PCINT2_vect
   push r31                       ; 2
   push r30                       ; 2
   push r29                       ; 2
@@ -216,7 +216,7 @@ __vector_13:  ; TIMER1_OVF_vect
   in r0, 0x3f                    ; 1
   push r0                        ; 2
 
-; Read TCNT1 into r17:r16
+; Read TCNT1 into r6:r5
 in r5,TCNT1L
 in r6,TCNT1H
 
@@ -274,28 +274,28 @@ main:
   ldi r31, 0x00
   out 0x08, r31
 
-  ; DDRD value:   0x6c  (Port D Data Direction Register)
+  ; DDRD value:   0x04  (Port D Data Direction Register)
   ;   DDD0           0  Debugging (RXD)
   ;   DDD1           0  Debugging (TXD)
   ;   DDD2           4  Sync out                    - output
-  ;   DDD3           8  Audio output (OC2B)         - output
-  ;   DDD4           0  Switch input 0              - input
-  ;   DDD5        0x20  Red LED (OC0B)              - output
-  ;   DDD6        0x40  Green LED (OC0A)            - output
+  ;   DDD3           0  Switch input X
+  ;   DDD4           0  Switch input Z
+  ;   DDD5           0  Switch input Esc
+  ;   DDD6           0  Green LED (OC0A)            - output
   ;   DDD7           0  Switch input 1              - input
-  ldi r31, 0x6c
+  ldi r31, 0x04
   out 0x0a, r31
 
-  ; PORTD value:  0x91  (Port D Data Register)
+  ; PORTD value:  0xb9  (Port D Data Register)
   ;   PORTD0         1  Debugging (RXD)             - pull-up enabled
   ;   PORTD1         0  Debugging (TXD)
   ;   PORTD2         0  Sync out                    - low
-  ;   PORTD3         0  Audio output (OC2B)
-  ;   PORTD4      0x10  Switch input 0              - pull-up enabled
-  ;   PORTD5         0  Red LED (OC0B)
+  ;   PORTD3         8  Switch input X              - pull-up enabled
+  ;   PORTD4      0x10  Switch input Z              - pull-up enabled
+  ;   PORTD5      0x20  Switch input Esc            - pull-up enabled
   ;   PORTD6         0  Green LED (OC0A)
   ;   PORTD7      0x80  Switch input 1              - pull-up enabled
-  ldi r31, 0x91
+  ldi r31, 0xb9
   out 0x0b, r31
 
   ; TCCR0A value: 0xa3  (Timer/Counter 0 Control Register A)
@@ -352,6 +352,25 @@ main:
   out 0x3e, r31
 
   ; SPDR (SPI data register) port 0x2e - shift register data
+
+  ; PCICR value:  0x04  (Pin Change Interrupt Control Register)
+  ;   PCIE0          0  Pin Change Interrupt Enable 0
+  ;   PCIE1          0  Pin Change Interrupt Enable 1
+  ;   PCIE2          4  Pin Change Interrupt Enable 2
+  ldi r31, 0x04
+  sts 0x68, r31
+
+  ; PCMSK2 value: 0x38  (Pin Change Mask Register 2)
+  ;   PCINT16        0  D0
+  ;   PCINT17        0  D1
+  ;   PCINT18        0  D2
+  ;   PCINT19        8  D3   Input Switch X
+  ;   PCINT20     0x10  D4   Input Switch Z
+  ;   PCINT21     0x20  D5   Input Switch Esc
+  ;   PCINT22        0  D6
+  ;   PCINT23        0  D7
+  ldi r31, 0x38
+  sts 0x6d, r31
 
   ; TIMSK0 value: 0x00  (Timer/Counter 0 Interrupt Mask Register)
   ;   TOIE0          0  Timer 0 overflow:  no interrupt
