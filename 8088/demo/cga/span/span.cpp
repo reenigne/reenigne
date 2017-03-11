@@ -95,6 +95,7 @@ void fillTriangle(Point2 a, Point2 b, Point2 c)
     float dac = (c.x - a.x)/(c.y - a.y);
     float dbc = (c.x - b.x)/(c.y - b.y);
 
+    float xL =
 
     xL = a.x<<8;
     xR = xL;
@@ -191,6 +192,52 @@ public:
         _bitmap = setNextBitmap(_bitmap);
     }
 private:
+    void horizontalLine(int xL, int xR, int y, int c)
+    {
+        DWORD* p =
+            reinterpret_cast<DWORD*>(_bitmap.data() + y*_bitmap.stride()) + xL;
+        for (int x = xL; x < xR; ++x) {
+            *p = cgaColours[c];
+            ++p;
+        }
+    }
+    void fillTrapezoid(int yStart, int yEnd, float xL, float xR, float dL,
+        float dR, int c)
+    {
+        for (int y = yStart; y < yEnd; ++y) {
+            horizontalLine(static_cast<int>(ceil(xL)),
+                static_cast<int>(ceil(xR)), y, c);
+            xL += dL;
+            xR += dR;
+        }
+    }
+    void fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
+    {
+        if (a.y > b.y) swap(a, b);
+        if (b.y > c.y) swap(b, c);
+        if (a.y > b.y) swap(a, b);
+        float dab = (b.x - a.x)/(b.y - a.y);
+        float dac = (c.x - a.x)/(c.y - a.y);
+        float dbc = (c.x - b.x)/(c.y - b.y);
+
+        int ya = static_cast<int>(ceil(a.y));
+        int yb = static_cast<int>(ceil(b.y));
+        int yc = static_cast<int>(ceil(c.y));
+        if (dab < dac) {
+            fillTrapezoid(ya, yb, (ya - a.y)*dab, (ya - a.y)*dac, dab, dac,
+                colour);
+            fillTrapezoid(yb, yc, (yb - a.y)*dab, (yb - a.y)*dac, dab, dac,
+                colour);
+        }
+        else {
+            fillTrapezoid(ya, yb, (ya - a.y)*dac, (ya - a.y)*dab, dac, dab,
+                colour);
+            fillTrapezoid(yb, yc, (yb - a.y)*dac, (yb - a.y)*dab, dac, dab,
+                colour);
+        }
+    }
+
+
     SpanWindow* _spanWindow;
     Bitmap<DWORD> _bitmap;
     float _theta;
