@@ -224,16 +224,16 @@ private:
         int yb = static_cast<int>(ceil(b.y));
         int yc = static_cast<int>(ceil(c.y));
         if (dab < dac) {
-            fillTrapezoid(ya, yb, (ya - a.y)*dab, (ya - a.y)*dac, dab, dac,
-                colour);
-            fillTrapezoid(yb, yc, (yb - a.y)*dab, (yb - a.y)*dac, dab, dac,
-                colour);
+            fillTrapezoid(ya, yb, (ya - a.y)*dab + a.x, (ya - a.y)*dac + a.x,
+                dab, dac, colour);
+            fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x,
+                dab, dac, colour);
         }
         else {
-            fillTrapezoid(ya, yb, (ya - a.y)*dac, (ya - a.y)*dab, dac, dab,
-                colour);
-            fillTrapezoid(yb, yc, (yb - a.y)*dac, (yb - a.y)*dab, dac, dab,
-                colour);
+            fillTrapezoid(ya, yb, (ya - a.y)*dac + a.x, (ya - a.y)*dab + a.x,
+                dac, dab, colour);
+            fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, (yb - b.y)*dbc + b.x,
+                dac, dab, colour);
         }
     }
 
