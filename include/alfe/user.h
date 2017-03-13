@@ -391,6 +391,12 @@ public:
         IF_ZERO_THROW(ClientToScreen(_hWnd, &p));
         return Vector(p.x, p.y);
     }
+    Vector mousePosition()
+    {
+        POINT point;
+        IF_ZERO_THROW(GetCursorPos(&point));
+        return Vector(point.x, point.y) - clientToScreen(Vector(0, 0));
+    }
     virtual HWND hWndParent()
     {
         if (_windowsParent != 0)

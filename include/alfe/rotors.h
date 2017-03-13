@@ -66,7 +66,7 @@ public:
     {
         return *this * other.conjugate();
     }
-    void toMatrix(T* matrix)
+    void toMatrix(T* matrix) const
     {
         matrix[0] = 1 - 2*(_s*_s);
         matrix[1] =     2*(_s*_c);
@@ -148,7 +148,7 @@ public:
     // The conjugate rotor rotates in the opposite direction.
     Rotor3 conjugate() const { return Rotor3(_sc, -_yz, -zx, -xy); }
 
-    void toMatrix(T* matrix)
+    void toMatrix(T* matrix) const
     {
         matrix[0] = 1 - 2*(_zx*_zx + _xy*_xy);
         matrix[1] =     2*(_xy*_sc + _zx*_yz);

@@ -121,7 +121,7 @@ public:
     template<class T2> Vector2 operator*(const Rotor2<T2>& r) const
     {
         T2 matrix[4];
-        r.toMatrix(&matrix);
+        r.toMatrix(matrix);
         return Vector2<T>(
             matrix[0]*x + matrix[1]*y,
             matrix[2]*x + matrix[3]*y);

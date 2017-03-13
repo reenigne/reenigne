@@ -86,62 +86,12 @@ private:
     float _zz;
 };
 
-void fillTriangle(Point2 a, Point2 b, Point2 c)
-{
-    if (a.y > b.y) swap(a, b);
-    if (b.y > c.y) swap(b, c);
-    if (a.y > b.y) swap(a, b);
-    float dab = (b.x - a.x)/(b.y - a.y);
-    float dac = (c.x - a.x)/(c.y - a.y);
-    float dbc = (c.x - b.x)/(c.y - b.y);
-
-    float xL =
-
-    xL = a.x<<8;
-    xR = xL;
-    y = y0;
-
-    if (dA > dB) {
-        UInt8 count = 1 + b.y - a.y;
-        while (count-->0) {
-            hLine(xL>>8, xR>>8, y);
-            xL += dB;
-            xR += dA;
-            ++y;
-        }
-        xR = x1;
-        UInt8 count = c.y - b.y;
-        while (count-->0) {
-            hLine(xL>>8, xR>>8, y);
-            xL += dB;
-            xR += dC;
-            ++y;
-        }
-    } else {
-        UInt8 count = 1 + b.y - a.y;
-        while (count-->0) {
-            hLine(xL>>8, xR>>8, y);
-            xL += dA;
-            xR += dB;
-            ++y;
-        }
-        xR = b.x;
-        UInt8 count = c.y - b.y;
-        while (count-->0) {
-            hLine(xL>>8, xR>>8, y);
-            xL += dC;
-            xR += dB;
-            ++y;
-        }
-    }
-}
-
 class SpanWindow;
 
-class SpanBitmapWindow : public BitmapWindow
+template<class T> class SpanBitmapWindowT : public BitmapWindow
 {
 public:
-    SpanBitmapWindow() : _theta(0), _phi(0)
+    SpanBitmapWindowT() : _theta(0), _phi(0)
     {
     }
     void setSpanWindow(SpanWindow* window)
@@ -159,32 +109,35 @@ public:
 
         _bitmap.fill(0);
         Projection p;
-        _theta += 0.01;
-        if (_theta >= tau)
-            _theta -= tau;
-        _phi += 0.01*(sqrt(5.0) + 1)/2;
-        if (_phi >= tau)
-            _phi -= tau;
-        float ys = 99.5/sqrt(3.0);
+        _theta += 0.01f;
+        float tauf = static_cast<float>(tau);
+        if (_theta >= tauf)
+            _theta -= tauf;
+        _phi += 0.01f*(sqrt(5.0f) + 1)/2;
+        if (_phi >= tauf)
+            _phi -= tauf;
+        float ys = 99.5f/sqrt(3.0f);
         float xs = 6*ys/5;
-        p.init(_theta, _phi, 5, Vector2<float>(xs, ys),
+        p.init(_theta, _phi, 50, Vector2<float>(xs, ys),
             Vector2<float>(159.5, 99.5));
 
-        Point corners[8];
+        Point2 corners[8];
         for (int i = 0; i < 8; ++i)
             corners[i] = p.modelToScreen(cubeCorners[i]);
 
         for (int i = 0; i < 6; ++i) {
             Quad* face = &cubeFaces[i];
-            Point p0 = corners[face->_points[0]];
-            Point p1 = corners[face->_points[1]];
-            Point p2 = corners[face->_points[2]];
-            Point p3 = corners[face->_points[3]];
-            Point e1 = p1 - p0;
-            Point e2 = p2 - p0;
-            float d = e1.x*e2.y - e1.y*e1.x;
-            if (d > 0) {
-
+            Point2 p0 = corners[face->_points[0]];
+            Point2 p1 = corners[face->_points[1]];
+            Point2 p2 = corners[face->_points[2]];
+            Point2 p3 = corners[face->_points[3]];
+            Point2 e1 = p1 - p0;
+            Point2 e2 = p2 - p0;
+            float d = e1.x*e2.y - e1.y*e2.x;
+            if (d < 0) {
+                int c = face->_colour;
+                fillTriangle(p0, p1, p2, c);
+                fillTriangle(p2, p3, p0, c);
             }
         }
 
@@ -227,13 +180,13 @@ private:
             fillTrapezoid(ya, yb, (ya - a.y)*dab + a.x, (ya - a.y)*dac + a.x,
                 dab, dac, colour);
             fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x,
-                dab, dac, colour);
+                dbc, dac, colour);
         }
         else {
             fillTrapezoid(ya, yb, (ya - a.y)*dac + a.x, (ya - a.y)*dab + a.x,
                 dac, dab, colour);
             fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, (yb - b.y)*dbc + b.x,
-                dac, dab, colour);
+                dac, dbc, colour);
         }
     }
 
@@ -243,6 +196,8 @@ private:
     float _theta;
     float _phi;
 };
+
+typedef SpanBitmapWindowT<void> SpanBitmapWindow;
 
 class SpanWindow : public RootWindow
 {
@@ -263,6 +218,7 @@ public:
         setText("CGA Span buffer");
         setInnerSize(Vector(320, 200));
         _bitmap.setTopLeft(Vector(0, 0));
+        _bitmap.setInnerSize(Vector(320, 200));
         RootWindow::create();
         _animated.start();
     }
