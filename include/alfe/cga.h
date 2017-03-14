@@ -7,6 +7,7 @@
 #include "alfe/scanlines.h"
 #include "alfe/wrap.h"
 #include "alfe/timer.h"
+#include "alfe/bitmap_png.h"
 
 class CGASequencer
 {

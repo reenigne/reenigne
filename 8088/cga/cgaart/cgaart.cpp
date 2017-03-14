@@ -1,5 +1,4 @@
 #include "alfe/main.h"
-#include "alfe/bitmap_png.h"
 #include "alfe/complex.h"
 #include "alfe/space.h"
 #include "alfe/set.h"
