@@ -89,7 +89,8 @@ class SpanWindow : public RootWindow
 {
 public:
     SpanWindow()
-      : _output(&_data, &_sequencer, &_bitmap), _theta(0), _phi(0)
+      : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap),
+        _theta(0), _phi(0)
     {
         Vector inputSize(320, 200);
         double aspectRatio = 5.0/6.0;
@@ -266,6 +267,7 @@ private:
         }
     }
 
+    FFTWWisdom<float> _wisdom;
     CGAData _data;
     CGASequencer _sequencer;
     CGAOutput _output;
@@ -279,10 +281,4 @@ private:
 
 class Program : public WindowProgram<SpanWindow>
 {
-public:
-    void run()
-    {
-        FFTWWisdom<float> wisdom(File("wisdom"));
-        WindowProgram<SpanWindow>::run();
-    }
 };
