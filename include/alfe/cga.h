@@ -914,6 +914,14 @@ private:
             if (t == 0) {
                 int start, end;
                 findChanges(address, count, &start, &end);
+                if (start == end) {
+                    Change* c = &_changes[start];
+                    if (address >= c->start() && address + count <= c->end()) {
+                        memcpy(&c->_data[0] + address - c->start(), data,
+                            count);
+                        return;
+                    }
+                }
                 if (start <= end) {
                     int startAddress = min(address, _changes[start].start());
                     Change e = _changes[end];

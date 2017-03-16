@@ -44,22 +44,22 @@ Quad cubeFaces[6] = {
 class Projection
 {
 public:
-    void init(float theta, float phi, float distance, Vector2<float> scale,
+    void init(float theta, float phi, float distance, Vector3<float> scale,
         Vector2<float> offset)
     {
         float st = sin(theta);
         float ct = cos(theta);
         float sp = sin(phi);
         float cp = cos(phi);
-        Vector2<float> s = scale*distance;
+        Vector3<float> s(scale.x*distance, scale.y*distance, scale.z);
         _xx = s.x*st;
         _xy = -s.y*cp*ct;
-        _xz = -sp*ct;
+        _xz = -s.z*sp*ct;
         _yx = s.x*ct;
         _yy = s.y*cp*st;
-        _yz = sp*st;
+        _yz = s.z*sp*st;
         _zy = s.y*sp;
-        _zz = -cp;
+        _zz = -s.z*cp;
         _distance = distance;
         _offset = offset;
     }
@@ -92,20 +92,13 @@ public:
       : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap),
         _theta(0), _phi(0)
     {
-        Vector inputSize(320, 200);
-        double aspectRatio = 5.0/6.0;
-        double overscan = 0.1;
-        double zoom = 1.0;
-        _outputSize = Vector2Cast<int>(Vector2Cast<double>(inputSize)*zoom*
-            Vector2<double>(aspectRatio, 1)*(1 + 2*overscan));
-
         _output.setConnector(0);          // RGBI
         _output.setScanlineProfile(0);    // rectangle
         _output.setHorizontalProfile(0);  // rectangle
         _output.setScanlineWidth(1);
         _output.setScanlineBleeding(2);   // symmetrical
         _output.setHorizontalBleeding(2); // symmetrical
-        _output.setZoom(zoom);
+        _output.setZoom(2); //1.2);
         _output.setHorizontalRollOff(0);
         _output.setHorizontalLobes(4);
         _output.setVerticalRollOff(0);
@@ -114,9 +107,8 @@ public:
         _output.setPhosphor(0);           // colour
         _output.setMask(0);
         _output.setMaskSize(0);
-        _output.setAspectRatio(aspectRatio);
-        _output.setOverscan(overscan);
-        _output.setOutputSize(_outputSize);
+        _output.setAspectRatio(5.0/6.0);
+        _output.setOverscan(0);
         _output.setCombFilter(0);         // no filter
         _output.setHue(0);
         _output.setSaturation(100);
@@ -162,6 +154,8 @@ public:
         _data.setTotals(238944, 910, 238875);
         _data.change(0, 0, 0x4000, &_vram[0]);
 
+        _outputSize = _output.requiredSize();
+
         add(&_bitmap);
         add(&_animated);
 
@@ -187,15 +181,19 @@ public:
         _phi += 0.01f*(sqrt(5.0f) + 1)/2;
         if (_phi >= tauf)
             _phi -= tauf;
-        float ys = 99.5f/sqrt(3.0f);
+        float distance = 5;
+        float zs = distance/sqrt((distance*distance + 1)*3);
+        float ys = 99.5f*zs;
         float xs = 6*ys/5;
-        p.init(_theta, _phi, 50, Vector2<float>(xs, ys),
+        p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
             Vector2<float>(159.5, 99.5));
 
         Point2 corners[8];
         for (int i = 0; i < 8; ++i)
             corners[i] = p.modelToScreen(cubeCorners[i]);
 
+        memset(&_vram[0], 0, 0x4000);
+        _data.change(0, 0, 0x4000, &_vram[0]);
         for (int i = 0; i < 6; ++i) {
             Quad* face = &cubeFaces[i];
             Point2 p0 = corners[face->_points[0]];
@@ -218,6 +216,9 @@ public:
 private:
     void horizontalLine(int xL, int xR, int y, int c)
     {
+        if (y < 0 || y >= 200 || xL < 0 || xR > 320 || xL > xR)
+            printf("Error\n");
+
         int l = ((y & 1) << 13) + (y >> 1)*80;
         c <<= 6;
 
