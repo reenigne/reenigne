@@ -3,9 +3,9 @@
 #include "alfe/user.h"
 #include "alfe/bitmap.h"
 #include "alfe/cga.h"
+#include "alfe/fix.h"
 
 typedef Vector3<float> Point3;
-typedef Vector2<float> Point2;
 
 Point3 cubeCorners[8] = {
     Point3(-1, -1, -1),
@@ -40,6 +40,11 @@ Quad cubeFaces[6] = {
     Quad(2, 6, 7, 3, 3),
     Quad(0, 1, 5, 4, 3)
 };
+
+//typedef Fixed<8, Int16> Fix8p8;
+//typedef Fixed<16, Int32> Fix16p16;
+typedef float Fix8p8;
+typedef Vector2<Fix8p8> Point2;
 
 class Projection
 {
@@ -98,7 +103,7 @@ public:
         _output.setScanlineWidth(1);
         _output.setScanlineBleeding(2);   // symmetrical
         _output.setHorizontalBleeding(2); // symmetrical
-        _output.setZoom(2); //1.2);
+        _output.setZoom(1);
         _output.setHorizontalRollOff(0);
         _output.setHorizontalLobes(4);
         _output.setVerticalRollOff(0);
@@ -202,8 +207,7 @@ public:
             Point2 p3 = corners[face->_points[3]];
             Point2 e1 = p1 - p0;
             Point2 e2 = p2 - p0;
-            float d = e1.x*e2.y - e1.y*e2.x;
-            if (d < 0) {
+            if (e1.x*e2.y < e1.y*e2.x) {
                 int c = face->_colour;
                 fillTriangle(p0, p1, p2, c);
                 fillTriangle(p2, p3, p0, c);
@@ -232,12 +236,12 @@ private:
 
         _data.change(0, l, 80, &_vram[l]);
     }
-    void fillTrapezoid(int yStart, int yEnd, float xL, float xR, float dL,
-        float dR, int c)
+    void fillTrapezoid(int yStart, int yEnd, Fix8p8 xL, Fix8p8 xR, Fix8p8 dL,
+        Fix8p8 dR, int c)
     {
         for (int y = yStart; y < yEnd; ++y) {
-            horizontalLine(static_cast<int>(ceil(xL)),
-                static_cast<int>(ceil(xR)), y, c);
+            horizontalLine(static_cast<int>(floor(xL)),
+                static_cast<int>(floor(xR)), y, c);
             xL += dL;
             xR += dR;
         }
@@ -247,13 +251,13 @@ private:
         if (a.y > b.y) swap(a, b);
         if (b.y > c.y) swap(b, c);
         if (a.y > b.y) swap(a, b);
-        float dab = (b.x - a.x)/(b.y - a.y);
-        float dac = (c.x - a.x)/(c.y - a.y);
-        float dbc = (c.x - b.x)/(c.y - b.y);
+        Fix8p8 dab = (b.x - a.x)/(b.y - a.y);
+        Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
+        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
 
-        int ya = static_cast<int>(ceil(a.y));
-        int yb = static_cast<int>(ceil(b.y));
-        int yc = static_cast<int>(ceil(c.y));
+        int ya = static_cast<int>(floor(a.y + 1));
+        int yb = static_cast<int>(floor(b.y + 1));
+        int yc = static_cast<int>(floor(c.y + 1));
         if (dab < dac) {
             fillTrapezoid(ya, yb, (ya - a.y)*dab + a.x, (ya - a.y)*dac + a.x,
                 dab, dac, colour);

@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\..\include\alfe\bitmap.h" />
     <ClInclude Include="..\..\..\..\include\alfe\cga.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\fix.h" />
     <ClInclude Include="..\..\..\..\include\alfe\main.h" />
     <ClInclude Include="..\..\..\..\include\alfe\user.h" />
     <ClInclude Include="..\..\..\..\include\alfe\vectors.h" />

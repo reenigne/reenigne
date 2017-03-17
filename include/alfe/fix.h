@@ -194,7 +194,8 @@ public:
     bool operator>=(const Fixed& x) const { return _x >= x._x; }
     bool operator==(const Fixed& x) const { return _x == x._x; }
     bool operator!=(const Fixed& x) const { return _x != x._x; }
-    T intPart() const { return static_cast<T>(_x>>N); }
+    int intPart() const { return static_cast<int>(_x>>N); }
+    T floor() const { return static_cast<T>(_x>>N); }
     double toDouble() const
     {
         return static_cast<double>(_x)/static_cast<double>(1<<N);
