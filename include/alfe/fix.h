@@ -21,12 +21,19 @@ private:
     // Convert single precision to double precision
     static TT dp(const T& s) { return static_cast<TT>(s); }
 
-    static T MultiplyShiftRight(T x, T y) { return sp((dp(x)*dp(y))>>N); }
-    static T ShiftLeftDivide(T x, T y) { return sp((dp(x)<<N)/dp(y)); }
+    static T MultiplyShiftRight(T x, T y)
+    {
+        return sp((dp(x)*dp(y) /*+ (1 << (N - 1))*/) >> N);
+    }
+    static T ShiftLeftDivide(T x, T y)
+    {
+        return sp(((dp(x) << N) /*+ (1 << (N - 1))*/) / dp(y));
+    }
     static T MultiplyShiftLeftDivide(T x, T y, T z)
     {
-        return sp((dp(x)*dp(y<<N))/dp(z));
+        return sp((dp(x)*dp((y << N) /*+ (1 << (N - 1))*/)) / dp(z));
     }
+    static TT lmul(T x, T y) { return dp(x)*dp(y); }
 };
 
 template<int N, class T> class ArithmeticHelper
@@ -42,24 +49,32 @@ template<int N> class ArithmeticHelper<N, Int8>
   : DoublePrecisionArithmeticHelper<N, Int8, Int16>
 {
     friend class Fixed<N, Int8, ArithmeticHelper<N, Int8> >;
+public:
+    typedef Int16 DoubleType;
 };
 
 template<int N> class ArithmeticHelper<N, Int16>
   : DoublePrecisionArithmeticHelper<N, Int16, Int32>
 {
     friend class Fixed<N, Int16, ArithmeticHelper<N, Int16> >;
+public:
+    typedef Int32 DoubleType;
 };
 
 template<int N> class ArithmeticHelper<N, Byte>
   : DoublePrecisionArithmeticHelper<N, Byte, Word>
 {
     friend class Fixed<N, Byte, ArithmeticHelper<N, Byte> >;
+public:
+    typedef Word DoubleType;
 };
 
 template<int N> class ArithmeticHelper<N, Word>
   : DoublePrecisionArithmeticHelper<N, Word, DWord>
 {
     friend class Fixed<N, Word, ArithmeticHelper<N, Word> >;
+public:
+    typedef DWord DoubleType;
 };
 
 #ifdef _WIN32
@@ -71,12 +86,14 @@ private:
 
     // VC's inline asm doesn't allow "shl eax, N" directly, but this works...
     static const int nn[N];
+    static const int n2[1 << (N - 1)];
 
     static Int32 MultiplyShiftRight(Int32 x, Int32 y)
     {
         __asm {
             mov eax, x
             imul y
+            add eax, length n2
             shrd eax, edx, length nn
         }
     }
@@ -86,6 +103,8 @@ private:
             mov eax, x
             mov edx, 0
             shld edx, eax, length nn
+            add eax, length n2
+            adc edx, 0
             idiv y
         }
     }
@@ -95,6 +114,7 @@ private:
         __asm {
             mov eax, y
             shl eax, length nn
+            add eax, length n2
             imul x
             idiv z
         }
@@ -108,12 +128,14 @@ private:
 
     // VC's inline asm doesn't allow "shl eax, N" directly, but this works...
     static const int nn[N];
+    static const int n2[1 << (N - 1)];
 
     static DWord MultiplyShiftRight(DWord x, DWord y)
     {
         __asm {
             mov eax, x
             mul y
+            add eax, length n2
             shrd eax, edx, length nn
         }
     }
@@ -123,6 +145,8 @@ private:
             mov eax, x
             mov edx, 0
             shld edx, eax, length nn
+            add eax, length n2
+            adc edx, 0
             div y
         }
     }
@@ -131,6 +155,7 @@ private:
         __asm {
             mov eax, y
             shl eax, length nn
+            add eax, length n2
             mul y
             div z
         }
@@ -195,13 +220,26 @@ public:
     bool operator==(const Fixed& x) const { return _x == x._x; }
     bool operator!=(const Fixed& x) const { return _x != x._x; }
     int intPart() const { return static_cast<int>(_x>>N); }
-    T floor() const { return static_cast<T>(_x>>N); }
+    Fixed floor() const { Fixed x; x._x = _x & ((-1) << N); return x; }
+    Fixed ceil() const
+    {
+        Fixed x;
+        x._x = (_x + N - 1) & ((-1) << N);
+        return x;
+    }
     double toDouble() const
     {
         return static_cast<double>(_x)/static_cast<double>(1<<N);
     }
     Fixed operator-() const { Fixed x; x._x = -_x; return x; }
     Fixed frac() const { Fixed x; x._x = _x & ((1<<N)-1); return x; }
+    explicit operator T() const { return _x >> N; }
+    explicit operator int() const { return static_cast<int>(_x >> N); }
+    typename M::DoubleType dmul(const Fixed& x) const
+    {
+        return M::lmul(_x, x._x);
+    }
+
 private:
     T _x;
 
@@ -220,19 +258,49 @@ template<int N, class T, class TT> Fixed<N, T, TT>
 template<int N, class T, class TT> Fixed<N, T, TT>
     operator/(const T& x, const Fixed<N, T, TT>& y)
 {
-    return static_cast<Fixed<N, T, TT> >(x)/y;
+    return static_cast<Fixed<N, T, TT>>(x)/y;
 }
 
 template<int N, class T, class TT> Fixed<N, T, TT>
     operator-(const T& x, const Fixed<N, T, TT>& y)
 {
-    return static_cast<Fixed<N, T, TT> >(x) - y;
+    return static_cast<Fixed<N, T, TT>>(x) - y;
 }
 
 template<int N, class T, class TT> Fixed<N, T, TT>
-    operator+(const T& x, const Fixed<N,T,TT>& y)
+    operator-(int x, const Fixed<N, T, TT>& y)
+{
+    return static_cast<Fixed<N, T, TT>>(x) - y;
+}
+
+template<int N, class T, class TT> Fixed<N, T, TT>
+    operator-(const Fixed<N, T, TT>& x, const T& y)
+{
+    return x - static_cast<Fixed<N, T, TT>>(y);
+}
+
+template<int N, class T, class TT> Fixed<N, T, TT>
+    operator+(const T& x, const Fixed<N, T, TT>& y)
 {
     return y + x;
+}
+
+template<int N, class T, class TT> Fixed<N, T, TT>
+    floor(const Fixed<N, T, TT>& x)
+{
+    return x.floor();
+}
+
+template<int N, class T, class TT> Fixed<N, T, TT>
+    ceil(const Fixed<N, T, TT>& x)
+{
+    return x.ceil();
+}
+
+template<int N, class T, class M> typename M::DoubleType
+    dmul(const Fixed<N, T, M>& x, const Fixed<N, T, M>& y)
+{
+    return x.dmul(y);
 }
 
 #endif // INCLUDED_FIX_H

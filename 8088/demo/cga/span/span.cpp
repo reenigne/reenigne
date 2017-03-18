@@ -41,9 +41,9 @@ Quad cubeFaces[6] = {
     Quad(0, 1, 5, 4, 3)
 };
 
-//typedef Fixed<8, Int16> Fix8p8;
+typedef Fixed<8, Word> Fix8p8;
 //typedef Fixed<16, Int32> Fix16p16;
-typedef float Fix8p8;
+//typedef float Fix8p8;
 typedef Vector2<Fix8p8> Point2;
 
 class Projection
@@ -191,7 +191,7 @@ public:
         float ys = 99.5f*zs;
         float xs = 6*ys/5;
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
-            Vector2<float>(159.5, 99.5));
+            Vector2<float>(127.5, 99.5));
 
         Point2 corners[8];
         for (int i = 0; i < 8; ++i)
@@ -205,13 +205,85 @@ public:
             Point2 p1 = corners[face->_points[1]];
             Point2 p2 = corners[face->_points[2]];
             Point2 p3 = corners[face->_points[3]];
-            Point2 e1 = p1 - p0;
-            Point2 e2 = p2 - p0;
-            if (e1.x*e2.y < e1.y*e2.x) {
+
+            bool visible = false;
+            if (p1.x > p0.x) {
+                if (p1.y > p0.y) {
+                    if (p2.x > p0.x) {
+                        if (p2.y > p0.y)
+                            visible = dmul(p1.x - p0.x, p2.y - p0.y) < dmul(p1.y - p0.y, p2.x - p0.x);
+                        else
+                            visible = true;
+                    }
+                    else {
+                        if (p2.y > p0.y)
+                            visible = false;
+                        else
+                            visible = dmul(p1.x - p0.x, p0.y - p2.y) > dmul(p1.y - p0.y, p0.x - p2.x);
+                    }
+                }
+                else {
+                    if (p2.x > p0.x) {
+                        if (p2.y > p0.y)
+                            visible = false;
+                        else
+                            visible = dmul(p1.x - p0.x, p0.y - p2.y) > dmul(p0.y - p1.y, p2.x - p0.x);
+                    }
+                    else {
+                        if (p2.y > p0.y)
+                            visible = dmul(p1.x - p0.x, p2.y - p0.y) < dmul(p0.y - p1.y, p0.x - p2.x);
+                        else
+                            visible = true;
+                    }
+                }
+            }
+            else {
+                if (p1.y > p0.y) {
+                    if (p2.x > p0.x) {
+                        if (p2.y > p0.y)
+                            visible = true;
+                        else
+                            visible = dmul(p0.x - p1.x, p0.y - p2.y) < dmul(p1.y - p0.y, p2.x - p0.x);
+                    }
+                    else {
+                        if (p2.y > p0.y)
+                            visible = dmul(p0.x - p1.x, p2.y - p0.y) > dmul(p1.y - p0.y, p0.x - p2.x);
+                        else
+                            visible = false;
+                    }
+                }
+                else {
+                    if (p2.x > p0.x) {
+                        if (p2.y > p0.y)
+                            visible = dmul(p0.x - p1.x, p2.y - p0.y) > dmul(p0.y - p1.y, p2.x - p0.x);
+                        else
+                            visible = false;
+                    }
+                    else {
+                        if (p2.y > p0.y)
+                            visible = true;
+                        else
+                            visible = dmul(p0.x - p1.x, p0.y - p2.y) < dmul(p0.y - p1.y, p0.x - p2.x);
+                    }
+                }
+            }
+            if (visible) {
                 int c = face->_colour;
                 fillTriangle(p0, p1, p2, c);
                 fillTriangle(p2, p3, p0, c);
             }
+
+            bool visible2 = (p1.x.toDouble() - p0.x.toDouble())*(p2.y.toDouble() - p0.y.toDouble()) < (p1.y.toDouble() - p0.y.toDouble())*(p2.x.toDouble() - p0.x.toDouble());
+            if (visible != visible2)
+                printf("Error\n");
+
+            //Point2 e1 = p1 - p0;
+            //Point2 e2 = p2 - p0;
+            //if (e1.x*e2.y < e1.y*e2.x) {
+            //    int c = face->_colour;
+            //    fillTriangle(p0, p1, p2, c);
+            //    fillTriangle(p2, p3, p0, c);
+            //}
         }
 
         _output.restart();
@@ -220,7 +292,7 @@ public:
 private:
     void horizontalLine(int xL, int xR, int y, int c)
     {
-        if (y < 0 || y >= 200 || xL < 0 || xR > 320 || xL > xR)
+        if (y < 0 || y >= 200 || xL < 0 || xR > 320 /*|| xL > xR*/)
             printf("Error\n");
 
         int l = ((y & 1) << 13) + (y >> 1)*80;
@@ -251,24 +323,196 @@ private:
         if (a.y > b.y) swap(a, b);
         if (b.y > c.y) swap(b, c);
         if (a.y > b.y) swap(a, b);
-        Fix8p8 dab = (b.x - a.x)/(b.y - a.y);
-        Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
-        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+
+        if (a.y == b.y) {
+            if (b.y == c.y)
+                return;
+            if (a.x > b.x)
+                swap(a, b);
+            int yab = static_cast<int>(ceil(a.y));
+            int yc = static_cast<int>(floor(c.y + 1));
+            Fix8p8 dy = c.y - a.y;
+            if (c.x > a.x) {
+                Fix8p8 dac = (c.x - a.x)/dy;
+                Fix8p8 xa = (yab - a.y)*dac + a.x;
+                if (c.x > b.x) {
+                    Fix8p8 dbc = (c.x - b.x)/dy;
+                    Fix8p8 xb = (yab - a.y)*dbc + b.x;
+                    fillTrapezoid(yab, yc, xa, xb, dac, dbc, colour);
+                }
+                else {
+                    Fix8p8 dcb = (b.x - c.x)/dy;
+                    Fix8p8 xb = -((yab - a.y)*dcb) + b.x;
+                    fillTrapezoid(yab, yc, xa, xb, dac, -dcb, colour);
+                }
+            }
+            else {
+                Fix8p8 dca = (a.x - c.x)/dy;
+                Fix8p8 xa = -((yab - a.y)*dca) + a.x;
+                if (c.x > b.x) {
+                    Fix8p8 dbc = (c.x - b.x)/dy;
+                    Fix8p8 xb = (yab - a.y)*dbc + b.x;
+                    fillTrapezoid(yab, yc, xa, xb, -dca, dbc, colour);
+                }
+                else {
+                    Fix8p8 dcb = (b.x - c.x)/dy;
+                    Fix8p8 xb = -((yab - a.y)*dcb) + b.x;
+                    fillTrapezoid(yab, yc, xa, xb, -dca, -dcb, colour);
+                }
+            }
+            return;
+        }
+        if (b.y == c.y) {
+            if (b.x > c.x)
+                swap(b, c);
+            int ya = static_cast<int>(floor(a.y + 1));
+            int ybc = static_cast<int>(floor(b.y + 1));
+            Fix8p8 dy = b.y - a.y;
+            if (b.x > a.x) {
+                Fix8p8 dab = (b.x - a.x)/dy;
+                Fix8p8 xb = (ya - a.y)*dab + a.x;
+                if (c.x > a.x) {
+                    Fix8p8 dac = (c.x - a.x)/dy;
+                    Fix8p8 xc = (ya - a.y)*dac + a.x;
+                    fillTrapezoid(ya, ybc, xb, xc, dab, dac, colour);
+                }
+                else {
+                    Fix8p8 dca = (a.x - c.x)/dy;
+                    Fix8p8 xc = -((ya - a.y)*dca) + a.x;
+                    fillTrapezoid(ya, ybc, xb, xc, dab, -dca, colour);
+                }
+            }
+            else {
+                Fix8p8 dba = (a.x - b.x)/dy;
+                Fix8p8 xb = -((ya - a.y)*dba) + a.x;
+                if (c.x > a.x) {
+                    Fix8p8 dac = (c.x - a.x)/dy;
+                    Fix8p8 xc = (ya - a.y)*dac + a.x;
+                    fillTrapezoid(ya, ybc, xb, xc, -dba, dac, colour);
+                }
+                else {
+                    Fix8p8 dca = (a.x - c.x)/dy;
+                    Fix8p8 xc = -((ya - a.y)*dca) + a.x;
+                    fillTrapezoid(ya, ybc, xb, xc, -dba, -dca, colour);
+                }
+            }
+            return;
+        }
 
         int ya = static_cast<int>(floor(a.y + 1));
         int yb = static_cast<int>(floor(b.y + 1));
         int yc = static_cast<int>(floor(c.y + 1));
-        if (dab < dac) {
-            fillTrapezoid(ya, yb, (ya - a.y)*dab + a.x, (ya - a.y)*dac + a.x,
-                dab, dac, colour);
-            fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x,
-                dbc, dac, colour);
+        if (b.x > a.x) {
+            Fix8p8 dab = (b.x - a.x)/(b.y - a.y);
+            Fix8p8 xb = (ya - a.y)*dab + a.x;
+            if (c.x > a.x) {
+                Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
+                Fix8p8 xc = (ya - a.y)*dac + a.x;
+                if (c.x > b.x) {
+                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, dab, dac, colour);
+                        fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x, dbc, dac, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, dac, dab, colour);
+                        fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, (yb - b.y)*dbc + b.x, dac, dbc, colour);
+                    }
+                }
+                else {
+                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, dab, dac, colour);
+                        fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, (yb - a.y)*dac + a.x, -dcb, dac, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, dac, dab, colour);
+                        fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, -((yb - b.y)*dcb) + b.x, dac, -dcb, colour);
+                    }
+                }
+            }
+            else {
+                Fix8p8 dca = (a.x - c.x)/(c.y - a.y);
+                Fix8p8 xc = -((ya - a.y)*dca) + a.x;
+                if (c.x > b.x) {
+                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, dab, -dca, colour);
+                        fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, -((yb - a.y)*dca) + a.x, dbc, -dca, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, -dca, dab, colour);
+                        fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, (yb - b.y)*dbc + b.x, -dca, dbc, colour);
+                    }
+                }
+                else {
+                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, dab, -dca, colour);
+                        fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, -((yb - a.y)*dca) + a.x, -dcb, -dca, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, -dca, dab, colour);
+                        fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, -((yb - b.y)*dcb) + b.x, -dca, -dcb, colour);
+                    }
+                }
+            }
         }
         else {
-            fillTrapezoid(ya, yb, (ya - a.y)*dac + a.x, (ya - a.y)*dab + a.x,
-                dac, dab, colour);
-            fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, (yb - b.y)*dbc + b.x,
-                dac, dbc, colour);
+            Fix8p8 dba = (a.x - b.x)/(b.y - a.y);
+            Fix8p8 xb = -((ya - a.y)*dba) + a.x;
+            if (c.x > a.x) {
+                Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
+                Fix8p8 xc = (ya - a.y)*dac + a.x;
+                if (c.x > b.x) {
+                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, -dba, dac, colour);
+                        fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x, dbc, dac, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, dac, -dba, colour);
+                        fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, (yb - b.y)*dbc + b.x, dac, dbc, colour);
+                    }
+                }
+                else {
+                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, -dba, dac, colour);
+                        fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, (yb - a.y)*dac + a.x, -dcb, dac, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, dac, -dba, colour);
+                        fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, -((yb - b.y)*dcb) + b.x, dac, -dcb, colour);
+                    }
+                }
+            }
+            else {
+                Fix8p8 dca = (a.x - c.x)/(c.y - a.y);
+                Fix8p8 xc = -((ya - a.y)*dca) + a.x;
+                if (c.x > b.x) {
+                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, -dba, -dca, colour);
+                        fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, -((yb - a.y)*dca) + a.x, dbc, -dca, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, -dca, -dba, colour);
+                        fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, (yb - b.y)*dbc + b.x, -dca, dbc, colour);
+                    }
+                }
+                else {
+                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                    if (xb < xc) {
+                        fillTrapezoid(ya, yb, xb, xc, -dba, -dca, colour);
+                        fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, -((yb - a.y)*dca) + a.x, -dcb, -dca, colour);
+                    }
+                    else {
+                        fillTrapezoid(ya, yb, xc, xb, -dca, -dba, colour);
+                        fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, -((yb - b.y)*dcb) + b.x, -dca, -dcb, colour);
+                    }
+                }
+            }
         }
     }
 
