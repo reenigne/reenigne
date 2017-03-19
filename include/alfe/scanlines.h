@@ -14,10 +14,14 @@ public:
     ScanlineRenderer()
       : _profile(4), _horizontalProfile(4), _width(1), _bleeding(2),
         _horizontalBleeding(2), _horizontalRollOff(0), _verticalRollOff(0),
-        _subPixelSeparation(0), _phosphor(0), _mask(0), _maskSize(0)
+        _subPixelSeparation(0), _phosphor(0), _mask(0), _maskSize(0),
+        _needsInit(true)
     { }
     void init()
     {
+        if (!_needsInit)
+            return;
+        _needsInit = false;
         _output.ensure(_size.x*3*sizeof(float), _size.y);
 
         _vertical.generate(_size, 3,
@@ -66,9 +70,19 @@ public:
         bleed(_output.data(), _output.stride(), _size*Vector(3, 1), _bleeding);
     }
     int getProfile() { return _profile; }
-    void setProfile(int profile) { _profile = profile; }
+    void setProfile(int profile)
+    {
+        if (_profile != profile)
+            _needsInit = true;
+        _profile = profile;
+    }
     float getWidth() { return _width; }
-    void setWidth(float width) { _width = width; }
+    void setWidth(float width)
+    {
+        if (_width != width)
+            _needsInit = true;
+        _width = width;
+    }
     int getBleeding() { return _bleeding; }
     void setBleeding(int bleeding) { _bleeding = bleeding; }
     int getHorizontalProfile() { return _horizontalProfile; }
@@ -79,27 +93,79 @@ public:
         _horizontalBleeding = bleeding;
     }
     float getVerticalRollOff() { return _verticalRollOff; }
-    void setVerticalRollOff(float rollOff) { _verticalRollOff = rollOff; }
+    void setVerticalRollOff(float rollOff)
+    {
+        if (_verticalRollOff != rollOff)
+            _needsInit = true;
+        _verticalRollOff = rollOff;
+    }
     float getHorizontalRollOff() { return _horizontalRollOff; }
-    void setHorizontalRollOff(float rollOff) { _horizontalRollOff = rollOff; }
+    void setHorizontalRollOff(float rollOff)
+    {
+        if (_horizontalRollOff != rollOff)
+            _needsInit = true;
+        _horizontalRollOff = rollOff;
+    }
     float getVerticalLobes() { return _verticalLobes; }
-    void setVerticalLobes(float lobes) { _verticalLobes = lobes; }
+    void setVerticalLobes(float lobes)
+    {
+        if (_verticalLobes != lobes)
+            _needsInit = true;
+        _verticalLobes = lobes;
+    }
     float getHorizontalLobes() { return _horizontalLobes; }
-    void setHorizontalLobes(float lobes) { _horizontalLobes = lobes; }
+    void setHorizontalLobes(float lobes)
+    {
+        if (_horizontalLobes != lobes)
+            _needsInit = true;
+        _horizontalLobes = lobes;
+    }
     float getSubPixelSeparation() { return _subPixelSeparation; }
     void setSubPixelSeparation(float separation)
     {
+        if (_subPixelSeparation != separation)
+            _needsInit = true;
         _subPixelSeparation = separation;
     }
     int getPhosphor() { return _phosphor; }
-    void setPhosphor(int phosphor) { _phosphor = phosphor; }
+    void setPhosphor(int phosphor)
+    {
+        if (_phosphor != phosphor)
+            _needsInit = true;
+        _phosphor = phosphor;
+    }
     int getMask() { return _mask; }
-    void setMask(int mask) { _mask = mask; }
+    void setMask(int mask)
+    {
+        if (_mask != mask)
+            _needsInit = true;
+        _mask = mask;
+    }
     float getMaskSize() { return _maskSize; }
-    void setMaskSize(float maskSize) { _maskSize = maskSize; }
-    void setZoom(Vector2<float> zoom) { _zoom = zoom; }
-    void setOffset(Vector2<float> offset) { _offset = offset; }
-    void setOutputSize(Vector size) { _size = size; }
+    void setMaskSize(float maskSize)
+    {
+        if (_maskSize != maskSize)
+            _needsInit = true;
+        _maskSize = maskSize;
+    }
+    void setZoom(Vector2<float> zoom)
+    {
+        if (_zoom != zoom)
+            _needsInit = true;
+        _zoom = zoom;
+    }
+    void setOffset(Vector2<float> offset)
+    {
+        if (_offset != offset)
+            _needsInit = true;
+        _offset = offset;
+    }
+    void setOutputSize(Vector size)
+    {
+        if (_size != size)
+            _needsInit = true;
+        _size = size;
+    }
     Vector inputTL() { return _inputTL; }
     Vector inputBR() { return _inputBR; }
     AlignedBuffer input() { return _input; }
@@ -376,6 +442,7 @@ private:
     AlignedBuffer _output;
     Vector _inputTL;
     Vector _inputBR;
+    bool _needsInit;
 
     ImageFilterHorizontal _horizontal;
     ImageFilterVertical _vertical;
