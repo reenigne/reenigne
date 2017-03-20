@@ -23,15 +23,15 @@ private:
 
     static T MultiplyShiftRight(T x, T y)
     {
-        return sp((dp(x)*dp(y) + (1 << (N - 1))) >> N);
+        return sp((dp(x)*dp(y) /*+ (1 << (N - 1))*/) >> N);
     }
     static T ShiftLeftDivide(T x, T y)
     {
-        return sp(((dp(x) << N) + (1 << (N - 1))) / dp(y));
+        return sp(((dp(x) << N) /*+ (1 << (N - 1))*/) / dp(y));
     }
     static T MultiplyShiftLeftDivide(T x, T y, T z)
     {
-        return sp((dp(x)*dp((y << N) + (1 << (N - 1)))) / dp(z));
+        return sp((dp(x)*dp((y << N) /*+ (1 << (N - 1))*/)) / dp(z));
     }
     static TT lmul(T x, T y) { return dp(x)*dp(y); }
 };

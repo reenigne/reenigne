@@ -186,7 +186,7 @@ public:
         _phi += 0.01f*(sqrt(5.0f) + 1)/2;
         if (_phi >= tauf)
             _phi -= tauf;
-        float distance = 5;
+        float distance = 2.0547091212166765333819588893295; //5;
         float zs = distance/sqrt((distance*distance + 1)*3);
         float ys = 99.5f*zs;
         float xs = 6*ys/5;
@@ -292,12 +292,21 @@ public:
         }
         //printf("\n");
 
-        for (int i = 0; i < 0x4000; ++i)
-            _vram[i] ^= _vram2[i];
-
-        _data.change(0, 0, 0x4000, &_vram[0]);
+        if (_fp)
+            _data.change(0, 0, 0x4000, &_vram2[0]);
+        else
+            _data.change(0, 0, 0x4000, &_vram[0]);
         _output.restart();
-        //_animated.restart();
+        _animated.restart();
+    }
+    bool keyboardEvent(int key, bool up)
+    {
+        if (key == 'F')
+            if (up)
+                _fp = false;
+            else
+                _fp = true;
+        return false;
     }
 private:
     void horizontalLine(int xL, int xR, int y, int c)
@@ -305,7 +314,7 @@ private:
         if (y < 0 || y >= 200 || xL < 0 || xR > 320 /*|| xL > xR*/)
             printf("Error\n");
 
-        int l = ((y & 1) << 13) + (y >> 1)*80;
+        int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
         c <<= 6;
 
         DWORD* p =
@@ -316,14 +325,13 @@ private:
             _vram[a] = (_vram[a] & ~(0xc0 >> s)) | (c >> s);
         }
     }
-    void fillTrapezoid(int yStart, int yEnd, Fix8p8 xL, Fix8p8 xR, Fix8p8 dL,
-        Fix8p8 dR, int c)
+    void fillTrapezoid(int yStart, int yEnd, Fix8p8 dL, Fix8p8 dR, int c)
     {
         for (int y = yStart; y < yEnd; ++y) {
-            horizontalLine(static_cast<int>(floor(xL)),
-                static_cast<int>(floor(xR)), y, c);
-            xL += dL;
-            xR += dR;
+            horizontalLine(static_cast<int>(floor(_xL)),
+                static_cast<int>(floor(_xR)), y, c);
+            _xL += dL;
+            _xR += dR;
         }
     }
     void fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
@@ -342,26 +350,30 @@ private:
             Fix8p8 dy = c.y - a.y;
             if (c.x > a.x) {
                 Fix8p8 dac = (c.x - a.x)/dy;
-                Fix8p8 xa = (yab - a.y)*dac + a.x;
+                _xL = (yab - a.y)*dac + a.x;
                 if (c.x > b.x) {
                     Fix8p8 dbc = (c.x - b.x)/dy;
-                    fillTrapezoid(yab, yc, xa, (yab - a.y)*dbc + b.x, dac, dbc, colour);
+                    _xR = (yab - a.y)*dbc + b.x;
+                    fillTrapezoid(yab, yc, dac, dbc, colour);
                 }
                 else {
                     Fix8p8 dcb = (b.x - c.x)/dy;
-                    fillTrapezoid(yab, yc, xa, -((yab - a.y)*dcb) + b.x, dac, -dcb, colour);
+                    _xR = -((yab - a.y)*dcb) + b.x;
+                    fillTrapezoid(yab, yc, dac, -dcb, colour);
                 }
             }
             else {
                 Fix8p8 dca = (a.x - c.x)/dy;
-                Fix8p8 xa = -((yab - a.y)*dca) + a.x;
+                _xL = -((yab - a.y)*dca) + a.x;
                 if (c.x > b.x) {
                     Fix8p8 dbc = (c.x - b.x)/dy;
-                    fillTrapezoid(yab, yc, xa, (yab - a.y)*dbc + b.x, -dca, dbc, colour);
+                    _xR = (yab - a.y)*dbc + b.x;
+                    fillTrapezoid(yab, yc, -dca, dbc, colour);
                 }
                 else {
                     Fix8p8 dcb = (b.x - c.x)/dy;
-                    fillTrapezoid(yab, yc, xa, -((yab - a.y)*dcb) + b.x, -dca, -dcb, colour);
+                    _xR = -((yab - a.y)*dcb) + b.x;
+                    fillTrapezoid(yab, yc, -dca, -dcb, colour);
                 }
             }
             return;
@@ -374,26 +386,30 @@ private:
             Fix8p8 dy = b.y - a.y;
             if (b.x > a.x) {
                 Fix8p8 dab = (b.x - a.x)/dy;
-                Fix8p8 xb = (ya - a.y)*dab + a.x;
+                _xL = (ya - a.y)*dab + a.x;
                 if (c.x > a.x) {
                     Fix8p8 dac = (c.x - a.x)/dy;
-                    fillTrapezoid(ya, ybc, xb, (ya - a.y)*dac + a.x, dab, dac, colour);
+                    _xR = (ya - a.y)*dac + a.x;
+                    fillTrapezoid(ya, ybc, dab, dac, colour);
                 }
                 else {
                     Fix8p8 dca = (a.x - c.x)/dy;
-                    fillTrapezoid(ya, ybc, xb, -((ya - a.y)*dca) + a.x, dab, -dca, colour);
+                    _xR = -((ya - a.y)*dca) + a.x;
+                    fillTrapezoid(ya, ybc, dab, -dca, colour);
                 }
             }
             else {
                 Fix8p8 dba = (a.x - b.x)/dy;
-                Fix8p8 xb = -((ya - a.y)*dba) + a.x;
+                _xL = -((ya - a.y)*dba) + a.x;
                 if (c.x > a.x) {
                     Fix8p8 dac = (c.x - a.x)/dy;
-                    fillTrapezoid(ya, ybc, xb, (ya - a.y)*dac + a.x, -dba, dac, colour);
+                    _xR = (ya - a.y)*dac + a.x;
+                    fillTrapezoid(ya, ybc, -dba, dac, colour);
                 }
                 else {
                     Fix8p8 dca = (a.x - c.x)/dy;
-                    fillTrapezoid(ya, ybc, xb, -((ya - a.y)*dca) + a.x, -dba, -dca, colour);
+                    _xR = -((ya - a.y)*dca) + a.x;
+                    fillTrapezoid(ya, ybc, -dba, -dca, colour);
                 }
             }
             return;
@@ -408,42 +424,45 @@ private:
             if (c.x > a.x) {
                 Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
                 Fix8p8 xc = (ya - a.y)*dac + a.x;
-                if (c.x > b.x) {
-                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                    if (dab < dac) {
-                        fillTrapezoid(ya, yb, xb, xc, dab, dac, colour);
-                        fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x, dbc, dac, colour);
+                if (dab < dac) {
+                    _xL = xb;
+                    _xR = xc;
+                    fillTrapezoid(ya, yb, dab, dac, colour);
+                    if (c.x > b.x) {
+                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                        _xL = (yb - b.y)*dbc + b.x;
+                        fillTrapezoid(yb, yc, dbc, dac, colour);
                     }
                     else {
-                        fillTrapezoid(ya, yb, xc, xb, dac, dab, colour);
-                        fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, (yb - b.y)*dbc + b.x, dac, dbc, colour);
+                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                        _xL = -((yb - b.y)*dcb) + b.x;
+                        fillTrapezoid(yb, yc, -dcb, dac, colour);
                     }
                 }
                 else {
-                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                    if (dab < dac) {
-                        fillTrapezoid(ya, yb, xb, xc, dab, dac, colour);
-                        fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, (yb - a.y)*dac + a.x, -dcb, dac, colour);
+                    _xL = xc;
+                    _xR = xb;
+                    fillTrapezoid(ya, yb, dac, dab, colour);
+                    if (c.x > b.x) {
+                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                        _xR = (yb - b.y)*dbc + b.x;
+                        fillTrapezoid(yb, yc, dac, dbc, colour);
                     }
                     else {
-                        fillTrapezoid(ya, yb, xc, xb, dac, dab, colour);
-                        fillTrapezoid(yb, yc, (yb - a.y)*dac + a.x, -((yb - b.y)*dcb) + b.x, dac, -dcb, colour);
+                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                        _xR = -((yb - b.y)*dcb) + b.x;
+                        fillTrapezoid(yb, yc, dac, -dcb, colour);
                     }
                 }
             }
             else {
                 Fix8p8 dca = (a.x - c.x)/(c.y - a.y);
-                Fix8p8 xc = -((ya - a.y)*dca) + a.x;
-                if (c.x > b.x) {
-                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                    fillTrapezoid(ya, yb, xc, xb, -dca, dab, colour);
-                    fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, (yb - b.y)*dbc + b.x, -dca, dbc, colour);
-                }
-                else {
-                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                    fillTrapezoid(ya, yb, xc, xb, -dca, dab, colour);
-                    fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, -((yb - b.y)*dcb) + b.x, -dca, -dcb, colour);
-                }
+                _xL = -((ya - a.y)*dca) + a.x;
+                _xR = xb;
+                fillTrapezoid(ya, yb, -dca, dab, colour);
+                Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                _xR = -((yb - b.y)*dcb) + b.x;
+                fillTrapezoid(yb, yc, -dca, -dcb, colour);
             }
         }
         else {
@@ -451,41 +470,44 @@ private:
             Fix8p8 xb = -((ya - a.y)*dba) + a.x;
             if (c.x > a.x) {
                 Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
-                Fix8p8 xc = (ya - a.y)*dac + a.x;
-                if (c.x > b.x) {
-                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                    fillTrapezoid(ya, yb, xb, xc, -dba, dac, colour);
-                    fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, (yb - a.y)*dac + a.x, dbc, dac, colour);
-                }
-                else {
-                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                    fillTrapezoid(ya, yb, xb, xc, -dba, dac, colour);
-                    fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, (yb - a.y)*dac + a.x, -dcb, dac, colour);
-                }
+                _xL = xb;
+                _xR = (ya - a.y)*dac + a.x;
+                fillTrapezoid(ya, yb, -dba, dac, colour);
+                Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                _xL = (yb - b.y)*dbc + b.x;
+                fillTrapezoid(yb, yc, dbc, dac, colour);
             }
             else {
                 Fix8p8 dca = (a.x - c.x)/(c.y - a.y);
                 Fix8p8 xc = -((ya - a.y)*dca) + a.x;
-                if (c.x > b.x) {
-                    Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                    if (dba > dca) {
-                        fillTrapezoid(ya, yb, xb, xc, -dba, -dca, colour);
-                        fillTrapezoid(yb, yc, (yb - b.y)*dbc + b.x, -((yb - a.y)*dca) + a.x, dbc, -dca, colour);
+                if (dba > dca) {
+                    _xL = xb;
+                    _xR = xc;
+                    fillTrapezoid(ya, yb, -dba, -dca, colour);
+                    if (c.x > b.x) {
+                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                        _xL = (yb - b.y)*dbc + b.x;
+                        fillTrapezoid(yb, yc, dbc, -dca, colour);
                     }
                     else {
-                        fillTrapezoid(ya, yb, xc, xb, -dca, -dba, colour);
-                        fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, (yb - b.y)*dbc + b.x, -dca, dbc, colour);
+                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                        _xL = -((yb - b.y)*dcb) + b.x;
+                        fillTrapezoid(yb, yc, -dcb, -dca, colour);
                     }
                 }
                 else {
-                    Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                    if (dba > dca) {
-                        fillTrapezoid(ya, yb, xb, xc, -dba, -dca, colour);
-                        fillTrapezoid(yb, yc, -((yb - b.y)*dcb) + b.x, -((yb - a.y)*dca) + a.x, -dcb, -dca, colour);
+                    _xL = xc;
+                    _xR = xb;
+                    fillTrapezoid(ya, yb, -dca, -dba, colour);
+                    if (c.x > b.x) {
+                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
+                        _xR = (yb - b.y)*dbc + b.x;
+                        fillTrapezoid(yb, yc, -dca, dbc, colour);
                     }
                     else {
-                        fillTrapezoid(ya, yb, xc, xb, -dca, -dba, colour);
-                        fillTrapezoid(yb, yc, -((yb - a.y)*dca) + a.x, -((yb - b.y)*dcb) + b.x, -dca, -dcb, colour);
+                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
+                        _xR = -((yb - b.y)*dcb) + b.x;
+                        fillTrapezoid(yb, yc, -dca, -dcb, colour);
                     }
                 }
             }
@@ -497,7 +519,7 @@ private:
         if (y < 0 || y >= 200 || xL < 0 || xR > 320 || xL > xR)
             printf("Error\n");
 
-        int l = ((y & 1) << 13) + (y >> 1)*80;
+        int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
         c <<= 6;
 
         DWORD* p =
@@ -555,6 +577,9 @@ private:
     Vector _outputSize;
     Byte _vram[0x4000];
     Byte _vram2[0x4000];
+    Fix8p8 _xL;
+    Fix8p8 _xR;
+    bool _fp;
 };
 
 class Program : public WindowProgram<SpanWindow>

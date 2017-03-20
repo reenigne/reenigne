@@ -1,0 +1,93 @@
+World coordinates: 8.8   -128 <= model.x < 128
+Matrix elements: 8.8     -128 <= _xx < 128
+r.x and r.y: 16.16       -32768 <= r.x < 32768
+r.z: 0 8.16              -128 <= r.z < 128
+
+In current span, the s vector is 338, 282, 0.566
+So the matrix elements won't fit in 8.8
+  This just means that the model and screen need to be larger by at least a factor of 3
+    Making the screen 4x3 in world units is quite nice!
+
+The transformed (screen) coordinates should be accurate to 1/256 of pixel width
+However, we want to allow for vertex positions which are a long way offscreen (e.g. above player)
+Therefore, pre-clipping we want screen positions in 24.8 format
+  Or 12.4?
+
+Suppose transformed coordinates are in 16.16 format.
+
+To compute 16.16 / 16.16, need to shift quotient rep left by x bits and divisor right by 16-x bits
+  So could be a 48/32 division or a 32/16
+  Latter would be much faster!
+  This is x/(z >> 16) - i.e. drop fractional part of z
+  However, we only want 8 fractional bits for fillTriangle, so we need a >>8
+    So we could compute:
+      (x >> 8)/(z >> 16) - 32/16 (really 24/16)
+      x/(z >> 8) - 32/24 (can compute as 32/16 if -128 <= r.z < 128
+
+
+
+
+For fillTriangle, we want a 24.8 result - i.e. vR = rR*2^-8
+
+We have vX = rX*2^-16 and vZ = rZ*2^-16
+
+vR = vX/vZ
+
+rR*2^-8 = rX / rZ
+rR = rX*2^8 / rZ
+
+Suppose we want to compute this with a 32/16 divide
+
+
+
+Suppose we have rX in DX:AX and rZ in BX:CX
+
+mov ch,bl
+mov cl,ch
+idiv cx
+
+
+(6*100*s/5) * 5 = 128  s = 0.21333  2/s = size of screen vertically in world coords = 9.375
+size of screen horizontally = 10
+this is with distance = 5 which is a very wide field of vision
+  For a PC game, a 90 degree FoV is normal, i.e. distance = 128 pixels
+
+
+
+Express FoV as distance in units of screen width (d/sx)
+  FoV of 90 degrees is d/sx = 0.5 = ds    d = ds*sx     sx = d/ds
+
+sx/sy = (5/6)*(256/200) = 1.06666     sx = 1.06666*sy   sy = 0.9375*sx
+1/zs = sy/2      zs = 2/sy   sy = 2/zs
+ys = 100*zs      zs = ys/100
+xs = 6*ys/5      5*xs/6 = ys
+xs*d = 128       xs = 128/d
+
+
+sy = 2/zs = 2/(ys/100) = 200/ys     = pixels per world-unit vertically
+sy = 200/(5*xs/6) = 200/(5*(128/d)/6) = 200/(5*(128/(ds*sx))/6) = 200/(5*(128/(ds*(1.06666*sy)))/6)
+
+1/2 = ds
+
+
+maximum matrix value = xs*d = 6*ys*d/5 = 6*100*(2/sy)*d/5  = 6*100*(2/(0.9375*(d/ds)))*d/5 = 256*ds
+
+Want zs = 1 so sy = 2 and sx = 2.13333333
+ys = 100
+xs = 120
+d = 1.06666
+
+
+Modify distance to satisfy xs*d = 128
+
+d = 128/xs = 128/(6*ys/5) = 128/(6*(100*zs)/5) = 128/(6*(100*(d/sqrt((d*d + 1)*3)))/5)
+
+d*d = 1.066666666*sqrt((d*d + 1)*3)
+
+d^4 = 1.066666^2 * (d*d + 1)*3
+
+d = 128/(6*(100*(d/sqrt((d*d + 1)*3)))/5)
+
+d = (4/5)*sqrt((8/3) + sqrt(139)/3) = 2.0547091212166765333819588893295
+
+With ys = 99.5*zs, d = 2.06338
