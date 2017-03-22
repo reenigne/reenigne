@@ -165,7 +165,7 @@ public:
         add(&_animated);
 
         _animated.setDrawWindow(this);
-        _animated.setRate(6);
+        _animated.setRate(60);
     }
     void create()
     {
@@ -206,112 +206,62 @@ public:
             Point2 p2 = corners[face->_points[2]];
             Point2 p3 = corners[face->_points[3]];
 
-            bool visible = false;
             if (p1.x > p0.x) {
                 if (p1.y > p0.y) {
                     if (p2.x > p0.x) {
-                        if (p2.y > p0.y)
-                            visible = dmul(p1.x - p0.x, p2.y - p0.y) < dmul(p1.y - p0.y, p2.x - p0.x);
-                        else
-                            visible = true;
+                        if (p2.y > p0.y && dmul(p1.x - p0.x, p2.y - p0.y) > dmul(p1.y - p0.y, p2.x - p0.x))
+                            continue;
                     }
                     else {
-                        if (p2.y > p0.y)
-                            visible = false;
-                        else
-                            visible = dmul(p1.x - p0.x, p0.y - p2.y) > dmul(p1.y - p0.y, p0.x - p2.x);
+                        if (p2.y > p0.y || dmul(p1.x - p0.x, p0.y - p2.y) < dmul(p1.y - p0.y, p0.x - p2.x))
+                            continue;
                     }
                 }
                 else {
                     if (p2.x > p0.x) {
-                        if (p2.y > p0.y)
-                            visible = false;
-                        else
-                            visible = dmul(p1.x - p0.x, p0.y - p2.y) > dmul(p0.y - p1.y, p2.x - p0.x);
+                        if (p2.y > p0.y || dmul(p1.x - p0.x, p0.y - p2.y) < dmul(p0.y - p1.y, p2.x - p0.x))
+                            continue;
                     }
                     else {
-                        if (p2.y > p0.y)
-                            visible = dmul(p1.x - p0.x, p2.y - p0.y) < dmul(p0.y - p1.y, p0.x - p2.x);
-                        else
-                            visible = true;
+                        if (p2.y > p0.y && dmul(p1.x - p0.x, p2.y - p0.y) > dmul(p0.y - p1.y, p0.x - p2.x))
+                            continue;
                     }
                 }
             }
             else {
                 if (p1.y > p0.y) {
                     if (p2.x > p0.x) {
-                        if (p2.y > p0.y)
-                            visible = true;
-                        else
-                            visible = dmul(p0.x - p1.x, p0.y - p2.y) < dmul(p1.y - p0.y, p2.x - p0.x);
+                        if (p2.y < p0.y && dmul(p0.x - p1.x, p0.y - p2.y) > dmul(p1.y - p0.y, p2.x - p0.x))
+                            continue;
                     }
                     else {
-                        if (p2.y > p0.y)
-                            visible = dmul(p0.x - p1.x, p2.y - p0.y) > dmul(p1.y - p0.y, p0.x - p2.x);
-                        else
-                            visible = false;
+                        if (p2.y < p0.y || dmul(p0.x - p1.x, p2.y - p0.y) < dmul(p1.y - p0.y, p0.x - p2.x))
+                            continue;
                     }
                 }
                 else {
                     if (p2.x > p0.x) {
-                        if (p2.y > p0.y)
-                            visible = dmul(p0.x - p1.x, p2.y - p0.y) > dmul(p0.y - p1.y, p2.x - p0.x);
-                        else
-                            visible = false;
+                        if (p2.y < p0.y || dmul(p0.x - p1.x, p2.y - p0.y) < dmul(p0.y - p1.y, p2.x - p0.x))
+                            continue;
                     }
                     else {
-                        if (p2.y > p0.y)
-                            visible = true;
-                        else
-                            visible = dmul(p0.x - p1.x, p0.y - p2.y) < dmul(p0.y - p1.y, p0.x - p2.x);
+                        if (p2.y < p0.y && dmul(p0.x - p1.x, p0.y - p2.y) > dmul(p0.y - p1.y, p0.x - p2.x))
+                            continue;
                     }
                 }
             }
-            if (visible) {
-                int c = face->_colour;
-                printf("%i ", fillTriangle(p0, p1, p2, c));
-                printf("%i ", fillTriangle(p2, p3, p0, c));
-                //fillTriangle(p0, p1, p2, c);
-                //fillTriangle(p2, p3, p0, c);
-
-                fillTriangle2(p0, p1, p2, c);
-                fillTriangle2(p2, p3, p0, c);
-            }
-
-            bool visible2 = (p1.x.toDouble() - p0.x.toDouble())*(p2.y.toDouble() - p0.y.toDouble()) < (p1.y.toDouble() - p0.y.toDouble())*(p2.x.toDouble() - p0.x.toDouble());
-            if (visible != visible2)
-                printf("Error\n");
-
-            //Point2 e1 = p1 - p0;
-            //Point2 e2 = p2 - p0;
-            //if (e1.x*e2.y < e1.y*e2.x) {
-            //    int c = face->_colour;
-            //    fillTriangle(p0, p1, p2, c);
-            //    fillTriangle(p2, p3, p0, c);
-            //}
+            int c = face->_colour;
+            fillTriangle(p0, p1, p2, c);
+            fillTriangle(p2, p3, p0, c);
         }
-        //printf("\n");
-
-        if (_fp)
-            _data.change(0, 0, 0x4000, &_vram2[0]);
-        else
-            _data.change(0, 0, 0x4000, &_vram[0]);
+        _data.change(0, 0, 0x4000, &_vram[0]);
         _output.restart();
         _animated.restart();
     }
-    bool keyboardEvent(int key, bool up)
-    {
-        if (key == 'F')
-            if (up)
-                _fp = false;
-            else
-                _fp = true;
-        return false;
-    }
 private:
-    int horizontalLine(int xL, int xR, int y, int c)
+    void horizontalLine(int xL, int xR, int y, int c)
     {
-        if (y < 0 || y >= 200 || xL < 0 || xR > 320 /*|| xL > xR*/)
+        if (y < 0 || y >= 200 || xL < 0 || xR > 320)
             printf("Error\n");
 
         int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
@@ -319,27 +269,53 @@ private:
 
         DWORD* p =
             reinterpret_cast<DWORD*>(_bitmap.data() + y*_bitmap.stride()) + xL;
-        int count = 0;
         for (int x = xL; x < xR; ++x) {
             int a = l + (x >> 2);
             int s = (x & 3) << 1;
             _vram[a] = (_vram[a] & ~(0xc0 >> s)) | (c >> s);
-            ++count;
         }
-        return count;
     }
-    int fillTrapezoid(int yStart, int yEnd, Fix8p8 dL, Fix8p8 dR, int c)
+    void fillTrapezoid(int yStart, int yEnd, Fix8p8 dL, Fix8p8 dR, int c)
     {
-        int count = 0;
         for (int y = yStart; y < yEnd; ++y) {
-            count += horizontalLine(static_cast<int>(floor(_xL)),
+            horizontalLine(static_cast<int>(floor(_xL)),
                 static_cast<int>(floor(_xR)), y, c);
             _xL += dL;
             _xR += dR;
         }
-        return count;
     }
-    int fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
+    Fix8p8 slopeLeft(Fix8p8 dx, Fix8p8 dy, Fix8p8 x0, Fix8p8 y0, Fix8p8* x)
+    {
+        if (dy < 1) {
+            *x = x0 - muld(y0, dx, dy);
+            return Fix8p8::fromT(0xffff);
+        }
+        else {
+            Fix8p8 dxdy = dx/dy;
+            *x = x0 - y0*dxdy;
+            return dxdy;
+        }
+    }
+    Fix8p8 slopeRight(Fix8p8 dx, Fix8p8 dy, Fix8p8 x0, Fix8p8 y0, Fix8p8* x)
+    {
+        if (dy < 1) {
+            *x = x0 + muld(y0, dx, dy);
+            return Fix8p8::fromT(0xffff);
+        }
+        else {
+            Fix8p8 dxdy = dx/dy;
+            *x = x0 + y0*dxdy;
+            return dxdy;
+        }
+    }
+    Fix8p8 slope(Fix8p8 ux, Fix8p8 vx, Fix8p8 dy, Fix8p8 x0, Fix8p8 y0,
+        Fix8p8* x)
+    {
+        if (ux > vx)
+            return slopeRight(ux - vx, dy, x0, y0, x);
+        return -slopeLeft(vx - ux, dy, x0, y0, x);
+    }
+    void fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
     {
         if (a.y > b.y) swap(a, b);
         if (b.y > c.y) swap(b, c);
@@ -347,229 +323,83 @@ private:
 
         if (a.y == b.y) {
             if (b.y == c.y)
-                return 0;
+                return;
             if (a.x > b.x)
                 swap(a, b);
             int yab = static_cast<int>(ceil(a.y));
             int yc = static_cast<int>(floor(c.y + 1));
-            Fix8p8 dy = c.y - a.y;
-            if (c.x > a.x) {
-                Fix8p8 dac = (c.x - a.x)/dy;
-                _xL = (yab - a.y)*dac + a.x;
-                if (c.x > b.x) {
-                    Fix8p8 dbc = (c.x - b.x)/dy;
-                    _xR = (yab - a.y)*dbc + b.x;
-                    return fillTrapezoid(yab, yc, dac, dbc, colour);
-                }
-                else {
-                    Fix8p8 dcb = (b.x - c.x)/dy;
-                    _xR = -((yab - a.y)*dcb) + b.x;
-                    return fillTrapezoid(yab, yc, dac, -dcb, colour);
-                }
-            }
-            else {
-                Fix8p8 dca = (a.x - c.x)/dy;
-                _xL = -((yab - a.y)*dca) + a.x;
-                if (c.x > b.x) {
-                    Fix8p8 dbc = (c.x - b.x)/dy;
-                    _xR = (yab - a.y)*dbc + b.x;
-                    return fillTrapezoid(yab, yc, -dca, dbc, colour);
-                }
-                else {
-                    Fix8p8 dcb = (b.x - c.x)/dy;
-                    _xR = -((yab - a.y)*dcb) + b.x;
-                    return fillTrapezoid(yab, yc, -dca, -dcb, colour);
-                }
-            }
-            //return;
+            Fix8p8 yac = c.y - a.y;
+            Fix8p8 yaa = yab - a.y;
+            fillTrapezoid(yab, yc, slope(c.x, a.x, yac, a.x, yaa, &_xL), slope(c.x, b.x, yac, b.x, yaa, &_xR), colour);
+            return;
         }
+        int ya = static_cast<int>(floor(a.y + 1));
+        Fix8p8 yab = b.y - a.y;
         if (b.y == c.y) {
             if (b.x > c.x)
                 swap(b, c);
-            int ya = static_cast<int>(floor(a.y + 1));
             int ybc = static_cast<int>(floor(b.y + 1));
-            Fix8p8 dy = b.y - a.y;
-            if (b.x > a.x) {
-                Fix8p8 dab = (b.x - a.x)/dy;
-                _xL = (ya - a.y)*dab + a.x;
-                if (c.x > a.x) {
-                    Fix8p8 dac = (c.x - a.x)/dy;
-                    _xR = (ya - a.y)*dac + a.x;
-                    return fillTrapezoid(ya, ybc, dab, dac, colour);
-                }
-                else {
-                    Fix8p8 dca = (a.x - c.x)/dy;
-                    _xR = -((ya - a.y)*dca) + a.x;
-                    return fillTrapezoid(ya, ybc, dab, -dca, colour);
-                }
-            }
-            else {
-                Fix8p8 dba = (a.x - b.x)/dy;
-                _xL = -((ya - a.y)*dba) + a.x;
-                if (c.x > a.x) {
-                    Fix8p8 dac = (c.x - a.x)/dy;
-                    _xR = (ya - a.y)*dac + a.x;
-                    return fillTrapezoid(ya, ybc, -dba, dac, colour);
-                }
-                else {
-                    Fix8p8 dca = (a.x - c.x)/dy;
-                    _xR = -((ya - a.y)*dca) + a.x;
-                    return fillTrapezoid(ya, ybc, -dba, -dca, colour);
-                }
-            }
-            //return;
+            Fix8p8 yaa = ya - a.y;
+            fillTrapezoid(ya, ybc, slope(b.x, a.x, yab, a.x, yaa, &_xL), slope(c.x, a.x, yab, a.x, yaa, &_xR), colour);
+            return;
         }
 
-        int ya = static_cast<int>(floor(a.y + 1));
         int yb = static_cast<int>(floor(b.y + 1));
         int yc = static_cast<int>(floor(c.y + 1));
-        int count;
+        Fix8p8 xb;
+        Fix8p8 yaa = ya - a.y;
+        Fix8p8 ybb = yb - b.y;
+        Fix8p8 yac = c.y - a.y;
+        Fix8p8 ybc = c.y - b.y;
         if (b.x > a.x) {
-            Fix8p8 dab = (b.x - a.x)/(b.y - a.y);
-            Fix8p8 xb = (ya - a.y)*dab + a.x;
+            Fix8p8 dab = slopeRight(b.x - a.x, yab, a.x, yaa, &xb);
             if (c.x > a.x) {
-                Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
-                Fix8p8 xc = (ya - a.y)*dac + a.x;
+                Fix8p8 xc;
+                Fix8p8 dac = slopeRight(c.x - a.x, yac, a.x, yaa, &xc);
                 if (dab < dac) {
                     _xL = xb;
                     _xR = xc;
-                    count = fillTrapezoid(ya, yb, dab, dac, colour);
-                    if (c.x > b.x) {
-                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                        _xL = (yb - b.y)*dbc + b.x;
-                        count += fillTrapezoid(yb, yc, dbc, dac, colour);
-                    }
-                    else {
-                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                        _xL = -((yb - b.y)*dcb) + b.x;
-                        count += fillTrapezoid(yb, yc, -dcb, dac, colour);
-                    }
+                    fillTrapezoid(ya, yb, dab, dac, colour);
+                    fillTrapezoid(yb, yc, slope(c.x, b.x, ybc, b.x, ybb, &_xL), dac, colour);
                 }
                 else {
                     _xL = xc;
                     _xR = xb;
-                    count = fillTrapezoid(ya, yb, dac, dab, colour);
-                    if (c.x > b.x) {
-                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                        _xR = (yb - b.y)*dbc + b.x;
-                        count += fillTrapezoid(yb, yc, dac, dbc, colour);
-                    }
-                    else {
-                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                        _xR = -((yb - b.y)*dcb) + b.x;
-                        count += fillTrapezoid(yb, yc, dac, -dcb, colour);
-                    }
+                    fillTrapezoid(ya, yb, dac, dab, colour);
+                    fillTrapezoid(yb, yc, dac, slope(c.x, b.x, ybc, b.x, ybb, &_xR), colour);
                 }
             }
             else {
-                Fix8p8 dca = (a.x - c.x)/(c.y - a.y);
-                _xL = -((ya - a.y)*dca) + a.x;
+                Fix8p8 dca = slopeLeft(a.x - c.x, yac, a.x, yaa, &_xL);
                 _xR = xb;
-                count = fillTrapezoid(ya, yb, -dca, dab, colour);
-                Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                _xR = -((yb - b.y)*dcb) + b.x;
-                count += fillTrapezoid(yb, yc, -dca, -dcb, colour);
+                fillTrapezoid(ya, yb, -dca, dab, colour);
+                fillTrapezoid(yb, yc, -dca, -slopeLeft(b.x - c.x, ybc, b.x, ybb, &_xR), colour);
             }
         }
         else {
-            Fix8p8 dba = (a.x - b.x)/(b.y - a.y);
-            Fix8p8 xb = -((ya - a.y)*dba) + a.x;
+            Fix8p8 dba = slopeLeft(a.x - b.x, yab, a.x, yaa, &xb);
             if (c.x > a.x) {
-                Fix8p8 dac = (c.x - a.x)/(c.y - a.y);
+                Fix8p8 dac = slopeRight(c.x - a.x, yac, a.x, yaa, &_xR);
                 _xL = xb;
-                _xR = (ya - a.y)*dac + a.x;
-                count = fillTrapezoid(ya, yb, -dba, dac, colour);
-                Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                _xL = (yb - b.y)*dbc + b.x;
-                count += fillTrapezoid(yb, yc, dbc, dac, colour);
+                fillTrapezoid(ya, yb, -dba, dac, colour);
+                fillTrapezoid(yb, yc, slopeRight(c.x - b.x, ybc, b.x, ybb, &_xL), dac, colour);
             }
             else {
-                Fix8p8 dca = (a.x - c.x)/(c.y - a.y);
-                Fix8p8 xc = -((ya - a.y)*dca) + a.x;
+                Fix8p8 xc;
+                Fix8p8 dca = slopeLeft(a.x - c.x, yac, a.x, yaa, &xc);
                 if (dba > dca) {
                     _xL = xb;
                     _xR = xc;
-                    count = fillTrapezoid(ya, yb, -dba, -dca, colour);
-                    if (c.x > b.x) {
-                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                        _xL = (yb - b.y)*dbc + b.x;
-                        count += fillTrapezoid(yb, yc, dbc, -dca, colour);
-                    }
-                    else {
-                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                        _xL = -((yb - b.y)*dcb) + b.x;
-                        count += fillTrapezoid(yb, yc, -dcb, -dca, colour);
-                    }
+                    fillTrapezoid(ya, yb, -dba, -dca, colour);
+                    fillTrapezoid(yb, yc, slope(c.x, b.x, ybc, b.x, ybb, &_xL), -dca, colour);
                 }
                 else {
                     _xL = xc;
                     _xR = xb;
-                    count = fillTrapezoid(ya, yb, -dca, -dba, colour);
-                    if (c.x > b.x) {
-                        Fix8p8 dbc = (c.x - b.x)/(c.y - b.y);
-                        _xR = (yb - b.y)*dbc + b.x;
-                        count += fillTrapezoid(yb, yc, -dca, dbc, colour);
-                    }
-                    else {
-                        Fix8p8 dcb = (b.x - c.x)/(c.y - b.y);
-                        _xR = -((yb - b.y)*dcb) + b.x;
-                        count += fillTrapezoid(yb, yc, -dca, -dcb, colour);
-                    }
+                    fillTrapezoid(ya, yb, -dca, -dba, colour);
+                    fillTrapezoid(yb, yc, -dca, slope(c.x, b.x, ybc, b.x, ybb, &_xR), colour);
                 }
             }
-        }
-        return count;
-    }
-
-    void horizontalLine2(int xL, int xR, int y, int c)
-    {
-        if (y < 0 || y >= 200 || xL < 0 || xR > 320 || xL > xR)
-            printf("Error\n");
-
-        int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
-        c <<= 6;
-
-        DWORD* p =
-            reinterpret_cast<DWORD*>(_bitmap.data() + y*_bitmap.stride()) + xL;
-        for (int x = xL; x < xR; ++x) {
-            int a = l + (x >> 2);
-            int s = (x & 3) << 1;
-            _vram2[a] = (_vram2[a] & ~(0xc0 >> s)) | (c >> s);
-        }
-    }
-    void fillTrapezoid2(int yStart, int yEnd, float xL, float xR, float dL,
-        float dR, int c)
-    {
-        for (int y = yStart; y < yEnd; ++y) {
-            horizontalLine2(static_cast<int>(floor(xL)),
-                static_cast<int>(floor(xR)), y, c);
-            xL += dL;
-            xR += dR;
-        }
-    }
-    void fillTriangle2(Point2 a, Point2 b, Point2 c, int colour)
-    {
-        if (a.y > b.y) swap(a, b);
-        if (b.y > c.y) swap(b, c);
-        if (a.y > b.y) swap(a, b);
-        float dab = (b.x.toDouble() - a.x.toDouble())/(b.y.toDouble() - a.y.toDouble());
-        float dac = (c.x.toDouble() - a.x.toDouble())/(c.y.toDouble() - a.y.toDouble());
-        float dbc = (c.x.toDouble() - b.x.toDouble())/(c.y.toDouble() - b.y.toDouble());
-
-        int ya = static_cast<int>(floor(a.y.toDouble() + 1));
-        int yb = static_cast<int>(floor(b.y.toDouble() + 1));
-        int yc = static_cast<int>(floor(c.y.toDouble() + 1));
-        if (dab < dac) {
-            fillTrapezoid2(ya, yb, (ya - a.y.toDouble())*dab + a.x.toDouble(), (ya - a.y.toDouble())*dac + a.x.toDouble(),
-                dab, dac, colour);
-            fillTrapezoid2(yb, yc, (yb - b.y.toDouble())*dbc + b.x.toDouble(), (yb - a.y.toDouble())*dac + a.x.toDouble(),
-                dbc, dac, colour);
-        }
-        else {
-            fillTrapezoid2(ya, yb, (ya - a.y.toDouble())*dac + a.x.toDouble(), (ya - a.y.toDouble())*dab + a.x.toDouble(),
-                dac, dab, colour);
-            fillTrapezoid2(yb, yc, (yb - a.y.toDouble())*dac + a.x.toDouble(), (yb - b.y.toDouble())*dbc + b.x.toDouble(),
-                dac, dbc, colour);
         }
     }
 

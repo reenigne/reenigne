@@ -33,6 +33,10 @@ private:
     {
         return sp((dp(x)*dp((y << N) /*+ (1 << (N - 1))*/)) / dp(z));
     }
+    static T MultiplyDivide(T x, T y, T z)
+    {
+        return sp((dp(x)*dp(y))/dp(z));
+    }
     static TT lmul(T x, T y) { return dp(x)*dp(y); }
 };
 
@@ -43,6 +47,7 @@ private:
     static T MultiplyShiftRight(T x, T y) { }
     static T ShiftLeftDivide(T x, T y) { }
     static T MultiplyShiftLeftDivide(T x, T y, T z) { }
+    static T MultiplyDivide(T x, T y, T z) { }
 };
 
 template<int N> class ArithmeticHelper<N, Int8>
@@ -108,13 +113,20 @@ private:
             idiv y
         }
     }
-
     static Int32 MultiplyShiftLeftDivide(Int32 x, Int32 y, Int32 z)
     {
         __asm {
             mov eax, y
             shl eax, length nn
             add eax, length n2
+            imul x
+            idiv z
+        }
+    }
+    static Int32 MultiplyDivide(Int32 x, Int32 y, Int32 z)
+    {
+        __asm {
+            mov eax, y
             imul x
             idiv z
         }
@@ -160,6 +172,14 @@ private:
             div z
         }
     }
+    static DWord MultiplyDivide(DWord x, DWord y, DWord z)
+    {
+        __asm {
+            mov eax, y
+            mul y
+            div z
+        }
+    }
 };
 
 #else  // _WIN32
@@ -189,6 +209,7 @@ public:
       : _x(N<N2 ? (x._x>>(N2-N)) : (x._x<<(N-N2)))
     { }
     Fixed(T x, T m, T d) : _x(M::MultiplyShiftLeftDivide(x, m, d)) { }
+    static Fixed fromT(T x) { Fixed r; r._x = x; return r; }
     const Fixed& operator=(const Fixed& x) { _x = x._x; return *this; }
     const Fixed& operator=(T x) { _x = x<<N; return *this; }
     const Fixed& operator+=(const Fixed& x) { _x += x._x; return *this; }
@@ -224,7 +245,7 @@ public:
     Fixed ceil() const
     {
         Fixed x;
-        x._x = (_x + N - 1) & ((-1) << N);
+        x._x = (_x + (1 << N) - 1) & ((-1) << N);
         return x;
     }
     double toDouble() const
@@ -238,6 +259,12 @@ public:
     typename M::DoubleType dmul(const Fixed& x) const
     {
         return M::lmul(_x, x._x);
+    }
+    Fixed muld(const Fixed& y, const Fixed& z) const
+    {
+        Fixed x;
+        x._x = M::MultiplyDivide(_x, y._x, z._x);
+        return x;
     }
 
 private:
@@ -301,6 +328,13 @@ template<int N, class T, class M> typename M::DoubleType
     dmul(const Fixed<N, T, M>& x, const Fixed<N, T, M>& y)
 {
     return x.dmul(y);
+}
+
+template<int N, class T, class TT> Fixed<N, T, TT>
+    muld(const Fixed<N, T, TT>& a, const Fixed<N, T, TT>& b,
+    const Fixed<N, T, TT>& c)
+{
+    return a.muld(b, c);
 }
 
 #endif // INCLUDED_FIX_H
