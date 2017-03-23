@@ -22,7 +22,17 @@ To compute 16.16 / 16.16, need to shift quotient rep left by x bits and divisor 
   However, we only want 8 fractional bits for fillTriangle, so we need a >>8
     So we could compute:
       (x >> 8)/(z >> 16) - 32/16 (really 24/16)
-      x/(z >> 8) - 32/24 (can compute as 32/16 if -128 <= r.z < 128
+      x/(z >> 8) - 32/24 (can compute as 32/16 if -128 <= r.z < 128)
+  We do need the transform output to be 16.8 or 24.8 in order to do clipping properly
+    So use 32/16->32, which is two 32/16->16 operations
+      xor dx,dx
+      mov cx,[rz + 1]
+      mov ax,[rx + 2]
+      idiv cx          ; dx = remainder, ax = quotient
+      mov [sx + 2],ax
+      mov ax,[rx]
+      idiv cx
+      mov [sx],ax
 
 
 
@@ -91,3 +101,82 @@ d = 128/(6*(100*(d/sqrt((d*d + 1)*3)))/5)
 d = (4/5)*sqrt((8/3) + sqrt(139)/3) = 2.0547091212166765333819588893295
 
 With ys = 99.5*zs, d = 2.06338
+
+
+
+cos(a)*cos(b) = (cos(a + b) + cos(a - b))/2
+sin(a)*sin(b) = (cos(a - b) - cos(a + b))/2
+sin(a)*cos(b) = (sin(a + b) + sin(a - b))/2
+cos(a)*sin(b) = (sin(a + b) - sin(a - b))/2
+
+
+d = 8/15
+
+r = (8/15)/sqrt(3*(1 + 8*8/(15*15)))
+
+
+sin(u) = 1/256, u ~= 1/256    2048 entries, 2560 with cosines
+
+
+
+MUL with byte arguments: 69 cycles plus 1 for each set bit in AL plus 1 if the high byte of the result is 0
+MUL with word arguments: 123 cycles plus 1 for each set bit in AX plus 1 if the high word of the result is 0
+IMUL with byte arguments: >= 80 cycles
+IMUL with word arguments: >= 134 cycles
+
+MUL rb                  69-78
+IMUL rb                 80-98
+DIV rb                  80-90
+IDIV rb                101-112
+MUL rw                 118-133
+IMUL rw                128-154
+DIV rw                 144-162
+IDIV rw                165-184
+
+
+As sine table values are essentially 8 bits plus a sign bit, can we use table-of-squares to do the multiply?
+
+(0x100*a + b)*c = (b*c) + 0x100*(a*c)
+
+Assume value in sine table is in range 0..0xff
+  mov si,[sineTable + di]                      ; 4 2
+  mov bl,[modelCoord]                          ; 4 1
+  mov bh,0                                     ; 2
+  add bx,bx                                    ; 2
+  mov ax,[si+bx]                               ; 2 2
+  neg bx                                       ; 2
+  sub ax,[si+bx]                               ; 2 2
+  mov bl,[modelCoord + 1]                      ; 4 1
+  mov bh,0                                     ; 2
+  add bx,bx                                    ; 2
+  mov cx,[si+bx]                               ; 2 2
+  neg bx                                       ; 2
+  sub cx,[si+bx]                               ; 2 2
+  mov dl,ch                                    ; 2
+  mov dh,0                                     ; 2
+  mov ch,cl                                    ; 2
+  mov cl,0                                     ; 2
+  add ax,cx                                    ; 2
+  adc dx,0                                     ; 3      228
+No advantage in using half-square tables for full-range 16x8 bit multiplies
+
+
+
+  mov ax,[modelCoord]                          ; 20
+  imul word[sineTable + ...]                   ; result in dx:ax     134
+
+
+Is it better to include the world-to-pixel scaling factors into the transformation matrix or apply them separately afterwards?
+  Applying them separately doesn't seem to buy us anything, unless we can do crazy optimizations to eliminate the first mul (store separate sine table for each possible world position)
+    world (8.8) * rotation (1.8) >> 8 -> rotated (8.8)            imul
+    rotated (8.8) <<8 / z (8.8) -> transformed (24.8)          idiv idiv    need 32 bits of precision after perspective applied
+    transformed (24.8) * scale (8.8) -> scaled (16.16)            imul
+
+  Applying them together:
+    world (8.8) * matrix (8.8) -> worldpix (16.16)   imul
+    scaled (16.16) / z (8.8) -> screen (24.8)        idiv idiv
+
+
+What if a triangle crosses z=0 and is partially visible?
+  Need to draw an external triangle (figure 3 in https://www.cs.unc.edu/~olano/papers/2dh-tri/)
+

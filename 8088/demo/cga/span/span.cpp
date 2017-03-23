@@ -5,7 +5,9 @@
 #include "alfe/cga.h"
 #include "alfe/fix.h"
 
-typedef Vector3<float> Point3;
+typedef Fixed<8, Word> Fix8p8;
+
+typedef Vector3<Fix8p8> Point3;
 
 Point3 cubeCorners[8] = {
     Point3(-1, -1, -1),
@@ -41,30 +43,63 @@ Quad cubeFaces[6] = {
     Quad(0, 1, 5, 4, 3)
 };
 
-typedef Fixed<8, Word> Fix8p8;
-//typedef Fixed<16, Int32> Fix16p16;
-//typedef float Fix8p8;
+typedef Fixed<8, Int32> Fix24p8;
 typedef Vector2<Fix8p8> Point2;
+typedef Vector2<Fix24p8> Point2L;
+
+class SineTable
+{
+public:
+    SineTable()
+    {
+        for (int i = 0; i < 2560; ++i) {
+            double s = sin(i*tau/2048.0);
+            _table[i] = s;
+            _halfTable[i] = s/2.0;
+        }
+    }
+    Fix8p8 sin(int a) { return _table[a]; }
+    Fix8p8 cos(int a) { return _table[a + 512]; }
+    Fix8p8 coscos(int a, int b)
+    {
+        return _halfTable[(a+b & 0x7ff) + 512] +
+            _halfTable[(a-b & 0x7ff) + 512];
+    }
+    Fix8p8 sinsin(int a, int b)
+    {
+        return _halfTable[(a-b & 0x7ff) + 512] -
+            _halfTable[(a+b & 0x7ff) + 512];
+    }
+    Fix8p8 sincos(int a, int b)
+    {
+        return _halfTable[a+b & 0x7ff] + _halfTable[a-b & 0x7ff];
+    }
+    Fix8p8 cossin(int a, int b)
+    {
+        return _halfTable[a+b & 0x7ff] - _halfTable[a-b & 0x7ff];
+    }
+private:
+    Fix8p8 _table[2560];
+    Fix8p8 _halfTable[2560];
+};
+
+SineTable sines;
 
 class Projection
 {
 public:
-    void init(float theta, float phi, float distance, Vector3<float> scale,
-        Vector2<float> offset)
+    void init(int theta, int phi, Fix8p8 distance, Vector3<Fix8p8> scale,
+        Vector2<Fix8p8> offset)
     {
-        float st = sin(theta);
-        float ct = cos(theta);
-        float sp = sin(phi);
-        float cp = cos(phi);
-        Vector3<float> s(scale.x*distance, scale.y*distance, scale.z);
-        _xx = s.x*st;
-        _xy = -s.y*cp*ct;
-        _xz = -s.z*sp*ct;
-        _yx = s.x*ct;
-        _yy = s.y*cp*st;
-        _yz = s.z*sp*st;
-        _zy = s.y*sp;
-        _zz = -s.z*cp;
+        Vector3<Fix8p8> s(scale.x*distance, scale.y*distance, scale.z);
+        _xx = s.x*sines.sin(theta);
+        _xy = -s.y*sines.coscos(theta, phi);
+        _xz = -s.z*sines.cossin(theta, phi);
+        _yx = s.x*sines.cos(theta);
+        _yy = s.y*sines.sincos(theta, phi);
+        _yz = s.z*sines.sinsin(theta, phi);
+        _zy = s.y*sines.sin(phi);
+        _zz = -s.z*sines.cos(phi);
         _distance = distance;
         _offset = offset;
     }
@@ -77,17 +112,17 @@ public:
         return Point2(r.x/r.z + _offset.x, r.y/r.z + _offset.y); //, r.z);
     }
 private:
-    float _distance;
-    Vector2<float> _offset;
-    float _xx;
-    float _xy;
-    float _xz;
-    float _yx;
-    float _yy;
-    float _yz;
-    //float _zx;
-    float _zy;
-    float _zz;
+    Fix8p8 _distance;
+    Vector2<Fix8p8> _offset;
+    Fix8p8 _xx;
+    Fix8p8 _xy;
+    Fix8p8 _xz;
+    Fix8p8 _yx;
+    Fix8p8 _yy;
+    Fix8p8 _yz;
+    //Fix8p8 _zx;
+    Fix8p8 _zy;
+    Fix8p8 _zz;
 };
 
 class SpanWindow : public RootWindow
@@ -166,6 +201,11 @@ public:
 
         _animated.setDrawWindow(this);
         _animated.setRate(60);
+
+        float distance = (256.0 / 200.0)*(5.0 / 6.0);
+        float r = distance/sqrt(3*(1 + distance*distance));
+        for (int i = 0; i < 8; ++i)
+            cubeCorners[i] *= r;
     }
     void create()
     {
@@ -186,10 +226,10 @@ public:
         _phi += 0.01f*(sqrt(5.0f) + 1)/2;
         if (_phi >= tauf)
             _phi -= tauf;
-        float distance = 2.0547091212166765333819588893295; //5;
-        float zs = distance/sqrt((distance*distance + 1)*3);
-        float ys = 99.5f*zs;
+        float zs = 1;
+        float ys = 99.5f;
         float xs = 6*ys/5;
+        float distance = (256.0 / 200.0)*(5.0 / 6.0);
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
             Vector2<float>(127.5, 99.5));
 
