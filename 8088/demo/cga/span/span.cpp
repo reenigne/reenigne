@@ -5,9 +5,10 @@
 #include "alfe/cga.h"
 #include "alfe/fix.h"
 
-typedef Fixed<8, Word> Fix8p8;
+typedef Fixed<8, Word> UFix8p8;
+typedef Fixed<8, Int16> SFix8p8;
 
-typedef Vector3<Fix8p8> Point3;
+typedef Vector3<SFix8p8> Point3;
 
 Point3 cubeCorners[8] = {
     Point3(-1, -1, -1),
@@ -43,8 +44,9 @@ Quad cubeFaces[6] = {
     Quad(0, 1, 5, 4, 3)
 };
 
+typedef Fixed<16, Int32> Fix16p16;
 typedef Fixed<8, Int32> Fix24p8;
-typedef Vector2<Fix8p8> Point2;
+typedef Vector2<UFix8p8> Point2;
 typedef Vector2<Fix24p8> Point2L;
 
 class SineTable
@@ -53,34 +55,34 @@ public:
     SineTable()
     {
         for (int i = 0; i < 2560; ++i) {
-            double s = sin(i*tau/2048.0);
+            double s = ::sin(i*tau/2048.0);
             _table[i] = s;
             _halfTable[i] = s/2.0;
         }
     }
-    Fix8p8 sin(int a) { return _table[a]; }
-    Fix8p8 cos(int a) { return _table[a + 512]; }
-    Fix8p8 coscos(int a, int b)
+    SFix8p8 sin(int a) { return _table[a]; }
+    SFix8p8 cos(int a) { return _table[a + 512]; }
+    SFix8p8 coscos(int a, int b)
     {
         return _halfTable[(a+b & 0x7ff) + 512] +
             _halfTable[(a-b & 0x7ff) + 512];
     }
-    Fix8p8 sinsin(int a, int b)
+    SFix8p8 sinsin(int a, int b)
     {
         return _halfTable[(a-b & 0x7ff) + 512] -
             _halfTable[(a+b & 0x7ff) + 512];
     }
-    Fix8p8 sincos(int a, int b)
+    SFix8p8 sincos(int a, int b)
     {
         return _halfTable[a+b & 0x7ff] + _halfTable[a-b & 0x7ff];
     }
-    Fix8p8 cossin(int a, int b)
+    SFix8p8 cossin(int a, int b)
     {
         return _halfTable[a+b & 0x7ff] - _halfTable[a-b & 0x7ff];
     }
 private:
-    Fix8p8 _table[2560];
-    Fix8p8 _halfTable[2560];
+    SFix8p8 _table[2560];
+    SFix8p8 _halfTable[2560];
 };
 
 SineTable sines;
@@ -88,10 +90,10 @@ SineTable sines;
 class Projection
 {
 public:
-    void init(int theta, int phi, Fix8p8 distance, Vector3<Fix8p8> scale,
-        Vector2<Fix8p8> offset)
+    void init(int theta, int phi, SFix8p8 distance, Vector3<SFix8p8> scale,
+        Vector2<SFix8p8> offset)
     {
-        Vector3<Fix8p8> s(scale.x*distance, scale.y*distance, scale.z);
+        Vector3<SFix8p8> s(scale.x*distance, scale.y*distance, scale.z);
         _xx = s.x*sines.sin(theta);
         _xy = -s.y*sines.coscos(theta, phi);
         _xz = -s.z*sines.cossin(theta, phi);
@@ -103,26 +105,28 @@ public:
         _distance = distance;
         _offset = offset;
     }
-    Point2 modelToScreen(Point3 model)
+    Point3 modelToScreen(Point3 model)
     {
-        Point3 r(
-            _xx*model.x + _yx*model.y /*+ _zx*model.z*/,
-            _xy*model.x + _yy*model.y + _zy*model.z,
-            _xz*model.x + _yz*model.y + _zz*model.z + _distance);
-        return Point2(r.x/r.z + _offset.x, r.y/r.z + _offset.y); //, r.z);
+        Fix16p16 x = lmul(_xx, model.x) + lmul(_yx, model.y);
+            /*+ lmul(_zx, model.z)*/
+        Fix16p16 y = lmul(_xy, model.x) + lmul(_yy, model.y) +
+            lmul(_zy, model.z);
+        Fix16p16 z = lmul(_xz, model.x) + lmul(_yz, model.y) +
+            lmul(_zz, model.z) + _distance;
+        return Point3(x/z + _offset.x, y/z + _offset.y, z);
     }
 private:
-    Fix8p8 _distance;
-    Vector2<Fix8p8> _offset;
-    Fix8p8 _xx;
-    Fix8p8 _xy;
-    Fix8p8 _xz;
-    Fix8p8 _yx;
-    Fix8p8 _yy;
-    Fix8p8 _yz;
-    //Fix8p8 _zx;
-    Fix8p8 _zy;
-    Fix8p8 _zz;
+    SFix8p8 _distance;
+    Vector2<SFix8p8> _offset;
+    SFix8p8 _xx;
+    SFix8p8 _xy;
+    SFix8p8 _xz;
+    SFix8p8 _yx;
+    SFix8p8 _yy;
+    SFix8p8 _yz;
+    //SFix8p8 _zx;
+    SFix8p8 _zy;
+    SFix8p8 _zz;
 };
 
 class SpanWindow : public RootWindow
@@ -219,13 +223,8 @@ public:
     virtual void draw()
     {
         Projection p;
-        _theta += 0.01f;
-        float tauf = static_cast<float>(tau);
-        if (_theta >= tauf)
-            _theta -= tauf;
-        _phi += 0.01f*(sqrt(5.0f) + 1)/2;
-        if (_phi >= tauf)
-            _phi -= tauf;
+        _theta = (_theta + 3) & 0x7ff;
+        _phi = (_phi + 5) & 0x7ff;
         float zs = 1;
         float ys = 99.5f;
         float xs = 6*ys/5;
@@ -234,8 +233,10 @@ public:
             Vector2<float>(127.5, 99.5));
 
         Point2 corners[8];
-        for (int i = 0; i < 8; ++i)
-            corners[i] = p.modelToScreen(cubeCorners[i]);
+        for (int i = 0; i < 8; ++i) {
+            Point3 s = p.modelToScreen(cubeCorners[i]);
+            corners[i] = Point2(s.x, s.y);
+        }
 
         memset(&_vram[0], 0, 0x4000);
         memset(&_vram2[0], 0, 0x4000);
@@ -249,21 +250,21 @@ public:
             if (p1.x > p0.x) {
                 if (p1.y > p0.y) {
                     if (p2.x > p0.x) {
-                        if (p2.y > p0.y && dmul(p1.x - p0.x, p2.y - p0.y) > dmul(p1.y - p0.y, p2.x - p0.x))
+                        if (p2.y > p0.y && lmul(p1.x - p0.x, p2.y - p0.y) > lmul(p1.y - p0.y, p2.x - p0.x))
                             continue;
                     }
                     else {
-                        if (p2.y > p0.y || dmul(p1.x - p0.x, p0.y - p2.y) < dmul(p1.y - p0.y, p0.x - p2.x))
+                        if (p2.y > p0.y || lmul(p1.x - p0.x, p0.y - p2.y) < lmul(p1.y - p0.y, p0.x - p2.x))
                             continue;
                     }
                 }
                 else {
                     if (p2.x > p0.x) {
-                        if (p2.y > p0.y || dmul(p1.x - p0.x, p0.y - p2.y) < dmul(p0.y - p1.y, p2.x - p0.x))
+                        if (p2.y > p0.y || lmul(p1.x - p0.x, p0.y - p2.y) < lmul(p0.y - p1.y, p2.x - p0.x))
                             continue;
                     }
                     else {
-                        if (p2.y > p0.y && dmul(p1.x - p0.x, p2.y - p0.y) > dmul(p0.y - p1.y, p0.x - p2.x))
+                        if (p2.y > p0.y && lmul(p1.x - p0.x, p2.y - p0.y) > lmul(p0.y - p1.y, p0.x - p2.x))
                             continue;
                     }
                 }
@@ -271,21 +272,21 @@ public:
             else {
                 if (p1.y > p0.y) {
                     if (p2.x > p0.x) {
-                        if (p2.y < p0.y && dmul(p0.x - p1.x, p0.y - p2.y) > dmul(p1.y - p0.y, p2.x - p0.x))
+                        if (p2.y < p0.y && lmul(p0.x - p1.x, p0.y - p2.y) > lmul(p1.y - p0.y, p2.x - p0.x))
                             continue;
                     }
                     else {
-                        if (p2.y < p0.y || dmul(p0.x - p1.x, p2.y - p0.y) < dmul(p1.y - p0.y, p0.x - p2.x))
+                        if (p2.y < p0.y || lmul(p0.x - p1.x, p2.y - p0.y) < lmul(p1.y - p0.y, p0.x - p2.x))
                             continue;
                     }
                 }
                 else {
                     if (p2.x > p0.x) {
-                        if (p2.y < p0.y || dmul(p0.x - p1.x, p2.y - p0.y) < dmul(p0.y - p1.y, p2.x - p0.x))
+                        if (p2.y < p0.y || lmul(p0.x - p1.x, p2.y - p0.y) < lmul(p0.y - p1.y, p2.x - p0.x))
                             continue;
                     }
                     else {
-                        if (p2.y < p0.y && dmul(p0.x - p1.x, p0.y - p2.y) > dmul(p0.y - p1.y, p0.x - p2.x))
+                        if (p2.y < p0.y && lmul(p0.x - p1.x, p0.y - p2.y) > lmul(p0.y - p1.y, p0.x - p2.x))
                             continue;
                     }
                 }
@@ -315,7 +316,7 @@ private:
             _vram[a] = (_vram[a] & ~(0xc0 >> s)) | (c >> s);
         }
     }
-    void fillTrapezoid(int yStart, int yEnd, Fix8p8 dL, Fix8p8 dR, int c)
+    void fillTrapezoid(int yStart, int yEnd, UFix8p8 dL, UFix8p8 dR, int c)
     {
         for (int y = yStart; y < yEnd; ++y) {
             horizontalLine(static_cast<int>(floor(_xL)),
@@ -324,32 +325,34 @@ private:
             _xR += dR;
         }
     }
-    Fix8p8 slopeLeft(Fix8p8 dx, Fix8p8 dy, Fix8p8 x0, Fix8p8 y0, Fix8p8* x)
+    UFix8p8 slopeLeft(UFix8p8 dx, UFix8p8 dy, UFix8p8 x0, UFix8p8 y0,
+        UFix8p8* x)
     {
         if (dy < 1) {
             *x = x0 - muld(y0, dx, dy);
-            return Fix8p8::fromT(0xffff);
+            return UFix8p8::fromT(0xffff);
         }
         else {
-            Fix8p8 dxdy = dx/dy;
+            UFix8p8 dxdy = dx/dy;
             *x = x0 - y0*dxdy;
             return dxdy;
         }
     }
-    Fix8p8 slopeRight(Fix8p8 dx, Fix8p8 dy, Fix8p8 x0, Fix8p8 y0, Fix8p8* x)
+    UFix8p8 slopeRight(UFix8p8 dx, UFix8p8 dy, UFix8p8 x0, UFix8p8 y0,
+        UFix8p8* x)
     {
         if (dy < 1) {
             *x = x0 + muld(y0, dx, dy);
-            return Fix8p8::fromT(0xffff);
+            return UFix8p8::fromT(0xffff);
         }
         else {
-            Fix8p8 dxdy = dx/dy;
+            UFix8p8 dxdy = dx/dy;
             *x = x0 + y0*dxdy;
             return dxdy;
         }
     }
-    Fix8p8 slope(Fix8p8 ux, Fix8p8 vx, Fix8p8 dy, Fix8p8 x0, Fix8p8 y0,
-        Fix8p8* x)
+    UFix8p8 slope(UFix8p8 ux, UFix8p8 vx, UFix8p8 dy, UFix8p8 x0, UFix8p8 y0,
+        UFix8p8* x)
     {
         if (ux > vx)
             return slopeRight(ux - vx, dy, x0, y0, x);
@@ -368,34 +371,34 @@ private:
                 swap(a, b);
             int yab = static_cast<int>(ceil(a.y));
             int yc = static_cast<int>(floor(c.y + 1));
-            Fix8p8 yac = c.y - a.y;
-            Fix8p8 yaa = yab - a.y;
+            UFix8p8 yac = c.y - a.y;
+            UFix8p8 yaa = yab - a.y;
             fillTrapezoid(yab, yc, slope(c.x, a.x, yac, a.x, yaa, &_xL), slope(c.x, b.x, yac, b.x, yaa, &_xR), colour);
             return;
         }
         int ya = static_cast<int>(floor(a.y + 1));
-        Fix8p8 yab = b.y - a.y;
+        UFix8p8 yab = b.y - a.y;
         if (b.y == c.y) {
             if (b.x > c.x)
                 swap(b, c);
             int ybc = static_cast<int>(floor(b.y + 1));
-            Fix8p8 yaa = ya - a.y;
+            UFix8p8 yaa = ya - a.y;
             fillTrapezoid(ya, ybc, slope(b.x, a.x, yab, a.x, yaa, &_xL), slope(c.x, a.x, yab, a.x, yaa, &_xR), colour);
             return;
         }
 
         int yb = static_cast<int>(floor(b.y + 1));
         int yc = static_cast<int>(floor(c.y + 1));
-        Fix8p8 xb;
-        Fix8p8 yaa = ya - a.y;
-        Fix8p8 ybb = yb - b.y;
-        Fix8p8 yac = c.y - a.y;
-        Fix8p8 ybc = c.y - b.y;
+        UFix8p8 xb;
+        UFix8p8 yaa = ya - a.y;
+        UFix8p8 ybb = yb - b.y;
+        UFix8p8 yac = c.y - a.y;
+        UFix8p8 ybc = c.y - b.y;
         if (b.x > a.x) {
-            Fix8p8 dab = slopeRight(b.x - a.x, yab, a.x, yaa, &xb);
+            UFix8p8 dab = slopeRight(b.x - a.x, yab, a.x, yaa, &xb);
             if (c.x > a.x) {
-                Fix8p8 xc;
-                Fix8p8 dac = slopeRight(c.x - a.x, yac, a.x, yaa, &xc);
+                UFix8p8 xc;
+                UFix8p8 dac = slopeRight(c.x - a.x, yac, a.x, yaa, &xc);
                 if (dab < dac) {
                     _xL = xb;
                     _xR = xc;
@@ -410,23 +413,23 @@ private:
                 }
             }
             else {
-                Fix8p8 dca = slopeLeft(a.x - c.x, yac, a.x, yaa, &_xL);
+                UFix8p8 dca = slopeLeft(a.x - c.x, yac, a.x, yaa, &_xL);
                 _xR = xb;
                 fillTrapezoid(ya, yb, -dca, dab, colour);
                 fillTrapezoid(yb, yc, -dca, -slopeLeft(b.x - c.x, ybc, b.x, ybb, &_xR), colour);
             }
         }
         else {
-            Fix8p8 dba = slopeLeft(a.x - b.x, yab, a.x, yaa, &xb);
+            UFix8p8 dba = slopeLeft(a.x - b.x, yab, a.x, yaa, &xb);
             if (c.x > a.x) {
-                Fix8p8 dac = slopeRight(c.x - a.x, yac, a.x, yaa, &_xR);
+                UFix8p8 dac = slopeRight(c.x - a.x, yac, a.x, yaa, &_xR);
                 _xL = xb;
                 fillTrapezoid(ya, yb, -dba, dac, colour);
                 fillTrapezoid(yb, yc, slopeRight(c.x - b.x, ybc, b.x, ybb, &_xL), dac, colour);
             }
             else {
-                Fix8p8 xc;
-                Fix8p8 dca = slopeLeft(a.x - c.x, yac, a.x, yaa, &xc);
+                UFix8p8 xc;
+                UFix8p8 dca = slopeLeft(a.x - c.x, yac, a.x, yaa, &xc);
                 if (dba > dca) {
                     _xL = xb;
                     _xR = xc;
@@ -449,13 +452,13 @@ private:
     CGAOutput _output;
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
-    float _theta;
-    float _phi;
+    int _theta;
+    int _phi;
     Vector _outputSize;
     Byte _vram[0x4000];
     Byte _vram2[0x4000];
-    Fix8p8 _xL;
-    Fix8p8 _xR;
+    UFix8p8 _xL;
+    UFix8p8 _xR;
     bool _fp;
 };
 

@@ -155,6 +155,7 @@
     <ClInclude Include="..\..\..\..\include\alfe\cga.h" />
     <ClInclude Include="..\..\..\..\include\alfe\fix.h" />
     <ClInclude Include="..\..\..\..\include\alfe\image_filter.h" />
+    <ClInclude Include="..\..\..\..\include\alfe\integer_types.h" />
     <ClInclude Include="..\..\..\..\include\alfe\main.h" />
     <ClInclude Include="..\..\..\..\include\alfe\scanlines.h" />
     <ClInclude Include="..\..\..\..\include\alfe\user.h" />

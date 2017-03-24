@@ -106,7 +106,7 @@ private:
     {
         __asm {
             mov eax, x
-            mov edx, 0
+            cdq
             shld edx, eax, length nn
             add eax, length n2
             adc edx, 0
@@ -204,6 +204,7 @@ public:
     Fixed() { }
     Fixed(int x) : _x(x<<N) { }
     Fixed(double x) : _x(static_cast<T>(x*static_cast<double>(1<<N))) { }
+    Fixed(float x) : _x(static_cast<T>(x*static_cast<float>(1<<N))) { }
     Fixed(const Fixed& x) : _x(x._x) { }
     template<int N2, class T2, class M2> Fixed(const Fixed<N2, T2, M2>& x)
       : _x(N<N2 ? (x._x>>(N2-N)) : (x._x<<(N-N2)))
@@ -212,6 +213,16 @@ public:
     static Fixed fromT(T x) { Fixed r; r._x = x; return r; }
     const Fixed& operator=(const Fixed& x) { _x = x._x; return *this; }
     const Fixed& operator=(T x) { _x = x<<N; return *this; }
+    const Fixed& operator=(double x)
+    {
+        _x = static_cast<T>(x*static_cast<double>(1<<N));
+        return *this;
+    }
+    const Fixed& operator=(float x)
+    {
+        _x = static_cast<T>(x*static_cast<float>(1<<N));
+        return *this;
+    }
     const Fixed& operator+=(const Fixed& x) { _x += x._x; return *this; }
     const Fixed& operator-=(const Fixed& x) { _x -= x._x; return *this; }
     const Fixed& operator*=(const Fixed& x)
@@ -254,17 +265,27 @@ public:
     }
     Fixed operator-() const { Fixed x; x._x = -_x; return x; }
     Fixed frac() const { Fixed x; x._x = _x & ((1<<N)-1); return x; }
-    explicit operator T() const { return _x >> N; }
+    //explicit operator T() const { return _x >> N; }
     explicit operator int() const { return static_cast<int>(_x >> N); }
-    typename M::DoubleType dmul(const Fixed& x) const
-    {
-        return M::lmul(_x, x._x);
-    }
     Fixed muld(const Fixed& y, const Fixed& z) const
     {
         Fixed x;
         x._x = M::MultiplyDivide(_x, y._x, z._x);
         return x;
+    }
+    template<int N2 = N + N,
+        class T2 = typename ArithmeticHelper<N, T>::DoubleType,
+        class M2 = ArithmeticHelper<N2, T2>>
+        Fixed<N2, T2, M2> lmul(const Fixed& x) const
+    {
+        Fixed<N2, T2, M2> r;
+        r._x = M::lmul(_x, x._x);
+        const int s = N + N - N2;
+        if (s < 0)
+            r._x <<= -s;
+        else
+            r._x >>= s;
+        return r;
     }
 
 private:
@@ -273,66 +294,69 @@ private:
     // This says that different instantiations of this template are friends
     // with each other, allowing the constructor which converts between
     // instances to access the raw value.
-    template<int N2, class T2, class TT2> friend class Fixed;
+    template<int N2, class T2, class M2> friend class Fixed;
 };
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    operator*(const T& x, const Fixed<N, T, TT>& y)
+template<int N, class T, class M> Fixed<N, T, M>
+    operator*(const T& x, const Fixed<N, T, M>& y)
 {
     return y*x;
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    operator/(const T& x, const Fixed<N, T, TT>& y)
+template<int N, class T, class M> Fixed<N, T, M>
+    operator/(const T& x, const Fixed<N, T, M>& y)
 {
-    return static_cast<Fixed<N, T, TT>>(x)/y;
+    return static_cast<Fixed<N, T, M>>(x)/y;
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    operator-(const T& x, const Fixed<N, T, TT>& y)
+template<int N, class T, class M> Fixed<N, T, M>
+    operator-(const T& x, const Fixed<N, T, M>& y)
 {
-    return static_cast<Fixed<N, T, TT>>(x) - y;
+    return static_cast<Fixed<N, T, M>>(x) - y;
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    operator-(int x, const Fixed<N, T, TT>& y)
+template<int N, class T, class M> Fixed<N, T, M>
+    operator-(int x, const Fixed<N, T, M>& y)
 {
-    return static_cast<Fixed<N, T, TT>>(x) - y;
+    return static_cast<Fixed<N, T, M>>(x) - y;
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    operator-(const Fixed<N, T, TT>& x, const T& y)
+template<int N, class T, class M> Fixed<N, T, M>
+    operator-(const Fixed<N, T, M>& x, const T& y)
 {
-    return x - static_cast<Fixed<N, T, TT>>(y);
+    return x - static_cast<Fixed<N, T, M>>(y);
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    operator+(const T& x, const Fixed<N, T, TT>& y)
+template<int N, class T, class M> Fixed<N, T, M>
+    operator+(const T& x, const Fixed<N, T, M>& y)
 {
     return y + x;
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    floor(const Fixed<N, T, TT>& x)
+template<int N, class T, class M> Fixed<N, T, M>
+    floor(const Fixed<N, T, M>& x)
 {
     return x.floor();
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    ceil(const Fixed<N, T, TT>& x)
+template<int N, class T, class M> Fixed<N, T, M>
+    ceil(const Fixed<N, T, M>& x)
 {
     return x.ceil();
 }
 
-template<int N, class T, class M> typename M::DoubleType
-    dmul(const Fixed<N, T, M>& x, const Fixed<N, T, M>& y)
+template<int N, class T, class M, int N2 = N + N,
+    class T2 = typename ArithmeticHelper<N, T>::DoubleType,
+    class M2 = ArithmeticHelper<N2, T2>>
+    Fixed<N2, T2, M2>
+    lmul(const Fixed<N, T, M>& x, const Fixed<N, T, M>& y)
 {
-    return x.dmul(y);
+    return x.lmul<N2, T2, M2>(y);
 }
 
-template<int N, class T, class TT> Fixed<N, T, TT>
-    muld(const Fixed<N, T, TT>& a, const Fixed<N, T, TT>& b,
-    const Fixed<N, T, TT>& c)
+template<int N, class T, class M> Fixed<N, T, M>
+    muld(const Fixed<N, T, M>& a, const Fixed<N, T, M>& b,
+    const Fixed<N, T, M>& c)
 {
     return a.muld(b, c);
 }
