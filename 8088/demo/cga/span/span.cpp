@@ -10,16 +10,6 @@ typedef Fixed<8, Int16> SFix8p8;
 
 typedef Vector3<SFix8p8> Point3;
 
-Point3 cubeCorners[8] = {
-    Point3(-1, -1, -1),
-    Point3(-1, -1,  1),
-    Point3(-1,  1, -1),
-    Point3(-1,  1,  1),
-    Point3( 1, -1, -1),
-    Point3( 1, -1,  1),
-    Point3( 1,  1, -1),
-    Point3( 1,  1,  1)};
-
 class Quad
 {
 public:
@@ -35,19 +25,176 @@ public:
     int _colour;
 };
 
-Quad cubeFaces[6] = {
-    Quad(0, 4, 6, 2, 1),
-    Quad(4, 5, 7, 6, 2),
-    Quad(5, 1, 3, 7, 1),
-    Quad(1, 0, 2, 3, 2),
-    Quad(2, 6, 7, 3, 3),
-    Quad(0, 1, 5, 4, 3)
+struct Face
+{
+    Face(int colour, std::initializer_list<int> vertices)
+    {
+        _colour = colour;
+        _vertices = vertices.begin();
+        _nVertices = vertices.size();
+    }
+    int _colour;
+    const int* _vertices;
+    int _nVertices;
 };
+
+struct Shape
+{
+    Shape(std::initializer_list<Point3> vertices, float scale,
+        std::initializer_list<Face> faces)
+    {
+        _nVertices = vertices.size();
+        _vertices.allocate(_nVertices);
+        _vertex0 = &_vertices[0];
+        _originalVertex0 = vertices.begin();
+        _nFaces = faces.size();
+        _faces = faces.begin();
+        _scale = 1/scale;
+    }
+    void scale(float s)
+    {
+        s *= _scale;
+        for (int i = 0; i < _nVertices; ++i)
+            _vertex0[i] = _originalVertex0[i]*s;
+    }
+    Array<Point3> _vertices;
+    int _nVertices;
+    Point3* _vertex0;
+    const Point3* _originalVertex0;
+    const Face* _faces;
+    int _nFaces;
+    float _scale;
+};
+
+Byte colours[][2] = {
+    {0x00, 0x00},
+    {0x55, 0x55},
+    {0xaa, 0xaa},
+    {0xff, 0xff},
+    {0x66, 0x99},
+    {0x77, 0xdd},
+    {0xbb, 0xee},
+    {0x11, 0x44},
+    {0x22, 0x88},
+    {0x33, 0xcc}};
+
+static const float phi = (sqrt(5.0f) + 1)/2;
+
+Shape shapes[] {
+    {{{   -1,    -1,    -1},  // Cube
+      {   -1,    -1,     1},
+      {   -1,     1,    -1},
+      {   -1,     1,     1},
+      {    1,    -1,    -1},
+      {    1,    -1,     1},
+      {    1,     1,    -1},
+      {    1,     1,     1}},
+      sqrt(3),
+     {{1, { 0,  4,  6,  2}},
+      {2, { 4,  5,  7,  6}},
+      {1, { 5,  1,  3,  7}},
+      {2, { 1,  0,  2,  3}},
+      {3, { 2,  5,  7,  3}},
+      {3, { 0,  1,  5,  4}}}},
+
+    {{{    1,     0,     0},  // Octahedron
+      {   -1,     0,     0},
+      {    0,     1,     0},
+      {    0,    -1,     0},
+      {    0,     0,     1},
+      {    0,     0,    -1}},
+      1,
+     {{3, { 4,  2,  0}},
+      {2, { 5,  0,  2}},
+      {2, { 4,  0,  3}},
+      {1, { 5,  3,  0}},
+      {2, { 4,  1,  2}},
+      {1, { 5,  2,  1}},
+      {1, { 4,  3,  1}},
+      {3, { 5,  1,  3}}}},
+
+    {{{    1,     1,     1},  // Tetrahedron
+      {    1,    -1,    -1},
+      {   -1,     1,    -1},
+      {   -1,    -1,     1}},
+      sqrt(3),
+     {{4, { 1,  2,  3}},
+      {1, { 0,  3,  2}},
+      {2, { 3,  0,  1}},
+      {3, { 2,  1,  0}}}},
+
+    {{{  phi,     1,     0},  // Icosahedron
+      { -phi,     1,     0},
+      {  phi,    -1,     0},
+      { -phi,    -1,     0},
+      {    1,     0,   phi},
+      {    1,     0,  -phi},
+      {   -1,     0,   phi},
+      {   -1,     0,  -phi},
+      {    0,   phi,     1},
+      {    0,  -phi,     1},
+      {    0,   phi,    -1},
+      {    0,  -phi,    -1}},
+      sqrt(phi*phi + 1),
+     {{1, { 4,  8,  0}},
+      {2, {10,  5,  0}},
+      {2, { 9,  4,  2}},
+      {3, { 5, 11,  2}},
+      {2, { 8,  6,  1}},
+      {6, { 7, 10,  1}},
+      {5, { 6,  9,  3}},
+      {2, {11,  7,  3}},
+      {3, { 8, 10,  0}},
+      {5, {10,  8,  1}},
+      {1, {11,  9,  2}},
+      {6, { 9, 11,  3}},
+      {5, { 0,  2,  4}},
+      {6, { 2,  0,  5}},
+      {1, { 3,  1,  6}},
+      {3, { 1,  3,  7}},
+      {6, { 4,  6,  8}},
+      {3, { 6,  4,  9}},
+      {1, { 7,  5, 10}},
+      {5, { 5,  7, 11}}}},
+
+    {{{    1,     1,     1},  // Dodecahedron
+      {    1,     1,    -1},
+      {    1,    -1,     1},
+      {    1,    -1,    -1},
+      {   -1,     1,     1},
+      {   -1,     1,    -1},
+      {   -1,    -1,     1},
+      {   -1,    -1,    -1},
+      {phi-1,   phi,     0},
+      {1-phi,   phi,     0},
+      {phi-1,  -phi,     0},
+      {1-phi,  -phi,     0},
+      {  phi,     0, phi-1},
+      {  phi,     0, 1-phi},
+      { -phi,     0, phi-1},
+      { -phi,     0, 1-phi},
+      {    0, phi-1,   phi},
+      {    0, 1-phi,   phi},
+      {    0, phi-1,  -phi},
+      {    0, 1-phi,  -phi}},
+      sqrt(3),
+     {{1, {13, 12,  0,  8,  1}},
+      {1, {14, 15,  5,  9,  4}},
+      {4, {12, 13,  3, 10,  2}},
+      {1, {15, 14,  6, 11,  7}},
+      {2, {17, 16,  0, 12,  2}},
+      {3, {18, 19,  3, 13,  1}},
+      {4, {16, 17,  6, 14,  4}},
+      {2, {19, 18,  5, 15,  7}},
+      {3, { 9,  8,  0, 16,  4}},
+      {3, {10, 11,  6, 17,  2}},
+      {4, { 8,  9,  5, 18,  1}},
+      {2, {11, 10,  3, 19,  7}}}}};
+
 
 typedef Fixed<16, Int32> Fix16p16;
 typedef Fixed<8, Int32> Fix24p8;
 typedef Vector2<UFix8p8> Point2;
-typedef Vector2<Fix24p8> Point2L;
 
 class SineTable
 {
@@ -85,6 +232,12 @@ private:
     SFix8p8 _halfTable[2560];
 };
 
+struct TransformedPoint
+{
+    Vector2<Fix24p8> _xy;
+    SFix8p8 _z;
+};
+
 SineTable sines;
 
 class Projection
@@ -105,15 +258,23 @@ public:
         _distance = distance;
         _offset = offset;
     }
-    Point3 modelToScreen(Point3 model)
+    TransformedPoint modelToScreen(Point3 model)
     {
         Fix16p16 x = lmul(_xx, model.x) + lmul(_yx, model.y);
             /*+ lmul(_zx, model.z)*/
         Fix16p16 y = lmul(_xy, model.x) + lmul(_yy, model.y) +
             lmul(_zy, model.z);
         Fix16p16 z = lmul(_xz, model.x) + lmul(_yz, model.y) +
-            lmul(_zz, model.z) + _distance;
-        return Point3(x/z + _offset.x, y/z + _offset.y, z);
+            lmul(_zz, model.z);
+        Int16 d = (z.representation() >> 8) + _distance.representation();
+        TransformedPoint r;
+        r._z = SFix8p8::fromRepresentation(d);
+        r._xy = Vector2<Fix24p8>(
+            Fix24p8::fromRepresentation(x.representation() / d +
+                _offset.x.representation()),
+            Fix24p8::fromRepresentation(y.representation() / d +
+                _offset.y.representation()));
+        return r;
     }
 private:
     SFix8p8 _distance;
@@ -134,7 +295,7 @@ class SpanWindow : public RootWindow
 public:
     SpanWindow()
       : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap),
-        _theta(0), _phi(0)
+        _theta(0), _phi(0), _dTheta(3), _dPhi(5), _autoRotate(true), _shape(0)
     {
         _output.setConnector(0);          // RGBI
         _output.setScanlineProfile(0);    // rectangle
@@ -223,8 +384,8 @@ public:
     virtual void draw()
     {
         Projection p;
-        _theta = (_theta + 3) & 0x7ff;
-        _phi = (_phi + 5) & 0x7ff;
+        _theta = (_theta + _dTheta) & 0x7ff;
+        _phi = (_phi + _dPhi) & 0x7ff;
         float zs = 1;
         float ys = 99.5f;
         float xs = 6*ys/5;
@@ -232,10 +393,12 @@ public:
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
             Vector2<float>(127.5, 99.5));
 
-        Point2 corners[8];
+        Shape* shape = &shapes[_shape];
+        _corners.ensure(shape->_nVertices);
+
         for (int i = 0; i < 8; ++i) {
-            Point3 s = p.modelToScreen(cubeCorners[i]);
-            corners[i] = Point2(s.x, s.y);
+            TransformedPoint s = p.modelToScreen(cubeCorners[i]);
+            _corners[i] = Point2(s._xy.x, s._xy.y);
         }
 
         memset(&_vram[0], 0, 0x4000);
@@ -299,6 +462,48 @@ public:
         _output.restart();
         _animated.restart();
     }
+    bool keyboardEvent(int key, bool up)
+    {
+        if (up)
+            return false;
+        switch (key) {
+            case VK_RIGHT:
+                if (_autoRotate)
+                    _dTheta += 1;
+                else
+                    _theta += 1;
+                return true;
+            case VK_LEFT:
+                if (_autoRotate)
+                    _dTheta -= 1;
+                else
+                    _theta -= 1;
+                return true;
+            case VK_UP:
+                if (_autoRotate)
+                    _dPhi -= 1;
+                else
+                    _phi -= 1;
+                return true;
+            case VK_DOWN:
+                if (_autoRotate)
+                    _dPhi += 1;
+                else
+                    _phi += 1;
+                return true;
+            case 'N':
+                _shape = (_shape + 1) % (sizeof(shapes)/sizeof(shapes[0]));
+                return true;
+            case VK_SPACE:
+                _autoRotate = !_autoRotate;
+                if (!_autoRotate) {
+                    _dTheta = 0;
+                    _dPhi = 0;
+                }
+                return true;
+        }
+        return false;
+    }
 private:
     void horizontalLine(int xL, int xR, int y, int c)
     {
@@ -319,8 +524,7 @@ private:
     void fillTrapezoid(int yStart, int yEnd, UFix8p8 dL, UFix8p8 dR, int c)
     {
         for (int y = yStart; y < yEnd; ++y) {
-            horizontalLine(static_cast<int>(floor(_xL)),
-                static_cast<int>(floor(_xR)), y, c);
+            horizontalLine(_xL.intFloor(), _xR.intFloor(), y, c);
             _xL += dL;
             _xR += dR;
         }
@@ -330,7 +534,7 @@ private:
     {
         if (dy < 1) {
             *x = x0 - muld(y0, dx, dy);
-            return UFix8p8::fromT(0xffff);
+            return UFix8p8::fromRepresentation(0xffff);
         }
         else {
             UFix8p8 dxdy = dx/dy;
@@ -343,7 +547,7 @@ private:
     {
         if (dy < 1) {
             *x = x0 + muld(y0, dx, dy);
-            return UFix8p8::fromT(0xffff);
+            return UFix8p8::fromRepresentation(0xffff);
         }
         else {
             UFix8p8 dxdy = dx/dy;
@@ -369,26 +573,26 @@ private:
                 return;
             if (a.x > b.x)
                 swap(a, b);
-            int yab = static_cast<int>(ceil(a.y));
-            int yc = static_cast<int>(floor(c.y + 1));
+            int yab = a.y.intCeiling();
+            int yc = (c.y + 1).intFloor();
             UFix8p8 yac = c.y - a.y;
             UFix8p8 yaa = yab - a.y;
             fillTrapezoid(yab, yc, slope(c.x, a.x, yac, a.x, yaa, &_xL), slope(c.x, b.x, yac, b.x, yaa, &_xR), colour);
             return;
         }
-        int ya = static_cast<int>(floor(a.y + 1));
+        int ya = (a.y + 1).intFloor();
         UFix8p8 yab = b.y - a.y;
         if (b.y == c.y) {
             if (b.x > c.x)
                 swap(b, c);
-            int ybc = static_cast<int>(floor(b.y + 1));
+            int ybc = (b.y + 1).intFloor();
             UFix8p8 yaa = ya - a.y;
             fillTrapezoid(ya, ybc, slope(b.x, a.x, yab, a.x, yaa, &_xL), slope(c.x, a.x, yab, a.x, yaa, &_xR), colour);
             return;
         }
 
-        int yb = static_cast<int>(floor(b.y + 1));
-        int yc = static_cast<int>(floor(c.y + 1));
+        int yb = (b.y + 1).intFloor();
+        int yc = (c.y + 1).intFloor();
         UFix8p8 xb;
         UFix8p8 yaa = ya - a.y;
         UFix8p8 ybb = yb - b.y;
@@ -454,12 +658,17 @@ private:
     BitmapWindow _bitmap;
     int _theta;
     int _phi;
+    int _dTheta;
+    int _dPhi;
+    bool _autoRotate;
     Vector _outputSize;
     Byte _vram[0x4000];
     Byte _vram2[0x4000];
     UFix8p8 _xL;
     UFix8p8 _xR;
     bool _fp;
+    int _shape;
+    Array<Point2> _corners;
 };
 
 class Program : public WindowProgram<SpanWindow>

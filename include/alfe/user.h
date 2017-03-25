@@ -721,6 +721,8 @@ protected:
             case WM_KILLFOCUS:
                 releaseCapture();
                 break;
+            case WM_GETDLGCODE:
+                return DLGC_WANTMESSAGE;
             case WM_COMMAND:
                 if (lParam != 0) {
                     WindowsWindow* window = getContext(lParam);

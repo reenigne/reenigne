@@ -210,7 +210,8 @@ public:
       : _x(N<N2 ? (x._x>>(N2-N)) : (x._x<<(N-N2)))
     { }
     Fixed(T x, T m, T d) : _x(M::MultiplyShiftLeftDivide(x, m, d)) { }
-    static Fixed fromT(T x) { Fixed r; r._x = x; return r; }
+    static Fixed fromRepresentation(T x) { Fixed r; r._x = x; return r; }
+    T representation() const { return _x; }
     const Fixed& operator=(const Fixed& x) { _x = x._x; return *this; }
     const Fixed& operator=(T x) { _x = x<<N; return *this; }
     const Fixed& operator=(double x)
@@ -251,13 +252,31 @@ public:
     bool operator>=(const Fixed& x) const { return _x >= x._x; }
     bool operator==(const Fixed& x) const { return _x == x._x; }
     bool operator!=(const Fixed& x) const { return _x != x._x; }
-    int intPart() const { return static_cast<int>(_x>>N); }
+    int intFloor() const { return static_cast<int>(_x>>N); }
+    int intCeiling() const
+    {
+        return static_cast<int>((_x + ((1 << N) - 1)) >> N);
+    }
+    int intRound() const
+    {
+        return static_cast<int>((_x + (1 << (N - 1))) >> N);
+    }
     Fixed floor() const { Fixed x; x._x = _x & ((-1) << N); return x; }
-    Fixed ceil() const
+    Fixed ceiling() const
     {
         Fixed x;
         x._x = (_x + (1 << N) - 1) & ((-1) << N);
         return x;
+    }
+    Fixed round() const
+    {
+        Fixed x;
+        x._x = (_x + (1 << (N - 1))) & ((-1) << N);
+        return x;
+    }
+    float toFloat() const
+    {
+        return static_cast<float>(_x)/static_cast<float>(1<<N);
     }
     double toDouble() const
     {
@@ -265,7 +284,6 @@ public:
     }
     Fixed operator-() const { Fixed x; x._x = -_x; return x; }
     Fixed frac() const { Fixed x; x._x = _x & ((1<<N)-1); return x; }
-    //explicit operator T() const { return _x >> N; }
     explicit operator int() const { return static_cast<int>(_x >> N); }
     Fixed muld(const Fixed& y, const Fixed& z) const
     {
