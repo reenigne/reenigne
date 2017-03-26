@@ -10,32 +10,23 @@ typedef Fixed<8, Int16> SFix8p8;
 
 typedef Vector3<SFix8p8> Point3;
 
-class Quad
-{
-public:
-    Quad(int p0, int p1, int p2, int p3, int colour)
-      : _colour(colour)
-    {
-        _points[0] = p0;
-        _points[1] = p1;
-        _points[2] = p2;
-        _points[3] = p3;
-    }
-    int _points[4];
-    int _colour;
-};
-
 struct Face
 {
+    Face() { }
     Face(int colour, std::initializer_list<int> vertices)
     {
         _colour = colour;
-        _vertices = vertices.begin();
         _nVertices = vertices.size();
+        _vertices.allocate(_nVertices);
+        _vertex0 = &_vertices[0];
+        for (int i = 0; i < _nVertices; ++i)
+            _vertex0[i] = vertices.begin()[i];
     }
     int _colour;
-    const int* _vertices;
+    int* _vertex0;
     int _nVertices;
+private:
+    Array<int> _vertices;
 };
 
 struct Shape
@@ -46,24 +37,24 @@ struct Shape
         _nVertices = vertices.size();
         _vertices.allocate(_nVertices);
         _vertex0 = &_vertices[0];
-        _originalVertex0 = vertices.begin();
-        _nFaces = faces.size();
-        _faces = faces.begin();
-        _scale = 1/scale;
-    }
-    void scale(float s)
-    {
-        s *= _scale;
+        float distance = (256.0 / 200.0)*(5.0 / 6.0);
+        scale = distance/(scale * sqrt(1 + distance*distance));
         for (int i = 0; i < _nVertices; ++i)
-            _vertex0[i] = _originalVertex0[i]*s;
+            _vertex0[i] = vertices.begin()[i] * scale;
+
+        _nFaces = faces.size();
+        _faces.allocate(_nFaces);
+        _face0 = &_faces[0];
+        for (int i = 0; i < _nFaces; ++i)
+            _face0[i] = faces.begin()[i];
     }
-    Array<Point3> _vertices;
-    int _nVertices;
     Point3* _vertex0;
-    const Point3* _originalVertex0;
-    const Face* _faces;
+    int _nVertices;
+    Face* _face0;
     int _nFaces;
-    float _scale;
+private:
+    Array<Point3> _vertices;
+    Array<Face> _faces;
 };
 
 Byte colours[][2] = {
@@ -89,12 +80,12 @@ Shape shapes[] {
       {    1,    -1,     1},
       {    1,     1,    -1},
       {    1,     1,     1}},
-      sqrt(3),
+      sqrt(3.0f),
      {{1, { 0,  4,  6,  2}},
       {2, { 4,  5,  7,  6}},
       {1, { 5,  1,  3,  7}},
       {2, { 1,  0,  2,  3}},
-      {3, { 2,  5,  7,  3}},
+      {3, { 2,  6,  7,  3}},
       {3, { 0,  1,  5,  4}}}},
 
     {{{    1,     0,     0},  // Octahedron
@@ -117,7 +108,7 @@ Shape shapes[] {
       {    1,    -1,    -1},
       {   -1,     1,    -1},
       {   -1,    -1,     1}},
-      sqrt(3),
+      sqrt(3.0f),
      {{4, { 1,  2,  3}},
       {1, { 0,  3,  2}},
       {2, { 3,  0,  1}},
@@ -135,7 +126,7 @@ Shape shapes[] {
       {    0,  -phi,     1},
       {    0,   phi,    -1},
       {    0,  -phi,    -1}},
-      sqrt(phi*phi + 1),
+      sqrt(phi*phi + 1)*1.01f,
      {{1, { 4,  8,  0}},
       {2, {10,  5,  0}},
       {2, { 9,  4,  2}},
@@ -177,19 +168,19 @@ Shape shapes[] {
       {    0, 1-phi,   phi},
       {    0, phi-1,  -phi},
       {    0, 1-phi,  -phi}},
-      sqrt(3),
+      sqrt(3.0f),
      {{1, {13, 12,  0,  8,  1}},
       {1, {14, 15,  5,  9,  4}},
       {4, {12, 13,  3, 10,  2}},
-      {1, {15, 14,  6, 11,  7}},
+      {2, {15, 14,  6, 11,  7}},
       {2, {17, 16,  0, 12,  2}},
-      {3, {18, 19,  3, 13,  1}},
+      {2, {18, 19,  3, 13,  1}},
       {4, {16, 17,  6, 14,  4}},
-      {2, {19, 18,  5, 15,  7}},
+      {3, {19, 18,  5, 15,  7}},
       {3, { 9,  8,  0, 16,  4}},
       {3, {10, 11,  6, 17,  2}},
       {4, { 8,  9,  5, 18,  1}},
-      {2, {11, 10,  3, 19,  7}}}}};
+      {1, {11, 10,  3, 19,  7}}}}};
 
 
 typedef Fixed<16, Int32> Fix16p16;
@@ -366,11 +357,6 @@ public:
 
         _animated.setDrawWindow(this);
         _animated.setRate(60);
-
-        float distance = (256.0 / 200.0)*(5.0 / 6.0);
-        float r = distance/sqrt(3*(1 + distance*distance));
-        for (int i = 0; i < 8; ++i)
-            cubeCorners[i] *= r;
     }
     void create()
     {
@@ -391,24 +377,24 @@ public:
         float xs = 6*ys/5;
         float distance = (256.0 / 200.0)*(5.0 / 6.0);
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
-            Vector2<float>(127.5, 99.5));
+            Vector2<float>(127.5, 100));
 
         Shape* shape = &shapes[_shape];
         _corners.ensure(shape->_nVertices);
 
-        for (int i = 0; i < 8; ++i) {
-            TransformedPoint s = p.modelToScreen(cubeCorners[i]);
+        for (int i = 0; i < shape->_nVertices; ++i) {
+            TransformedPoint s = p.modelToScreen(shape->_vertex0[i]);
             _corners[i] = Point2(s._xy.x, s._xy.y);
         }
 
         memset(&_vram[0], 0, 0x4000);
         memset(&_vram2[0], 0, 0x4000);
-        for (int i = 0; i < 6; ++i) {
-            Quad* face = &cubeFaces[i];
-            Point2 p0 = corners[face->_points[0]];
-            Point2 p1 = corners[face->_points[1]];
-            Point2 p2 = corners[face->_points[2]];
-            Point2 p3 = corners[face->_points[3]];
+        //printf("%i %i ",_theta,_phi);
+        for (int i = 0; i < shape->_nFaces; ++i) {
+            const Face* face = &shape->_face0[i];
+            Point2 p0 = _corners[face->_vertex0[0]];
+            Point2 p1 = _corners[face->_vertex0[1]];
+            Point2 p2 = _corners[face->_vertex0[2]];
 
             if (p1.x > p0.x) {
                 if (p1.y > p0.y) {
@@ -455,9 +441,18 @@ public:
                 }
             }
             int c = face->_colour;
+            _count = 0;
             fillTriangle(p0, p1, p2, c);
-            fillTriangle(p2, p3, p0, c);
+            //printf("%i ", _count);
+            //if (_count == 0)
+            //    printf("Empty!");
+            for (int i = 0; i < face->_nVertices - 3; ++i) {
+                Point2 p3 = _corners[face->_vertex0[3 + i]];
+                fillTriangle(p0, p2, p3, c);
+                p2 = p3;
+            }
         }
+        //printf("\n");
         _data.change(0, 0, 0x4000, &_vram[0]);
         _output.restart();
         _animated.restart();
@@ -508,17 +503,19 @@ private:
     void horizontalLine(int xL, int xR, int y, int c)
     {
         if (y < 0 || y >= 200 || xL < 0 || xR > 320)
-            printf("Error\n");
+             printf("Error\n");
 
         int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
-        c <<= 6;
+        c = colours[c][y & 1];
 
         DWORD* p =
             reinterpret_cast<DWORD*>(_bitmap.data() + y*_bitmap.stride()) + xL;
         for (int x = xL; x < xR; ++x) {
             int a = l + (x >> 2);
             int s = (x & 3) << 1;
-            _vram[a] = (_vram[a] & ~(0xc0 >> s)) | (c >> s);
+            Byte m = 0xc0 >> s;
+            _vram[a] = (_vram[a] & ~m) | (c & m);
+            ++_count;
         }
     }
     void fillTrapezoid(int yStart, int yEnd, UFix8p8 dL, UFix8p8 dR, int c)
@@ -669,6 +666,7 @@ private:
     bool _fp;
     int _shape;
     Array<Point2> _corners;
+    int _count;
 };
 
 class Program : public WindowProgram<SpanWindow>
