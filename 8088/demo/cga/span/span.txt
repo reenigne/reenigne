@@ -129,9 +129,16 @@ IMUL rb                 80-98
 DIV rb                  80-90
 IDIV rb                101-112
 MUL rw                 118-133
-IMUL rw                128-154
+IMUL rw                128-154    141
 DIV rw                 144-162
-IDIV rw                165-184
+IDIV rw                165-184    175
+
+1 vertex = 8 IMULs and 4 IDIVs = 1828 cycles
+20 vertices = 36560 cycles = 120 scanlines
+1 triangle = 3 IMULs and 3 IDIVs = 948 cycles
+18 triangles = 17064 cycles = 56 scanlines
+
+The
 
 
 As sine table values are essentially 8 bits plus a sign bit, can we use table-of-squares to do the multiply?

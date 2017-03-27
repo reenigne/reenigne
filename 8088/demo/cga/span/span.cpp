@@ -281,6 +281,77 @@ private:
     SFix8p8 _zz;
 };
 
+class SpanBuffer
+{
+public:
+    SpanBuffer()
+    {
+        _lines.allocate(200);
+        _lines0 = &_lines[0];
+    }
+    void clear()
+    {
+        for (int y = 0; y < 200; ++y)
+            _lines0[y].clear();
+    }
+    void addSpan(int c, int xL, int xR, int y)
+    {
+        _lines0[y].addSpan(c, xL, xR);
+    }
+    void renderDeltas(Byte* vram, SpanBuffer* last)
+    {
+        for (int y = 0; y < 200; y += 2) {
+            _lines[y].renderDeltas(vram, &last->_lines0[y]);
+            _lines[y].renderDeltas(vram + 0x2000, &last->_lines0[y + 1]);
+        }
+    }
+private:
+    class Line
+    {
+    public:
+        Line()
+        {
+            _spans.allocate(64);
+            _spans0 = &_spans[0];
+            _spans0[0]._x = 0;
+            clear();
+        }
+        void clear()
+        {
+            _nSpans = 1;
+            _spans0[0]._colour = 0;
+        }
+        void addSpan(int c, int xL, int xR)
+        {
+            int i;
+            for (i = 0; i < _nSpans; ++i)
+                if (_spans0[i]._x >= xL)
+                    break;
+            int j;
+            for (j = i; j < _nSpans; ++j)
+                if (_spans0[j]._x >= xR)
+                    break;
+
+
+        }
+        void renderDeltas(Byte* vram, Line* last)
+        {
+
+        }
+    private:
+        struct Span
+        {
+            int _x;
+            int _colour;
+        };
+        int _nSpans;
+        Span* _spans0;
+        Array<Span> _spans;
+    };
+    Line* _lines0;
+    Array<Line> _lines;
+};
+
 class SpanWindow : public RootWindow
 {
 public:
@@ -381,20 +452,24 @@ public:
 
         Shape* shape = &shapes[_shape];
         _corners.ensure(shape->_nVertices);
+        Point2* corners = &_corners[0];
 
         for (int i = 0; i < shape->_nVertices; ++i) {
             TransformedPoint s = p.modelToScreen(shape->_vertex0[i]);
-            _corners[i] = Point2(s._xy.x, s._xy.y);
+            corners[i] = Point2(s._xy.x, s._xy.y);
         }
 
         memset(&_vram[0], 0, 0x4000);
         memset(&_vram2[0], 0, 0x4000);
         //printf("%i %i ",_theta,_phi);
-        for (int i = 0; i < shape->_nFaces; ++i) {
-            const Face* face = &shape->_face0[i];
-            Point2 p0 = _corners[face->_vertex0[0]];
-            Point2 p1 = _corners[face->_vertex0[1]];
-            Point2 p2 = _corners[face->_vertex0[2]];
+        Face* face = shape->_face0;
+        int nFaces = shape->_nFaces;
+        for (int i = 0; i < nFaces; ++i) {
+            int* vertices = face->_vertex0;
+            Point2 p0 = corners[vertices[0]];
+            Point2 p1 = corners[vertices[1]];
+            Point2 p2 = corners[vertices[2]];
+            vertices += 3;
 
             if (p1.x > p0.x) {
                 if (p1.y > p0.y) {
@@ -446,11 +521,14 @@ public:
             //printf("%i ", _count);
             //if (_count == 0)
             //    printf("Empty!");
-            for (int i = 0; i < face->_nVertices - 3; ++i) {
-                Point2 p3 = _corners[face->_vertex0[3 + i]];
+            int nVertices = face->_nVertices - 3;
+            for (int i = 0; i < nVertices; ++i) {
+                Point2 p3 = corners[*vertices];
                 fillTriangle(p0, p2, p3, c);
                 p2 = p3;
+                ++vertices;
             }
+            ++face;
         }
         //printf("\n");
         _data.change(0, 0, 0x4000, &_vram[0]);
