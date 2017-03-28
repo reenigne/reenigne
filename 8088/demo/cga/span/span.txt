@@ -187,3 +187,20 @@ Is it better to include the world-to-pixel scaling factors into the transformati
 What if a triangle crosses z=0 and is partially visible?
   Need to draw an external triangle (figure 3 in https://www.cs.unc.edu/~olano/papers/2dh-tri/)
 
+
+
+New span covers only one old span
+  If co != cn
+    xlo == xln, xro == xrn - New span covers old span exactly  - no shuffle
+    xlo == xln, xro > xrn  - New span covers left of old span  - shuffle right 1
+    xlo < xln,  xro == xrn - New span covers right of old span - shuffle right 1
+    xlo < xln, xro > xrn   - New span within old span          - shuffle right 2
+  else nothing to do
+New span covers two old spans
+
+1111111222222222333333333
+AaaaaaaBbbbbbbbbCcccccccc
+
+
+
+

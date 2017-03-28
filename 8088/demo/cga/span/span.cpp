@@ -318,19 +318,98 @@ private:
         }
         void clear()
         {
-            _nSpans = 1;
+            // Can remove this first line if we know we're going to be painting
+            // the entire screen.
             _spans0[0]._colour = 0;
+            _spans0[1]._x = 255;
+            _nSpans = 1;
         }
         void addSpan(int c, int xL, int xR)
         {
+            if (xL >= xR)
+                return;
             int i;
-            for (i = 0; i < _nSpans; ++i)
-                if (_spans0[i]._x >= xL)
+            for (i = 1; i < _nSpans; ++i)
+                if (xL < _spans0[i]._x)
                     break;
             int j;
             for (j = i; j < _nSpans; ++j)
-                if (_spans0[j]._x >= xR)
+                if (xR < _spans0[j]._x)
                     break;
+            --i;
+            --j;
+            if (c == _spans0[i]._colour) {
+                xL = _spans0[i + 1]._x;
+                if (xL >= xR)
+                    return;
+            }
+            if (c == _spans0[j]._colour) {
+                xR = _spans0[j]._x;
+                if (xL >= xR)
+                    return;
+            }
+            if (i == j) {
+                // New span overlaps only one old span
+                if (xL == _spans0[i]._x) {
+                    // Left of new span at left of old
+                    if (xR == _spans0[i + 1]._x) {
+                        // Right of new span at right of old
+                        if (i > 0 && c == _spans0[i - 1]._colour) {
+                            // Expand left span into this one
+                            if (i < _nSpans - 1 &&
+                                c == _spans0[i + 1]._colour) {
+                                // Eliminate span completely - delete 2 spans
+                                for (int k = i; k < _nSpans + 1; ++k)
+                                    _spans0[k] = _spans0[k + 2];
+                                _nSpans -= 2;
+                                return;
+                            }
+                            // Delete 1 span
+                            for (int k = i; k < _nSpans; ++k)
+                                _spans0[k] = _spans0[k + 1];
+                            --_nSpans;
+                            return;
+                        }
+                        if (i < _nSpans - 1 && c == _spans[i + 1]._colour) {
+                            // Expand right span into this one
+                            // Delete 1 span
+                            _spans0[i]._colour = c;
+                                for (int k = i + 1; k < _nSpans; ++k)
+                                _spans0[k] = _spans0[k + 1];
+                            --_nSpans;
+                            return;
+                        }
+                        _spans0[i]._colour = c;
+                        return;
+                    }
+                    // Insert 1 span
+                    for (int k = _nSpans; k >= i; --k)
+                        _spans[k + 1] = _spans[k];
+                    ++_nSpans;
+                    _spans[i]._colour = c;
+                    _spans[i + 1]._x = xR;
+                    return;
+                }
+                if (xR == _spans0[i + 1]._x) {
+                    // Right of new span at right of old
+                    // Insert 1 span
+                    for (int k = _nSpans; k > i; --k)
+                        _spans[k + 1] = _spans[k];
+                    ++_nSpans;
+                    _spans[i]._x = xL;
+                    _spans[i + 1]._colour = c;
+                    return;
+                }
+                // New span is entirely within old span
+                for (int k = _nSpans; k >= i; --k)
+                    _spans[k + 2] = _spans[k];
+                _spans[i + 1]._x = xL;
+                _spans[i + 1]._colour = c;
+                _spans[i + 2]._x = xR;
+                _spans[i + 2]._colour = _spans[i]._colour;
+                return;
+            }
+
 
 
         }
@@ -341,12 +420,12 @@ private:
     private:
         struct Span
         {
-            int _x;
-            int _colour;
+            Byte _x;
+            Byte _colour;
         };
-        int _nSpans;
         Span* _spans0;
         Array<Span> _spans;
+        int _nSpans;
     };
     Line* _lines0;
     Array<Line> _lines;
