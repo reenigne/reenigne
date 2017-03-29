@@ -312,120 +312,142 @@ private:
         Line()
         {
             _spans.allocate(64);
-            _spans0 = &_spans[0];
-            _spans0[0]._x = 0;
+            _s = &_spans[0];
+            _s[0]._x = 0;
             clear();
         }
         void clear()
         {
             // Can remove this first line if we know we're going to be painting
             // the entire screen.
-            _spans0[0]._colour = 0;
-            _spans0[1]._x = 255;
-            _nSpans = 1;
+            _s[0]._c = 0;
+            _s[1]._x = 255;
+            _n = 1;
         }
         void addSpan(int c, int xL, int xR)
         {
             if (xL >= xR)
                 return;
             int i;
-            for (i = 1; i < _nSpans; ++i)
-                if (xL < _spans0[i]._x)
+            for (i = 1; i < _n; ++i)
+                if (xL < _s[i]._x)
                     break;
             int j;
-            for (j = i; j < _nSpans; ++j)
-                if (xR < _spans0[j]._x)
+            for (j = i; j < _n; ++j)
+                if (xR < _s[j]._x)
                     break;
             --i;
             --j;
-            if (c == _spans0[i]._colour) {
-                xL = _spans0[i + 1]._x;
-                if (xL >= xR)
-                    return;
-            }
-            if (c == _spans0[j]._colour) {
-                xR = _spans0[j]._x;
-                if (xL >= xR)
-                    return;
-            }
-            if (i == j) {
-                // New span overlaps only one old span
-                if (xL == _spans0[i]._x) {
-                    // Left of new span at left of old
-                    if (xR == _spans0[i + 1]._x) {
-                        // Right of new span at right of old
-                        if (i > 0 && c == _spans0[i - 1]._colour) {
-                            // Expand left span into this one
-                            if (i < _nSpans - 1 &&
-                                c == _spans0[i + 1]._colour) {
-                                // Eliminate span completely - delete 2 spans
-                                for (int k = i; k < _nSpans + 1; ++k)
-                                    _spans0[k] = _spans0[k + 2];
-                                _nSpans -= 2;
-                                return;
-                            }
-                            // Delete 1 span
-                            for (int k = i; k < _nSpans; ++k)
-                                _spans0[k] = _spans0[k + 1];
-                            --_nSpans;
-                            return;
-                        }
-                        if (i < _nSpans - 1 && c == _spans[i + 1]._colour) {
-                            // Expand right span into this one
-                            // Delete 1 span
-                            _spans0[i]._colour = c;
-                                for (int k = i + 1; k < _nSpans; ++k)
-                                _spans0[k] = _spans0[k + 1];
-                            --_nSpans;
-                            return;
-                        }
-                        _spans0[i]._colour = c;
+            if (c == _s[i]._c)
+                xL = _s[i]._x;
+            else
+                if (i > 0 && xL == _s[i]._x && c == _s[i - 1]._c) {
+                    --i;
+                    xL = _s[i]._x;
+                }
+            if (c == _s[j]._c)
+                xR = _s[j + 1]._x;
+            else
+                if (j < _n - 1 && xR == _s[j + 1]._x && c == _s[j + 1]._c) {
+                    ++j;
+                    xR = _s[j + 1]._x;
+                }
+            int o = j - i;
+            if (xL == _s[i]._x) {
+                // Left of new span at left of left old
+                _s[i]._c = c;
+                if (xR == _s[j + 1]._x) {
+                    // Right of new span at right of right old
+                    if (o == 0)
                         return;
-                    }
-                    // Insert 1 span
-                    for (int k = _nSpans; k >= i; --k)
-                        _spans[k + 1] = _spans[k];
-                    ++_nSpans;
-                    _spans[i]._colour = c;
-                    _spans[i + 1]._x = xR;
+                    _n -= o;
+                    for (int k = i + 1; k <= _n; ++k)
+                        _s[k] = _s[k + o];
                     return;
                 }
-                if (xR == _spans0[i + 1]._x) {
-                    // Right of new span at right of old
-                    // Insert 1 span
-                    for (int k = _nSpans; k > i; --k)
-                        _spans[k + 1] = _spans[k];
-                    ++_nSpans;
-                    _spans[i]._x = xL;
-                    _spans[i + 1]._colour = c;
-                    return;
+                --o;
+                _n -= o;
+                switch (o) {
+                    case -1:
+                        for (int k = _n; k >= i - o; --k)
+                            _s[k] = _s[k + o];
+                    case 0:
+                        break;
+                    default:
+                        for (int k = i + 1; k <= _n; ++k)
+                            _s[k] = _s[k + o];
                 }
-                // New span is entirely within old span
-                for (int k = _nSpans; k >= i; --k)
-                    _spans[k + 2] = _spans[k];
-                _spans[i + 1]._x = xL;
-                _spans[i + 1]._colour = c;
-                _spans[i + 2]._x = xR;
-                _spans[i + 2]._colour = _spans[i]._colour;
+                _s[i + 1]._x = xR;
                 return;
             }
-
-
-
+            if (xR == _s[j + 1]._x) {
+                // Right of new span at right of right old
+                --o;
+                _n -= o;
+                switch (o) {
+                    case -1:
+                        for (int k = _n; k > i - o; --k)
+                            _s[k] = _s[k + o];
+                    case 0:
+                        break;
+                    default:
+                        for (int k = i + 2; k <= _n; ++k)
+                            _s[k] = _s[k + o];
+                }
+            }
+            else {
+                o -= 2;
+                _n -= o;
+                switch (o) {
+                    case -2:
+                        for (int k = _n; k > i - o; --k)
+                            _s[k] = _s[k + o];
+                        _s[i + 2]._c = _s[i]._c;
+                        break;
+                    case -1:
+                        for (int k = _n; k > i - o; --k)
+                            _s[k] = _s[k + o];
+                    case 0:
+                        break;
+                    default:
+                        for (int k = i + 2; k <= _n; ++k)
+                            _s[k] = _s[k + o];
+                        _n -= o;
+                }
+                _s[i + 2]._x = xR;
+            }
+            _s[i + 1]._x = xL;
+            _s[i + 1]._c = c;
         }
-        void renderDeltas(Byte* vram, Line* last)
+        void renderDeltas(Byte* vram, Line* o)
         {
+            Span* so = o->_s;
+            int xLo = 0;
+            int co = so->_c;
+            ++so;
+            int xRo = so->_x;
 
+
+            int xL = 0;
+            bool dirty = false;
+            for (int i = 0; i < _n; ++i) {
+                int c = _s[i]._c;
+                int xR = _s[i + 1]._x;
+
+
+
+                xL = xR;
+            }
         }
     private:
         struct Span
         {
             Byte _x;
-            Byte _colour;
+            Byte _c;
         };
-        Span* _spans0;
+        Span* _s;
         Array<Span> _spans;
-        int _nSpans;
+        int _n;
     };
     Line* _lines0;
     Array<Line> _lines;
