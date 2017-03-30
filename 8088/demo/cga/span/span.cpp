@@ -296,13 +296,14 @@ public:
     }
     void addSpan(int c, int xL, int xR, int y)
     {
-        _lines0[y].addSpan(c, xL, xR);
+        _lines0[y].addSpan(colours[c][y & 1], xL, xR);
     }
     void renderDeltas(Byte* vram, SpanBuffer* last)
     {
         for (int y = 0; y < 200; y += 2) {
             _lines[y].renderDeltas(vram, &last->_lines0[y]);
-            _lines[y].renderDeltas(vram + 0x2000, &last->_lines0[y + 1]);
+            _lines[y + 1].renderDeltas(vram + 0x2000, &last->_lines0[y + 1]);
+            vram += 80;
         }
     }
 private:
@@ -412,32 +413,118 @@ private:
                     default:
                         for (int k = i + 2; k <= _n; ++k)
                             _s[k] = _s[k + o];
-                        _n -= o;
                 }
                 _s[i + 2]._x = xR;
             }
             _s[i + 1]._x = xL;
             _s[i + 1]._c = c;
         }
-        void renderDeltas(Byte* vram, Line* o)
+        void renderDeltas(Byte* vram, const Line* o) const
         {
-            Span* so = o->_s;
+            Span* s = _s;
+            int xL, xR;
+            do {
+                xL = s->_x;
+                int c = s->_c;
+                ++s;
+                xR = s->_x;
+                for (int x = xL; x < xR; ++x) {
+                    int a = (x >> 2);
+                    int s = (x & 3) << 1;
+                    Byte m = 0xc0 >> s;
+                    vram[a] = (vram[a] & ~m) | (c & m);
+                }
+            } while (xR < 255);
+        }
+        void renderDeltas2(Byte* vram, const Line* o) const
+        {
+            static const Byte leftMask[4] = {0xff, 0x3f, 0x0f, 0x03};
+            static const Byte rightMask[4] = {0x00, 0xc0, 0xf0, 0xfc};
+            const Span* s = _s;
+            const Span* so = o->_s;
             int xLo = 0;
             int co = so->_c;
             ++so;
             int xRo = so->_x;
-
-
             int xL = 0;
-            bool dirty = false;
-            for (int i = 0; i < _n; ++i) {
-                int c = _s[i]._c;
-                int xR = _s[i + 1]._x;
-
-
-
-                xL = xR;
+            Byte dirty = 0;
+            bool haveDirty = false;
+            int queuedStores = 0;
+            int queuedSkips = 0;
+            int c;
+            int xR;
+            do {
+                c = s->_c;
+                ++s;
+                xR = s->_x;
+                if (haveDirty) {
+                    if ((xR & 0xfc) > (xL & 0xfc)) {
+                        *vram = dirty | (c & leftMask[xL & 3]);
+                        ++vram;
+                        xL = (xL + 3) & 0xfc;
+                    }
+                    else {
+                        dirty |= c & leftMask[xL & 3] & rightMask[xR & 3];
+                        xL = xR;
+                        continue;
+                    }
+                }
+                //else {
+                //    if ((xL & 3) != 0) {
+                //        dirty = *vram;
+                //    }
+                //}
+                do {
+                    if (co == c) {
+                        if (xRo < xR) {
+                            queuedSkips += (xRo - xL) >> 2;
+                            xL = xRo;
+                        }
+                        else {
+                            queuedSkips += (xR - xL) >> 2;
+                            xL = xR;
+                        }
+                        if (queuedSkips > 0 && queuedStores > 0) {
+                            memset(vram, c, queuedStores);
+                            vram += queuedStores;
+                            queuedStores = 0;
+                        }
+                    }
+                    else {
+                        if (xRo <= xR) {
+                            queuedStores += (xRo - xL) >> 2;
+                            xL = xRo;
+                        }
+                        else {
+                            queuedStores += (xR - xL) >> 2;
+                            if ((xR & 3) != 0) {
+                                haveDirty = true;
+                                dirty = c & rightMask[xR & 3];
+                            }
+                            xL = xR;
+                        }
+                        if (queuedStores > 0 && queuedSkips > 0) {
+                            vram += queuedSkips;
+                            queuedSkips = 0;
+                        }
+                    }
+                    if (xRo >= xR)
+                        break;
+                    xLo = xRo;
+                    co = so->_c;
+                    ++so;
+                    xRo = so->_x;
+                } while (true);
+            } while (xR != 255);
+            //// Order doesn't matter here since only one of these will be true
+            //if (queuedSkips > 0)
+            //    vram += queuedSkips;
+            if (queuedStores > 0) {
+                memset(vram, c, queuedStores);
+                //vram += queuedStores;
             }
+            if (haveDirty)
+                *vram = dirty;
         }
     private:
         struct Span
@@ -529,6 +616,10 @@ public:
 
         _animated.setDrawWindow(this);
         _animated.setRate(60);
+
+        _buffer = 0;
+        _buffers[0].clear();
+        _buffers[1].clear();
     }
     void create()
     {
@@ -561,11 +652,10 @@ public:
         }
 
         memset(&_vram[0], 0, 0x4000);
-        memset(&_vram2[0], 0, 0x4000);
         //printf("%i %i ",_theta,_phi);
         Face* face = shape->_face0;
         int nFaces = shape->_nFaces;
-        for (int i = 0; i < nFaces; ++i) {
+        for (int i = 0; i < nFaces; ++i, ++face) {
             int* vertices = face->_vertex0;
             Point2 p0 = corners[vertices[0]];
             Point2 p1 = corners[vertices[1]];
@@ -629,9 +719,11 @@ public:
                 p2 = p3;
                 ++vertices;
             }
-            ++face;
         }
         //printf("\n");
+        _buffers[_buffer].renderDeltas(&_vram[0], &_buffers[1 - _buffer]);
+        _buffer = 1 - _buffer;
+        _buffers[_buffer].clear();
         _data.change(0, 0, 0x4000, &_vram[0]);
         _output.restart();
         _animated.restart();
@@ -684,18 +776,19 @@ private:
         if (y < 0 || y >= 200 || xL < 0 || xR > 320)
              printf("Error\n");
 
-        int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
-        c = colours[c][y & 1];
+        _buffers[_buffer].addSpan(c, xL, xR, y);
 
-        DWORD* p =
-            reinterpret_cast<DWORD*>(_bitmap.data() + y*_bitmap.stride()) + xL;
-        for (int x = xL; x < xR; ++x) {
-            int a = l + (x >> 2);
-            int s = (x & 3) << 1;
-            Byte m = 0xc0 >> s;
-            _vram[a] = (_vram[a] & ~m) | (c & m);
-            ++_count;
-        }
+
+        //int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
+        //c = colours[c][y & 1];
+
+        //for (int x = xL; x < xR; ++x) {
+        //    int a = l + (x >> 2);
+        //    int s = (x & 3) << 1;
+        //    Byte m = 0xc0 >> s;
+        //    _vram[a] = (_vram[a] & ~m) | (c & m);
+        //    ++_count;
+        //}
     }
     void fillTrapezoid(int yStart, int yEnd, UFix8p8 dL, UFix8p8 dR, int c)
     {
@@ -839,13 +932,14 @@ private:
     bool _autoRotate;
     Vector _outputSize;
     Byte _vram[0x4000];
-    Byte _vram2[0x4000];
     UFix8p8 _xL;
     UFix8p8 _xR;
     bool _fp;
     int _shape;
     Array<Point2> _corners;
     int _count;
+    SpanBuffer _buffers[2];
+    int _buffer;
 };
 
 class Program : public WindowProgram<SpanWindow>

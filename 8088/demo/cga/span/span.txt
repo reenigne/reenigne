@@ -204,3 +204,17 @@ AaaaaaaBbbbbbbbbCcccccccc
 
 
 
+rep stosb to cga = 4 IOs per byte       (28 IOs for 7 bytes)
+rep stosw to cga = 3.4285 IOs per byte  (24 IOs for 7 bytes)
+
+mov ah,al
+shr cx,1
+
+	movb	%al,	%ah
+	shrw	$1,	%cx
+	rep	stosw
+	adcw	%cx,	%cx
+	rep	stosb
+
+~14 bytes needed for longer version to be better
+
