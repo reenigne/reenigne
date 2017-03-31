@@ -281,6 +281,8 @@ private:
     SFix8p8 _zz;
 };
 
+int globalCount = 0;
+
 class SpanBuffer
 {
 public:
@@ -356,29 +358,32 @@ private:
             int o = j - i;
             if (xL == _s[i]._x) {
                 // Left of new span at left of left old
-                _s[i]._c = c;
                 if (xR == _s[j + 1]._x) {
                     // Right of new span at right of right old
-                    if (o == 0)
-                        return;
-                    _n -= o;
-                    for (int k = i + 1; k <= _n; ++k)
-                        _s[k] = _s[k + o];
-                    return;
-                }
-                --o;
-                _n -= o;
-                switch (o) {
-                    case -1:
-                        for (int k = _n; k >= i - o; --k)
-                            _s[k] = _s[k + o];
-                    case 0:
-                        break;
-                    default:
+                    if (o != 0) {
+                        _n -= o;
                         for (int k = i + 1; k <= _n; ++k)
                             _s[k] = _s[k + o];
+                    }
                 }
-                _s[i + 1]._x = xR;
+                else {
+                    --o;
+                    _n -= o;
+                    switch (o) {
+                        case -1:
+                            for (int k = _n; k >= i - o; --k)
+                                _s[k] = _s[k + o];
+                        case 0:
+                            break;
+                        default:
+                            for (int k = i + 1; k <= _n; ++k)
+                                _s[k] = _s[k + o];
+                    }
+                    _s[i + 1]._x = xR;
+                }
+                _s[i]._c = c;
+                if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
+                    printf("Error\n");
                 return;
             }
             if (xR == _s[j + 1]._x) {
@@ -418,8 +423,10 @@ private:
             }
             _s[i + 1]._x = xL;
             _s[i + 1]._c = c;
+            if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
+                printf("Error\n");
         }
-        void renderDeltas(Byte* vram, const Line* o) const
+        void renderDeltas0(Byte* vram, const Line* o) const
         {
             Span* s = _s;
             int xL, xR;
@@ -436,95 +443,139 @@ private:
                 }
             } while (xR < 255);
         }
-        void renderDeltas2(Byte* vram, const Line* o) const
+        void renderDeltas(Byte* vram, const Line* o) const
         {
-            static const Byte leftMask[4] = {0xff, 0x3f, 0x0f, 0x03};
-            static const Byte rightMask[4] = {0x00, 0xc0, 0xf0, 0xfc};
-            const Span* s = _s;
+            ++globalCount;
+            if (globalCount == 0xea)
+                printf("Break");
+            Byte* vram0 = vram;
+
+            static const Byte mask[4] = {0xff, 0x3f, 0x0f, 0x03};
+
+            const Span* sn = _s;
             const Span* so = o->_s;
-            int xLo = 0;
+            int x = 0;
+            int cn = sn->_c;
+            ++sn;
+            int xRn = sn->_x;
             int co = so->_c;
             ++so;
             int xRo = so->_x;
-            int xL = 0;
-            Byte dirty = 0;
-            bool haveDirty = false;
+
+            // Pixel data for pixels >=x is kept in c and s.
+            // Pixel data for pixels at positions <x is kept in vram and:
             int queuedStores = 0;
             int queuedSkips = 0;
-            int c;
-            int xR;
+            Byte partial = 0;
+            bool havePartial = false;
+
             do {
-                c = s->_c;
-                ++s;
-                xR = s->_x;
-                if (haveDirty) {
-                    if ((xR & 0xfc) > (xL & 0xfc)) {
-                        *vram = dirty | (c & leftMask[xL & 3]);
-                        ++vram;
-                        xL = (xL + 3) & 0xfc;
-                    }
-                    else {
-                        dirty |= c & leftMask[xL & 3] & rightMask[xR & 3];
-                        xL = xR;
-                        continue;
-                    }
-                }
-                //else {
-                //    if ((xL & 3) != 0) {
-                //        dirty = *vram;
-                //    }
-                //}
-                do {
-                    if (co == c) {
-                        if (xRo < xR) {
-                            queuedSkips += (xRo - xL) >> 2;
-                            xL = xRo;
-                        }
-                        else {
-                            queuedSkips += (xR - xL) >> 2;
-                            xL = xR;
-                        }
+                if (xRo < xRn) {
+                    if (co == cn) {
+                        queuedSkips += (xRo - x) >> 2;
                         if (queuedSkips > 0 && queuedStores > 0) {
-                            memset(vram, c, queuedStores);
+                            memset(vram, cn, queuedStores);
                             vram += queuedStores;
                             queuedStores = 0;
                         }
                     }
                     else {
-                        if (xRo <= xR) {
-                            queuedStores += (xRo - xL) >> 2;
-                            xL = xRo;
-                        }
-                        else {
-                            queuedStores += (xR - xL) >> 2;
-                            if ((xR & 3) != 0) {
-                                haveDirty = true;
-                                dirty = c & rightMask[xR & 3];
-                            }
-                            xL = xR;
-                        }
+                        queuedStores += (xRo - x) >> 2;
                         if (queuedStores > 0 && queuedSkips > 0) {
                             vram += queuedSkips;
                             queuedSkips = 0;
                         }
                     }
-                    if (xRo >= xR)
-                        break;
-                    xLo = xRo;
+                    x = xRo;
                     co = so->_c;
                     ++so;
                     xRo = so->_x;
-                } while (true);
-            } while (xR != 255);
-            //// Order doesn't matter here since only one of these will be true
-            //if (queuedSkips > 0)
-            //    vram += queuedSkips;
+                }
+                else {
+                    if (co == cn) {
+                        queuedSkips += (xRn - x) >> 2;
+                        if (queuedSkips > 0 && queuedStores > 0) {
+                            memset(vram, cn, queuedStores);
+                            vram += queuedStores;
+                            queuedStores = 0;
+                        }
+                    }
+                    else {
+                        if ((x & 3) != 0) {
+                            if (havePartial) {
+                                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                    if (queuedSkips > 0) {
+                                        vram += queuedSkips;
+                                        queuedSkips = 0;
+                                    }
+                                    *vram = partial | (cn & mask[x & 3]);
+                                    ++vram;
+                                    x = (x + 3) & 0xfc;
+                                    havePartial = false;
+                                }
+                                else {
+                                    partial |= cn &
+                                        mask[x & 3] & ~mask[xRn & 3];
+                                }
+                            }
+                            else {
+                                if (queuedSkips > 0) {
+                                    vram += queuedSkips;
+                                    queuedSkips = 0;
+                                }
+                                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                    *vram = (*vram & ~mask[x & 3]) |
+                                        (cn & mask[x & 3]);
+                                    ++vram;
+                                    x = (x + 3) & 0xfc;
+                                }
+                                else {
+                                    partial = (*vram & ~mask[x & 3]) |
+                                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                    havePartial = true;
+                                }
+                            }
+                        }
+                        queuedStores += (xRn - x) >> 2;
+                        if (queuedStores > 0 && queuedSkips > 0) {
+                            vram += queuedSkips;
+                            queuedSkips = 0;
+                        }
+                        if ((xRn & 3) != 0) {
+                            if ((xRn & 0xfc) > (x & 0xfc))
+                                partial = cn & ~mask[xRn & 3];
+                            else {
+                                partial = (*vram & ~mask[x & 3]) |
+                                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                            }
+                            havePartial = true;
+                        }
+                    }
+                    // Done with this colour - flush queued stores.
+                    if (queuedStores > 0) {
+                        memset(vram, cn, queuedStores);
+                        vram += queuedStores;
+                        queuedStores = 0;
+                    }
+
+                    x = xRn;
+                    cn = sn->_c;
+                    ++sn;
+                    xRn = sn->_x;
+                }
+            } while (x < 0xff);
             if (queuedStores > 0) {
-                memset(vram, c, queuedStores);
-                //vram += queuedStores;
+                memset(vram, cn, queuedStores);
+                vram += queuedStores;
             }
-            if (haveDirty)
-                *vram = dirty;
+            if (havePartial)
+                *vram = partial;
+
+            Byte vram2[64];
+            renderDeltas0(vram2, o);
+            for (int i = 0; i < 64; ++i)
+                if (vram0[i] != vram2[i])
+                    printf("Error\n");
         }
     private:
         struct Span
@@ -651,7 +702,7 @@ public:
             corners[i] = Point2(s._xy.x, s._xy.y);
         }
 
-        memset(&_vram[0], 0, 0x4000);
+        //memset(&_vram[0], 0, 0x4000);
         //printf("%i %i ",_theta,_phi);
         Face* face = shape->_face0;
         int nFaces = shape->_nFaces;
