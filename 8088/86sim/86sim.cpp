@@ -267,6 +267,7 @@ void setRW(Word value) { registers[opcode & 7] = value; }
 void setAX(Word value) { registers[0] = value; }
 void setCX(Word value) { registers[1] = value; }
 void setDX(Word value) { registers[2] = value; }
+void setBX(Word value) { registers[3] = value; }
 void setSP(Word value) { registers[4] = value; }
 void setSI(Word value) { registers[6] = value; }
 void setDI(Word value) { registers[7] = value; }
@@ -525,6 +526,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Arguments too long.\n");
         exit(1);
     }
+    writeWord(0x9fff, 2);
     writeByte(i - 0x81, 0x80);
     writeByte(13, i);
     if (fread(&ram[loadOffset], length, 1, fp) != 1)
@@ -897,6 +899,11 @@ int main(int argc, char* argv[])
                     runtimeError("");
                 }
                 switch (ah()) {
+                    case 0x30:
+                        setAX(0x1403);
+                        setBX(0xff00);
+                        setCX(0);
+                        break;
                     case 0x39:
                         if (mkdir(dsdx(), 0700) == 0)
                             setCF(false);

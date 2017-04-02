@@ -446,7 +446,7 @@ private:
         void renderDeltas(Byte* vram, const Line* o) const
         {
             ++globalCount;
-            if (globalCount == 0xea)
+            if (globalCount == 0xe9)
                 printf("Break");
             Byte* vram0 = vram;
 
@@ -480,6 +480,41 @@ private:
                         }
                     }
                     else {
+                        if ((x & 3) != 0) {
+                            if (havePartial) {
+                                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                    if (queuedSkips > 0) {
+                                        vram += queuedSkips;
+                                        queuedSkips = 0;
+                                    }
+                                    *vram = partial | (cn & mask[x & 3]);
+                                    ++vram;
+                                    x = (x + 3) & 0xfc;
+                                    havePartial = false;
+                                }
+                                else {
+                                    partial |= cn &
+                                        mask[x & 3] & ~mask[xRn & 3];
+                                }
+                            }
+                            else {
+                                if (queuedSkips > 0) {
+                                    vram += queuedSkips;
+                                    queuedSkips = 0;
+                                }
+                                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                    *vram = (*vram & ~mask[x & 3]) |
+                                        (cn & mask[x & 3]);
+                                    ++vram;
+                                    x = (x + 3) & 0xfc;
+                                }
+                                else {
+                                    partial = (*vram & ~mask[x & 3]) |
+                                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                    havePartial = true;
+                                }
+                            }
+                        }
                         queuedStores += (xRo - x) >> 2;
                         if (queuedStores > 0 && queuedSkips > 0) {
                             vram += queuedSkips;
@@ -562,6 +597,12 @@ private:
                     cn = sn->_c;
                     ++sn;
                     xRn = sn->_x;
+                    if (x == xRo) {
+                        co = so->_c;
+                        ++so;
+                        xRo = so->_x;
+                    }
+
                 }
             } while (x < 0xff);
             if (queuedStores > 0) {
@@ -571,11 +612,11 @@ private:
             if (havePartial)
                 *vram = partial;
 
-            Byte vram2[64];
-            renderDeltas0(vram2, o);
-            for (int i = 0; i < 64; ++i)
-                if (vram0[i] != vram2[i])
-                    printf("Error\n");
+            //Byte vram2[64];
+            //renderDeltas0(vram2, o);
+            //for (int i = 0; i < 64; ++i)
+            //    if (vram0[i] != vram2[i])
+            //        printf("Error\n");
         }
     private:
         struct Span
