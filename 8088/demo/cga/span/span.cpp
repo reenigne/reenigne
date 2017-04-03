@@ -446,7 +446,7 @@ private:
         void renderDeltas(Byte* vram, const Line* o) const
         {
             ++globalCount;
-            if (globalCount == 0xe9)
+            if (globalCount == 0x13a)
                 printf("Break");
             Byte* vram0 = vram;
 
@@ -519,6 +519,15 @@ private:
                         if (queuedStores > 0 && queuedSkips > 0) {
                             vram += queuedSkips;
                             queuedSkips = 0;
+                        }
+                        if ((xRn & 3) != 0) {
+                            if ((xRn & 0xfc) > (x & 0xfc))
+                                partial = cn & ~mask[xRn & 3];
+                            else {
+                                partial = (*vram & ~mask[x & 3]) |
+                                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                            }
+                            havePartial = true;
                         }
                     }
                     x = xRo;
