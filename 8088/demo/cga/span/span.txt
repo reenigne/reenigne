@@ -312,7 +312,7 @@ queuedSkips = 0x23
 x = 0x8d, xRo = 0xaf, xRn = 0xff, co = 0x55, cn = 0x00
 vram = 0x23, queuedSkips = 0
 *vram = 0x40, vram = 0x24, x = 0x90
-queuedStores = 7  (really needs to be 8)
+queuedStores = 7
 
 x = 0xaf, xRo = 0xff, xRn = 0xff, co = 0x00, cn = 0x00
 
@@ -339,5 +339,485 @@ vram0 (incorrect):
 0x004CED14  55 55 55 55 40 00 00 00 00 00 00 00 00 00 00 00  UUUU@...........
 
 vram2 (correct):
+
+0x004C7784  00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
+0x004C7794  55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55  UUUUUUUUUUUUUUUU
+0x004C77A4  55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55  UUUUUUUUUUUUUUUU
+0x004C77B4  55 55 55 55 00 00 00 00 00 00 00 00 00 00 00 00  UUUU............
+
+x = 0x00, xRo = 0x2d, xRn = 0x2d, co = 0x00, cn = 0x00
+queuedSkips = 0x0b
+
+x = 0x2d, xRo = 0xd1, xRn = 0xd0, co = 0x55, cn = 0x55
+queuedSkips = 0x33 (should be 34? - need to keep "start of skip" as a pixel rather than queuedSkips as a byte)
+
+x = 0xd0, xRo = 0xd1, xRn = 0xff, co = 0x55, cn = 0x00
+queuedStores = 0
+partial = 0, havePartial = true
+
+x = 0xd1, xRo = 0xff, xRn = 0xff, co = 0x00, cn = 0x00
+queuedSkips = 0x3e (but we should have dealt with that partial before doing that)
+*vram = 0x00 (writes at vram = 0)
+
+
+
+
+
+
+                //if (xRo < xRn) {
+                //    if (co == cn) {
+                //        queuedSkips += (xRo - x) >> 2;
+                //        if (queuedSkips > 0 && queuedStores > 0) {
+                //            memset(vram, cn, queuedStores);
+                //            vram += queuedStores;
+                //            queuedStores = 0;
+                //        }
+                //    }
+                //    else {
+                //        if ((x & 3) != 0) {
+                //            if (havePartial) {
+                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                //                    if (queuedSkips > 0) {
+                //                        vram += queuedSkips;
+                //                        queuedSkips = 0;
+                //                    }
+                //                    *vram = partial | (cn & mask[x & 3]);
+                //                    ++vram;
+                //                    x = (x + 3) & 0xfc;
+                //                    havePartial = false;
+                //                }
+                //                else {
+                //                    partial |= cn &
+                //                        mask[x & 3] & ~mask[xRn & 3];
+                //                }
+                //            }
+                //            else {
+                //                if (queuedSkips > 0) {
+                //                    vram += queuedSkips;
+                //                    queuedSkips = 0;
+                //                }
+                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                //                    *vram = (*vram & ~mask[x & 3]) |
+                //                        (cn & mask[x & 3]);
+                //                    ++vram;
+                //                    x = (x + 3) & 0xfc;
+                //                }
+                //                else {
+                //                    partial = (*vram & ~mask[x & 3]) |
+                //                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                //                    havePartial = true;
+                //                }
+                //            }
+                //        }
+                //        queuedStores += (xRo - x) >> 2;
+                //        if (queuedStores > 0 && queuedSkips > 0) {
+                //            vram += queuedSkips;
+                //            queuedSkips = 0;
+                //        }
+                //        if ((xRn & 3) != 0) {
+                //            if ((xRn & 0xfc) > (x & 0xfc))
+                //                partial = cn & ~mask[xRn & 3];
+                //            else {
+                //                partial = (*vram & ~mask[x & 3]) |
+                //                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                //            }
+                //            havePartial = true;
+                //        }
+                //    }
+                //    x = xRo;
+                //    co = so->_c;
+                //    ++so;
+                //    xRo = so->_x;
+                //}
+                //else {
+                //    if (co == cn) {
+                //        queuedSkips += (xRn - x) >> 2;
+                //        if (queuedSkips > 0 && queuedStores > 0) {
+                //            memset(vram, cn, queuedStores);
+                //            vram += queuedStores;
+                //            queuedStores = 0;
+                //        }
+                //    }
+                //    else {
+                //        if ((x & 3) != 0) {
+                //            if (havePartial) {
+                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                //                    if (queuedSkips > 0) {
+                //                        vram += queuedSkips;
+                //                        queuedSkips = 0;
+                //                    }
+                //                    *vram = partial | (cn & mask[x & 3]);
+                //                    ++vram;
+                //                    x = (x + 3) & 0xfc;
+                //                    havePartial = false;
+                //                }
+                //                else {
+                //                    partial |= cn &
+                //                        mask[x & 3] & ~mask[xRn & 3];
+                //                }
+                //            }
+                //            else {
+                //                if (queuedSkips > 0) {
+                //                    vram += queuedSkips;
+                //                    queuedSkips = 0;
+                //                }
+                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                //                    *vram = (*vram & ~mask[x & 3]) |
+                //                        (cn & mask[x & 3]);
+                //                    ++vram;
+                //                    x = (x + 3) & 0xfc;
+                //                }
+                //                else {
+                //                    partial = (*vram & ~mask[x & 3]) |
+                //                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                //                    havePartial = true;
+                //                }
+                //            }
+                //        }
+                //        queuedStores += (xRn - x) >> 2;
+                //        if (queuedStores > 0 && queuedSkips > 0) {
+                //            vram += queuedSkips;
+                //            queuedSkips = 0;
+                //        }
+                //        if ((xRn & 3) != 0) {
+                //            if ((xRn & 0xfc) > (x & 0xfc))
+                //                partial = cn & ~mask[xRn & 3];
+                //            else {
+                //                partial = (*vram & ~mask[x & 3]) |
+                //                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                //            }
+                //            havePartial = true;
+                //        }
+                //    }
+                //    // Done with this colour - flush queued stores.
+                //    if (queuedStores > 0) {
+                //        memset(vram, cn, queuedStores);
+                //        vram += queuedStores;
+                //        queuedStores = 0;
+                //    }
+
+                //    x = xRn;
+                //    cn = sn->_c;
+                //    ++sn;
+                //    xRn = sn->_x;
+                //    if (x == xRo) {
+                //        co = so->_c;
+                //        ++so;
+                //        xRo = so->_x;
+                //    }
+
+                //}
+
+
+
+
+            int storeStart = 0;
+            int mode = 0;  // 0 = skip, 1 = store, 2 = partial
+            Byte byte = 0;
+            int startByte;
+            do {
+                if (xRo < xRn) {
+                    if (co == cn) {
+                        switch (mode) {
+                            case 1:
+                                if ((xRo & 0xfc) > x) {
+                                    // End store
+                                    startByte = storeStart >> 2;
+                                    memset(vram + startByte, byte, (x >> 2) - startByte);
+                                    mode = 0;
+                                }
+                                break;
+                            case 2:
+                                if ((xRo & 0xfc) > x) {
+                                    // End partial
+                                    vram[x >> 2] = byte | (cn & mask[x & 3]);
+                                    mode = 0;
+                                }
+                                else {
+                                    // Continue partial
+                                    byte |= (cn & mask[x & 3] & ~mask[xRo & 3]);
+                                }
+                                break;
+                        }
+                    }
+                    else {
+                        switch (mode) {
+                            case 0:
+                                if ((x & 3) != 0) {
+                                    if ((xRn & 0xfc) > (x & 0xfc)) {
+                                        Byte* p = vram + (x >> 2);
+                                        *p = (*p & ~mask[x & 3]) | (cn & mask[x & 3]);
+                                        x = (x + 3) & 0xfc;
+                                        storeStart = x;
+                                        byte = cn;
+                                        mode = 1;
+                                    }
+                                    else {
+                                        byte = (vram[x >> 2] & ~mask[x & 3]) | (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                        mode = 2;
+                                    }
+                                }
+                                else {
+                                    storeStart = x;
+                                    mode = 1;
+                                }
+                                //if ((xRn & 3) != 0) {
+                                //    if ((xRn & 0xfc) > (x & 0xfc))
+                                //        partial = cn & ~mask[xRn & 3];
+                                //    else {
+                                //        partial = (*vram & ~mask[x & 3]) |
+                                //            (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //    }
+                                //    havePartial = true;
+                                //}
+                                break;
+                            case 1:
+                                if ((x & 3) != 0) {
+                                    if ((xRn & 0xfc) > (x & 0xfc)) {
+                                        Byte* p = vram + (x >> 2);
+                                        *p = (*p & ~mask[x & 3]) | (cn & mask[x & 3]);
+                                        x = (x + 3) & 0xfc;
+                                        storeStart = x;
+                                        byte = cn;
+                                        mode = 1;
+                                    }
+                                    else {
+                                        byte = (vram[x >> 2] & ~mask[x & 3]) | (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                        mode = 2;
+                                    }
+                                }
+                                queuedStores += (xRo - x) >> 2;
+                                if (queuedStores > 0 && queuedSkips > 0) {
+                                    vram += queuedSkips;
+                                    queuedSkips = 0;
+                                }
+                                if ((xRn & 3) != 0) {
+                                    if ((xRn & 0xfc) > (x & 0xfc))
+                                        partial = cn & ~mask[xRn & 3];
+                                    else {
+                                        partial = (*vram & ~mask[x & 3]) |
+                                            (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                    }
+                                    havePartial = true;
+                                }
+                                break;
+                            case 2:
+                                //        if ((x & 3) != 0) {
+                                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                //                    if (queuedSkips > 0) {
+                                //                        vram += queuedSkips;
+                                //                        queuedSkips = 0;
+                                //                    }
+                                //                    *vram = partial | (cn & mask[x & 3]);
+                                //                    ++vram;
+                                //                    x = (x + 3) & 0xfc;
+                                //                    havePartial = false;
+                                //                }
+                                //                else {
+                                //                    partial |= cn &
+                                //                        mask[x & 3] & ~mask[xRn & 3];
+                                //                }
+                                //        }
+                                //        queuedStores += (xRo - x) >> 2;
+                                //        if (queuedStores > 0 && queuedSkips > 0) {
+                                //            vram += queuedSkips;
+                                //            queuedSkips = 0;
+                                //        }
+                                //        if ((xRn & 3) != 0) {
+                                //            if ((xRn & 0xfc) > (x & 0xfc))
+                                //                partial = cn & ~mask[xRn & 3];
+                                //            else {
+                                //                partial = (*vram & ~mask[x & 3]) |
+                                //                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //            }
+                                //            havePartial = true;
+                                //        }
+                                break;
+                        }
+                    }
+                    x = xRo;
+                    co = so->_c;
+                    ++so;
+                    xRo = so->_x;
+                }
+                else {
+                    if (co == cn) {
+                        switch (mode) {
+                            case 0:  
+                                // Nothing to do - end of skip moved
+                                break;
+                            case 1:
+                                if ((xRn & 0xfc) > x) {
+                                    // End store
+                                    int startByte = storeStart >> 2;
+                                    memset(vram + startByte, byte,
+                                        (x >> 2) - startByte);
+                                    mode = 0;
+                                }
+                                break;
+                            case 2:
+                                if ((xRn & 0xfc) > x) {
+                                    // End partial
+                                    vram[x >> 2] = byte | (cn & mask[x & 3]);
+                                    mode = 0;
+                                }
+                                else {
+                                    // Continue partial
+                                    byte |=
+                                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                }
+                                break;
+                        }
+                    }
+                    else {
+                        switch (mode) {
+                            case 0:
+                                //        if ((x & 3) != 0) {
+                                //                if (queuedSkips > 0) {
+                                //                    vram += queuedSkips;
+                                //                    queuedSkips = 0;
+                                //                }
+                                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                //                    *vram = (*vram & ~mask[x & 3]) |
+                                //                        (cn & mask[x & 3]);
+                                //                    ++vram;
+                                //                    x = (x + 3) & 0xfc;
+                                //                }
+                                //                else {
+                                //                    partial = (*vram & ~mask[x & 3]) |
+                                //                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //                    havePartial = true;
+                                //                }
+                                //        }
+                                //        queuedStores += (xRn - x) >> 2;
+                                //        if (queuedStores > 0 && queuedSkips > 0) {
+                                //            vram += queuedSkips;
+                                //            queuedSkips = 0;
+                                //        }
+                                //        if ((xRn & 3) != 0) {
+                                //            if ((xRn & 0xfc) > (x & 0xfc))
+                                //                partial = cn & ~mask[xRn & 3];
+                                //            else {
+                                //                partial = (*vram & ~mask[x & 3]) |
+                                //                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //            }
+                                //            havePartial = true;
+                                //        }
+                                break;
+                            case 1:
+                                //        if ((x & 3) != 0) {
+                                //                if (queuedSkips > 0) {
+                                //                    vram += queuedSkips;
+                                //                    queuedSkips = 0;
+                                //                }
+                                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                //                    *vram = (*vram & ~mask[x & 3]) |
+                                //                        (cn & mask[x & 3]);
+                                //                    ++vram;
+                                //                    x = (x + 3) & 0xfc;
+                                //                }
+                                //                else {
+                                //                    partial = (*vram & ~mask[x & 3]) |
+                                //                        (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //                    havePartial = true;
+                                //                }
+                                //        }
+                                //        queuedStores += (xRn - x) >> 2;
+                                //        if (queuedStores > 0 && queuedSkips > 0) {
+                                //            vram += queuedSkips;
+                                //            queuedSkips = 0;
+                                //        }
+                                //        if ((xRn & 3) != 0) {
+                                //            if ((xRn & 0xfc) > (x & 0xfc))
+                                //                partial = cn & ~mask[xRn & 3];
+                                //            else {
+                                //                partial = (*vram & ~mask[x & 3]) |
+                                //                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //            }
+                                //            havePartial = true;
+                                //        }
+                                break;
+                            case 2:
+                                //        if ((x & 3) != 0) {
+                                //                if ((xRn & 0xfc) > (x & 0xfc)) {
+                                //                    if (queuedSkips > 0) {
+                                //                        vram += queuedSkips;
+                                //                        queuedSkips = 0;
+                                //                    }
+                                //                    *vram = partial | (cn & mask[x & 3]);
+                                //                    ++vram;
+                                //                    x = (x + 3) & 0xfc;
+                                //                    havePartial = false;
+                                //                }
+                                //                else {
+                                //                    partial |= cn &
+                                //                        mask[x & 3] & ~mask[xRn & 3];
+                                //                }
+                                //        }
+                                //        queuedStores += (xRn - x) >> 2;
+                                //        if (queuedStores > 0 && queuedSkips > 0) {
+                                //            vram += queuedSkips;
+                                //            queuedSkips = 0;
+                                //        }
+                                //        if ((xRn & 3) != 0) {
+                                //            if ((xRn & 0xfc) > (x & 0xfc))
+                                //                partial = cn & ~mask[xRn & 3];
+                                //            else {
+                                //                partial = (*vram & ~mask[x & 3]) |
+                                //                    (cn & mask[x & 3] & ~mask[xRn & 3]);
+                                //            }
+                                //            havePartial = true;
+                                //        }
+                                break;
+                        }
+                    }
+                    //    // Done with this colour - flush queued stores.
+                    //    if (queuedStores > 0) {
+                    //        memset(vram, cn, queuedStores);
+                    //        vram += queuedStores;
+                    //        queuedStores = 0;
+                    //    }
+                    x = xRn;
+                    cn = sn->_c;
+                    ++sn;
+                    xRn = sn->_x;
+                    if (x == xRo) {
+                        co = so->_c;
+                        ++so;
+                        xRo = so->_x;
+                    }
+                }
+            } while (x < 0xff);
+            switch (mode) {
+                case 1:
+                    startByte = storeStart >> 2;
+                    memset(vram + startByte, byte, 0x3f - startByte);
+                    break;
+                case 2:
+                    vram[0x3f] = byte;
+            }
+
+
+
+
+0x000000e9  y == 0x20
+
+old: 00 00 2d 55 49 00 ff
+new: 00 00 2d 55 50 00 ff
+
+Previous:
+
+0x0045BEBC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0045BECC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0045BEDC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0045BEEC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+0x0046BC94  00 00 00 00 00 00 00 00 00 00 00 15 00 00 00 00  ................
+0x0046BCA4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0046BCB4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0046BCC4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+
+
 
 

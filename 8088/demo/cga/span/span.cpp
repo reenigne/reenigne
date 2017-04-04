@@ -446,7 +446,7 @@ private:
         void renderDeltas(Byte* vram, const Line* o) const
         {
             ++globalCount;
-            if (globalCount == 0x13a)
+            if (globalCount == 0x21f)
                 printf("Break");
             Byte* vram0 = vram;
 
@@ -454,172 +454,88 @@ private:
 
             const Span* sn = _s;
             const Span* so = o->_s;
-            int x = 0;
             int cn = sn->_c;
             ++sn;
+            int xLn = 0;
             int xRn = sn->_x;
             int co = so->_c;
             ++so;
+            int xLo = 0;
             int xRo = so->_x;
 
-            // Pixel data for pixels >=x is kept in c and s.
-            // Pixel data for pixels at positions <x is kept in vram and:
-            int queuedStores = 0;
-            int queuedSkips = 0;
-            Byte partial = 0;
             bool havePartial = false;
-
+            Byte partial;
             do {
-                if (xRo < xRn) {
-                    if (co == cn) {
-                        queuedSkips += (xRo - x) >> 2;
-                        if (queuedSkips > 0 && queuedStores > 0) {
-                            memset(vram, cn, queuedStores);
-                            vram += queuedStores;
-                            queuedStores = 0;
-                        }
-                    }
-                    else {
-                        if ((x & 3) != 0) {
-                            if (havePartial) {
-                                if ((xRn & 0xfc) > (x & 0xfc)) {
-                                    if (queuedSkips > 0) {
-                                        vram += queuedSkips;
-                                        queuedSkips = 0;
-                                    }
-                                    *vram = partial | (cn & mask[x & 3]);
-                                    ++vram;
-                                    x = (x + 3) & 0xfc;
-                                    havePartial = false;
-                                }
-                                else {
-                                    partial |= cn &
-                                        mask[x & 3] & ~mask[xRn & 3];
-                                }
-                            }
-                            else {
-                                if (queuedSkips > 0) {
-                                    vram += queuedSkips;
-                                    queuedSkips = 0;
-                                }
-                                if ((xRn & 0xfc) > (x & 0xfc)) {
-                                    *vram = (*vram & ~mask[x & 3]) |
-                                        (cn & mask[x & 3]);
-                                    ++vram;
-                                    x = (x + 3) & 0xfc;
-                                }
-                                else {
-                                    partial = (*vram & ~mask[x & 3]) |
-                                        (cn & mask[x & 3] & ~mask[xRn & 3]);
-                                    havePartial = true;
-                                }
-                            }
-                        }
-                        queuedStores += (xRo - x) >> 2;
-                        if (queuedStores > 0 && queuedSkips > 0) {
-                            vram += queuedSkips;
-                            queuedSkips = 0;
-                        }
-                        if ((xRn & 3) != 0) {
-                            if ((xRn & 0xfc) > (x & 0xfc))
-                                partial = cn & ~mask[xRn & 3];
-                            else {
-                                partial = (*vram & ~mask[x & 3]) |
-                                    (cn & mask[x & 3] & ~mask[xRn & 3]);
-                            }
+                if ((xRn & 0xfc) == (xLn & 0xfc)) {
+                    if (cn != co) {
+                        Byte newBits = cn & mask[xLn & 3] & ~mask[xRo & 3];
+                        if (!havePartial) {
+                            if ((xLn & 3) == 0)
+                                partial = 0;
+                            else
+                                partial = vram[xLn >> 2] & ~mask[xLn & 3];
                             havePartial = true;
                         }
+                        partial |= newBits;
                     }
-                    x = xRo;
+                }
+                else {
+                    if (cn != co) {
+                        if (!havePartial)
+                            partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                        vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                        havePartial = false;
+                    }
+                    xLn = (xLn + 3) & 0xfc;
+                    int storeStart = xLn;
+                    int storeEnd = xLn;
+                    bool store = false;
+                    if (xLo < xLn)
+                        xLo = xLn;   // TODO: do we need this?
+                    do {
+                        if (store) {
+                            if (cn == co) {
+                                storeEnd = xLo;
+                                store = false;
+                            }
+                        }
+                        else {
+                            if (cn != co) {
+                                if ((xLo & 0xfc) > (storeEnd & 0xfc) + 4) {
+                                    int startByte = storeStart >> 2;
+                                    memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                                    storeStart = xLo;
+                                }
+                                store = true;
+                            }
+                        }
+                        if (xRo >= xRn)
+                            break;
+                        xLo = xRo;
+                        co = so->_c;
+                        ++so;
+                        xRo = so->_x;
+                    } while (true);
+                    if (store)
+                        storeEnd = xLo;
+                    int startByte = storeStart >> 2;
+                    memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                    if (cn != co && (xRn & 3) != 0) {
+                        partial = cn & ~mask[xRn & 3];
+                        havePartial = true;
+                    }
+                }
+                xLn = xRn;
+                cn = sn->_c;
+                ++sn;
+                xRn = sn->_x;
+                if (xRo == xLn) {
+                    xLo = xRo;
                     co = so->_c;
                     ++so;
                     xRo = so->_x;
                 }
-                else {
-                    if (co == cn) {
-                        queuedSkips += (xRn - x) >> 2;
-                        if (queuedSkips > 0 && queuedStores > 0) {
-                            memset(vram, cn, queuedStores);
-                            vram += queuedStores;
-                            queuedStores = 0;
-                        }
-                    }
-                    else {
-                        if ((x & 3) != 0) {
-                            if (havePartial) {
-                                if ((xRn & 0xfc) > (x & 0xfc)) {
-                                    if (queuedSkips > 0) {
-                                        vram += queuedSkips;
-                                        queuedSkips = 0;
-                                    }
-                                    *vram = partial | (cn & mask[x & 3]);
-                                    ++vram;
-                                    x = (x + 3) & 0xfc;
-                                    havePartial = false;
-                                }
-                                else {
-                                    partial |= cn &
-                                        mask[x & 3] & ~mask[xRn & 3];
-                                }
-                            }
-                            else {
-                                if (queuedSkips > 0) {
-                                    vram += queuedSkips;
-                                    queuedSkips = 0;
-                                }
-                                if ((xRn & 0xfc) > (x & 0xfc)) {
-                                    *vram = (*vram & ~mask[x & 3]) |
-                                        (cn & mask[x & 3]);
-                                    ++vram;
-                                    x = (x + 3) & 0xfc;
-                                }
-                                else {
-                                    partial = (*vram & ~mask[x & 3]) |
-                                        (cn & mask[x & 3] & ~mask[xRn & 3]);
-                                    havePartial = true;
-                                }
-                            }
-                        }
-                        queuedStores += (xRn - x) >> 2;
-                        if (queuedStores > 0 && queuedSkips > 0) {
-                            vram += queuedSkips;
-                            queuedSkips = 0;
-                        }
-                        if ((xRn & 3) != 0) {
-                            if ((xRn & 0xfc) > (x & 0xfc))
-                                partial = cn & ~mask[xRn & 3];
-                            else {
-                                partial = (*vram & ~mask[x & 3]) |
-                                    (cn & mask[x & 3] & ~mask[xRn & 3]);
-                            }
-                            havePartial = true;
-                        }
-                    }
-                    // Done with this colour - flush queued stores.
-                    if (queuedStores > 0) {
-                        memset(vram, cn, queuedStores);
-                        vram += queuedStores;
-                        queuedStores = 0;
-                    }
-
-                    x = xRn;
-                    cn = sn->_c;
-                    ++sn;
-                    xRn = sn->_x;
-                    if (x == xRo) {
-                        co = so->_c;
-                        ++so;
-                        xRo = so->_x;
-                    }
-
-                }
-            } while (x < 0xff);
-            if (queuedStores > 0) {
-                memset(vram, cn, queuedStores);
-                vram += queuedStores;
-            }
-            if (havePartial)
-                *vram = partial;
+            } while (xLn < 0xff);
 
             //Byte vram2[64];
             //renderDeltas0(vram2, o);
