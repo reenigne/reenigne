@@ -446,7 +446,7 @@ private:
         void renderDeltas(Byte* vram, const Line* o) const
         {
             ++globalCount;
-            if (globalCount == 0x21f)
+            if (globalCount == 0xea)
                 printf("Break");
             Byte* vram0 = vram;
 
@@ -484,7 +484,10 @@ private:
                         if (!havePartial)
                             partial = vram[xLn >> 2] & ~mask[xLn & 3];
                         vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
-                        havePartial = false;
+                    }
+                    else {
+                        if (havePartial)
+                            vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
                     }
                     xLn = (xLn + 3) & 0xfc;
                     int storeStart = xLn;
@@ -502,8 +505,10 @@ private:
                         else {
                             if (cn != co) {
                                 if ((xLo & 0xfc) > (storeEnd & 0xfc) + 4) {
-                                    int startByte = storeStart >> 2;
-                                    memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                                    if (storeStart < storeEnd) {
+                                        int startByte = storeStart >> 2;
+                                        memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                                    }
                                     storeStart = xLo;
                                 }
                                 store = true;
@@ -517,13 +522,17 @@ private:
                         xRo = so->_x;
                     } while (true);
                     if (store)
-                        storeEnd = xLo;
-                    int startByte = storeStart >> 2;
-                    memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
-                    if (cn != co && (xRn & 3) != 0) {
+                        storeEnd = xRn;
+                    if (storeStart < storeEnd) {
+                        int startByte = storeStart >> 2;
+                        memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                    }
+                    if ((xRn & 3) != 0) {
                         partial = cn & ~mask[xRn & 3];
                         havePartial = true;
                     }
+                    else
+                        havePartial = false;
                 }
                 xLn = xRn;
                 cn = sn->_c;
@@ -537,11 +546,13 @@ private:
                 }
             } while (xLn < 0xff);
 
-            //Byte vram2[64];
-            //renderDeltas0(vram2, o);
-            //for (int i = 0; i < 64; ++i)
-            //    if (vram0[i] != vram2[i])
-            //        printf("Error\n");
+            Byte vram2[64];
+            renderDeltas0(vram2, o);
+            for (int i = 0; i < 64; ++i)
+                if (vram0[i] != vram2[i])
+                    printf("Error\n");
+
+//            renderDeltas0(vram0, o);
         }
     private:
         struct Span

@@ -800,24 +800,115 @@ queuedSkips = 0x3e (but we should have dealt with that partial before doing that
 
 
 
-0x000000e9  y == 0x20
 
-old: 00 00 2d 55 49 00 ff
-new: 00 00 2d 55 50 00 ff
+        void renderDeltas(Byte* vram, const Line* o) const
+        {
+            static const Byte mask[4] = {0xff, 0x3f, 0x0f, 0x03};
+
+            const Span* sn = _s;
+            const Span* so = o->_s;
+            int x = 0;
+            int cn = sn->_c;
+            ++sn;
+            int xRn = sn->_x;
+            int co = so->_c;
+            ++so;
+            int xRo = so->_x;
+
+            bool havePartial = false;
+            Byte c = cn;
+            bool transparent = true;
+            int storeL = 0;
+            int storeR = 0;
+
+            do {
+                if (co == cn) {
+                    if (!transparent) {
+                        storeR = x;
+                        transparent = true;
+                    }
+                }
+                else {
+                    if (transparent) {
+                        // Determine whether to combine this store with the previous store
+                        if (c != cn || (x & 0xfc) > (storeR & 0xfc) + 4) {
+                            int byteL = storeL >> 2;
+                            memset(vram + byteL, c, (storeR >> 2) - byteL);
+                            storeL = x;
+                            c = cn;
+                        }
+                        transparent = false;
+                    }
+                    else {
+                        if (cn != c) {
+                            int byteL = storeL >> 2;
+                            memset(vram + byteL, c, (storeR >> 2) - byteL);
+                            storeL = x;
+                            c = cn;
+                        }
+                    }
+                }
+                if (xRo < xRn) {
+                    x = xRo;
+                    co = so->_c;
+                    ++so;
+                    xRo = so->_x;
+                }
+                else {
+                    x = xRn;
+                    cn = sn->_c;
+                    ++sn;
+                    xRn = sn->_x;
+                    if (x == xRo) {
+                        co = so->_c;
+                        ++so;
+                        xRo = so->_x;
+                    }
+                }
+            } while (x < 0xff);
+            if (!transparent)
+
+
+
+
+
+
+
+
+
+0x00000021  y == 0x20
+
+old: 00 00 2d 55 af 00 ff
+new: 00 00 2d 55 8d 00 ff
 
 Previous:
+            00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
+0x002EE14C  55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55  UUUUUUUUUUUUUUUU
+0x002EE15C  55 55 55 55 55 55 55 55 55 55 55 54 00 00 00 00  UUUUUUUUUUUT....
+0x002EE16C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
 
-0x0045BEBC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-0x0045BECC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-0x0045BEDC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-0x0045BEEC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+vram0:
+0x0030E08C  00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
+0x0030E09C  55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55  UUUUUUUUUUUUUUUU
+0x0030E0AC  55 55 55 40 00 00 00 00 00 00 00 54 00 00 00 00  UUU@.......T....
+0x0030E0BC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
 
-0x0046BC94  00 00 00 00 00 00 00 00 00 00 00 15 00 00 00 00  ................
-0x0046BCA4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-0x0046BCB4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
-0x0046BCC4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+vram2:
+0x00307770  00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
+0x00307780  55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55  UUUUUUUUUUUUUUUU
+0x00307790  55 55 55 40 00 00 00 00 00 00 00 00 00 00 00 00  UUU@............
+0x003077A0  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
 
-
-
+xLn = 0x00, cn = 0x00, xRn = 0x2d
+  xLo = 0x00, co = 0x00, xRo = 0x2d - no actions
+xLn = 0x2d, cn = 0x55, xRn = 0x8d
+  xLn = 0x30
+  xLo = 0x30, co = 0x55, xRo = 0xaf - no actions
+xLn = 0x8d, cn = 0x00, xRn = 0xff
+  partial = 0x40, set to vram
+  xLn = 0x90
+  xLo = 0x90, co = 0x55, xRo = 0xaf - no actions
+  xLo = 0xaf, co = 0x00, xRo = 0xff
+  store 0x90 - 0xaf
 
 
