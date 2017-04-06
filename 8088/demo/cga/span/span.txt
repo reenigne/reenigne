@@ -822,39 +822,55 @@ queuedSkips = 0x3e (but we should have dealt with that partial before doing that
             int storeR = 0;
 
             do {
-                if (co == cn) {
-                    if (!transparent) {
-                        storeR = x;
-                        transparent = true;
-                    }
-                }
-                else {
-                    if (transparent) {
-                        // Determine whether to combine this store with the previous store
-                        if (c != cn || (x & 0xfc) > (storeR & 0xfc) + 4) {
-                            int byteL = storeL >> 2;
-                            memset(vram + byteL, c, (storeR >> 2) - byteL);
-                            storeL = x;
-                            c = cn;
+                if (xRo < xRn) {
+                    if (co == cn) {
+                        if (!transparent) {
+                            storeR = x;
+                            transparent = true;
                         }
-                        transparent = false;
                     }
                     else {
-                        if (cn != c) {
-                            int byteL = storeL >> 2;
-                            memset(vram + byteL, c, (storeR >> 2) - byteL);
-                            storeL = x;
-                            c = cn;
+                        if (transparent) {
+                            if (c != cn || (x & 0xfc) > (storeR & 0xfc) + 4) {
+                                int byteL = storeL >> 2;
+                                memset(vram + byteL, c, (storeR >> 2) - byteL);
+                                storeL = x;
+                                c = cn;
+                            }
+                            transparent = false;
                         }
                     }
-                }
-                if (xRo < xRn) {
                     x = xRo;
                     co = so->_c;
                     ++so;
                     xRo = so->_x;
                 }
                 else {
+                    if (co == cn) {
+                        if (!transparent) {
+                            storeR = x;
+                            transparent = true;
+                        }
+                    }
+                    else {
+                        if (transparent) {
+                            if (c != cn || (x & 0xfc) > (storeR & 0xfc) + 4) {
+                                int byteL = storeL >> 2;
+                                memset(vram + byteL, c, (storeR >> 2) - byteL);
+                                storeL = x;
+                                c = cn;
+                            }
+                            transparent = false;
+                        }
+                        else {
+                            if (cn != c) {
+                                int byteL = storeL >> 2;
+                                memset(vram + byteL, c, (storeR >> 2) - byteL);
+                                storeL = x;
+                                c = cn;
+                            }
+                        }
+                    }
                     x = xRn;
                     cn = sn->_c;
                     ++sn;
@@ -867,11 +883,106 @@ queuedSkips = 0x3e (but we should have dealt with that partial before doing that
                 }
             } while (x < 0xff);
             if (!transparent)
+                storeR = x;
+            int byteL = storeL >> 2;
+            memset(vram + byteL, (storeR >> 2) - byteL);
+
+
+
+Convert sn and so into sequence of (X, C?)
+  Possible transitions:
+    colour to different colour on byte boundary
+    colour to different colour not on byte boundary
+    colour to transparent on byte boundary
+    colour to transparent not on byte boundary
+    transparent to colour on byte boundary
+    transparent to colour not on byte boundary
 
 
 
 
-
+            bool havePartial = false;
+            Byte partial;
+            do {
+                if ((xRn & 0xfc) == (xLn & 0xfc)) {
+                    if (cn != co) {
+                        Byte newBits = cn & mask[xLn & 3] & ~mask[xRo & 3];
+                        if (!havePartial) {
+                            if ((xLn & 3) == 0)
+                                partial = 0;
+                            else
+                                partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                            havePartial = true;
+                        }
+                        partial |= newBits;
+                    }
+                }
+                else {
+                    if (cn != co) {
+                        if (!havePartial)
+                            partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                        vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                    }
+                    else {
+                        if (havePartial)
+                            vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                    }
+                    xLn = (xLn + 3) & 0xfc;
+                    int storeStart = xLn;
+                    int storeEnd = xLn;
+                    bool store = false;
+                    if (xLo < xLn)
+                        xLo = xLn;   // TODO: do we need this?
+                    do {
+                        if (store) {
+                            if (cn == co) {
+                                storeEnd = xLo;
+                                store = false;
+                            }
+                        }
+                        else {
+                            if (cn != co) {
+                                if ((xLo & 0xfc) > (storeEnd & 0xfc) + 4) {
+                                    if (storeStart < storeEnd) {
+                                        int startByte = storeStart >> 2;
+                                        memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                                    }
+                                    storeStart = xLo;
+                                }
+                                store = true;
+                            }
+                        }
+                        if (xRo >= xRn)
+                            break;
+                        xLo = xRo;
+                        co = so->_c;
+                        ++so;
+                        xRo = so->_x;
+                    } while (true);
+                    if (store)
+                        storeEnd = xRn;
+                    if (storeStart < storeEnd) {
+                        int startByte = storeStart >> 2;
+                        memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                    }
+                    if ((xRn & 3) != 0) {
+                        partial = cn & ~mask[xRn & 3];
+                        havePartial = true;
+                    }
+                    else
+                        havePartial = false;
+                }
+                xLn = xRn;
+                cn = sn->_c;
+                ++sn;
+                xRn = sn->_x;
+                if (xRo == xLn) {
+                    xLo = xRo;
+                    co = so->_c;
+                    ++so;
+                    xRo = so->_x;
+                }
+            } while (xLn < 0xff);
 
 
 
@@ -882,7 +993,7 @@ old: 00 00 2d 55 af 00 ff
 new: 00 00 2d 55 8d 00 ff
 
 Previous:
-            00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
+0x002EE13C  00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
 0x002EE14C  55 55 55 55 55 55 55 55 55 55 55 55 55 55 55 55  UUUUUUUUUUUUUUUU
 0x002EE15C  55 55 55 55 55 55 55 55 55 55 55 54 00 00 00 00  UUUUUUUUUUUT....
 0x002EE16C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
@@ -911,4 +1022,194 @@ xLn = 0x8d, cn = 0x00, xRn = 0xff
   xLo = 0xaf, co = 0x00, xRo = 0xff
   store 0x90 - 0xaf
 
+The region 8d->af is non-transparent (c = 0)
+The transition af is non-transparent (c = 0) to transparent (co = 0)
+  We should start a new partial
 
+
+0x000003ce  y = 0xad
+
+old: 00 00 ff
+new: 00 00 c9 55 ca 00 ff
+
+Previous:
+0x0036F7EC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0036F7FC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0036F80C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0036F81C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram0:
+0x0016F38C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0016F39C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0016F3AC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0016F3BC  00 00 14 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram2:
+0x00167484  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x00167494  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x001674A4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x001674B4  00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+xLn = 0x00, cn = 0x00, xRn = 0xc9
+  xLo = 0x00, co = 0x00, xRo = 0xff
+
+
+0x000008b7  y = 0x1e
+
+old: 00 00 2d 55 2e 00 ff
+new: 00 00 2d 55 2e 00 ff
+
+Previous:
+0x0038BBEC  00 00 00 00 00 00 00 00 00 00 00 10 00 00 00 00  ................
+0x0038BBFC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0038BC0C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0038BC1C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram0:
+0x003CC104  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003CC114  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003CC124  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003CC134  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram2:
+0x003C782C  00 00 00 00 00 00 00 00 00 00 00 10 00 00 00 00  ................
+0x003C783C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003C784C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003C785C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+xLn = 0x00, cn = 0x00, xRn = 0x2d
+  xLo = 0x00, co = 0x00, xRo = 0x2d
+xLn = 0x2d, cn = 0x55, xRn = 0x2e
+  xLo = 0x2d, co = 0x55, xRo = 0x2e
+xLn = 0x2e, cn = 0x00, xRn = 0xff
+  xLo = 0x2e, co = 0x00, xRo = 0xff
+
+
+0x0000055e
+
+old: 00 00 c6 55 c8 00 ff
+new: 00 00 b7 55 c7 00 ff
+
+Previous:
+0x003AF68C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003AF69C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003AF6AC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003AF6BC  00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram0:
+0x002CF37C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x002CF38C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x002CF39C  00 00 00 00 00 00 00 00 00 00 00 00 00 01 55 55  ..............UU
+0x002CF3AC  55 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00  U...............
+
+vram2:
+0x002C7474  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x002C7484  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x002C7494  00 00 00 00 00 00 00 00 00 00 00 00 00 01 55 55  ..............UU
+0x002C74A4  55 54 00 00 00 00 00 00 00 00 00 00 00 00 00 00  UT..............        wrong from c4 to c6
+
+xLn = 0x00, cn = 0x00, xRn = 0xb7
+  xLo = 0x00, co = 0x00, xRo = 0xc6       00->b7
+xLn = 0xb7, cn = 0x55, xRn = 0xc7
+  xLo = 0x00, co = 0x00, xRo = 0xc6       b7->c6
+  xLo = 0xc6, co = 0x55, xRo = 0xc8       c6->c7
+xLn = 0xc7, cn = 0x00, xRn = 0xff
+  xLo = 0xc6, co = 0x55, xRo = 0xc8       c7->c8
+  xLo = 0xc8, co = 0x00, xRo = 0xff       c8->ff
+
+
+0x0000272a
+
+old: 00 00 66 aa 67 00 ff
+new: 00 00 66 aa 69 00 ff
+
+Previous:
+0x0016DEEC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0016DEFC  00 00 00 00 00 00 00 00 00 08 00 00 00 00 00 00  ................
+0x0016DF0C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0016DF1C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram0:
+0x0032E16C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................      64 65 66 67
+0x0032E17C  00 00 00 00 00 00 00 00 00 08 80 00 00 00 00 00  ..........?.....      00 00 10 00   pixel 67 wrong
+0x0032E18C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0032E19C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram2:
+0x00327984  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x00327994  00 00 00 00 00 00 00 00 00 0a 80 00 00 00 00 00  ..........?.....      00 00 10 10
+0x003279A4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003279B4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+xLn = 0x00, cn = 0x00, xRn = 0x66
+  xLo = 0x00, co = 0x00, xRo = 0x66
+xLn = 0x66, cn = 0xaa, xRn = 0x69
+  xLo = 0x66, co = 0xaa, xRo = 0x67
+  xLo = 0x67, co = 0x00, xRn = 0xff   Need to
+
+
+0x00000021
+
+old: 00 00 2d 55 af 00 ff
+new: 00 00 2d 55 8d 00 ff
+
+vram0:
+0x0039C2B4  00 00 00 00 00 00 00 00 00 00 00 55 55 55 55 55  ...........UUUUU
+0x0039C2C4  55 55 40 00 00 00 00 00 00 00 00 00 00 00 00 00  UU@.............
+0x0039C2D4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0039C2E4  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram2:
+0x00357A6C  00 00 00 00 00 00 00 00 00 00 00 15 55 55 55 55  ............UUUU
+0x00357A7C  55 55 40 00 00 00 00 00 00 00 00 00 00 00 00 00  UU@.............
+0x00357A8C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x00357A9C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+
+0x2a47
+
+old: 00 00 67 aa 6a 00 ff
+new: 00 00 68 aa 6b 00 ff
+
+Previous:
+0x0028C0AC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0028C0BC  00 00 00 00 00 00 00 00 00 02 a0 00 00 00 00 00  ..........ÿ.....
+0x0028C0CC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x0028C0DC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram0:
+0x003CBEEC  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................  68 69 6a 6b
+0x003CBEFC  00 00 00 00 00 00 00 00 00 00 a0 00 00 00 00 00  ..........ÿ.....  10 10 00 00    6a is wrong
+0x003CBF0C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003CBF1C  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+vram2:
+0x003C7754  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003C7764  00 00 00 00 00 00 00 00 00 00 a8 00 00 00 00 00  ..........ù.....  10 10 10 00
+0x003C7774  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0x003C7784  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+xLn = 0x00, cn = 0x00, xRn = 0x68
+  xLo = 0x00, co = 0x00, xRo = 0x67
+  xLo = 0x67, co = 0xaa, xRo = 0x6a
+xLn = 0x68, cn = 0xaa, xRn = 0x6b
+  xLo = 0x67, co = 0xaa, xRo = 0x6a
+  xLo = 0x6a, co = 0x00, xRo = 0xff
+xLn = 0x6b, co = 0xaa, xRn = 0xff
+  xLo = 0x6a, co = 0x00, xRo = 0xff
+
+distance = 16/15
+distance/sqrt(1 + distance*distance) = 0.7295372041400851165587716156716 = d
+cubeScale = d/sqrt(3) = 0.42119850119412510580103372768878 = 107
+octahedronScale = d = 186
+
+phi = (sqrt(5)+1)/2 = 1.6180339887498948482045868343656
+icosahedronScale = d/sqrt(phi*phi + 1) = 1.3876622237543512773832507566044 = 98
+phi*icosahedronScale = 0.62058141242465057745887948393161 = 158
+
+phi*cubeScale = 0.42119850119412510580103372768878 = 174
+(phi-1)*cubeScale = 0.26031498974848248742610274195249 = 66
+
+s.x = 99.5 * 6/5 * 16/15 = 127.36 = 32604 = 0x7F5C
+s.y = 99.5 * 16/15 = 106.133 = 27170 = 0x6A22
+s.z = 0x100

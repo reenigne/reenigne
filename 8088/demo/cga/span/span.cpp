@@ -426,27 +426,27 @@ private:
             if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
                 printf("Error\n");
         }
-        void renderDeltas0(Byte* vram, const Line* o) const
-        {
-            Span* s = _s;
-            int xL, xR;
-            do {
-                xL = s->_x;
-                int c = s->_c;
-                ++s;
-                xR = s->_x;
-                for (int x = xL; x < xR; ++x) {
-                    int a = (x >> 2);
-                    int s = (x & 3) << 1;
-                    Byte m = 0xc0 >> s;
-                    vram[a] = (vram[a] & ~m) | (c & m);
-                }
-            } while (xR < 255);
-        }
+        //void renderDeltas0(Byte* vram, const Line* o) const
+        //{
+        //    Span* s = _s;
+        //    int xL, xR;
+        //    do {
+        //        xL = s->_x;
+        //        int c = s->_c;
+        //        ++s;
+        //        xR = s->_x;
+        //        for (int x = xL; x < xR; ++x) {
+        //            int a = (x >> 2);
+        //            int s = (x & 3) << 1;
+        //            Byte m = 0xc0 >> s;
+        //            vram[a] = (vram[a] & ~m) | (c & m);
+        //        }
+        //    } while (xR < 255);
+        //}
         void renderDeltas(Byte* vram, const Line* o) const
         {
             ++globalCount;
-            if (globalCount == 0xea)
+            if (globalCount == 0x00002a47)
                 printf("Break");
             Byte* vram0 = vram;
 
@@ -467,8 +467,8 @@ private:
             Byte partial;
             do {
                 if ((xRn & 0xfc) == (xLn & 0xfc)) {
-                    if (cn != co) {
-                        Byte newBits = cn & mask[xLn & 3] & ~mask[xRo & 3];
+                    if (cn != co || havePartial) {
+                        Byte newBits = cn & mask[xLn & 3] & ~mask[xRn & 3];
                         if (!havePartial) {
                             if ((xLn & 3) == 0)
                                 partial = 0;
@@ -477,6 +477,12 @@ private:
                             havePartial = true;
                         }
                         partial |= newBits;
+                    }
+                    else {
+                        if ((xRo & 0xfc) == (xLn & 0xfc)) {
+                            partial = ((vram[xLn >> 2] & ~mask[xRo & 3]) | (cn & mask[xRo & 3])) & ~mask[xRn & 3];
+                            havePartial = true;
+                        }
                     }
                 }
                 else {
@@ -488,17 +494,25 @@ private:
                     else {
                         if (havePartial)
                             vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                        else {
+                            if ((xRo & 0xfc) == (xLn & 0xfc)) {
+                                Byte* p = vram + (xLn >> 2);
+                                *p = (*p & ~mask[xLn & 3]) | (cn & mask[xLn & 3]);
+                            }
+                        }
                     }
                     xLn = (xLn + 3) & 0xfc;
                     int storeStart = xLn;
                     int storeEnd = xLn;
                     bool store = false;
-                    if (xLo < xLn)
-                        xLo = xLn;   // TODO: do we need this?
                     do {
                         if (store) {
                             if (cn == co) {
-                                storeEnd = xLo;
+                                int aligned = (xLo + 3) & 0xfc;
+                                if (xRn >= aligned)
+                                    storeEnd = aligned;
+                                else
+                                    storeEnd = xLo;
                                 store = false;
                             }
                         }
@@ -526,13 +540,21 @@ private:
                     if (storeStart < storeEnd) {
                         int startByte = storeStart >> 2;
                         memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                        if ((xRn & 3) != 0) {
+                            partial = cn & ~mask[xRn & 3];
+                            havePartial = true;
+                        }
+                        else
+                            havePartial = false;
                     }
-                    if ((xRn & 3) != 0) {
-                        partial = cn & ~mask[xRn & 3];
-                        havePartial = true;
+                    else {
+                        if (co != cn && (xRn & 3) != 0) {
+                            partial = cn & ~mask[xRn & 3];
+                            havePartial = true;
+                        }
+                        else
+                            havePartial = false;
                     }
-                    else
-                        havePartial = false;
                 }
                 xLn = xRn;
                 cn = sn->_c;
@@ -546,11 +568,11 @@ private:
                 }
             } while (xLn < 0xff);
 
-            Byte vram2[64];
-            renderDeltas0(vram2, o);
-            for (int i = 0; i < 64; ++i)
-                if (vram0[i] != vram2[i])
-                    printf("Error\n");
+            //Byte vram2[64];
+            //renderDeltas0(vram2, o);
+            //for (int i = 0; i < 64; ++i)
+            //    if (vram0[i] != vram2[i])
+            //        printf("Error\n");
 
 //            renderDeltas0(vram0, o);
         }
