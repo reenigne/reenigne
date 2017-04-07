@@ -7,6 +7,8 @@ cpu 8086
   mov di,spanBuffer1
   call clearSpanBuffer
 frameLoop:
+  ; Update rotation angles
+
   mov bx,[theta]
   add bx,[dTheta]
   mov [theta],bx
@@ -16,41 +18,171 @@ frameLoop:
   mov [phi],si
   add si,si
 
+
+  ; Compute scaled rotation matrix elements
+
+  ; TODO: We could replace this with prescaled sin, cos, half-sin and half-cos tables at cost of additional 20kB of tables
+  ;   sin*s.x
+  ;   sin*s.y/2
+  ;   sin/2
+  ;   sin*s.y
+  ;   sin
+
   mov ax,[sine + bx]  ; sin(theta)
   mov di,ax
   mov cx,0x7f5c  ; s.x = 99.5 * 6/5 * 16/15
   imul cx
   mov [xx],ah
-  mov [xx+1],dl
+  mov [xx+1],dl   ; xx = s.x*sin(theta)
 
   mov ax,di
   mov bp,[cosine + si] ; cos(phi)
   imul bp
   mov al,ah
   mov ah,dl
-  mov cx,0x6a22
+  mov cx,0x6a22  ; s.y = 99.5 * 16/15
   imul cx
   mov [yy],ah
-  mov [yy+1],dl
+  mov [yy+1],dl   ; yy = s.y*sin(theta)*cos(phi)
 
   xchg ax,di
   mov cx,[sine + si]   ; sin(phi)
   imul cx
   mov [yz],ah
-  mov [yz+1],dl
+  mov [yz+1],dl   ; yz = s.z*sin(theta)*sin(phi)
 
   mov ax,[cosine + bx]  ; cos(theta)
   mov di,ax
-  mov cx,
-
-  mov ax,[cosine + bx] ; cos(theta)
-  mov cx,-0x6a22  ; s.y = 99.5 * 16/15
+  neg ax
   imul cx
+  mov [xz],ah
+  mov [xz+1],dl   ; xz = -cos(theta)*sin(phi)
+
+  mov ax,di
+  neg bp
+  mov [zz],bp     ; zz = -cos(phi)
+  imul bp
+  mov al,ah
+  mov ah,dl
+  mov bp,0x6a22
+  imul bp
+  mov [xy],ah
+  mov [xy+1],dl   ; xy = -s.y*cos(theta)*cos(phi)
+
+  xchg ax,di
+  mov bp,0x7f5c
+  imul bp
+  mov [yx],ah
+  mov [yx+1],dl   ; yx = s.x*cos(theta)
+
+  mov ax,0x6a22
+  imul cx
+  mov [zy],ah
+  mov [zy+1],dl   ; zy = s.y*sin(phi);
 
 
+  ; Transform vertices to screen coordinates
 
 
+  ; Draw faces into span buffers
 
+
+  ; vsync
+  mov dx,0x3da
+vsync:
+  in al,dx
+  test al,8
+  jz vsync
+
+
+  ; Render deltas
+
+
+  ; Switch buffers
+  add word[spanBuffer]
+
+  ; Clear next buffer
+
+
+  ; Handle keyboard
+  mov ah,1
+  int 0x16
+  test ax,ax
+  jz noKey
+  mov ah,0
+  int 0x16
+
+  cmp al,27
+  jne noExit
+  mov ax,3
+  int 0x10
+  mov ax,0x4c00
+  int 0x21
+
+noExit:
+  cmp al,'n'
+  je change
+  cmp al,'N'
+  jne noChange
+  mov ax,[currentShape]
+  add ax,6
+  cmp ax,endShapes
+  jne notEndShape
+  mov ax,shapes
+notEndShape:
+  mov [currentShape],ax
+noKey:
+  jmp frameLoop
+
+noChange:
+  cmp al,' '
+  jne noStartStop
+  xor byte[autoRotate],1
+  jmp noKey
+
+noStartStop:
+  cmp ah,0x4b
+  jne noLeft
+  test byte[autoRotate],1
+  jz noLeftAccel
+  dec word[dTheta]
+  jmp noKey
+noLeftAccel:
+  dec word[theta]
+  jmp noKey
+
+noLeft:
+  mov ah,0x4d
+  jne noRight
+  test byte[autoRotate],1
+  jz noRightAccel
+  inc word[dTheta]
+  jmp noKey
+noRightAccel:
+  inc word[theta]
+  jmp noKey
+
+noRight:
+  cmp ah,0x48
+  jne noUp
+  test byte[autoRotate],1
+  jz noUpAccel
+  dec word[dPhi]
+  jmp noKey
+noUpAccel:
+  dec word[phi]
+  jmp noKey
+
+noDown:
+  cmp ah,0x50
+  jne noDown
+  test byte[autoRotate],1
+  jz noDownAccel
+  inc word[dPhi]
+  jmp noKey
+noDownAccel:
+  inc word[phi]
+  jmp noKey
 
 
 colours:
@@ -226,6 +358,7 @@ theta: dw 0
 dTheta: dw 0
 phi: dw 0
 dPhi: dw 0
+autoRotate: db 1
 
 spanBufferEntries equ 20
 lines equ 200

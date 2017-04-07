@@ -1213,3 +1213,72 @@ phi*cubeScale = 0.42119850119412510580103372768878 = 174
 s.x = 99.5 * 6/5 * 16/15 = 127.36 = 32604 = 0x7F5C
 s.y = 99.5 * 16/15 = 106.133 = 27170 = 0x6A22
 s.z = 0x100
+
+
+2D equivalent of span buffers
+  Go directly to binary space partitioning:
+    256x200  256x128  128x128  128x64  64x64  64x32  32x32  32x16  16x16  16x8  8x8  8x4  4x4  4x2  4x1
+    Each node can be
+      solid colour             - high byte 0, low byte colour
+      one line passing through - pointer to: colour 1, colour 2, pointer to vertex A, pointer to vertex B (can be shared by multiple nodes). Maybe also some cached intersection data?
+      subdivide to next level  - pointer to: upper/left child, lower/right child
+    Delta algorithm:
+      1 solid colour -> solid colour (same)            : nothing to do
+      2 solid colour -> solid colour (different)       : fill rectangle
+      3 solid colour -> one line (one colour same)     : trapezoid plus 0 or 1 rectangles
+      4 solid colour -> one line (no colours same)     : trapezoid plus 0, 1 or 2 rectangles
+      5 solid colour -> subdivide                      : recurse
+      6 one line     -> solid colour (one colour same) : crude trapezoid
+      7 one line     -> solid colour (no colours same) : fill rectangle
+      8 one line     -> one line (no colours same)     : same as case 4
+      9 one line     -> one line (one colour same)     : (crude) trapezoids and/or rectangles
+     10 one line     -> one line (two colours same)    : (crude) trapezoids and/or rectangles
+     11 one line     -> subdivide                      : recurse
+     12 subdivide    -> solid colour                   : recurse
+     13 subdivide    -> one line                       : recurse
+     14 subdivide    -> subdivide                      : recurse
+    Need to be able to take a one-line node and subdivide it
+      The result is either a solid-colour node or a one-line node
+      Given two vertices and a rectangle, need a quick way to determine if line intersects it
+        Evaluate line equation at corners?
+        Shortcuts
+      Use shifts to determine intersection point with center line, given intersection points with top and bottom lines
+    Algorithm for drawing a triangle in a BSP buffer
+      If any of the vertices is inside the block, subdivide it
+      If block is one-line
+        If triangle covers up old line
+          Replace line with our line
+        otherwise, subdivide
+      If entire block is inside triangle, replace with solid-colour
+    Re-use of blocks
+      Each buffer has its own set of block pools
+      There's a block pool for each type of block (subdivide, one-line)
+      Free blocks are arranged into lists
+        When we need a new block, take the first one from the free list
+      When freeing a one-line block, just add it to the free list (re-use colour bytes as next-free pointer)
+      Subdivision block needs to have a next-in-free-list pointer (empty when in use)
+      When freeing a subdivision block, use next-in-free-list pointer to add to queue
+      When we need a new subdivision block, free any child blocks when removing block from free list
+
+Eliminating excess transforms
+  Faces and vertices have "visible" flags
+    A face is visible if any part of it is on screen (even if none of its vertices are visible)
+      Either at least one vertex must be visible or the triangle contains a screen corner
+    A vertex is visible if it transforms to a point on the screen
+  Clear all "visible" flags for this frame (alternate between sets of flags)
+  In the course of the following, fill in "transformed" and "visible" flags for each vertex as we compute them
+  Find a visible triangle
+    Try triangles that were visible last frame first
+    Process it
+  Processing a triangle:
+    Mark it as visible
+    Look for adjacent triangles and add them to the "possibly visible triangles" list
+  For each triangle in possibly visible triangles list
+    Figure out if it is visible and process it if it is
+This algorithm works well for the background but less well for foreground objects
+  If we know an object is visible we can process it the same way
+  Eliminating an object from consideration is more difficult - need to intersect bounding spheres with the viewing frustrum
+
+
+
+
