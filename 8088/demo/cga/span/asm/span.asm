@@ -82,9 +82,187 @@ frameLoop:
 
 
   ; Transform vertices to screen coordinates
+  mov si,[currentShape]
+  lodsb
+  mov cl,al
+  mov ch,0
+  lodsw
+  mov si,ax
+  mov di,vertexBuffer
+transformLoop:
+  lodsw
+  push si
+  mov si,ax
+
+  lodsw
+  imul word[xx]
+  mov bp,ax
+  mov bx,dx
+  lodsw
+  imul word[yx]
+;  add bp,ax
+;  adc bx,dx
+;  lodsw
+;  imul word[zx]
+  add ax,bp
+  adc dx,bx
+  stosw
+  mov ax,dx
+  stosw
+  sub si,4
+
+  lodsw
+  imul word[xy]
+  mov bp,ax
+  mov bx,dx
+  lodsw
+  imul word[yy]
+  add bp,ax
+  adc bx,dx
+  lodsw
+  imul word[zy]
+  add ax,bp
+  adc dx,bx
+  stosw
+  mov ax,dx
+  stosw
+  sub si,6
+
+  lodsw
+  imul word[xz]
+  mov bp,ax
+  mov bx,dx
+  lodsw
+  imul word[yz]
+  add bp,ax
+  adc bx,dx
+  lodsw
+  imul word[zz]
+  add ax,bp
+  adc dx,bx
+  stosw
+  mov ax,dx
+  stosw
+
+  ; xx xx xx xx yy yy yy yy zz zz zz zz
+  ; -c    -a    -8    -6       -3
+
+  mov bx,[di-3]
+  mov ax,[di-0x0c]
+  mov dx,[di-0x0a]
+  idiv bx
+  mov [di-0x0c],ax
+  mov ax,[di-8]
+  mov dx,[di-6]
+  idiv bx
+  mov [di-0x08],ax
+
+  loop transformLoop
 
 
   ; Draw faces into span buffers
+  mov si,[currentShape]
+  add si,3
+  lodsb
+  mov cl,al
+  mov ch,0
+  lodsw
+  mov si,ax
+faceLoop:
+  lodsw   ; al = colour, ah = triangle count
+  push cx
+  mov cl,ah
+  mov ch,0
+  push ax
+  lodsw
+  mov bp,sp
+  push word[si]    ; [bp-2] = p0.x
+  push word[si+4]  ; [bp-4] = p0.y
+  lodsw
+  push word[si]    ; [bp-6] = p1.x
+  push word[si+4]  ; [bp-8] = p1.y
+  lodsw
+  push word[si]    ; [bp-0x0a] = p2.x
+  push word[si+4]  ; [bp-0x0c] = p2.y
+
+  mov ax,[bp-6]            ; p1.x
+  cmp ax,[bp-2]            ; p0.x
+  jbe orientationCase1     ; if (p1.x > p0.x) {
+  mov ax,[bp-8]            ;     p1.y
+  cmp ax,[bp-4]            ;     p0.y
+  jbe orientationCase01    ;     if (p1.y > p0.y) {
+  mov ax,[bp-0xa]          ;         p2.x
+  cmp ax,[bp-2]            ;         p0.x
+  jbe orientationCase001   ;         if (p2.x > p0.x) {
+  mov ax,[bp-0xc]          ;
+  cmp ax,[bp-4]
+  jbe orientationCase0001
+  jmp skipFace
+orientationCase0001:
+  mov ax,[bp-6]
+  sub ax,[bp-2]
+  mov dx,[bp-0xc]
+  sub dx,[bp-4]
+  mul dx
+  mov cx,ax
+  mov bx,dx
+  mov ax,[bp-8]
+  sub ax,[bp-4]
+  mov dx,[bp-0xa]
+  sub dx,[bp-2]
+  mul dx
+  cmp bx,dx
+  ja skipFace
+  je .checkLow
+  jmp drawFace
+.checkLow:
+  cmp cx,ax
+  ja skipFace
+  jmp drawFace
+orientationCase001:
+  mov ax,[bp-0xc]
+  cmp ax,[bp-4]
+  jbe skipFace
+  mov ax,[bp-6]
+  sub ax,[bp-2]
+  mov dx,[bp-4]
+  sub dx,[bp-0xc]
+  mul dx
+  mov cx,ax
+  mov bx,dx
+  mov ax,[bp-8]
+  sub ax,[bp-4]
+  mov dx,[bp-2]
+  sub dx,[bp-0xa]
+  mul dx
+  cmp bx,dx
+  jb skipFace
+  je .checkLow
+  jmp drawFace
+.checkLow:
+  cmp cx,ax
+  jb skipFace
+  jmp drawFace
+orientationCase01:
+  mov ax,[bp-0xa]
+  cmp ax,[bp-2]
+  jbe orientationCase011
+  mov ax,[bp-0xc]
+  cmp ax,[bp-4]
+  jbe orientationCase0101
+
+
+
+
+
+
+
+
+
+  pop ax  ; al = colour
+
+  pop cx
+  loop faceLoop
 
 
   ; vsync
@@ -202,9 +380,9 @@ colours:
 %endmacro
 
 %macro face 4-*
-  db %1,%0
+  db %1,%0-2
   %rotate 1
-  %rep %0
+  %rep %0-1
   vertex %1
   %endrep
 %endmacro

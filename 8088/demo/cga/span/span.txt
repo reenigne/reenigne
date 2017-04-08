@@ -1217,7 +1217,7 @@ s.z = 0x100
 
 2D equivalent of span buffers
   Go directly to binary space partitioning:
-    256x200  256x128  128x128  128x64  64x64  64x32  32x32  32x16  16x16  16x8  8x8  8x4  4x4  4x2  4x1
+    256x200  256x128 (256x72)  128x128 (128x72)  128x64  64x64  64x32  32x32  32x16  16x16  16x8  8x8  8x4  4x4  4x2  4x1
     Each node can be
       solid colour             - high byte 0, low byte colour
       one line passing through - pointer to: colour 1, colour 2, pointer to vertex A, pointer to vertex B (can be shared by multiple nodes). Maybe also some cached intersection data?
@@ -1279,6 +1279,22 @@ This algorithm works well for the background but less well for foreground object
   If we know an object is visible we can process it the same way
   Eliminating an object from consideration is more difficult - need to intersect bounding spheres with the viewing frustrum
 
+Orientation check when screen coordinates are in 24.8 format:
+  Note that if an odd number of transformed-z coordinates are <0 then we need to reverse the result of the test
+  Want to avoid doing 4 muls instead of 1 if at all possible
+    (xH:xL)*(yH:yL) = (xH*yH)H : (xH*yH)L :     0000 :     0000
+                          0000 : (xH*yL)H : (xH*yL)L :     0000
+                          0000 : (xL*yH)H : (xL*yH)L :     0000
+                          0000 :     0000 : (xL*yL)H : (xL*yL)L
+    Instead of computing the normal of the screen-space triangle,
+      store a normal vector for each face in the model
+      transform it as if it was a world coordinate (but only compute the z component)
+      look at the sign of the z component
+      This is 3 muls instead of 4
+    Compute the vectors (x1-x0,y1-y0) and (x2-x0,y2-y0)
+      Compute atan2 of these vectors, subtract and figure out if result is < or > than 180 degrees
+        Normalization is the issue here - the multiplies take care of that
+        Could do it by division instead, but 16.16/16.16 isn't any better
 
-
+screen is 178mm tall and 190mm wide (pixels 740um by 889um, subpixels 2.89um by 3.47um)
 
