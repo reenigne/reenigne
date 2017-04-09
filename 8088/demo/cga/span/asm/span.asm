@@ -174,85 +174,30 @@ faceLoop:
   mov cl,ah
   mov ch,0
   push ax
-  lodsw
-  mov bp,sp
-  push word[si]    ; [bp-2] = p0.x
-  push word[si+4]  ; [bp-4] = p0.y
-  lodsw
-  push word[si]    ; [bp-6] = p1.x
-  push word[si+4]  ; [bp-8] = p1.y
-  lodsw
-  push word[si]    ; [bp-0x0a] = p2.x
-  push word[si+4]  ; [bp-0x0c] = p2.y
-
-  mov ax,[bp-6]            ; p1.x
-  cmp ax,[bp-2]            ; p0.x
-  jbe orientationCase1     ; if (p1.x > p0.x) {
-  mov ax,[bp-8]            ;     p1.y
-  cmp ax,[bp-4]            ;     p0.y
-  jbe orientationCase01    ;     if (p1.y > p0.y) {
-  mov ax,[bp-0xa]          ;         p2.x
-  cmp ax,[bp-2]            ;         p0.x
-  jbe orientationCase001   ;         if (p2.x > p0.x) {
-  mov ax,[bp-0xc]          ;
-  cmp ax,[bp-4]
-  jbe orientationCase0001
-  jmp skipFace
-orientationCase0001:
-  mov ax,[bp-6]
-  sub ax,[bp-2]
-  mov dx,[bp-0xc]
-  sub dx,[bp-4]
-  mul dx
-  mov cx,ax
-  mov bx,dx
-  mov ax,[bp-8]
-  sub ax,[bp-4]
-  mov dx,[bp-0xa]
-  sub dx,[bp-2]
-  mul dx
-  cmp bx,dx
-  ja skipFace
-  je .checkLow
-  jmp drawFace
-.checkLow:
-  cmp cx,ax
-  ja skipFace
-  jmp drawFace
-orientationCase001:
-  mov ax,[bp-0xc]
-  cmp ax,[bp-4]
-  jbe skipFace
-  mov ax,[bp-6]
-  sub ax,[bp-2]
-  mov dx,[bp-4]
-  sub dx,[bp-0xc]
-  mul dx
-  mov cx,ax
-  mov bx,dx
-  mov ax,[bp-8]
-  sub ax,[bp-4]
-  mov dx,[bp-2]
-  sub dx,[bp-0xa]
-  mul dx
-  cmp bx,dx
-  jb skipFace
-  je .checkLow
-  jmp drawFace
-.checkLow:
-  cmp cx,ax
-  jb skipFace
-  jmp drawFace
-orientationCase01:
-  mov ax,[bp-0xa]
-  cmp ax,[bp-2]
-  jbe orientationCase011
-  mov ax,[bp-0xc]
-  cmp ax,[bp-4]
-  jbe orientationCase0101
-
-
-
+  mov bx,[si]
+  mov di,[bx]      ; p0.x
+  mov dx,[bx+4]    ; p0.y
+  mov bx,[si+2]
+  mov cx,[bx]      ; p1.x
+  mov ax,[bx+4]    ; p1.y
+  mov bx,[si+4]
+  mov bp,[bx]      ; p2.x
+  mov bx,[bx+4]    ; p2.y
+  sub cx,di        ; p1.x - p0.x
+  sub bp,di        ; p2.x - p0.x
+  sub ax,dx        ; p1.y - p0.y
+  sub bx,dx        ; p2.y - p0.y
+  imul bp          ; (p2.x - p0.x)*(p1.y - p0.y)
+  mov bp,ax        ; loword((p2.x - p0.x)*(p1.y - p0.y))
+  mov di,dx        ; hiword((p2.x - p0.x)*(p1.y - p0.y))
+  mov ax,bx        ; p2.y - p0.y
+  imul cx          ; (p2.y - p0.y)*(p1.x - p0.x)
+  cmp dx,di        ; hiword((p2.y - p0.y)*(p1.x - p0.x)) <=> hiword((p2.x - p0.x)*(p1.y - p0.y))
+  jg skipFace
+  jl drawFace
+  cmp ax,bp
+  jg skipFace
+drawFace:
 
 
 

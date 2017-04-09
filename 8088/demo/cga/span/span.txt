@@ -1215,6 +1215,36 @@ s.y = 99.5 * 16/15 = 106.133 = 27170 = 0x6A22
 s.z = 0x100
 
 
+
+Orientation check when screen coordinates are in 24.8 format:
+  Note that if an odd number of transformed-z coordinates are <0 then we need to reverse the result of the test
+  Want to avoid doing 4 muls instead of 1 if at all possible
+    (xH:xL)*(yH:yL) = (xH*yH)H : (xH*yH)L :     0000 :     0000
+                          0000 : (xH*yL)H : (xH*yL)L :     0000
+                          0000 : (xL*yH)H : (xL*yH)L :     0000
+                          0000 :     0000 : (xL*yL)H : (xL*yL)L
+    Instead of computing the normal of the screen-space triangle,
+      store a normal vector for each face in the model
+      transform it as if it was a world coordinate (but only compute the z component)
+      look at the sign of the z component
+      This is 3 muls instead of 4
+    Compute the vectors (x1-x0,y1-y0) and (x2-x0,y2-y0)
+      Compute atan2 of these vectors, subtract and figure out if result is < or > than 180 degrees
+        Normalization is the issue here - the multiplies take care of that
+        Could do it by division instead, but 16.16/16.16 isn't any better
+    The orientation check doesn't need to be perfect - once we have depth sorting, there's no correctness issue if we plot some faces we should omit
+      The check needs to be conservative - want to avoid omitting faces we should plot
+      Can just use top halves of post-rotation, pre-projection x and y coordinates (ignoring subpixels)
+        Can avoid having edges longer than 32767 distance-1 pixels (~127 world units?) so that we can unambiguously use signed arithmetic for orientation check
+
+
+screen is 178mm tall and 190mm wide (pixels 740um by 889um, subpixels 2.89um by 3.47um)
+
+
+
+
+Tricky optimizations:
+
 2D equivalent of span buffers
   Go directly to binary space partitioning:
     256x200  256x128 (256x72)  128x128 (128x72)  128x64  64x64  64x32  32x32  32x16  16x16  16x8  8x8  8x4  4x4  4x2  4x1
@@ -1279,22 +1309,13 @@ This algorithm works well for the background but less well for foreground object
   If we know an object is visible we can process it the same way
   Eliminating an object from consideration is more difficult - need to intersect bounding spheres with the viewing frustrum
 
-Orientation check when screen coordinates are in 24.8 format:
-  Note that if an odd number of transformed-z coordinates are <0 then we need to reverse the result of the test
-  Want to avoid doing 4 muls instead of 1 if at all possible
-    (xH:xL)*(yH:yL) = (xH*yH)H : (xH*yH)L :     0000 :     0000
-                          0000 : (xH*yL)H : (xH*yL)L :     0000
-                          0000 : (xL*yH)H : (xL*yH)L :     0000
-                          0000 :     0000 : (xL*yL)H : (xL*yL)L
-    Instead of computing the normal of the screen-space triangle,
-      store a normal vector for each face in the model
-      transform it as if it was a world coordinate (but only compute the z component)
-      look at the sign of the z component
-      This is 3 muls instead of 4
-    Compute the vectors (x1-x0,y1-y0) and (x2-x0,y2-y0)
-      Compute atan2 of these vectors, subtract and figure out if result is < or > than 180 degrees
-        Normalization is the issue here - the multiplies take care of that
-        Could do it by division instead, but 16.16/16.16 isn't any better
-
-screen is 178mm tall and 190mm wide (pixels 740um by 889um, subpixels 2.89um by 3.47um)
-
+Can we do the perspective transform with a single-precision 32/16->16 divide instead of a double-precision 32/16->32 divide?
+  Quotient would have to be pixel precision (16.0)
+  Divisor needs to be 0x100 for near plane (8.8)
+  Therefore dividend would be 24.8 in range -0x007fff.ff to 0x7fff.ff (so no ~127 multiplier in matrix)
+    However, that would overflow if -0x100 < z < 0x100
+      For these points, we can assume that they are not visible. Can also assume that no two such points connect with a visible edge, since that edge would have to pass through the ship
+      For each edge that connects it to an on-screen point, need to find the slope of the line (the intersect is given by the visible point)
+  We need to treat z=0 specially anyway, so lets similarly treat near-points specially
+    If x/z does not overflow, we don't want to use the point at infinity
+      Hook interrupt 0 to find out when overflow happens?
