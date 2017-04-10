@@ -198,14 +198,26 @@ faceLoop:
   cmp ax,bp
   jg skipFace
 drawFace:
+  mov bp,2
+
+  mov bx,[si]
+  push word[bx]
+  push word[bx+4]
+  mov bx,[si+bp]
+  push word[bx]
+  push word[bx+4]
+  mov bx,[si+bp+2]
+  push word[bx]
+  push word[bx+4]
+  call fillTriangle
+
+  inc bp
+  inc bp
+  loop
 
 
-
-
-
-
-  pop ax  ; al = colour
-
+skipFace:
+  pop ax
   pop cx
   loop faceLoop
 

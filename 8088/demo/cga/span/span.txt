@@ -643,7 +643,7 @@ queuedSkips = 0x3e (but we should have dealt with that partial before doing that
                 else {
                     if (co == cn) {
                         switch (mode) {
-                            case 0:  
+                            case 0:
                                 // Nothing to do - end of skip moved
                                 break;
                             case 1:
@@ -1319,3 +1319,39 @@ Can we do the perspective transform with a single-precision 32/16->16 divide ins
   We need to treat z=0 specially anyway, so lets similarly treat near-points specially
     If x/z does not overflow, we don't want to use the point at infinity
       Hook interrupt 0 to find out when overflow happens?
+
+Optimizations that aren't particularly tricky but which reduce output fidelity:
+  ISAV mode
+  Reduce horizontal resolution to 128 or 64 columns
+
+
+
+Collision detection:
+  Initially assume ship is spherical for collision-detection purposes
+    Same for enemies, items etc.
+  For each object we might collide with (including background) have a BSP tree
+    Do we really want BSP trees for enemies if the enemy is treated as a sphere for collisions with the background?
+    Colliding one non-sphere with another non-sphere seems like it would get too complicated too quickly
+      Non-spherical enemies should avoid colliding with each other and with background (move along fixed paths?)
+      Spherical bullets should just disappear on contact with background or enemy or player
+      Collision between player and enemy results kills player
+  Move all objects according to their velocity, then check for collisions
+    It's much easier if a spherical object can't move more than its own radius per frame (r = 463 for ship, crossing room in 71 frames or 1.2 seconds)
+  Update BSP node for each object
+    while (!object.inside(node))
+        node = node.parent();
+    while (node.isSubdivide())
+        node = node.childContaining(object);
+  BSP node is one of:
+    subdivide
+    face
+    convex edge
+    convex corner
+    concave edge
+    concave corner
+  Instead of partitioning space into two equally-sized blocks, avoid splitting nodes that don't need to be split
+    But also want to avoid having to do excess multiplications to see which child node to go to
+      Not sure how bad those multiplications would be in practice - 3 per node descent but most frames we'll be in the same node
+  In general there may be 2 or even 3 faces we're colliding with at once
+    These regions have their own nodes, but once the collision is resolved we're on the intersection of two or three nodes (which shouldn't be a problem)
+  Given position, velocity and node details, compute new position and velocity (sliding along face or concave edge if necessary)

@@ -39,8 +39,12 @@ struct Shape
         _vertex0 = &_vertices[0];
         float distance = (256.0 / 200.0)*(5.0 / 6.0);
         scale = distance/(scale * sqrt(1 + distance*distance));
-        for (int i = 0; i < _nVertices; ++i)
+        for (int i = 0; i < _nVertices; ++i) {
             _vertex0[i] = vertices.begin()[i] * scale;
+            _vertex0[i].x = SFix8p8::fromRepresentation(adjust(_vertex0[i].x.representation()));
+            _vertex0[i].y = SFix8p8::fromRepresentation(adjust(_vertex0[i].y.representation()));
+            _vertex0[i].z = SFix8p8::fromRepresentation(adjust(_vertex0[i].z.representation()));
+        }
 
         _nFaces = faces.size();
         _faces.allocate(_nFaces);
@@ -55,6 +59,27 @@ struct Shape
 private:
     Array<Point3> _vertices;
     Array<Face> _faces;
+
+    int adjust(int r)
+    {
+        if (r < 0)
+            return -adjust(-r);
+        switch (r) {
+            case 0: return 0;
+            case 66: return 66;
+            case 67: return 66;
+            case 97: return 98;
+            case 107: return 107;
+            case 156: return 158;
+            case 157: return 158;
+            case 173: return 174;
+            case 174: return 174;
+            case 186: return 186;
+            default:
+                printf("%i\n",r);
+                return r;
+        }
+    }
 };
 
 Byte colours[][2] = {
