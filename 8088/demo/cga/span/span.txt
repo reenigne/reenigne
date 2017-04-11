@@ -1235,7 +1235,8 @@ Orientation check when screen coordinates are in 24.8 format:
     The orientation check doesn't need to be perfect - once we have depth sorting, there's no correctness issue if we plot some faces we should omit
       The check needs to be conservative - want to avoid omitting faces we should plot
       Can just use top halves of post-rotation, pre-projection x and y coordinates (ignoring subpixels)
-        Can avoid having edges longer than 32767 distance-1 pixels (~127 world units?) so that we can unambiguously use signed arithmetic for orientation check
+        This doesn't work - projection can change the orientation of a face
+
 
 
 screen is 178mm tall and 190mm wide (pixels 740um by 889um, subpixels 2.89um by 3.47um)
@@ -1311,6 +1312,8 @@ This algorithm works well for the background but less well for foreground object
 
 Can we do the perspective transform with a single-precision 32/16->16 divide instead of a double-precision 32/16->32 divide?
   Quotient would have to be pixel precision (16.0)
+    This is not too bad, but a little jerky especially when moving slowly
+      So perhaps we can use 16-bit quotients when moving fast and 32-bit quotients when moving slowly
   Divisor needs to be 0x100 for near plane (8.8)
   Therefore dividend would be 24.8 in range -0x007fff.ff to 0x7fff.ff (so no ~127 multiplier in matrix)
     However, that would overflow if -0x100 < z < 0x100

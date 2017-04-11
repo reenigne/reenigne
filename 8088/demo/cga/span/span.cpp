@@ -250,6 +250,7 @@ private:
 
 struct TransformedPoint
 {
+    Vector3<Fix16p16> _xyz;
     Vector2<Fix24p8> _xy;
     SFix8p8 _z;
 };
@@ -263,12 +264,14 @@ public:
         Vector2<SFix8p8> offset)
     {
         Vector3<SFix8p8> s(scale.x*distance, scale.y*distance, scale.z);
+        s.x = SFix8p8::fromRepresentation(0x7f5c);
+        s.y = SFix8p8::fromRepresentation(0x6a22);
         _xx = s.x*sines.sin(theta);
-        _xy = -s.y*sines.coscos(theta, phi);
-        _xz = -s.z*sines.cossin(theta, phi);
+        _xy = -s.y*(sines.cos(theta)*sines.cos(phi)); //sines.coscos(theta, phi);
+        _xz = -s.z*(sines.cos(theta)*sines.sin(phi)); //sines.cossin(theta, phi);
         _yx = s.x*sines.cos(theta);
-        _yy = s.y*sines.sincos(theta, phi);
-        _yz = s.z*sines.sinsin(theta, phi);
+        _yy = s.y*(sines.sin(theta)*sines.cos(phi)); //sines.sincos(theta, phi);
+        _yz = s.z*(sines.sin(theta)*sines.sin(phi)); //sines.sinsin(theta, phi);
         _zy = s.y*sines.sin(phi);
         _zz = -s.z*sines.cos(phi);
         _distance = distance;
@@ -276,20 +279,20 @@ public:
     }
     TransformedPoint modelToScreen(Point3 model)
     {
-        Fix16p16 x = lmul(_xx, model.x) + lmul(_yx, model.y);
-            /*+ lmul(_zx, model.z)*/
-        Fix16p16 y = lmul(_xy, model.x) + lmul(_yy, model.y) +
-            lmul(_zy, model.z);
-        Fix16p16 z = lmul(_xz, model.x) + lmul(_yz, model.y) +
-            lmul(_zz, model.z);
-        Int16 d = (z.representation() >> 8) + _distance.representation();
         TransformedPoint r;
+        r._xyz.x = lmul(_xx, model.x) + lmul(_yx, model.y);
+            /*+ lmul(_zx, model.z)*/
+        r._xyz.y = lmul(_xy, model.x) + lmul(_yy, model.y) +
+            lmul(_zy, model.z);
+        r._xyz.z = lmul(_xz, model.x) + lmul(_yz, model.y) +
+            lmul(_zz, model.z);
+        Int16 d = (r._xyz.z.representation() >> 8) + _distance.representation();
         r._z = SFix8p8::fromRepresentation(d);
         r._xy = Vector2<Fix24p8>(
-            Fix24p8::fromRepresentation(x.representation() / d +
-                _offset.x.representation()),
-            Fix24p8::fromRepresentation(y.representation() / d +
-                _offset.y.representation()));
+            Fix24p8::fromRepresentation((r._xyz.x.representation() / d +
+                _offset.x.representation()) & 0xffffffff),
+            Fix24p8::fromRepresentation((r._xyz.y.representation() / d +
+                _offset.y.representation()) & 0xffffffff));
         return r;
     }
 private:
@@ -719,12 +722,10 @@ public:
 
         Shape* shape = &shapes[_shape];
         _corners.ensure(shape->_nVertices);
-        Point2* corners = &_corners[0];
+        TransformedPoint* corners = &_corners[0];
 
-        for (int i = 0; i < shape->_nVertices; ++i) {
-            TransformedPoint s = p.modelToScreen(shape->_vertex0[i]);
-            corners[i] = Point2(s._xy.x, s._xy.y);
-        }
+        for (int i = 0; i < shape->_nVertices; ++i)
+            corners[i] = p.modelToScreen(shape->_vertex0[i]);
 
         //memset(&_vram[0], 0, 0x4000);
         //printf("%i %i ",_theta,_phi);
@@ -732,65 +733,28 @@ public:
         int nFaces = shape->_nFaces;
         for (int i = 0; i < nFaces; ++i, ++face) {
             int* vertices = face->_vertex0;
-            Point2 p0 = corners[vertices[0]];
-            Point2 p1 = corners[vertices[1]];
-            Point2 p2 = corners[vertices[2]];
+            TransformedPoint p0 = corners[vertices[0]];
+            TransformedPoint p1 = corners[vertices[1]];
+            TransformedPoint p2 = corners[vertices[2]];
             vertices += 3;
 
-            if (p1.x > p0.x) {
-                if (p1.y > p0.y) {
-                    if (p2.x > p0.x) {
-                        if (p2.y > p0.y && lmul(p1.x - p0.x, p2.y - p0.y) > lmul(p1.y - p0.y, p2.x - p0.x))
-                            continue;
-                    }
-                    else {
-                        if (p2.y > p0.y || lmul(p1.x - p0.x, p0.y - p2.y) < lmul(p1.y - p0.y, p0.x - p2.x))
-                            continue;
-                    }
-                }
-                else {
-                    if (p2.x > p0.x) {
-                        if (p2.y > p0.y || lmul(p1.x - p0.x, p0.y - p2.y) < lmul(p0.y - p1.y, p2.x - p0.x))
-                            continue;
-                    }
-                    else {
-                        if (p2.y > p0.y && lmul(p1.x - p0.x, p2.y - p0.y) > lmul(p0.y - p1.y, p0.x - p2.x))
-                            continue;
-                    }
-                }
-            }
-            else {
-                if (p1.y > p0.y) {
-                    if (p2.x > p0.x) {
-                        if (p2.y < p0.y && lmul(p0.x - p1.x, p0.y - p2.y) > lmul(p1.y - p0.y, p2.x - p0.x))
-                            continue;
-                    }
-                    else {
-                        if (p2.y < p0.y || lmul(p0.x - p1.x, p2.y - p0.y) < lmul(p1.y - p0.y, p0.x - p2.x))
-                            continue;
-                    }
-                }
-                else {
-                    if (p2.x > p0.x) {
-                        if (p2.y < p0.y || lmul(p0.x - p1.x, p2.y - p0.y) < lmul(p0.y - p1.y, p2.x - p0.x))
-                            continue;
-                    }
-                    else {
-                        if (p2.y < p0.y && lmul(p0.x - p1.x, p0.y - p2.y) > lmul(p0.y - p1.y, p0.x - p2.x))
-                            continue;
-                    }
-                }
-            }
+            Vector2<SInt16> s0(p0._xy.x.representation() >> 9, p0._xy.y.representation() >> 9);
+            Vector2<SInt16> s1(p1._xy.x.representation() >> 9, p1._xy.y.representation() >> 9);
+            Vector2<SInt16> s2(p2._xy.x.representation() >> 9, p2._xy.y.representation() >> 9);
+            s1 -= s0;
+            s2 -= s0;
+            if (s1.x*s2.y >= s1.y*s2.x)
+                continue;
             int c = face->_colour;
             _count = 0;
-            fillTriangle(p0, p1, p2, c);
+            fillTriangle(p0._xy, p1._xy, p2._xy, c);
             //printf("%i ", _count);
             //if (_count == 0)
             //    printf("Empty!");
             int nVertices = face->_nVertices - 3;
             for (int i = 0; i < nVertices; ++i) {
-                Point2 p3 = corners[*vertices];
-                fillTriangle(p0, p2, p3, c);
+                TransformedPoint p3 = corners[*vertices];
+                fillTriangle(p0._xy, p2._xy, p3._xy, c);
                 p2 = p3;
                 ++vertices;
             }
@@ -1011,7 +975,7 @@ private:
     UFix8p8 _xR;
     bool _fp;
     int _shape;
-    Array<Point2> _corners;
+    Array<TransformedPoint> _corners;
     int _count;
     SpanBuffer _buffers[2];
     int _buffer;
