@@ -174,6 +174,7 @@ faceLoop:
   mov cl,ah
   mov ch,0
   push ax
+  push cx
   mov bx,[si]
   mov di,[bx]      ; p0.x
   mov dx,[bx+4]    ; p0.y
@@ -183,6 +184,13 @@ faceLoop:
   mov bx,[si+4]
   mov bp,[bx]      ; p2.x
   mov bx,[bx+4]    ; p2.y
+  shr cx,1
+  shr bp,1
+  shr di,1
+  shr dx,1
+  shr ax,1
+  shr bx,1
+
   sub cx,di        ; p1.x - p0.x
   sub bp,di        ; p2.x - p0.x
   sub ax,dx        ; p1.y - p0.y
@@ -199,21 +207,64 @@ faceLoop:
   jg skipFace
 drawFace:
   mov bp,2
+  pop cx
 
+drawFacePart:
   mov bx,[si]
-  push word[bx]
-  push word[bx+4]
+  push word[bx]     ; [bp+0xc] = a.x
+  push word[bx+4]   ; [bp+0xa] = a.y
   mov bx,[si+bp]
-  push word[bx]
-  push word[bx+4]
+  push word[bx]     ; [bp+8] = b.x
+  push word[bx+4]   ; [bp+6] = b.y
   mov bx,[si+bp+2]
-  push word[bx]
-  push word[bx+4]
-  call fillTriangle
+  push word[bx]     ; [bp+4] = c.x
+  push word[bx+4]   ; [bp+2] = c.y
+  push bp
+  mov bp,sp
+  push si
 
+  ; Fill triangle
+  mov ax,[bp+0xc]
+  mov bx,[bp+0xa]
+  mov cx,[bp+8]
+  mov dx,[bp+6]
+  mov si,[bp+4]
+  mov di,[bp+2]
+
+  cmp bx,dx
+  jle noSwapAB
+  xchg bx,dx
+  xchg ax,cx
+noSwapAB:
+  cmp dx,di
+  jle noSwapBC
+  xchg dx,di
+  xchg cx,si
+noSwapBC:
+  cmp bx,dx
+  jle noSwapAB2
+  xchg bx,dx
+  xchg ax,cx
+noSwapAB2:
+  cmp bx,dx
+  jne notHorizontalAB
+  cmp dx,di
+  je doneTriangle
+  cmp ax,cx
+  jne noSwapABx
+  xchg ax,cx
+noSwapABx:
+  add bx,0xff    ; bh = yab
+
+
+
+
+doneTriangle:
+  pop si
+  pop bp
   inc bp
   inc bp
-  loop
+  loop drawFacePart
 
 
 skipFace:
@@ -318,6 +369,50 @@ noDown:
 noDownAccel:
   inc word[phi]
   jmp noKey
+
+
+; Span buffer format
+;   byte[si]   = n = number of entries (not including final sentinel with x == 255)
+;   byte[si+1] = colour of pixel 0
+;   byte[si+2] = first transition position
+;   ...
+;   byte[si+n*2] = 255
+
+
+addSpan:
+  ; inputs:
+  ;   al = c
+  ;   dl = xL
+  ;   dh = xR
+  ;   si = span buffer line pointer
+  ; used:
+  ;   bp = i*2
+  ;   bx = j*2
+  cmp dl,dh
+  jge endAddSpan
+  mov bp,-2
+  mov bx,bp
+.findI:
+  inc bp
+  inc bp
+  cmp dl,[si+bp+2]
+  jge .findI
+.findJ:
+  inc bx
+  inc bx
+  cmp dh,[si+bx+2]
+  jge .findJ
+  cmp al,[si+bp+1]
+  jne .differentColourL
+  mov dl,[si+bp]
+  jmp .doneCheckL
+.differentColourL:
+  cmp bp,0
+  je .doneCheckL
+  cmp dl,[si+bp]
+  jne .doneCheckL
+  cmp al,[
+
 
 
 colours:
