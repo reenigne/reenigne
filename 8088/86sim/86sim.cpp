@@ -977,7 +977,8 @@ int main(int argc, char* argv[])
                             setAX(6);  // Invalid handle
                             break;
                         }
-                        data = read(fileDescriptor, dsdx(true, cx()), cx());
+                        data = read(fileDescriptor, pathBuffers[0], cx());
+			dsdx(true, cx());
                         if (data == (DWord)-1) {
                             setCF(true);
                             setAX(dosError(errno));
