@@ -390,6 +390,7 @@ addSpan:
   ;   bx = j*2
   cmp dl,dh
   jge endAddSpan
+
   mov bp,-2
   mov bx,bp
 .findI:
@@ -397,11 +398,13 @@ addSpan:
   inc bp
   cmp dl,[si+bp+2]
   jge .findI
+
 .findJ:
   inc bx
   inc bx
   cmp dh,[si+bx+2]
   jge .findJ
+
   cmp al,[si+bp+1]
   jne .differentColourL
   mov dl,[si+bp]
@@ -411,7 +414,78 @@ addSpan:
   je .doneCheckL
   cmp dl,[si+bp]
   jne .doneCheckL
-  cmp al,[
+  cmp al,[si+bp-1]
+  jne .doneCheckL
+  dec bp
+  dec bp
+  mov dl,[si+bp]
+.doneCheckL:
+
+  cmp al,[si+bx+1]
+  jne .differentColourR
+  mov dh,[si+bx+2]
+  jmp .doneCheckR
+.differentColourR:
+  mov ah,[si]
+  dec ah
+  add ah,ah
+  cmp bl,ah
+  jge .doneCheckR
+  cmp dh,[si+bx+2]
+  jne .doneCheckR
+  cmp al,[si+bx+3]
+  jne .doneCheckR
+  inc bx
+  inc bx
+  mov dh,[si+bx+2]
+
+  mov di,bx
+  sub di,bp
+
+  cmp dl,[si+bp]
+  jne .noLeftCoincide
+  cmp dh,[si+bx+2]
+  jne .noRightCoincide
+  mov cl,[si]
+  mov ch,0     ; Can eliminate by storing n as a word
+  sub cx,di
+  mov [si],cl
+  shr bp,1
+  sub cx,bp
+  shl bp,1
+  push si
+  lea si,[si+bp+2]
+  add di,si
+  rep movsw
+  pop si
+  jmp .doColourChange
+.noRightCoincide:
+  dec di
+  dec di
+  mov cl,[si]
+  mov ch,0     ; Can eliminate by storing n as a word
+  sub cx,di
+  mov [si],cl
+  cmp di,0
+  jl .oMinusOne
+  je .doSetRight
+  shr bp,1
+  sub cx,bp
+  shl bp,1
+  push si
+  lea si,[si+bp+2]
+  add di,si
+  rep movsw
+  pop si
+.doSetRight:
+  mov [si+bp+2],dh
+  jmp .doColourChange
+.oMinusOne:
+
+
+
+
+
 
 
 
