@@ -482,6 +482,14 @@ addSpan:
   jmp .doColourChange
 .oMinusOne:
 
+  mov cl,[si]
+  mov ch,0
+  add cx,di
+  shr bp,1
+  sub cx,bp
+  shl bp,1
+  push si
+  add si,di
 
 
 
