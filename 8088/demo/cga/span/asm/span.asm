@@ -481,19 +481,26 @@ addSpan:
   mov [si+bp+2],dh
   jmp .doColourChange
 .oMinusOne:
-
   mov cl,[si]
   mov ch,0
-  add cx,di
-  shr bp,1
-  sub cx,bp
-  shl bp,1
+  add cx,cx
+  mov bx,di
+  mov di,cx
+  add di,si
   push si
-  add si,di
+  add si,bx
+  add cx,bx
+  sub cx,bp
+  shr cx,1
+  inc cx
+  std
+  rep movsw
+  cld
+  pop si
 
-
-
-
+.doColourChange:
+  mov [si+bp+1],al
+  jmp endAddSpan
 
 
 
