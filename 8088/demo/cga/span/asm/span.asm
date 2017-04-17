@@ -448,7 +448,9 @@ addSpan:
   jne .noRightCoincide
   mov cl,[si]
   mov ch,0     ; Can eliminate by storing n as a word
+  shr di,1
   sub cx,di
+  shl di,1
   mov [si],cl
   shr bp,1
   sub cx,bp
@@ -464,7 +466,9 @@ addSpan:
   dec di
   mov cl,[si]
   mov ch,0     ; Can eliminate by storing n as a word
+  shr di,1
   sub cx,di
+  shl di,1
   mov [si],cl
   cmp di,0
   jl .oMinusOne
@@ -501,6 +505,19 @@ addSpan:
 .doColourChange:
   mov [si+bp+1],al
   jmp endAddSpan
+
+.noLeftCoincide:
+  cmp dh,[si+bx+2]
+  jne .noRightCoincide2
+  dec di
+  dec di
+  mov cl,[si]
+  mov ch,0     ; Can eliminate by storing n as a word
+  shr di,1
+  sub cx,di
+  shl di,1
+
+
 
 
 
