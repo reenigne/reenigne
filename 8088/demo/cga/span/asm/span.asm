@@ -471,7 +471,7 @@ addSpan:
   shl di,1
   mov [si],cl
   cmp di,0
-  jl .oMinusOneL
+  jl .doMinusOneL
   je .doSetRightL
   shr bp,1
   sub cx,bp
@@ -484,7 +484,7 @@ addSpan:
 .doSetRightL:
   mov [si+bp+2],dh
   jmp .doColourChangeL
-.oMinusOneL:
+.doMinusOneL:
   mov cl,[si]
   mov ch,0
   add cx,cx
@@ -518,7 +518,7 @@ addSpan:
   shl di,1
   mov [si],cl
   cmp di,0
-  jl .oMinusOneR
+  jl .doMinusOneR
   je .doSetRightColour
   shr bp,1
   sub cx,bp
@@ -530,7 +530,25 @@ addSpan:
   rep movsw
   pop si
   jmp .doSetRightColour
-.oMinuxOneR:
+.doMinusOneR:
+  mov cl,[si]
+  mov ch,0
+  add cx,cx
+  mov bx,di
+  mov di,cx
+  add di,si
+  push si
+  add si,bx
+  add cx,bx
+  sub cx,bp
+  shr cx,1
+  std
+  rep movsw
+  cld
+  pop si
+  jmp .doSetRightColour
+
+.noRightCoincide:
 
 
 
