@@ -462,11 +462,10 @@ addSpan:
   pop si
   jmp .doColourChangeL
 .noRightCoincideL:
-  dec di
-  dec di
   mov cl,[si]
   mov ch,0     ; Can eliminate by storing n as a word
   shr di,1
+  dec di
   sub cx,di
   shl di,1
   mov [si],cl
@@ -509,11 +508,10 @@ addSpan:
 .noLeftCoincide:
   cmp dh,[si+bx+2]
   jne .noRightCoincide
-  dec di
-  dec di
   mov cl,[si]
   mov ch,0     ; Can eliminate by storing n as a word
   shr di,1
+  dec di
   sub cx,di
   shl di,1
   mov [si],cl
@@ -549,7 +547,71 @@ addSpan:
   jmp .doSetRightColour
 
 .noRightCoincide:
-
+  mov cl,[si]
+  mov ch,0
+  shr di,1
+  dec di
+  dec di
+  sub cx,di
+  shl di,1
+  mov [si],cl
+  cmp di,0
+  jl .doMinus
+  je .doSetRight
+  shr bp,1
+  sub cx,bp
+  dec cx
+  shl bp,1
+  push si
+  lea si,[si+bp+4]
+  add di,si
+  rep movsw
+  pop si
+  jmp .doSetRight
+.doMinus:
+  cmp di,-2
+  jge .doMinusOne
+  mov cl,[si]
+  mov ch,0
+  add cx,cx
+  mov bx,di
+  mov di,cx
+  add di,si
+  push si
+  add si,bx
+  add cx,bx
+  sub cx,bp
+  shr cx,1
+  std
+  rep movsw
+  cld
+  pop si
+  mov ah,[si+bp+1]
+  mov [si+bp+3],ah
+  jmp .doSetRight
+.doMinusOne:
+  mov cl,[si]
+  mov ch,0
+  add cx,cx
+  mov bx,di
+  mov di,cx
+  add di,si
+  push si
+  add si,bx
+  add cx,bx
+  sub cx,bp
+  shr cx,1
+  std
+  rep movsw
+  cld
+  pop si
+.doSetRight:
+  mov [si+bp+4],dh
+.doSetRightColour:
+  mov [si+bp+2],dl
+  mov [si+bp+3],al
+endAddSpan:
+  ret
 
 
 
