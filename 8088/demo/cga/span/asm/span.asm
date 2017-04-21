@@ -285,7 +285,12 @@ vsync:
 
 
   ; Switch buffers
-  add word[spanBuffer]
+  mov ax,[spanBuffer]
+  mov bx,spanBuffer1 + spanBuffer0
+  sub bx,ax
+  xchg ax,bx
+  mov [spanBuffer],ax
+  mov word[cs:spanBufferPatch+2],ax
 
   ; Clear next buffer
 
@@ -378,6 +383,26 @@ noDownAccel:
 ;   ...
 ;   byte[si+n*2] = 255
 
+fillTrapezoid:
+  ; inputs:
+  ;   al = c
+  ;   si = yStart
+  ;   cx = yEnd
+  ;   bx = dL
+  ;   bp = dR
+  ;   di = _xL
+  ;   dx = _xR
+  sub cx,si
+  add si,si
+spanBufferPatch:
+  mov si,[si+spanBuffer0]
+fillTrapezoidLoop:
+  push dx
+  xchg ax,di
+  mov dl,ah
+  push di
+  push bx
+  push bp
 
 addSpan:
   ; inputs:
@@ -611,8 +636,16 @@ addSpan:
   mov [si+bp+2],dl
   mov [si+bp+3],al
 endAddSpan:
-  ret
 
+  pop bp
+  pop bx
+  pop di
+  pop dx
+  add di,bx
+  add dx,bp
+  add si,spanBufferEntries*2
+  loop fillTrapezoidLoop
+  ret
 
 
 
