@@ -377,11 +377,11 @@ noDownAccel:
 
 
 ; Span buffer format
-;   byte[si]   = n = number of entries (not including final sentinel with x == 255)
-;   byte[si+1] = colour of pixel 0
-;   byte[si+2] = first transition position
+;   byte[si]   = n*2 (n = number of entries (not including final sentinel with x == 255))
+;   byte[si+2] = colour of pixel 0
+;   byte[si+3] = first transition position
 ;   ...
-;   byte[si+n*2] = 255
+;   byte[si+n*2+1] = 255
 
 fillTrapezoid:
   ; inputs:
@@ -397,12 +397,11 @@ fillTrapezoid:
 spanBufferPatch:
   mov si,[si+spanBuffer0]
 fillTrapezoidLoop:
-  push dx
+  push bx
+  push di
+  mov dh,bh
   xchg ax,di
   mov dl,ah
-  push di
-  push bx
-  push bp
 
 addSpan:
   ; inputs:
@@ -421,232 +420,299 @@ addSpan:
 .findI:
   inc bp
   inc bp
-  cmp dl,[si+bp+2]
+  cmp dl,[si+bp+3]
   jge .findI
 
 .findJ:
   inc bx
   inc bx
-  cmp dh,[si+bx+2]
+  cmp dh,[si+bx+3]
   jge .findJ
 
-  cmp al,[si+bp+1]
+  cmp al,[si+bp+2]
   jne .differentColourL
-  mov dl,[si+bp]
+  mov dl,[si+bp+1]
   jmp .doneCheckL
 .differentColourL:
   cmp bp,0
   je .doneCheckL
-  cmp dl,[si+bp]
+  cmp dl,[si+bp+1]
   jne .doneCheckL
-  cmp al,[si+bp-1]
+  cmp al,[si+bp]
   jne .doneCheckL
   dec bp
   dec bp
-  mov dl,[si+bp]
+  mov dl,[si+bp+1]
 .doneCheckL:
 
-  cmp al,[si+bx+1]
+  cmp al,[si+bx+2]
   jne .differentColourR
-  mov dh,[si+bx+2]
+  mov dh,[si+bx+3]
   jmp .doneCheckR
 .differentColourR:
   mov ah,[si]
-  dec ah
-  add ah,ah
+  sub ax,0x200
   cmp bl,ah
   jge .doneCheckR
-  cmp dh,[si+bx+2]
+  cmp dh,[si+bx+3]
   jne .doneCheckR
-  cmp al,[si+bx+3]
+  cmp al,[si+bx+4]
   jne .doneCheckR
   inc bx
   inc bx
-  mov dh,[si+bx+2]
+  mov dh,[si+bx+3]
+.doneCheckR:
 
   mov di,bx
   sub di,bp
 
-  cmp dl,[si+bp]
+  cmp dl,[si+bp+1]
   jne .noLeftCoincide
-  cmp dh,[si+bx+2]
+  cmp dh,[si+bx+3]
   jne .noRightCoincideL
-  mov cl,[si]
-  mov ch,0     ; Can eliminate by storing n as a word
-  shr di,1
+  mov cx,[si]
   sub cx,di
-  shl di,1
   mov [si],cl
-  shr bp,1
   sub cx,bp
-  shl bp,1
-  push si
-  lea si,[si+bp+2]
+  mov bx,si
+  lea si,[si+bp+3]
   add di,si
+  shr cx,1
   rep movsw
-  pop si
-  jmp .doColourChangeL
+  mov si,bx
+  mov [si+bp+2],al
+  jmp endAddSpan
 .noRightCoincideL:
-  mov cl,[si]
-  mov ch,0     ; Can eliminate by storing n as a word
-  shr di,1
+  mov cx,[si]
+  dec di
   dec di
   sub cx,di
-  shl di,1
   mov [si],cl
   cmp di,0
   jl .doMinusOneL
   je .doSetRightL
-  shr bp,1
   sub cx,bp
-  shl bp,1
-  push si
-  lea si,[si+bp+2]
+  mov bx,si
+  lea si,[si+bp+3]
   add di,si
+  shr cx,1
   rep movsw
-  pop si
+  mov si,bx
 .doSetRightL:
-  mov [si+bp+2],dh
-  jmp .doColourChangeL
+  mov [si+bp+3],dh
+  mov [si+bp+2],al
+  jmp endAddSpan
 .doMinusOneL:
-  mov cl,[si]
-  mov ch,0
-  add cx,cx
-  mov bx,di
-  mov di,cx
-  add di,si
-  push si
-  add si,bx
-  add cx,bx
-  sub cx,bp
+  mov bx,si  ; &_s[0]
+  xchg si,di ; si = 2*o  di = &_s[0]
+  add di,cx  ; &_s[_n]
+  add si,cx  ; 2*(_n + o)
+  mov cx,si  ; 2*(_n + o)
+  sub cx,bp  ; 2*(_n + o - i)
+  add si,bx  ; &_s[_n + o]
   shr cx,1
   inc cx
   std
   rep movsw
   cld
-  pop si
-
-.doColourChangeL:
-  mov [si+bp+1],al
+  mov si,bx
+  mov [si+bp+3],dh
+  mov [si+bp+2],al
   jmp endAddSpan
 
 .noLeftCoincide:
-  cmp dh,[si+bx+2]
+  cmp dh,[si+bx+3]
   jne .noRightCoincide
-  mov cl,[si]
-  mov ch,0     ; Can eliminate by storing n as a word
-  shr di,1
+  mov cx,[si]
+  dec di
   dec di
   sub cx,di
-  shl di,1
   mov [si],cl
   cmp di,0
   jl .doMinusOneR
   je .doSetRightColour
-  shr bp,1
   sub cx,bp
   dec cx
-  shl bp,1
-  push si
-  lea si,[si+bp+4]
+  dec cx
+  mov bx,si
+  lea si,[si+bp+5]
   add di,si
+  shr cx,1
   rep movsw
-  pop si
+  mov si,bx
   jmp .doSetRightColour
 .doMinusOneR:
-  mov cl,[si]
-  mov ch,0
-  add cx,cx
-  mov bx,di
-  mov di,cx
-  add di,si
-  push si
-  add si,bx
-  add cx,bx
-  sub cx,bp
+  mov bx,si  ; &_s[0]
+  xchg si,di ; si = 2*o  di = &_s[0]
+  add di,cx  ; &_s[_n]
+  add si,cx  ; 2*(_n + o)
+  mov cx,si  ; 2*(_n + o)
+  sub cx,bp  ; 2*(_n + o - i)
+  add si,bx  ; &_s[_n + o]
   shr cx,1
   std
   rep movsw
   cld
-  pop si
+  mov si,bx
   jmp .doSetRightColour
 
 .noRightCoincide:
-  mov cl,[si]
-  mov ch,0
-  shr di,1
-  dec di
-  dec di
+  mov cx,[si]
+  sub di,4
   sub cx,di
-  shl di,1
   mov [si],cl
   cmp di,0
   jl .doMinus
   je .doSetRight
-  shr bp,1
   sub cx,bp
   dec cx
-  shl bp,1
-  push si
-  lea si,[si+bp+4]
+  dec cx
+  mov bx,si
+  lea si,[si+bp+5]
   add di,si
+  shr cx,1
   rep movsw
-  pop si
+  mov si,bx
   jmp .doSetRight
 .doMinus:
   cmp di,-2
   jge .doMinusOne
-  mov cl,[si]
-  mov ch,0
-  add cx,cx
-  mov bx,di
-  mov di,cx
-  add di,si
-  push si
-  add si,bx
-  add cx,bx
-  sub cx,bp
+  mov bx,si  ; &_s[0]
+  xchg si,di ; si = 2*o  di = &_s[0]
+  add di,cx  ; &_s[_n]
+  add si,cx  ; 2*(_n + o)
+  mov cx,si  ; 2*(_n + o)
+  sub cx,bp  ; 2*(_n + o - i)
+  add si,bx  ; &_s[_n + o]
   shr cx,1
   std
   rep movsw
   cld
-  pop si
-  mov ah,[si+bp+1]
-  mov [si+bp+3],ah
+  mov si,bx
+  mov ah,[si+bp+2]
+  mov [si+bp+4],ah
   jmp .doSetRight
 .doMinusOne:
-  mov cl,[si]
-  mov ch,0
-  add cx,cx
-  mov bx,di
-  mov di,cx
-  add di,si
-  push si
-  add si,bx
-  add cx,bx
-  sub cx,bp
+  mov bx,si  ; &_s[0]
+  xchg si,di ; si = 2*o  di = &_s[0]
+  add di,cx  ; &_s[_n]
+  add si,cx  ; 2*(_n + o)
+  mov cx,si  ; 2*(_n + o)
+  sub cx,bp  ; 2*(_n + o - i)
+  add si,bx  ; &_s[_n + o]
   shr cx,1
   std
   rep movsw
   cld
-  pop si
+  mov si,bx
 .doSetRight:
-  mov [si+bp+4],dh
+  mov [si+bp+5],dh
 .doSetRightColour:
-  mov [si+bp+2],dl
-  mov [si+bp+3],al
+  mov [si+bp+3],dl
+  mov [si+bp+4],al
 endAddSpan:
 
-  pop bp
-  pop bx
   pop di
-  pop dx
-  add di,bx
-  add dx,bp
+  pop bx
+dLpatch:
+  add di,9999
+dRpatch:
+  add bx,9999
   add si,spanBufferEntries*2
   loop fillTrapezoidLoop
   ret
 
+; slopeLeft dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!ax, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
+; Stomps ax, dx
+%macro slopeLeft 7
+%ifnidni %3,ax
+  mov ax, %3
+%endif
+  sub ax, %2
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+%done:
+  sub ax, %5
+  neg ax
+  mov [cs:%1+2], ax
+%endmacro
+
+; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
+; Stomps ax, dx
+%macro slopeRight 7
+%ifnidi %3,ax
+  mov ax, %3
+%endif
+  sub ax, %2
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+%done:
+  add ax, %5
+  mov [cs:%1+2], ax
+%endmacro
+
+; slope dest {dLpatch, dRpatch}, ux {!ax}, vx, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!dx, !dx}, x {di, bx}
+; Stomps ax, dx
+%macro slope 7
+%ifnidni %3,ax
+  mov ax, %3
+%endif
+  sub ax, %2
+  jc %%left
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  add ax, %5
+  mov [cs:%1+2], ax
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+  add ax, %5
+  mov [cs:%1+2], ax
+  jmp %%done
+%%left
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  sub ax, %5
+  neg ax
+  mov [cs:%1+2], ax
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+  sub ax, %5
+  neg ax
+  mov [cs:%1+2], ax
+%done:
+%endmacro
 
 
 
