@@ -170,10 +170,10 @@ transformLoop:
   mov si,ax
 faceLoop:
   lodsw   ; al = colour, ah = triangle count
+  mov [colour],al
   push cx
   mov cl,ah
   mov ch,0
-  push ax
   push cx
   mov bx,[si]
   mov di,[bx]      ; p0.x
@@ -210,58 +210,181 @@ drawFace:
   pop cx
 
 drawFacePart:
-  mov bx,[si]
-  push word[bx]     ; [bp+0xc] = a.x
-  push word[bx+4]   ; [bp+0xa] = a.y
-  mov bx,[si+bp]
-  push word[bx]     ; [bp+8] = b.x
-  push word[bx+4]   ; [bp+6] = b.y
-  mov bx,[si+bp+2]
-  push word[bx]     ; [bp+4] = c.x
-  push word[bx+4]   ; [bp+2] = c.y
+  push cx
   push bp
-  mov bp,sp
   push si
+  mov bx,[si]
+  mov cx,[bx]       ; cx = a.x
+  mov di,[bx+4]     ; di = a.y
+  mov bx,[si+bp]
+  mov dx,[bx]       ; dx = b.x
+  mov ax,[bx+4]     ; ax = b.y
+  mov bx,[si+bp+2]
+  mov si,[bx]       ; si = c.x
+  mov bx,[bx+4]     ; bx = c.y
+
+; slopeLeft dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!ax, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
+; Stomps ax, dx
+%macro slopeLeft 7
+%ifnidni %3,ax
+  mov ax, %3
+%endif
+  sub ax, %2
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+%done:
+  sub ax, %5
+  neg ax
+  mov [cs:%1+2], ax
+%endmacro
+
+; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
+; Stomps ax, dx
+%macro slopeRight 7
+%ifnidni %3,ax
+  mov ax, %3
+%endif
+  sub ax, %2
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+%done:
+  add ax, %5
+  mov [cs:%1+2], ax
+%endmacro
+
+; slope dest {dLpatch, dRpatch}, ux {!ax}, vx, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!dx, !dx}, x {di, bx}
+; Stomps ax, dx
+%macro slope 7
+%ifnidni %3,ax
+  mov ax, %3
+%endif
+  sub ax, %2
+  jc %%left
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  add ax, %5
+  mov [cs:%1+2], ax
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+  add ax, %5
+  mov [cs:%1+2], ax
+  jmp %%done
+%%left
+  cmp %4, 0x100
+  jae %%largeY
+  mul %6
+  div %4
+  mov %7, 0xffff
+  sub ax, %5
+  neg ax
+  mov [cs:%1+2], ax
+  jmp %%done
+%%largeY:
+  xor dx, dx
+  div %4
+  mov %7, ax
+  mul %6
+  sub ax, %5
+  neg ax
+  mov [cs:%1+2], ax
+%done:
+%endmacro
+
 
   ; Fill triangle
-  mov ax,[bp+0xc]
-  mov bx,[bp+0xa]
-  mov cx,[bp+8]
-  mov dx,[bp+6]
-  mov si,[bp+4]
-  mov di,[bp+2]
+  ; cx = a.x
+  ; di = a.y
+  ; dx = b.x
+  ; ax = b.y
+  ; si = c.x
+  ; bx = c.y
 
-  cmp bx,dx
+  cmp di,ax
   jle noSwapAB
-  xchg bx,dx
-  xchg ax,cx
+  xchg di,ax
+  xchg cx,dx
 noSwapAB:
-  cmp dx,di
+  cmp ax,bx
   jle noSwapBC
-  xchg dx,di
-  xchg cx,si
+  xchg ax,bx
+  xchg dx,si
 noSwapBC:
-  cmp bx,dx
+  cmp di,ax
   jle noSwapAB2
-  xchg bx,dx
-  xchg ax,cx
+  xchg di,ax
+  xchg cx,dx
 noSwapAB2:
-  cmp bx,dx
+  cmp di,ax
   jne notHorizontalAB
-  cmp dx,di
+  cmp ax,bx
   je doneTriangle
-  cmp ax,cx
+  cmp cx,dx
   jne noSwapABx
-  xchg ax,cx
+  xchg cx,dx
 noSwapABx:
-  add bx,0xff    ; bh = yab
+;  mov [coordAX],cx
+;  mov [coordAY],di
+  mov [coordBX],dx
+;  mov [coordBY],ax
+;  mov [coordCX],si
+;  mov [coordCY],bx
 
+  add ax,0xff
+  mov [yab],ah  ; yab = a.y.intCeiling();
+
+  mov ax,bx
+  inc ah
+  mov [yc],ah   ; yc = (c.y + 1).intFloor();
+
+  sub bx,di
+  mov [yac],bx  ; yac = c.y - a.y
+
+  mov bp,[yab-1]  ; Note: low byte is kept as 0
+  sub bp,di     ; yaa = yab - a.y
+
+  mov bx,cx
+  mov cx,si
+  mov si,[yac]
+
+  slope dLpatch, cx, bx, si, bx, bp, di
+  slope dRpatch, cx, bx, si, [coordBX], bp, bx
+  mov si,[yab]
+  mov cx,[yc]  ; Note: high byte is kept as 0
+  mov al,[colour]
+  call fillTrapezoid
+  jmp doneTriangle
 
 
 
 doneTriangle:
   pop si
   pop bp
+  pop cx
   inc bp
   inc bp
   loop drawFacePart
@@ -388,10 +511,8 @@ fillTrapezoid:
   ;   al = c
   ;   si = yStart
   ;   cx = yEnd
-  ;   bx = dL
-  ;   bp = dR
   ;   di = _xL
-  ;   dx = _xR
+  ;   bx = _xR
   sub cx,si
   add si,si
 spanBufferPatch:
@@ -622,98 +743,6 @@ dRpatch:
   loop fillTrapezoidLoop
   ret
 
-; slopeLeft dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!ax, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
-; Stomps ax, dx
-%macro slopeLeft 7
-%ifnidni %3,ax
-  mov ax, %3
-%endif
-  sub ax, %2
-  cmp %4, 0x100
-  jae %%largeY
-  mul %6
-  div %4
-  mov %7, 0xffff
-  jmp %%done
-%%largeY:
-  xor dx, dx
-  div %4
-  mov %7, ax
-  mul %6
-%done:
-  sub ax, %5
-  neg ax
-  mov [cs:%1+2], ax
-%endmacro
-
-; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
-; Stomps ax, dx
-%macro slopeRight 7
-%ifnidi %3,ax
-  mov ax, %3
-%endif
-  sub ax, %2
-  cmp %4, 0x100
-  jae %%largeY
-  mul %6
-  div %4
-  mov %7, 0xffff
-  jmp %%done
-%%largeY:
-  xor dx, dx
-  div %4
-  mov %7, ax
-  mul %6
-%done:
-  add ax, %5
-  mov [cs:%1+2], ax
-%endmacro
-
-; slope dest {dLpatch, dRpatch}, ux {!ax}, vx, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!dx, !dx}, x {di, bx}
-; Stomps ax, dx
-%macro slope 7
-%ifnidni %3,ax
-  mov ax, %3
-%endif
-  sub ax, %2
-  jc %%left
-  cmp %4, 0x100
-  jae %%largeY
-  mul %6
-  div %4
-  mov %7, 0xffff
-  add ax, %5
-  mov [cs:%1+2], ax
-  jmp %%done
-%%largeY:
-  xor dx, dx
-  div %4
-  mov %7, ax
-  mul %6
-  add ax, %5
-  mov [cs:%1+2], ax
-  jmp %%done
-%%left
-  cmp %4, 0x100
-  jae %%largeY
-  mul %6
-  div %4
-  mov %7, 0xffff
-  sub ax, %5
-  neg ax
-  mov [cs:%1+2], ax
-  jmp %%done
-%%largeY:
-  xor dx, dx
-  div %4
-  mov %7, ax
-  mul %6
-  sub ax, %5
-  neg ax
-  mov [cs:%1+2], ax
-%done:
-%endmacro
-
 
 
 colours:
@@ -890,6 +919,17 @@ dTheta: dw 0
 phi: dw 0
 dPhi: dw 0
 autoRotate: db 1
+coordAX: dw 0
+coordAY: dw 0
+coordBX: dw 0
+coordBY: dw 0
+coordCX: dw 0
+coordCY: dw 0
+  db 0
+yab: dw 0
+yc: dw 0
+yac: dw 0
+colour: db 0
 
 spanBufferEntries equ 20
 lines equ 200
