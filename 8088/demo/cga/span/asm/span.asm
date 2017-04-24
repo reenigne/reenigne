@@ -270,46 +270,44 @@ drawFacePart:
   mov [cs:%1+2], ax
 %endmacro
 
-; slope dest {dLpatch, dRpatch}, ux {!ax}, vx, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!dx, !dx}, x {di, bx}
+; slope dest {dLpatch, dRpatch}, ux {!ax}, vx {!ax}, dy {!ax, !dx}, y0 {!dx, !dx}, x {di, bx}
 ; Stomps ax, dx
 %macro slope 7
-%ifnidni %3,ax
   mov ax, %3
-%endif
   sub ax, %2
   jc %%left
   cmp %4, 0x100
   jae %%largeY
-  mul %6
+  mul %5
   div %4
-  mov %7, 0xffff
-  add ax, %5
+  mov %6, 0xffff
+  add ax, %3
   mov [cs:%1+2], ax
   jmp %%done
 %%largeY:
   xor dx, dx
   div %4
-  mov %7, ax
-  mul %6
-  add ax, %5
+  mov %6, ax
+  mul %5
+  add ax, %3
   mov [cs:%1+2], ax
   jmp %%done
 %%left
   cmp %4, 0x100
   jae %%largeY
-  mul %6
+  mul %5
   div %4
-  mov %7, 0xffff
-  sub ax, %5
+  mov %6, 0xffff
+  sub ax, %3
   neg ax
   mov [cs:%1+2], ax
   jmp %%done
 %%largeY:
   xor dx, dx
   div %4
-  mov %7, ax
-  mul %6
-  sub ax, %5
+  mov %6, ax
+  mul %5
+  sub ax, %3
   neg ax
   mov [cs:%1+2], ax
 %done:
@@ -344,7 +342,7 @@ noSwapAB2:
   cmp ax,bx
   je doneTriangle
   cmp cx,dx
-  jne noSwapABx
+  jbe noSwapABx
   xchg cx,dx
 noSwapABx:
 ;  mov [coordAX],cx
@@ -371,13 +369,51 @@ noSwapABx:
   mov cx,si
   mov si,[yac]
 
-  slope dLpatch, cx, bx, si, bx, bp, di
-  slope dRpatch, cx, bx, si, [coordBX], bp, bx
+  slope dLpatch, cx, bx, si, bp, di
+  slope dRpatch, cx, [coordBX], si, bp, bx
   mov si,[yab]
   mov cx,[yc]  ; Note: high byte is kept as 0
   mov al,[colour]
   call fillTrapezoid
   jmp doneTriangle
+
+notHorizontalAB:
+  mov [coordAY],di
+  mov [coordBY],ax
+
+  xchg ax,di
+  inc ah
+  mov [ya],ah  ; ya = (a.y + 1).intFloor();
+
+  mov ax,di
+  sub ax,[coordAY]
+  mov [yab],ax
+
+  cmp di,bx
+  jne notHorizontalBC
+  cmp dx,si
+  jbe noSwapBCx
+  xchg dx,si
+noSwapBCx:
+  xchg ax,di
+  inc ah
+  mov [ybc],ah  ; ybc = (b.y + 1).intFloor();
+
+  mov bp,[ya-1]  ; Note: low byte is kept as 0
+  sub bp,[coordAY]  ; yaa = ya - a.y
+
+  mov [coordBX],dx
+
+  slope dLpatch, [coordBX], cx, [yab], bp, di
+  slope dRpatch, si, cx, [yab], bp, bx
+  mov si,[ya]
+  mov cx,[ybc]  ; Note: high byte is kept as 0
+  mov al,[colour]
+  call fillTrapezoid
+  jmp doneTriangle
+
+
+
 
 
 

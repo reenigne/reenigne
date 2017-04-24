@@ -863,12 +863,11 @@ private:
             return dxdy;
         }
     }
-    UFix8p8 slope(UFix8p8 ux, UFix8p8 vx, UFix8p8 dy, UFix8p8 x0, UFix8p8 y0,
-        UFix8p8* x)
+    UFix8p8 slope(UFix8p8 ux, UFix8p8 vx, UFix8p8 dy, UFix8p8 y0, UFix8p8* x)
     {
         if (ux > vx)
-            return slopeRight(ux - vx, dy, x0, y0, x);
-        return -slopeLeft(vx - ux, dy, x0, y0, x);
+            return slopeRight(ux - vx, dy, vx, y0, x);
+        return -slopeLeft(vx - ux, dy, vx, y0, x);
     }
     void fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
     {
@@ -885,7 +884,7 @@ private:
             int yc = (c.y + 1).intFloor();
             UFix8p8 yac = c.y - a.y;
             UFix8p8 yaa = yab - a.y;
-            fillTrapezoid(yab, yc, slope(c.x, a.x, yac, a.x, yaa, &_xL), slope(c.x, b.x, yac, b.x, yaa, &_xR), colour);
+            fillTrapezoid(yab, yc, slope(c.x, a.x, yac, yaa, &_xL), slope(c.x, b.x, yac, yaa, &_xR), colour);
             return;
         }
         int ya = (a.y + 1).intFloor();
@@ -895,7 +894,7 @@ private:
                 swap(b, c);
             int ybc = (b.y + 1).intFloor();
             UFix8p8 yaa = ya - a.y;
-            fillTrapezoid(ya, ybc, slope(b.x, a.x, yab, a.x, yaa, &_xL), slope(c.x, a.x, yab, a.x, yaa, &_xR), colour);
+            fillTrapezoid(ya, ybc, slope(b.x, a.x, yab, yaa, &_xL), slope(c.x, a.x, yab, yaa, &_xR), colour);
             return;
         }
 
@@ -915,13 +914,13 @@ private:
                     _xL = xb;
                     _xR = xc;
                     fillTrapezoid(ya, yb, dab, dac, colour);
-                    fillTrapezoid(yb, yc, slope(c.x, b.x, ybc, b.x, ybb, &_xL), dac, colour);
+                    fillTrapezoid(yb, yc, slope(c.x, b.x, ybc, ybb, &_xL), dac, colour);
                 }
                 else {
                     _xL = xc;
                     _xR = xb;
                     fillTrapezoid(ya, yb, dac, dab, colour);
-                    fillTrapezoid(yb, yc, dac, slope(c.x, b.x, ybc, b.x, ybb, &_xR), colour);
+                    fillTrapezoid(yb, yc, dac, slope(c.x, b.x, ybc, ybb, &_xR), colour);
                 }
             }
             else {
@@ -946,13 +945,13 @@ private:
                     _xL = xb;
                     _xR = xc;
                     fillTrapezoid(ya, yb, -dba, -dca, colour);
-                    fillTrapezoid(yb, yc, slope(c.x, b.x, ybc, b.x, ybb, &_xL), -dca, colour);
+                    fillTrapezoid(yb, yc, slope(c.x, b.x, ybc, ybb, &_xL), -dca, colour);
                 }
                 else {
                     _xL = xc;
                     _xR = xb;
                     fillTrapezoid(ya, yb, -dca, -dba, colour);
-                    fillTrapezoid(yb, yc, -dca, slope(c.x, b.x, ybc, b.x, ybb, &_xR), colour);
+                    fillTrapezoid(yb, yc, -dca, slope(c.x, b.x, ybc, ybb, &_xR), colour);
                 }
             }
         }
