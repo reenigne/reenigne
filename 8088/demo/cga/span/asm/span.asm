@@ -452,7 +452,8 @@ vsync:
   mov word[cs:spanBufferPatch+2],ax
 
   ; Clear next buffer
-
+  mov di,ax
+  call clearSpanBuffer
 
   ; Handle keyboard
   mov ah,1
@@ -536,11 +537,11 @@ noDownAccel:
 
 
 ; Span buffer format
-;   byte[si]   = n*2 (n = number of entries (not including final sentinel with x == 255))
-;   byte[si+2] = colour of pixel 0
-;   byte[si+3] = first transition position
+;   byte[bx]   = bx+n*2+1 (n = number of entries (not including final sentinel with x == 255))
+;   byte[bx+2] = colour of pixel 0
+;   byte[bx+3] = first transition position
 ;   ...
-;   byte[si+n*2+1] = 255
+;   byte[bx+n*2+1] = 255
 
 fillTrapezoid:
   ; inputs:
@@ -565,72 +566,80 @@ addSpan:
   ;   al = c
   ;   dl = xL
   ;   dh = xR
-  ;   si = span buffer line pointer
+  ;   bx = span buffer line pointer
   ; used:
-  ;   bp = i*2
-  ;   bx = j*2
+  ;   si = &_s[i]
+  ;   di = &_s[j]
   cmp dl,dh
   jge endAddSpan
 
-  mov bp,-2
-  mov bx,bp
+  lea si,[bx-2]
+  mov di,si
 .findI:
-  inc bp
-  inc bp
-  cmp dl,[si+bp+3]
+  inc si
+  inc si
+  cmp dl,[si+3]
   jge .findI
 
 .findJ:
-  inc bx
-  inc bx
-  cmp dh,[si+bx+3]
+  inc di
+  inc di
+  cmp dh,[di+3]
   jge .findJ
 
-  cmp al,[si+bp+2]
+  cmp al,[si+2]
   jne .differentColourL
-  mov dl,[si+bp+1]
+  mov dl,[si+1]
   jmp .doneCheckL
 .differentColourL:
-  cmp bp,0
+  cmp si,bx
   je .doneCheckL
-  cmp dl,[si+bp+1]
+  cmp dl,[si+1]
   jne .doneCheckL
-  cmp al,[si+bp]
+  cmp al,[si]
   jne .doneCheckL
-  dec bp
-  dec bp
-  mov dl,[si+bp+1]
+  dec si
+  dec si
+  mov dl,[si+1]
 .doneCheckL:
 
-  cmp al,[si+bx+2]
+  cmp al,[di+2]
   jne .differentColourR
-  mov dh,[si+bx+3]
+  mov dh,[di+3]
   jmp .doneCheckR
 .differentColourR:
-  mov ah,[si]
-  sub ax,0x200
-  cmp bl,ah
+  mov cx,[bx]
+  dec cx
+  dec cx
+  cmp di,cx
   jge .doneCheckR
-  cmp dh,[si+bx+3]
+  cmp dh,[di+3]
   jne .doneCheckR
-  cmp al,[si+bx+4]
+  cmp al,[di+4]
   jne .doneCheckR
-  inc bx
-  inc bx
-  mov dh,[si+bx+3]
+  inc di
+  inc di
+  mov dh,[di+3]
 .doneCheckR:
 
-  mov di,bx
-  sub di,bp
+  mov cx,di
+  sub cx,si
 
-  cmp dl,[si+bp+1]
+  cmp dl,[si+1]
   jne .noLeftCoincide
-  cmp dh,[si+bx+3]
+  cmp dh,[di+3]
   jne .noRightCoincideL
-  mov cx,[si]
-  sub cx,di
-  mov [si],cl
-  sub cx,bp
+  sub cl,[bx]
+  neg cx
+  mov [bx],cl
+  sub cx,si
+  add cx,bx
+  inc si
+  inc si
+  inc di
+  inc di
+
+
   mov bx,si
   lea si,[si+bp+3]
   add di,si
@@ -980,9 +989,11 @@ spanBufferEnd:
 clearSpanBuffer:
   mov cx,lines
   mov bx,spanBufferEntries*2
+  add di,2
+  mov ax,0xff00
 .loop:
-  mov word[di],1      ; can change word to byte if we know we're going to be painting the entire screen.
-  mov byte[di+2],0xff
+  mov word[di-2],di
+  mov word[di],ax
   add di,bx
   loop .loop
   ret
