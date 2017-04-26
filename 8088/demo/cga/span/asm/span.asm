@@ -638,11 +638,6 @@ addSpan:
   inc si
   inc di
   inc di
-
-
-  mov bx,si
-  lea si,[si+bp+3]
-  add di,si
   shr cx,1
   rep movsw
   mov si,bx

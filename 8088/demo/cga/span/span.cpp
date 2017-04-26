@@ -311,11 +311,12 @@ private:
 
 int globalCount = 0;
 
-class SpanBuffer
+class SpanBuffers
 {
 public:
-    SpanBuffer()
+    SpanBuffers()
     {
+        _data.allocate(0x10000);
         _lines.allocate(200);
         _lines0 = &_lines[0];
     }
@@ -388,6 +389,7 @@ private:
                 // Left of new span at left of left old
                 if (xR == _s[j + 1]._x) {
                     // Right of new span at right of right old
+                    _s[i]._c = c;
                     if (o != 0) {
                         _n -= o;
                         for (int k = i + 1; k <= _n; ++k)
@@ -407,9 +409,9 @@ private:
                             for (int k = i + 1; k <= _n; ++k)
                                 _s[k] = _s[k + o];
                     }
+                    _s[i]._c = c;
                     _s[i + 1]._x = xR;
                 }
-                _s[i]._c = c;
                 if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
                     printf("Error\n");
                 return;
@@ -428,6 +430,8 @@ private:
                         for (int k = i + 2; k <= _n; ++k)
                             _s[k] = _s[k + o];
                 }
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
             }
             else {
                 o -= 2;
@@ -448,9 +452,9 @@ private:
                             _s[k] = _s[k + o];
                 }
                 _s[i + 2]._x = xR;
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
             }
-            _s[i + 1]._x = xL;
-            _s[i + 1]._c = c;
             if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
                 printf("Error\n");
         }
@@ -614,6 +618,7 @@ private:
         Array<Span> _spans;
         int _n;
     };
+    Array<Byte> _data;
     Line* _lines0;
     Array<Line> _lines;
 };
@@ -696,8 +701,8 @@ public:
         _animated.setRate(60);
 
         _buffer = 0;
-        _buffers[0].clear();
-        _buffers[1].clear();
+        _buffers.clear(0);
+        _buffers.clear(1);
     }
     void create()
     {
@@ -760,9 +765,9 @@ public:
             }
         }
         //printf("\n");
-        _buffers[_buffer].renderDeltas(&_vram[0], &_buffers[1 - _buffer]);
+        _buffers.renderDeltas(_buffer, &_vram[0]);
         _buffer = 1 - _buffer;
-        _buffers[_buffer].clear();
+        _buffers.clear(_buffer);
         _data.change(0, 0, 0x4000, &_vram[0]);
         _output.restart();
         _animated.restart();
@@ -815,7 +820,7 @@ private:
         if (y < 0 || y >= 200 || xL < 0 || xR > 320)
              printf("Error\n");
 
-        _buffers[_buffer].addSpan(c, xL, xR, y);
+        _buffers.addSpan(_buffer, c, xL, xR, y);
 
 
         //int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
@@ -976,7 +981,7 @@ private:
     int _shape;
     Array<TransformedPoint> _corners;
     int _count;
-    SpanBuffer _buffers[2];
+    SpanBuffers _buffers;
     int _buffer;
 };
 
