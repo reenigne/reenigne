@@ -311,12 +311,11 @@ private:
 
 int globalCount = 0;
 
-class SpanBuffers
+class SpanBuffer
 {
 public:
-    SpanBuffers()
+    SpanBuffer()
     {
-        _data.allocate(0x10000);
         _lines.allocate(200);
         _lines0 = &_lines[0];
     }
@@ -401,16 +400,25 @@ private:
                     _n -= o;
                     switch (o) {
                         case -1:
+                            // Have to do the update after the move or we'd
+                            // be stomping on data we need to keep.
                             for (int k = _n; k >= i - o; --k)
                                 _s[k] = _s[k + o];
+                            _s[i]._c = c;
+                            _s[i + 1]._x = xR;
+                            break;
                         case 0:
+                            _s[i]._c = c;
+                            _s[i + 1]._x = xR;
                             break;
                         default:
-                            for (int k = i + 1; k <= _n; ++k)
+                            _s[i]._c = c;
+                            _s[i + 1]._x = xR;
+                            _s[i + 1]._c = _s[i + 1 + o]._c;
+                            for (int k = i + 2; k <= _n; ++k)
                                 _s[k] = _s[k + o];
+                            break;
                     }
-                    _s[i]._c = c;
-                    _s[i + 1]._x = xR;
                 }
                 if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
                     printf("Error\n");
@@ -422,38 +430,57 @@ private:
                 _n -= o;
                 switch (o) {
                     case -1:
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
                         for (int k = _n; k > i - o; --k)
                             _s[k] = _s[k + o];
+                        break;
                     case 0:
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
                         break;
                     default:
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
                         for (int k = i + 2; k <= _n; ++k)
                             _s[k] = _s[k + o];
+                        break;
                 }
-                _s[i + 1]._x = xL;
-                _s[i + 1]._c = c;
             }
             else {
                 o -= 2;
                 _n -= o;
                 switch (o) {
                     case -2:
+                        // Have to do the update after the move
                         for (int k = _n; k > i - o; --k)
                             _s[k] = _s[k + o];
                         _s[i + 2]._c = _s[i]._c;
+                        _s[i + 2]._x = xR;
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
                         break;
                     case -1:
+                        // Have to do the update after the move
                         for (int k = _n; k > i - o; --k)
                             _s[k] = _s[k + o];
+                        _s[i + 2]._x = xR;
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
+                        break;
                     case 0:
+                        _s[i + 2]._x = xR;
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
                         break;
                     default:
-                        for (int k = i + 2; k <= _n; ++k)
+                        _s[i + 2]._x = xR;
+                        _s[i + 2]._c = _s[i + 2 + o]._c;
+                        _s[i + 1]._x = xL;
+                        _s[i + 1]._c = c;
+                        for (int k = i + 3; k <= _n; ++k)
                             _s[k] = _s[k + o];
                 }
-                _s[i + 2]._x = xR;
-                _s[i + 1]._x = xL;
-                _s[i + 1]._c = c;
             }
             if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
                 printf("Error\n");
@@ -618,7 +645,6 @@ private:
         Array<Span> _spans;
         int _n;
     };
-    Array<Byte> _data;
     Line* _lines0;
     Array<Line> _lines;
 };
@@ -698,11 +724,11 @@ public:
         add(&_animated);
 
         _animated.setDrawWindow(this);
-        _animated.setRate(60);
+        _animated.setRate(1000); //60);
 
         _buffer = 0;
-        _buffers.clear(0);
-        _buffers.clear(1);
+        _buffers[0].clear();
+        _buffers[1].clear();
     }
     void create()
     {
@@ -765,9 +791,9 @@ public:
             }
         }
         //printf("\n");
-        _buffers.renderDeltas(_buffer, &_vram[0]);
+        _buffers[_buffer].renderDeltas(&_vram[0], &_buffers[1 - _buffer]);
         _buffer = 1 - _buffer;
-        _buffers.clear(_buffer);
+        _buffers[_buffer].clear();
         _data.change(0, 0, 0x4000, &_vram[0]);
         _output.restart();
         _animated.restart();
@@ -820,7 +846,7 @@ private:
         if (y < 0 || y >= 200 || xL < 0 || xR > 320)
              printf("Error\n");
 
-        _buffers.addSpan(_buffer, c, xL, xR, y);
+        _buffers[_buffer].addSpan(c, xL, xR, y);
 
 
         //int l = ((y & 1) << 13) + (y >> 1)*80 + 8;
@@ -981,7 +1007,7 @@ private:
     int _shape;
     Array<TransformedPoint> _corners;
     int _count;
-    SpanBuffers _buffers;
+    SpanBuffer _buffers[2];
     int _buffer;
 };
 

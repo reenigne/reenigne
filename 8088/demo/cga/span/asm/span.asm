@@ -545,23 +545,30 @@ noDownAccel:
 
 fillTrapezoid:
   ; inputs:
-  ;   al = c
-  ;   si = yStart
+  ;   si = colour pair pointer
+  ;   bx = yStart
   ;   cx = yEnd
   ;   di = _xL
-  ;   bx = _xR
-  sub cx,si
-  add si,si
+  ;   dx = _xR
+  ; stomps: ax, bx, cx, dx, si, di, bp
+  mov bp,bx
+  and bp,1
+  add si,bp
+  sub cx,bx
+  add bx,bx
 spanBufferPatch:
-  mov si,[si+spanBuffer0]
+  mov bx,[bx+spanBuffer0]
 fillTrapezoidLoop:
-  push bx
+  cmp di,dx
+  jge skipAddSpan
+  push dx
   push di
-  mov dh,bh
   xchg ax,di
   mov dl,ah
+  mov al,[si]
+  push si
 
-addSpan:
+  ; addSpan:
   ; inputs:
   ;   al = c
   ;   dl = xL
@@ -570,8 +577,8 @@ addSpan:
   ; used:
   ;   si = &_s[i]
   ;   di = &_s[j]
-  cmp dl,dh
-  jge endAddSpan
+
+  mov cx,[bx]
 
   lea si,[bx-2]
   mov di,si
@@ -773,13 +780,15 @@ addSpan:
   mov [si+bp+4],al
 endAddSpan:
 
+  pop si
   pop di
-  pop bx
+  pop dx
+skipAddSpan:
 dLpatch:
   add di,9999
 dRpatch:
-  add bx,9999
-  add si,spanBufferEntries*2
+  add dx,9999
+  add bx,spanBufferEntries*2
   loop fillTrapezoidLoop
   ret
 
