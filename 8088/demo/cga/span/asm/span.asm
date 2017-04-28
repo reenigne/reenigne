@@ -244,7 +244,7 @@ drawFacePart:
 %done:
   sub ax, %5
   neg ax
-  mov [cs:%1+2], ax
+  mov [cs:%1-2], ax
 %endmacro
 
 ; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
@@ -267,7 +267,7 @@ drawFacePart:
   mul %6
 %done:
   add ax, %5
-  mov [cs:%1+2], ax
+  mov [cs:%1-2], ax
 %endmacro
 
 ; slope dest {dLpatch, dRpatch}, ux {!ax}, vx {!ax}, dy {!ax, !dx}, y0 {!dx, !dx}, x {di, bx}
@@ -282,7 +282,7 @@ drawFacePart:
   div %4
   mov %6, 0xffff
   add ax, %3
-  mov [cs:%1+2], ax
+  mov [cs:%1-2], ax
   jmp %%done
 %%largeY:
   xor dx, dx
@@ -290,7 +290,7 @@ drawFacePart:
   mov %6, ax
   mul %5
   add ax, %3
-  mov [cs:%1+2], ax
+  mov [cs:%1-2], ax
   jmp %%done
 %%left
   cmp %4, 0x100
@@ -300,7 +300,7 @@ drawFacePart:
   mov %6, 0xffff
   sub ax, %3
   neg ax
-  mov [cs:%1+2], ax
+  mov [cs:%1-2], ax
   jmp %%done
 %%largeY:
   xor dx, dx
@@ -309,7 +309,7 @@ drawFacePart:
   mul %5
   sub ax, %3
   neg ax
-  mov [cs:%1+2], ax
+  mov [cs:%1-2], ax
 %done:
 %endmacro
 
@@ -548,7 +548,7 @@ fillTrapezoid:
   ;   si = colour pair pointer
   ;   bx = yStart
   ;   cx = yEnd
-  ;   di = _xL
+  ;   ax = _xL
   ;   dx = _xR
   ; stomps: ax, bx, cx, dx, si, di, bp
   mov bp,bx
@@ -559,14 +559,14 @@ fillTrapezoid:
 spanBufferPatch:
   mov bx,[bx+spanBuffer0]
 fillTrapezoidLoop:
-  cmp di,dx
+  cmp ax,dx
   jge skipAddSpan
   push dx
-  push di
-  xchg ax,di
+  push ax
   mov dl,ah
-  mov al,[si]
   push si
+  lodsb
+  push cx
 
   ; addSpan:
   ; inputs:
@@ -615,50 +615,57 @@ fillTrapezoidLoop:
   mov dh,[di+3]
   jmp .doneCheckR
 .differentColourR:
-  mov cx,[bx]
-  dec cx
-  dec cx
-  cmp di,cx
-  jge .doneCheckR
   cmp dh,[di+3]
   jne .doneCheckR
   cmp al,[di+4]
   jne .doneCheckR
   inc di
   inc di
+  cmp di,cx
+  jae .doneCheckR2
   mov dh,[di+3]
+.doneCheckR2:
+  dec di
+  dec di
 .doneCheckR:
 
-  mov cx,di
-  sub cx,si
+  mov bp,di
+  sub bp,si
 
   cmp dl,[si+1]
   jne .noLeftCoincide
   cmp dh,[di+3]
   jne .noRightCoincideL
-  sub cl,[bx]
-  neg cx
+  sub cx,bp
   mov [bx],cl
   sub cx,si
-  add cx,bx
   inc si
   inc si
-  inc di
-  inc di
+  mov [si],al
   shr cx,1
   rep movsw
-  mov si,bx
-  mov [si+bp+2],al
   jmp endAddSpan
 .noRightCoincideL:
-  mov cx,[si]
-  dec di
-  dec di
-  sub cx,di
+  dec bp
+  dec bp
+  sub cx,bp
   mov [si],cl
-  cmp di,0
+  cmp bp,0
   jl .doMinusOneL
   je .doSetRightL
+  mov ah,dh
+  mov [si+2],ax
+  mov ah,[di]
+  mov [si+4],ah
+  inc si
+  inc si
+  add di,4
+  sub cx,si
+  inc si
+  inc si
+
+
+
   sub cx,bp
   mov bx,si
   lea si,[si+bp+3]
@@ -780,14 +787,16 @@ fillTrapezoidLoop:
   mov [si+bp+4],al
 endAddSpan:
 
+  pop cx
   pop si
-  pop di
+  pop ax
   pop dx
 skipAddSpan:
+  xor si,1
+  add ax,9999
 dLpatch:
-  add di,9999
-dRpatch:
   add dx,9999
+dRpatch:
   add bx,spanBufferEntries*2
   loop fillTrapezoidLoop
   ret
