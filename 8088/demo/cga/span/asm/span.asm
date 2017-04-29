@@ -537,7 +537,7 @@ noDownAccel:
 
 
 ; Span buffer format
-;   byte[bx]   = bx+n*2+1 (n = number of entries (not including final sentinel with x == 255))
+;   word[bx]   = bx+n*2+1 (n = number of entries (not including final sentinel with x == 255))
 ;   byte[bx+2] = colour of pixel 0
 ;   byte[bx+3] = first transition position
 ;   ...
@@ -573,57 +573,57 @@ fillTrapezoidLoop:
   ;   al = c
   ;   dl = xL
   ;   dh = xR
-  ;   bx = span buffer line pointer
+  ;   bx = span buffer line pointer + 1
   ; used:
-  ;   si = &_s[i]
-  ;   di = &_s[j]
+  ;   si = &_s[i]._x = bx+2*i    si+1 = &_s[i]._c
+  ;   di = &_s[j]._x = bx+2*j
 
-  mov cx,[bx]
+  mov cx,[bx-1]
 
   lea si,[bx-2]
   mov di,si
 .findI:
   inc si
   inc si
-  cmp dl,[si+3]
+  cmp dl,[si+2]
   jge .findI
 
 .findJ:
   inc di
   inc di
-  cmp dh,[di+3]
+  cmp dh,[di+2]
   jge .findJ
 
-  cmp al,[si+2]
+  cmp al,[si+1]
   jne .differentColourL
-  mov dl,[si+1]
+  mov dl,[si]
   jmp .doneCheckL
 .differentColourL:
   cmp si,bx
   je .doneCheckL
-  cmp dl,[si+1]
+  cmp dl,[si]
   jne .doneCheckL
-  cmp al,[si]
+  cmp al,[si-1]
   jne .doneCheckL
   dec si
   dec si
-  mov dl,[si+1]
+  mov dl,[si]
 .doneCheckL:
 
-  cmp al,[di+2]
+  cmp al,[di+1]
   jne .differentColourR
-  mov dh,[di+3]
+  mov dh,[di+2]
   jmp .doneCheckR
 .differentColourR:
-  cmp dh,[di+3]
+  cmp dh,[di+2]
   jne .doneCheckR
-  cmp al,[di+4]
+  cmp al,[di+3]
   jne .doneCheckR
-  inc di
+  inc di                    ; TODO: We can get rid of the decs and move the incs if we set di=&_s[j+1]
   inc di
   cmp di,cx
   jae .doneCheckR2
-  mov dh,[di+3]
+  mov dh,[di+2]
 .doneCheckR2:
   dec di
   dec di
@@ -632,16 +632,19 @@ fillTrapezoidLoop:
   mov bp,di
   sub bp,si
 
-  cmp dl,[si+1]
+  cmp dl,[si]
   jne .noLeftCoincide
-  cmp dh,[di+3]
+  cmp dh,[di+2]
   jne .noRightCoincideL
   sub cx,bp
-  mov [bx],cl
+  mov [bx-1],cl
+  xchg di,si                ; TODO: Should we swap the meanings of SI and DI?
   sub cx,si
   inc si
-  inc si
   mov [si],al
+  inc si
+  inc di
+  inc di
   shr cx,1
   rep movsw
   jmp endAddSpan
@@ -649,53 +652,53 @@ fillTrapezoidLoop:
   dec bp
   dec bp
   sub cx,bp
-  mov [si],cl
+  mov [bx-1],cl
   cmp bp,0
-  jl .doMinusOneL
-  je .doSetRightL
+  jl .oMinusOneL
+  je .oZeroL
   mov ah,dh
-  mov [si+2],ax
-  mov ah,[di]
-  mov [si+4],ah
   inc si
+  mov [si],ax
   inc si
-  add di,4
   sub cx,si
   inc si
+  inc di
+  mov ah,[di]             ; &_s[i+1+o]._c = &_s[i+1+j-i-1]._c = &_s[j]
+  inc di
+  mov [si],ah
   inc si
-
-
-
-  sub cx,bp
-  mov bx,si
-  lea si,[si+bp+3]
-  add di,si
+  xchg si,di     ; di=&_s[i+2] = si+4, si=&_s[i+2+o] = &_s[i+2+j-i-1] = &_s[j+1]
   shr cx,1
   rep movsw
-  mov si,bx
-.doSetRightL:
-  mov [si+bp+3],dh
-  mov [si+bp+2],al
   jmp endAddSpan
-.doMinusOneL:
-  mov bx,si  ; &_s[0]
-  xchg si,di ; si = 2*o  di = &_s[0]
-  add di,cx  ; &_s[_n]
-  add si,cx  ; 2*(_n + o)
-  mov cx,si  ; 2*(_n + o)
-  sub cx,bp  ; 2*(_n + o - i)
-  add si,bx  ; &_s[_n + o]
+.oZeroL:
+  mov ah,dh
+  mov [si+1],ax
+  jmp endAddSpan
+.oMinusOneL:
+  ;count = _n + 1 - (i - o) = _n + 1 - i - 1 = _n - i
+  mov di,cx
+  sub cx,si
+  lea si,[di+bp]  ; si = &_s[n-1]
   shr cx,1
-  inc cx
   std
   rep movsw
   cld
-  mov si,bx
-  mov [si+bp+3],dh
-  mov [si+bp+2],al
+  ; After move, si = i - o - 1 = i
+  mov ah,dh
+  mov [si+1],ax
   jmp endAddSpan
 
 .noLeftCoincide:
+  dec bp
+  dec bp
+  mov cx,bp
+  mov [bx-1],cl
+  cmp bp,0
+  jl .oMinusOneR
+  je .oZeroR
+
+
   cmp dh,[si+bx+3]
   jne .noRightCoincide
   mov cx,[si]
