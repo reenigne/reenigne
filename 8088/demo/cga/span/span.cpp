@@ -286,7 +286,7 @@ public:
             lmul(_zy, model.z);
         r._xyz.z = lmul(_xz, model.x) + lmul(_yz, model.y) +
             lmul(_zz, model.z);
-        Int16 d = (r._xyz.z.representation() >> 8) + _distance.representation();
+        Int16 d = ((r._xyz.z.representation() >> 8) + _distance.representation() + 0x500)/5;
         r._z = SFix8p8::fromRepresentation(d);
         r._xy = Vector2<Fix24p8>(
             Fix24p8::fromRepresentation((r._xyz.x.representation() / d +
@@ -389,11 +389,9 @@ private:
                 if (xR == _s[j + 1]._x) {
                     // Right of new span at right of right old
                     _s[i]._c = c;
-                    if (o != 0) {
-                        _n -= o;
-                        for (int k = i + 1; k <= _n; ++k)
-                            _s[k] = _s[k + o];
-                    }
+                    _n -= o;
+                    for (int k = i + 1; k <= _n; ++k)
+                        _s[k] = _s[k + o];
                 }
                 else {
                     --o;
@@ -430,6 +428,7 @@ private:
                 _n -= o;
                 switch (o) {
                     case -1:
+                        // Untested
                         _s[i + 1]._x = xL;
                         _s[i + 1]._c = c;
                         for (int k = _n; k > i - o; --k)
@@ -474,6 +473,7 @@ private:
                         _s[i + 1]._c = c;
                         break;
                     default:
+                        // Untested
                         _s[i + 2]._x = xR;
                         _s[i + 2]._c = _s[i + 2 + o]._c;
                         _s[i + 1]._x = xL;

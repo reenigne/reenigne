@@ -575,80 +575,76 @@ fillTrapezoidLoop:
   ;   dh = xR
   ;   bx = span buffer line pointer + 1
   ; used:
-  ;   si = &_s[i]._x = bx+2*i    si+1 = &_s[i]._c
-  ;   di = &_s[j]._x = bx+2*j
+  ;   di = &_s[i]._x = bx+2*i    di+1 = &_s[i]._c
+  ;   si = &_s[j+1]._x = bx+2*j+2
 
   mov cx,[bx-1]
 
-  lea si,[bx-2]
-  mov di,si
+  lea di,[bx-2]
 .findI:
-  inc si
-  inc si
-  cmp dl,[si+2]
+  inc di
+  inc di
+  cmp dh,[di+2]
   jge .findI
 
+  mov si,bx
 .findJ:
-  inc di
-  inc di
-  cmp dh,[di+2]
+  inc si
+  inc si
+  cmp dl,[si]
   jge .findJ
 
-  cmp al,[si+1]
+  cmp al,[di+1]
   jne .differentColourL
-  mov dl,[si]
+  mov dl,[di]
   jmp .doneCheckL
 .differentColourL:
-  cmp si,bx
+  cmp di,bx
   je .doneCheckL
-  cmp dl,[si]
+  cmp dl,[di]
   jne .doneCheckL
-  cmp al,[si-1]
+  cmp al,[di-1]
   jne .doneCheckL
-  dec si
-  dec si
-  mov dl,[si]
+  dec di
+  dec di
+  mov dl,[di]
 .doneCheckL:
 
-  cmp al,[di+1]
+  cmp al,[si-1]
   jne .differentColourR
-  mov dh,[di+2]
+  mov dh,[si]
   jmp .doneCheckR
 .differentColourR:
-  cmp dh,[di+2]
+  cmp si,cx
+  jae .doneCheckR
+  cmp dh,[si]
   jne .doneCheckR
-  cmp al,[di+3]
+  cmp al,[si+1]
   jne .doneCheckR
-  inc di                    ; TODO: We can get rid of the decs and move the incs if we set di=&_s[j+1]
-  inc di
-  cmp di,cx
-  jae .doneCheckR2
-  mov dh,[di+2]
-.doneCheckR2:
-  dec di
-  dec di
+  inc si
+  inc si
+  mov dh,[si]
 .doneCheckR:
 
-  mov bp,di
-  sub bp,si
-
-  cmp dl,[si]
+  lea bp,[si-2]
+  sub bp,di                 ; si-2-di = bx+2*j+2-2-bx-2*i = 2*(j-i)
+  cmp dl,[di]
   jne .noLeftCoincide
-  cmp dh,[di+2]
+  cmp dh,[si]
   jne .noRightCoincideL
+
+  ; Both edges coincide with an existing edge
   sub cx,bp
   mov [bx-1],cx
-  xchg di,si                ; TODO: Should we swap the meanings of SI and DI?
-  sub cx,si
-  inc si
-  mov [si],al
-  inc si
+  sub cx,di
   inc di
-  inc di
+  stosb
   shr cx,1
   rep movsw
   jmp endAddSpan
+
 .noRightCoincideL:
+  ; Left edge coincides with an existing edge but right does not
   dec bp
   dec bp
   sub cx,bp
@@ -656,42 +652,39 @@ fillTrapezoidLoop:
   cmp bp,0
   jl .oMinusOneL
   je .oZeroL
-  mov ah,dh
-  inc si
-  mov [si],ax
-  inc si
-  sub cx,si
-  inc si
   inc di
-  mov ah,[di]             ; &_s[i+1+o]._c = &_s[i+1+j-i-1]._c = &_s[j]
-  inc di
-  mov [si],ah
-  inc si
-  xchg si,di     ; di=&_s[i+2] = si+4, si=&_s[i+2+o] = &_s[i+2+j-i-1] = &_s[j+1]
-  shr cx,1
+  mov ah,dh       ; TODO: use ah instead of dh for _xR?
+  stosw
+  dec si          ; &_s[i+1+o]._c == &_s[i+1+j-i-1]._c = &_s[j]._c = si-1
+  movsb
+  shr cx,1        ; si = &_s[i+2+o] = &_s[i+2+j-i-1] = &_s[1+j]
   rep movsw
   jmp endAddSpan
 .oZeroL:
   mov ah,dh
-  mov [si+1],ax
+  inc di
+  stosw
   jmp endAddSpan
 .oMinusOneL:
-  ;count = _n + 1 - (i - o) = _n + 1 - i - 1 = _n - i
-  mov di,cx
-  sub cx,si
-  lea si,[di+bp]  ; si = &_s[n-1]
+  xchg cx,di      ; cx = &_s[i], di = &_s[_n]
+  lea si,[di+bp]  ; si = &_s[_n + o]
+  neg cx
+  add cx,si       ; cx = 2*(_n + o - i)
   shr cx,1
+  inc cx          ; cx = 1 + _n + o - i
   std
   rep movsw
-  cld
-  ; After move, si = i - o - 1 = i
+  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
+  inc di
   mov ah,dh
-  mov [si+1],ax
+  stosw           ; TODO: can we reduce the number of iterations in the copy loop?
   jmp endAddSpan
 
 .noLeftCoincide:
-  cmp dh,[di+2]
+  cmp dh,[di]
   jne .noRightCoincide
+
+  ; Right edge coincides with an existing edge but left does not
   dec bp
   dec bp
   sub cx,bp
@@ -699,17 +692,13 @@ fillTrapezoidLoop:
   cmp bp,0
   jl .oMinusOneR
   je .oZeroR
-  inc si
-  inc si
-  mov [si],dl
-  sub cx,si
-  inc si
-  mov [si],al
   inc di
   inc di
-  inc si
-  xchg si,di     ; di=&_s[i+2] = si+4, si=&_s[i+2+o] = &_s[i+2+j-i-1] = &_s[j+1]
-  shr cx,1
+  xchg ax,dx
+  stosb
+  xchg ax,dx
+  stosb
+  shr cx,1        ; si = &_s[i+2+o] = &_s[i+2+j-i-1] = &_s[1+j]
   rep movsw
   jmp endAddSpan
 .oZeroR:
@@ -717,77 +706,88 @@ fillTrapezoidLoop:
   mov [si+3],al
   jmp endAddSpan
 .oMinusOneR:
-  mov [si+2],dl
-  mov [si+3],al
-  mov di,cx
-  sub cx,si
-  lea si,[di+bp]  ; si = &_s[n-1]
+  xchg cx,di      ; cx = &_s[i], di = &_s[_n]
+  lea si,[di+bp]  ; si = &_s[_n + o]
+  neg cx
+  add cx,si       ; cx = 2*(_n + o - i)
   shr cx,1
-  dec cx
+  inc cx          ; cx = 1 + _n + o - i
   std
   rep movsw
-  cld
+  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
+  inc di
+  inc di
+  xchg ax,dx
+  stosb
+  xchg ax,dx
+  stosb
   jmp endAddSpan
 
 .noRightCoincide:
+  ; Neither side coincides with an existing edge
   sub bp,4
   sub cx,bp
   mov [bx-1],cx
   cmp bp,0
   jl .oMinus
   je .oZero
-  inc si
-  inc si
-  mov [si],dl
-  inc si
+  inc di
+  inc di
+  mov [di],dl
+  inc di
   mov ah,dh
-  mov [si],ax
-  inc di
-  mov ah,[di]  ; i+2+o == i+2+j-i-2 == j
-  inc di
-  inc si
-  sub cx,si
-  inc si
-  mov [si],ah
-  inc si
-  xchg si,di     ; di=&_s[i+3] = si+6, si=&_s[i+2+o] = &_s[i+2+j-i-1] = &_s[j+1]
-  shr cx,1
+  stosw
+  dec si
+  movsb                     ; &_s[i+2+o]._c == &_s[i+2+j-i-2] == &_s[j]
+  inc di    ; di = &_s[i+3]
+  shr cx,1  ; si = &_s[i+3+o] = &_s[i+3+j-i-2] = &_s[j+1]
   rep movsw
   jmp endAddSpan
 .oZero:
-  mov [si+2],dl
-  mov ah,dh
-  mov [si+3],ax
+  inc di
+  inc di
+  xchg ax,dx
+  stosb
+  xchg al,dl
+  stosw
   jmp endAddSpan
 .oMinus:
   cmp bp,-2
   jge .oMinusOne
-  mov di,cx
-  sub cx,si
-  lea si,[di+bp]  ; si = &_s[n-1]
+  xchg cx,di      ; cx = &_s[i], di = &_s[_n]
+  lea si,[di+bp]  ; si = &_s[_n + o]
+  neg cx
+  add cx,si       ; cx = 2*(_n + o - i)
   shr cx,1
-  dec cx
+  inc cx          ; cx = 1 + _n + o - i
   std
   rep movsw
-  cld
-  mov ah,[si+1]
-  mov [si+5],ah
-  mov ah,dh
-  mov [si+3],ax
-  mov [si+2],dl
+  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
+  inc di
+  inc di
+  mov [di],dl
+  inc di
+  xchg al,[di]
+  inc di
+  mov al,dh
+  stosw
   jmp endAddSpan
 .oMinusOne:
-  mov di,cx
-  sub cx,si
-  lea si,[di+bp]  ; si = &_s[n-1]
+  xchg cx,di      ; cx = &_s[i], di = &_s[_n]
+  lea si,[di+bp]  ; si = &_s[_n + o]
+  neg cx
+  add cx,si       ; cx = 2*(_n + o - i)
   shr cx,1
-  dec cx
+  inc cx          ; cx = 1 + _n + o - i
   std
   rep movsw
-  cld
-  mov ah,dh
-  mov [si+3],ax
-  mov [si+2],dl
+  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
+  inc di
+  inc di
+  xchg ax,dx
+  stosb
+  mov al,dl
+  stosw
 endAddSpan:
 
   pop cx
