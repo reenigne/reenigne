@@ -637,7 +637,7 @@ fillTrapezoidLoop:
   cmp dh,[di+2]
   jne .noRightCoincideL
   sub cx,bp
-  mov [bx-1],cl
+  mov [bx-1],cx
   xchg di,si                ; TODO: Should we swap the meanings of SI and DI?
   sub cx,si
   inc si
@@ -652,7 +652,7 @@ fillTrapezoidLoop:
   dec bp
   dec bp
   sub cx,bp
-  mov [bx-1],cl
+  mov [bx-1],cx
   cmp bp,0
   jl .oMinusOneL
   je .oZeroL
@@ -690,104 +690,104 @@ fillTrapezoidLoop:
   jmp endAddSpan
 
 .noLeftCoincide:
+  cmp dh,[di+2]
+  jne .noRightCoincide
   dec bp
   dec bp
-  mov cx,bp
-  mov [bx-1],cl
+  sub cx,bp
+  mov [bx-1],cx
   cmp bp,0
   jl .oMinusOneR
   je .oZeroR
-
-
-  cmp dh,[si+bx+3]
-  jne .noRightCoincide
-  mov cx,[si]
-  dec di
-  dec di
-  sub cx,di
-  mov [si],cl
-  cmp di,0
-  jl .doMinusOneR
-  je .doSetRightColour
-  sub cx,bp
-  dec cx
-  dec cx
-  mov bx,si
-  lea si,[si+bp+5]
-  add di,si
+  inc si
+  inc si
+  mov [si],dl
+  sub cx,si
+  inc si
+  mov [si],al
+  inc di
+  inc di
+  inc si
+  xchg si,di     ; di=&_s[i+2] = si+4, si=&_s[i+2+o] = &_s[i+2+j-i-1] = &_s[j+1]
   shr cx,1
   rep movsw
-  mov si,bx
-  jmp .doSetRightColour
-.doMinusOneR:
-  mov bx,si  ; &_s[0]
-  xchg si,di ; si = 2*o  di = &_s[0]
-  add di,cx  ; &_s[_n]
-  add si,cx  ; 2*(_n + o)
-  mov cx,si  ; 2*(_n + o)
-  sub cx,bp  ; 2*(_n + o - i)
-  add si,bx  ; &_s[_n + o]
+  jmp endAddSpan
+.oZeroR:
+  mov [si+2],dl
+  mov [si+3],al
+  jmp endAddSpan
+.oMinusOneR:
+  mov [si+2],dl
+  mov [si+3],al
+  mov di,cx
+  sub cx,si
+  lea si,[di+bp]  ; si = &_s[n-1]
   shr cx,1
+  dec cx
   std
   rep movsw
   cld
-  mov si,bx
-  jmp .doSetRightColour
+  jmp endAddSpan
 
 .noRightCoincide:
-  mov cx,[si]
-  sub di,4
-  sub cx,di
-  mov [si],cl
-  cmp di,0
-  jl .doMinus
-  je .doSetRight
+  sub bp,4
   sub cx,bp
-  dec cx
-  dec cx
-  mov bx,si
-  lea si,[si+bp+5]
-  add di,si
+  mov [bx-1],cx
+  cmp bp,0
+  jl .oMinus
+  je .oZero
+  inc si
+  inc si
+  mov [si],dl
+  inc si
+  mov ah,dh
+  mov [si],ax
+  inc di
+  mov ah,[di]  ; i+2+o == i+2+j-i-2 == j
+  inc di
+  inc si
+  sub cx,si
+  inc si
+  mov [si],ah
+  inc si
+  xchg si,di     ; di=&_s[i+3] = si+6, si=&_s[i+2+o] = &_s[i+2+j-i-1] = &_s[j+1]
   shr cx,1
   rep movsw
-  mov si,bx
-  jmp .doSetRight
-.doMinus:
-  cmp di,-2
-  jge .doMinusOne
-  mov bx,si  ; &_s[0]
-  xchg si,di ; si = 2*o  di = &_s[0]
-  add di,cx  ; &_s[_n]
-  add si,cx  ; 2*(_n + o)
-  mov cx,si  ; 2*(_n + o)
-  sub cx,bp  ; 2*(_n + o - i)
-  add si,bx  ; &_s[_n + o]
+  jmp endAddSpan
+.oZero:
+  mov [si+2],dl
+  mov ah,dh
+  mov [si+3],ax
+  jmp endAddSpan
+.oMinus:
+  cmp bp,-2
+  jge .oMinusOne
+  mov di,cx
+  sub cx,si
+  lea si,[di+bp]  ; si = &_s[n-1]
   shr cx,1
+  dec cx
   std
   rep movsw
   cld
-  mov si,bx
-  mov ah,[si+bp+2]
-  mov [si+bp+4],ah
-  jmp .doSetRight
-.doMinusOne:
-  mov bx,si  ; &_s[0]
-  xchg si,di ; si = 2*o  di = &_s[0]
-  add di,cx  ; &_s[_n]
-  add si,cx  ; 2*(_n + o)
-  mov cx,si  ; 2*(_n + o)
-  sub cx,bp  ; 2*(_n + o - i)
-  add si,bx  ; &_s[_n + o]
+  mov ah,[si+1]
+  mov [si+5],ah
+  mov ah,dh
+  mov [si+3],ax
+  mov [si+2],dl
+  jmp endAddSpan
+.oMinusOne:
+  mov di,cx
+  sub cx,si
+  lea si,[di+bp]  ; si = &_s[n-1]
   shr cx,1
+  dec cx
   std
   rep movsw
   cld
-  mov si,bx
-.doSetRight:
-  mov [si+bp+5],dh
-.doSetRightColour:
-  mov [si+bp+3],dl
-  mov [si+bp+4],al
+  mov ah,dh
+  mov [si+3],ax
+  mov [si+2],dl
 endAddSpan:
 
   pop cx
