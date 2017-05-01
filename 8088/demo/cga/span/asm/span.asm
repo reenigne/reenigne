@@ -563,7 +563,6 @@ fillTrapezoidLoop:
   jge skipAddSpan
   push dx
   push ax
-  mov dl,ah
   push si
   lodsb
   push cx
@@ -571,7 +570,7 @@ fillTrapezoidLoop:
   ; addSpan:
   ; inputs:
   ;   al = c
-  ;   dl = xL
+  ;   ah = xL
   ;   dh = xR
   ;   bx = span buffer line pointer + 1
   ; used:
@@ -591,23 +590,23 @@ fillTrapezoidLoop:
 .findJ:
   inc si
   inc si
-  cmp dl,[si]
+  cmp ah,[si]
   jge .findJ
 
   cmp al,[di+1]
   jne .differentColourL
-  mov dl,[di]
+  mov ah,[di]
   jmp .doneCheckL
 .differentColourL:
   cmp di,bx
   je .doneCheckL
-  cmp dl,[di]
+  cmp ah,[di]
   jne .doneCheckL
   cmp al,[di-1]
   jne .doneCheckL
   dec di
   dec di
-  mov dl,[di]
+  mov ah,[di]
 .doneCheckL:
 
   cmp al,[si-1]
@@ -628,7 +627,7 @@ fillTrapezoidLoop:
 
   lea bp,[si-2]
   sub bp,di                 ; si-2-di = bx+2*j+2-2-bx-2*i = 2*(j-i)
-  cmp dl,[di]
+  cmp ah,[di]
   jne .noLeftCoincide
   cmp dh,[si]
   jne .noRightCoincideL
@@ -653,7 +652,7 @@ fillTrapezoidLoop:
   jl .oMinusOneL
   je .oZeroL
   inc di
-  mov ah,dh       ; TODO: use ah instead of dh for _xR?
+  mov ah,dh       ; TODO: swap meanings of ah and dh?
   stosw
   dec si          ; &_s[i+1+o]._c == &_s[i+1+j-i-1]._c = &_s[j]._c = si-1
   movsb
@@ -694,16 +693,18 @@ fillTrapezoidLoop:
   je .oZeroR
   inc di
   inc di
-  xchg ax,dx
-  stosb
-  xchg ax,dx
+  mov [di],ah
+  inc di
   stosb
   shr cx,1        ; si = &_s[i+2+o] = &_s[i+2+j-i-1] = &_s[1+j]
   rep movsw
   jmp endAddSpan
 .oZeroR:
-  mov [si+2],dl
-  mov [si+3],al
+  inc di
+  inc di
+  mov [di],ah
+  inc di
+  stosb
   jmp endAddSpan
 .oMinusOneR:
   xchg cx,di      ; cx = &_s[i], di = &_s[_n]
@@ -717,9 +718,8 @@ fillTrapezoidLoop:
   cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
   inc di
   inc di
-  xchg ax,dx
-  stosb
-  xchg ax,dx
+  mov [di],ah
+  inc di
   stosb
   jmp endAddSpan
 
