@@ -733,7 +733,7 @@ fillTrapezoidLoop:
   je .oZero
   inc di
   inc di
-  mov [di],dl
+  mov [di],ah
   inc di
   mov ah,dh
   stosw
@@ -744,33 +744,26 @@ fillTrapezoidLoop:
   rep movsw
   jmp endAddSpan
 .oZero:
-  inc di
-  inc di
-  xchg ax,dx
-  stosb
-  xchg al,dl
-  stosw
+  mov [di+2],ah
+  mov ah,dh
+  mov [di+3],ax
   jmp endAddSpan
 .oMinus:
   cmp bp,-2
   jge .oMinusOne
   xchg cx,di      ; cx = &_s[i], di = &_s[_n]
-  lea si,[di+bp]  ; si = &_s[_n + o]
+  lea si,[di+bp]  ; si = &_s[_n + o] = &_s[_n - 2]
   neg cx
-  add cx,si       ; cx = 2*(_n + o - i)
+  add cx,si       ; cx = 2*(_n + o - i) = 2*(_n - 2 - i)
   shr cx,1
-  inc cx          ; cx = 1 + _n + o - i
   std
-  rep movsw
-  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
+  rep movsw       ; di = &_s[_n - _n - o + i] = &_s[i-o] = &_s[i+2]   (last word written was at [di+2] which is &_s[i+3])  si = &_s[i]
+  movsw           ; di = &_s[i+1]
+  cld
+  mov [di],ah
   inc di
-  inc di
-  mov [di],dl
-  inc di
-  xchg al,[di]
-  inc di
-  mov al,dh
-  stosw
+  stosb
+  mov [di],dh
   jmp endAddSpan
 .oMinusOne:
   xchg cx,di      ; cx = &_s[i], di = &_s[_n]
@@ -778,16 +771,13 @@ fillTrapezoidLoop:
   neg cx
   add cx,si       ; cx = 2*(_n + o - i)
   shr cx,1
-  inc cx          ; cx = 1 + _n + o - i
   std
   rep movsw
-  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
-  inc di
-  inc di
-  xchg ax,dx
+  cld             ; di = &_s[_n - _n - o + i] = &_s[i-o] = &_s[i+2]   (last word written was at [di+2] which is &_s[i+3])  si = &_s[i]
+  mov [di],dh
+  dec di
   stosb
-  mov al,dl
-  stosw
+  mov [di-2],ah
 endAddSpan:
 
   pop cx
