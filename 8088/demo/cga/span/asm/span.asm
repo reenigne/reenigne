@@ -169,11 +169,11 @@ transformLoop:
   lodsw
   mov si,ax
 faceLoop:
-  lodsw   ; al = colour, ah = triangle count
-  mov [colour],al
+  lodsw
+  mov [colour],ax
+  lodsw
   push cx
-  mov cl,ah
-  mov ch,0
+  xchg ax,cx
   push cx
   mov bx,[si]
   mov di,[bx]      ; p0.x
@@ -223,9 +223,10 @@ drawFacePart:
   mov si,[bx]       ; si = c.x
   mov bx,[bx+4]     ; bx = c.y
 
-; slopeLeft dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!ax, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
+; slopeLeft dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!ax, !dx} {a.x, b.x}, y0 {!ax, !dx}
+; Pushes initial x value onto stack
 ; Stomps ax, dx
-%macro slopeLeft 7
+%macro slopeLeft 6
 %ifnidni %3,ax
   mov ax, %3
 %endif
@@ -234,12 +235,13 @@ drawFacePart:
   jae %%largeY
   mul %6
   div %4
-  mov %7, 0xffff
+  mov dx,0xffff
+  push dx
   jmp %%done
 %%largeY:
   xor dx, dx
   div %4
-  mov %7, ax
+  push ax
   mul %6
 %done:
   sub ax, %5
@@ -247,9 +249,10 @@ drawFacePart:
   mov [cs:%1-2], ax
 %endmacro
 
-; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}, x {di, bx}
+; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}
+; Pushes initial x value onto stack
 ; Stomps ax, dx
-%macro slopeRight 7
+%macro slopeRight 6
 %ifnidni %3,ax
   mov ax, %3
 %endif
@@ -258,21 +261,23 @@ drawFacePart:
   jae %%largeY
   mul %6
   div %4
-  mov %7, 0xffff
+  mov dx,0xffff
+  push dx
   jmp %%done
 %%largeY:
   xor dx, dx
   div %4
-  mov %7, ax
+  push ax
   mul %6
 %done:
   add ax, %5
   mov [cs:%1-2], ax
 %endmacro
 
-; slope dest {dLpatch, dRpatch}, ux {!ax}, vx {!ax}, dy {!ax, !dx}, y0 {!dx, !dx}, x {di, bx}
+; slope dest {dLpatch, dRpatch}, ux {!ax}, vx {!ax}, dy {!ax, !dx}, y0 {!ax, !dx}
+; Pushes initial x value onto stack
 ; Stomps ax, dx
-%macro slope 7
+%macro slope 5
   mov ax, %3
   sub ax, %2
   jc %%left
@@ -280,14 +285,15 @@ drawFacePart:
   jae %%largeY
   mul %5
   div %4
-  mov %6, 0xffff
+  mov dx,0xffff
+  push dx
   add ax, %3
   mov [cs:%1-2], ax
   jmp %%done
 %%largeY:
   xor dx, dx
   div %4
-  mov %6, ax
+  push ax
   mul %5
   add ax, %3
   mov [cs:%1-2], ax
@@ -297,7 +303,8 @@ drawFacePart:
   jae %%largeY
   mul %5
   div %4
-  mov %6, 0xffff
+  mov dx,0xffff
+  push dx
   sub ax, %3
   neg ax
   mov [cs:%1-2], ax
@@ -305,7 +312,7 @@ drawFacePart:
 %%largeY:
   xor dx, dx
   div %4
-  mov %6, ax
+  push ax
   mul %5
   sub ax, %3
   neg ax
@@ -321,7 +328,7 @@ drawFacePart:
   ; ax = b.y
   ; si = c.x
   ; bx = c.y
-
+  mov bp,colour+2
   cmp di,ax
   jle noSwapAB
   xchg di,ax
@@ -345,6 +352,41 @@ noSwapAB2:
   jbe noSwapABx
   xchg cx,dx
 noSwapABx:
+  mov [coordAX],cx
+  mov [coordAY],di
+  mov [coordBX],dx
+  mov [coordBY],ax
+  mov [coordCX],si
+  mov [coordCY],bx
+
+  add ax,0xff
+  mov [yab],ah  ; yab = a.y.intCeiling();
+  mov ax,bx
+  inc ah
+  mov [yc],ah   ; yc = (c.y + 1).intFloor();
+  sub bx,di
+  mov [yac],bx  ; yac = c.y - a.y
+  mov bx,[yab-1]  ; Note: low byte is kept as 0
+  sub bp,di     ; yaa = yab - a.y
+  mov bx,cx
+  mov cx,[yac]
+
+
+  mov bx,[coordAX]
+  slope dLpatch, si, bx, cx, di   ; c.x, a.x, yac, yaa
+  mov bx,[coordBX]
+  slope dRpatch, si, bx, cx, di   ; c.x, b.x, yac, yaa
+  pop ax
+  pop dx
+  mov si,[bp-2] ; colour
+  mov bx,[yab]
+  mov cx,[yc]
+  call fillTrapezoid
+
+
+
+
+
 ;  mov [coordAX],cx
 ;  mov [coordAY],di
   mov [coordBX],dx
@@ -408,7 +450,7 @@ noSwapBCx:
   slope dRpatch, si, cx, [yab], bp, bx
   mov si,[ya]
   mov cx,[ybc]  ; Note: high byte is kept as 0
-  mov al,[colour]
+  mov si,[colour]
   call fillTrapezoid
   jmp doneTriangle
 
@@ -548,9 +590,10 @@ fillTrapezoid:
   ;   si = colour pair pointer
   ;   bx = yStart
   ;   cx = yEnd
-  ;   ax = _xL
-  ;   dx = _xR
+  ;   dx = _xL
+  ;   ax = _xR
   ; stomps: ax, bx, cx, dx, si, di, bp
+  push bp
   mov bp,bx
   and bp,1
   add si,bp
@@ -559,7 +602,7 @@ fillTrapezoid:
 spanBufferPatch:
   mov bx,[bx+spanBuffer0]
 fillTrapezoidLoop:
-  cmp ax,dx
+  cmp dx,ax
   jge skipAddSpan
   push dx
   push ax
@@ -570,8 +613,8 @@ fillTrapezoidLoop:
   ; addSpan:
   ; inputs:
   ;   al = c
-  ;   ah = xL
-  ;   dh = xR
+  ;   dh = xL
+  ;   ah = xR
   ;   bx = span buffer line pointer + 1
   ; used:
   ;   di = &_s[i]._x = bx+2*i    di+1 = &_s[i]._c
@@ -579,57 +622,59 @@ fillTrapezoidLoop:
 
   mov cx,[bx-1]
 
-  lea di,[bx-2]
+  mov di,bx
 .findI:
   inc di
   inc di
-  cmp dh,[di+2]
+  cmp dh,[di]
   jge .findI
+  dec di
+  dec di
 
   mov si,bx
 .findJ:
   inc si
   inc si
-  cmp ah,[si]
+  cmp dh,[si]
   jge .findJ
 
   cmp al,[di+1]
   jne .differentColourL
-  mov ah,[di]
+  mov dh,[di]
   jmp .doneCheckL
 .differentColourL:
   cmp di,bx
   je .doneCheckL
-  cmp ah,[di]
+  cmp dh,[di]
   jne .doneCheckL
   cmp al,[di-1]
   jne .doneCheckL
   dec di
   dec di
-  mov ah,[di]
+  mov dh,[di]
 .doneCheckL:
 
   cmp al,[si-1]
   jne .differentColourR
-  mov dh,[si]
+  mov ah,[si]
   jmp .doneCheckR
 .differentColourR:
   cmp si,cx
   jae .doneCheckR
-  cmp dh,[si]
+  cmp ah,[si]
   jne .doneCheckR
   cmp al,[si+1]
   jne .doneCheckR
   inc si
   inc si
-  mov dh,[si]
+  mov ah,[si]
 .doneCheckR:
 
   lea bp,[si-2]
   sub bp,di                 ; si-2-di = bx+2*j+2-2-bx-2*i = 2*(j-i)
-  cmp ah,[di]
+  cmp dh,[di]
   jne .noLeftCoincide
-  cmp dh,[si]
+  cmp ah,[si]
   jne .noRightCoincideL
 
   ; Both edges coincide with an existing edge
@@ -651,16 +696,16 @@ fillTrapezoidLoop:
   cmp bp,0
   jl .oMinusOneL
   je .oZeroL
+  sub cx,di       ; count = _n+1-i-2 = _n-i-1 = _n-(i+1)
   inc di
-  mov ah,dh       ; TODO: swap meanings of ah and dh?
   stosw
   dec si          ; &_s[i+1+o]._c == &_s[i+1+j-i-1]._c = &_s[j]._c = si-1
   movsb
   shr cx,1        ; si = &_s[i+2+o] = &_s[i+2+j-i-1] = &_s[1+j]
+  dec cx
   rep movsw
   jmp endAddSpan
 .oZeroL:
-  mov ah,dh
   inc di
   stosw
   jmp endAddSpan
@@ -670,17 +715,17 @@ fillTrapezoidLoop:
   neg cx
   add cx,si       ; cx = 2*(_n + o - i)
   shr cx,1
-  inc cx          ; cx = 1 + _n + o - i
   std
-  rep movsw
-  cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
-  inc di
-  mov ah,dh
-  stosw           ; TODO: can we reduce the number of iterations in the copy loop?
+  rep movsw       ; di = &_s[_n - _n - o + i] = &_s[i-o] = &_s[i+1]   (last word written was at [di+2])
+  cld
+  dec di
+  stosw
+  inc si
+  movsb
   jmp endAddSpan
 
 .noLeftCoincide:
-  cmp dh,[di]
+  cmp ah,[di]
   jne .noRightCoincide
 
   ; Right edge coincides with an existing edge but left does not
@@ -693,7 +738,8 @@ fillTrapezoidLoop:
   je .oZeroR
   inc di
   inc di
-  mov [di],ah
+  sub cx,di       ; count = _n+1-i-2 = _n-i-1 = _n-(i+1)
+  mov [di],dh
   inc di
   stosb
   shr cx,1        ; si = &_s[i+2+o] = &_s[i+2+j-i-1] = &_s[1+j]
@@ -702,7 +748,7 @@ fillTrapezoidLoop:
 .oZeroR:
   inc di
   inc di
-  mov [di],ah
+  mov [di],dh
   inc di
   stosb
   jmp endAddSpan
@@ -718,7 +764,7 @@ fillTrapezoidLoop:
   cld             ; di = &_s[_n - 1 - _n - o + i] = &_s[i-o-1] = &_s[i]   (last word written was at [di+2])
   inc di
   inc di
-  mov [di],ah
+  mov [di],dh
   inc di
   stosb
   jmp endAddSpan
@@ -733,19 +779,19 @@ fillTrapezoidLoop:
   je .oZero
   inc di
   inc di
-  mov [di],ah
+  sub cx,di
+  mov [di],dh     ; count = _n+1-i-3 = _n-i-2
   inc di
-  mov ah,dh
   stosw
   dec si
   movsb                     ; &_s[i+2+o]._c == &_s[i+2+j-i-2] == &_s[j]
   inc di    ; di = &_s[i+3]
+  dec cx
   shr cx,1  ; si = &_s[i+3+o] = &_s[i+3+j-i-2] = &_s[j+1]
   rep movsw
   jmp endAddSpan
 .oZero:
-  mov [di+2],ah
-  mov ah,dh
+  mov [di+2],dh
   mov [di+3],ax
   jmp endAddSpan
 .oMinus:
@@ -760,10 +806,9 @@ fillTrapezoidLoop:
   rep movsw       ; di = &_s[_n - _n - o + i] = &_s[i-o] = &_s[i+2]   (last word written was at [di+2] which is &_s[i+3])  si = &_s[i]
   movsw           ; di = &_s[i+1]
   cld
-  mov [di],ah
-  inc di
-  stosb
   mov [di],dh
+  inc di
+  stosw
   jmp endAddSpan
 .oMinusOne:
   xchg cx,di      ; cx = &_s[i], di = &_s[_n]
@@ -774,10 +819,9 @@ fillTrapezoidLoop:
   std
   rep movsw
   cld             ; di = &_s[_n - _n - o + i] = &_s[i-o] = &_s[i+2]   (last word written was at [di+2] which is &_s[i+3])  si = &_s[i]
-  mov [di],dh
   dec di
-  stosb
-  mov [di-2],ah
+  mov [di-1],dh
+  stosw
 endAddSpan:
 
   pop cx
@@ -786,12 +830,13 @@ endAddSpan:
   pop dx
 skipAddSpan:
   xor si,1
-  add ax,9999
-dLpatch:
   add dx,9999
+dLpatch:
+  add ax,9999
 dRpatch:
   add bx,spanBufferEntries*2
   loop fillTrapezoidLoop
+  pop bp
   ret
 
 
@@ -813,7 +858,7 @@ colours:
 %endmacro
 
 %macro face 4-*
-  db %1,%0-2
+  dw 2*%1+colours,%0-2
   %rotate 1
   %rep %0-1
   vertex %1
@@ -980,7 +1025,7 @@ coordCY: dw 0
 yab: dw 0
 yc: dw 0
 yac: dw 0
-colour: db 0
+colour: dw 0   ; bp-2
 
 spanBufferEntries equ 20
 lines equ 200
