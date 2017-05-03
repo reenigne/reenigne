@@ -360,16 +360,16 @@ noSwapABx:
   mov [coordCY],bx
 
   add ax,0xff
-  mov [yab],ah  ; yab = a.y.intCeiling();
+  mov [bp-8],ah  ; yab = a.y.intCeiling();
   mov ax,bx
   inc ah
-  mov [yc],ah   ; yc = (c.y + 1).intFloor();
+  mov [bp-6],ah  ; yc = (c.y + 1).intFloor();
   sub bx,di
-  mov [yac],bx  ; yac = c.y - a.y
-  mov bx,[yab-1]  ; Note: low byte is kept as 0
-  sub bp,di     ; yaa = yab - a.y
+  mov [bp-4],bx  ; yac = c.y - a.y
+  sub di,[bp-9]  ; yab (Note: low byte is kept as 0)
+  neg di         ; yaa = yab - a.y
   mov bx,cx
-  mov cx,[yac]
+  mov cx,[bp-4]
 
 
   mov bx,[coordAX]
@@ -379,8 +379,8 @@ noSwapABx:
   pop ax
   pop dx
   mov si,[bp-2] ; colour
-  mov bx,[yab]
-  mov cx,[yc]
+  mov bx,[bp-8] ; yab
+  mov cx,[bp-6] ; yc
   call fillTrapezoid
 
 
@@ -395,7 +395,7 @@ noSwapABx:
 ;  mov [coordCY],bx
 
   add ax,0xff
-  mov [yab],ah  ; yab = a.y.intCeiling();
+  mov [bp-8],ah  ; yab = a.y.intCeiling();
 
   mov ax,bx
   inc ah
@@ -404,7 +404,7 @@ noSwapABx:
   sub bx,di
   mov [yac],bx  ; yac = c.y - a.y
 
-  mov bp,[yab-1]  ; Note: low byte is kept as 0
+  mov bp,[bp-9]  ; yab (Note: low byte is kept as 0)
   sub bp,di     ; yaa = yab - a.y
 
   mov bx,cx
@@ -413,7 +413,7 @@ noSwapABx:
 
   slope dLpatch, cx, bx, si, bp, di
   slope dRpatch, cx, [coordBX], si, bp, bx
-  mov si,[yab]
+  mov si,[bp-8]
   mov cx,[yc]  ; Note: high byte is kept as 0
   mov al,[colour]
   call fillTrapezoid
@@ -429,7 +429,7 @@ notHorizontalAB:
 
   mov ax,di
   sub ax,[coordAY]
-  mov [yab],ax
+  mov [bp-8],ax
 
   cmp di,bx
   jne notHorizontalBC
@@ -446,8 +446,8 @@ noSwapBCx:
 
   mov [coordBX],dx
 
-  slope dLpatch, [coordBX], cx, [yab], bp, di
-  slope dRpatch, si, cx, [yab], bp, bx
+  slope dLpatch, [coordBX], cx, [bp-8], bp, di
+  slope dRpatch, si, cx, [bp-8], bp, bx
   mov si,[ya]
   mov cx,[ybc]  ; Note: high byte is kept as 0
   mov si,[colour]
@@ -1022,9 +1022,9 @@ coordBY: dw 0
 coordCX: dw 0
 coordCY: dw 0
   db 0
-yab: dw 0
-yc: dw 0
-yac: dw 0
+yab: dw 0      ; bp-8
+yc: dw 0       ; bp-6
+yac: dw 0      ; bp-4
 colour: dw 0   ; bp-2
 
 spanBufferEntries equ 20
