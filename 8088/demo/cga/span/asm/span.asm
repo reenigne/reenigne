@@ -352,29 +352,22 @@ noSwapAB2:
   jbe noSwapABx
   xchg cx,dx
 noSwapABx:
-  mov [coordAX],cx
-  mov [coordAY],di
-  mov [coordBX],dx
-  mov [coordBY],ax
-  mov [coordCX],si
-  mov [coordCY],bx
+  mov [bp-0x11],dx   ; coordBX
 
   add ax,0xff
   mov [bp-8],ah  ; yab = a.y.intCeiling();
   mov ax,bx
   inc ah
   mov [bp-6],ah  ; yc = (c.y + 1).intFloor();
-  sub bx,di
-  mov [bp-4],bx  ; yac = c.y - a.y
+
+  xchg cx,bx       ; TODO: try switching definitions of bx and cx
+  sub cx,di      ; yac = c.y - a.y
+
   sub di,[bp-9]  ; yab (Note: low byte is kept as 0)
   neg di         ; yaa = yab - a.y
-  mov bx,cx
-  mov cx,[bp-4]
 
-
-  mov bx,[coordAX]
   slope dLpatch, si, bx, cx, di   ; c.x, a.x, yac, yaa
-  mov bx,[coordBX]
+  mov bx,[bp-0x11]
   slope dRpatch, si, bx, cx, di   ; c.x, b.x, yac, yaa
   pop ax
   pop dx
@@ -382,46 +375,17 @@ noSwapABx:
   mov bx,[bp-8] ; yab
   mov cx,[bp-6] ; yc
   call fillTrapezoid
-
-
-
-
-
-;  mov [coordAX],cx
-;  mov [coordAY],di
-  mov [coordBX],dx
-;  mov [coordBY],ax
-;  mov [coordCX],si
-;  mov [coordCY],bx
-
-  add ax,0xff
-  mov [bp-8],ah  ; yab = a.y.intCeiling();
-
-  mov ax,bx
-  inc ah
-  mov [yc],ah   ; yc = (c.y + 1).intFloor();
-
-  sub bx,di
-  mov [yac],bx  ; yac = c.y - a.y
-
-  mov bp,[bp-9]  ; yab (Note: low byte is kept as 0)
-  sub bp,di     ; yaa = yab - a.y
-
-  mov bx,cx
-  mov cx,si
-  mov si,[yac]
-
-  slope dLpatch, cx, bx, si, bp, di
-  slope dRpatch, cx, [coordBX], si, bp, bx
-  mov si,[bp-8]
-  mov cx,[yc]  ; Note: high byte is kept as 0
-  mov al,[colour]
-  call fillTrapezoid
   jmp doneTriangle
 
 notHorizontalAB:
-  mov [coordAY],di
-  mov [coordBY],ax
+  mov [bp-0x15],cx   ; coordAX
+  mov [bp-0x13],di   ; coordAY
+  mov [bp-0x11],dx   ; coordBX
+  mov [bp-0xf],ax    ; coordBY
+  mov [bp-0xd],si    ; coordCX
+  mov [bp-0xb],bx    ; coordCY
+
+
 
   xchg ax,di
   inc ah
@@ -1015,12 +979,13 @@ dTheta: dw 0
 phi: dw 0
 dPhi: dw 0
 autoRotate: db 1
-coordAX: dw 0
-coordAY: dw 0
-coordBX: dw 0
-coordBY: dw 0
-coordCX: dw 0
-coordCY: dw 0
+ya: dw 0       ; bp-0x17
+coordAX: dw 0  ; bp-0x15
+coordAY: dw 0  ; bp-0x13
+coordBX: dw 0  ; bp-0x11
+coordBY: dw 0  ; bp-0xf
+coordCX: dw 0  ; bp-0xd
+coordCY: dw 0  ; bp-0xb
   db 0
 yab: dw 0      ; bp-8
 yc: dw 0       ; bp-6
