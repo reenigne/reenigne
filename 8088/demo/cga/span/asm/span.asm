@@ -352,7 +352,7 @@ noSwapAB2:
   jbe noSwapABx
   xchg cx,dx
 noSwapABx:
-  mov [bp-0x11],dx   ; coordBX
+  mov [bp-0x11],dx   ; b.x
 
   add ax,0xff
   mov [bp-8],ah  ; yab = a.y.intCeiling();
@@ -367,7 +367,7 @@ noSwapABx:
   neg di         ; yaa = yab - a.y
 
   slope dLpatch, si, bx, cx, di   ; c.x, a.x, yac, yaa
-  mov bx,[bp-0x11]
+  mov bx,[bp-0x11]                ; b.x
   slope dRpatch, si, bx, cx, di   ; c.x, b.x, yac, yaa
   pop ax
   pop dx
@@ -378,22 +378,20 @@ noSwapABx:
   jmp doneTriangle
 
 notHorizontalAB:
-  mov [bp-0x15],cx   ; coordAX
-  mov [bp-0x13],di   ; coordAY
-  mov [bp-0x11],dx   ; coordBX
-  mov [bp-0xf],ax    ; coordBY
-  mov [bp-0xd],si    ; coordCX
-  mov [bp-0xb],bx    ; coordCY
+  mov [bp-0x15],cx   ; a.x
+  mov [bp-0x13],di   ; a.y
+  mov [bp-0x11],dx   ; b.x
+  mov [bp-0xf],ax    ; b.y
+  mov [bp-0xd],si    ; c.x
+  mov [bp-0xb],bx    ; c.y
 
-
-
-  xchg ax,di
+  xchg ax,di        ; ax = coordAY, di = coordBY
   inc ah
-  mov [ya],ah  ; ya = (a.y + 1).intFloor();
+  mov [bp-0x17],ah  ; ya = (a.y + 1).intFloor();
 
-  mov ax,di
-  sub ax,[coordAY]
-  mov [bp-8],ax
+  mov ax,di         ; ax = coordBY
+  sub ax,[bp-0x13]  ; coordAY
+  mov [bp-8],ax     ; yab = coordBY - coordAY
 
   cmp di,bx
   jne notHorizontalBC
