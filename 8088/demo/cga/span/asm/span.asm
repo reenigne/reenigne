@@ -385,13 +385,13 @@ notHorizontalAB:
   mov [bp-0xd],si    ; c.x
   mov [bp-0xb],bx    ; c.y
 
-  xchg ax,di        ; ax = coordAY, di = coordBY
+  xchg ax,di        ; ax = a.y, di = b.y
   inc ah
   mov [bp-0x17],ah  ; ya = (a.y + 1).intFloor();
 
-  mov ax,di         ; ax = coordBY
-  sub ax,[bp-0x13]  ; coordAY
-  mov [bp-8],ax     ; yab = coordBY - coordAY
+  mov ax,di         ; ax = b.y
+  sub ax,[bp-0x13]  ; a.y
+  mov bx,ax     ; yab = b.y - a.y
 
   cmp di,bx
   jne notHorizontalBC
@@ -399,17 +399,20 @@ notHorizontalAB:
   jbe noSwapBCx
   xchg dx,si
 noSwapBCx:
-  xchg ax,di
+  xchg ax,di    ; ax = b.y
   inc ah
-  mov [ybc],ah  ; ybc = (b.y + 1).intFloor();
+  mov [bp-0x1a],ah  ; ybc = (b.y + 1).intFloor();
 
-  mov bp,[ya-1]  ; Note: low byte is kept as 0
-  sub bp,[coordAY]  ; yaa = ya - a.y
+  mov di,[bp-0x18]  ; ya (Note: low byte is kept as 0)
+  sub di,[bp-0x13]  ; yaa = ya - a.y
 
   mov [coordBX],dx
 
-  slope dLpatch, [coordBX], cx, [bp-8], bp, di
-  slope dRpatch, si, cx, [bp-8], bp, bx
+  slope dRpatch, si, cx, bx, di   ; c.x, a.x, yab, yaa
+  mov si,[bp-0x11]
+  slope dLpatch, si, cx, bx, di   ; b.x, a.x, yab, yaa
+  pop ax
+  pop dx
   mov si,[ya]
   mov cx,[ybc]  ; Note: high byte is kept as 0
   mov si,[colour]
@@ -977,6 +980,8 @@ dTheta: dw 0
 phi: dw 0
 dPhi: dw 0
 autoRotate: db 1
+ybc: dw 0      ; bp-0x1a
+  db 0
 ya: dw 0       ; bp-0x17
 coordAX: dw 0  ; bp-0x15
 coordAY: dw 0  ; bp-0x13

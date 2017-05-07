@@ -4,6 +4,10 @@
 #include "alfe/bitmap.h"
 #include "alfe/cga.h"
 
+template<class T> class Intel8088CPUT;
+typedef Intel8088CPUT<void> Intel8088CPU;
+template<class T> class RAMT;
+typedef RAMT<void> RAM;
 
 template<class T> class Intel8088CPUT
 {
@@ -1964,10 +1968,86 @@ private:
     Tick _interruptTick;
     Tick _readyChangeTick;
     Array<bool> _visited;
-
-    Disassembler _disassembler;
 };
 
-class Program : public WindowProgram<CGAWindow>
+template<class T> class RAMT
 {
+public:
+    static String typeName() { return "RAM"; }
+    bool decayed(Tick tick, int address) { return (tick >= decay(address)); }
+    UInt8 read(Tick tick, int address)
+    {
+        if (decayed(tick, address)) {
+            // RAM has decayed! On a real machine this would not always signal
+            // an NMI but we'll make the NMI happen every time to make DRAM
+            // decay problems easier to find.
+
+            // TODO: In the config file we might want to have an option for
+            // "realistic mode" to prevent this from being used to detect the
+            // emulator.
+            return _decayValue;
+        }
+        decay(address) = tick + _decayTicks;
+        if (address >= _ramSize)
+            return _decayValue;
+        return _data[address];
+    }
+    void write(Tick tick, int address, UInt8 data)
+    {
+        decay(address) = tick + _decayTicks;
+        if (address < _ramSize)
+            _data[address] = data;
+    }
+    UInt8 debugRead(int address)
+    {
+        return address < _ramSize ? _data[address] : 0xff;
+    }
+    void maintain(Tick ticks)
+    {
+        for (auto& r : _decayTimes) {
+            if (r > 0)
+                r -= ticks;
+        }
+    }
+    void load(const Value& value)
+    {
+        _data.allocate(_ramSize);
+        _decayTimes.allocate(1 << _rowBits);
+        Component::load(value);
+        _rowMask = (1 << _rowBits) - 1;
+        if (_decayTime == 0) {
+            // DRAM decay time in seconds.
+            // 2ms for 4116 and 2118
+            // 4ms for 4164
+            // 8ms for 41256
+            _decayTime = Rational(1 << _rowBits, 1000 * 64);
+        }
+        _decayTicks = (simulator()->ticksPerSecond() * _decayTime).floor();
+    }
+    int size() const { return _ramSize; }
+    UInt8* data() { return &(_data[0]); }
+private:
+    Tick& decay(int address) { return _decayTimes[address & _rowMask]; }
+
+    Array<UInt8> _data;
+    Array<Tick> _decayTimes;
+    Tick _decayTicks;
+    int _rowMask;
+    OutputConnector<bool> _parityError;
+    Rational _decayTime;
+    int _rowBits;
+    int _ramSize;
+    UInt8 _decayValue;
+};
+
+Intel8088CPU cpu;
+RAM ram;
+
+class Program : public ProgramBase
+{
+public:
+    void run()
+    {
+
+    }
 };
