@@ -378,11 +378,11 @@ noSwapABx:
   jmp doneTriangle
 
 notHorizontalAB:
-  mov [bp-0x15],cx   ; a.x
+;  mov [bp-0x15],cx   ; a.x
   mov [bp-0x13],di   ; a.y
   mov [bp-0x11],dx   ; b.x
-  mov [bp-0xf],ax    ; b.y
-  mov [bp-0xd],si    ; c.x
+;  mov [bp-0xf],ax    ; b.y
+;  mov [bp-0xd],si    ; c.x
   mov [bp-0xb],bx    ; c.y
 
   xchg ax,di        ; ax = a.y, di = b.y
@@ -406,18 +406,26 @@ noSwapBCx:
   mov di,[bp-0x18]  ; ya (Note: low byte is kept as 0)
   sub di,[bp-0x13]  ; yaa = ya - a.y
 
-  mov [coordBX],dx
-
   slope dRpatch, si, cx, bx, di   ; c.x, a.x, yab, yaa
   mov si,[bp-0x11]
   slope dLpatch, si, cx, bx, di   ; b.x, a.x, yab, yaa
   pop ax
   pop dx
-  mov si,[ya]
-  mov cx,[ybc]  ; Note: high byte is kept as 0
-  mov si,[colour]
+  mov si,[bp-2]     ; colour
+  mov bx,[bp-0x17]  ; ya
+  mov cx,[bp-0x1a]  ; ybc (Note: high byte is kept as 0)
   call fillTrapezoid
   jmp doneTriangle
+
+notHorizontalBC:
+  mov ax,di   ; ax = b.y
+  inc ah
+  mov [bp-0x1c],ah  ; yb = (b.y + 1).intFloor();
+
+  mov ax,[bp-0xb]   ; c.y
+  inc ah
+  mov [bp-0x1f],ah  ; yc = (c.y + 1).intFloor();
+
 
 
 
@@ -980,6 +988,10 @@ dTheta: dw 0
 phi: dw 0
 dPhi: dw 0
 autoRotate: db 1
+  db 0
+yc: dw 0       ; bp-0x1f
+  db 0
+yb: dw 0       ; bp-0x1c
 ybc: dw 0      ; bp-0x1a
   db 0
 ya: dw 0       ; bp-0x17
