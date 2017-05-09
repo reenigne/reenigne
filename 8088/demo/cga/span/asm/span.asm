@@ -352,45 +352,45 @@ noSwapAB2:
   jbe noSwapABx
   xchg cx,dx
 noSwapABx:
-  mov [bp-0x11],dx   ; b.x
+  mov [bp-coordBX],dx   ; b.x
 
   add ax,0xff
-  mov [bp-8],ah  ; yab = a.y.intCeiling();
+  mov [bp-yabInt],ah  ; yab = a.y.intCeiling();
   mov ax,bx
   inc ah
-  mov [bp-6],ah  ; yc = (c.y + 1).intFloor();
+  mov [bp-yc],ah  ; yc = (c.y + 1).intFloor();
 
   xchg cx,bx       ; TODO: try switching definitions of bx and cx
   sub cx,di      ; yac = c.y - a.y
 
-  sub di,[bp-9]  ; yab (Note: low byte is kept as 0)
+  sub di,[bp-yabFrac]
   neg di         ; yaa = yab - a.y
 
   slope dLpatch, si, bx, cx, di   ; c.x, a.x, yac, yaa
-  mov bx,[bp-0x11]                ; b.x
+  mov bx,[bp-coordBX]
   slope dRpatch, si, bx, cx, di   ; c.x, b.x, yac, yaa
   pop ax
   pop dx
-  mov si,[bp-2] ; colour
-  mov bx,[bp-8] ; yab
-  mov cx,[bp-6] ; yc
+  mov si,[bp-colour]
+  mov bx,[bp-yabInt]
+  mov cx,[bp-yc]
   call fillTrapezoid
   jmp doneTriangle
 
 notHorizontalAB:
-;  mov [bp-0x15],cx   ; a.x
-  mov [bp-0x13],di   ; a.y
-  mov [bp-0x11],dx   ; b.x
-;  mov [bp-0xf],ax    ; b.y
-;  mov [bp-0xd],si    ; c.x
-  mov [bp-0xb],bx    ; c.y
+;  mov [bp-coordAX],cx
+  mov [bp-coordAY],di
+  mov [bp-coordBX],dx
+;  mov [bp-coordBY],ax
+;  mov [bp-coordCX],si
+  mov [bp-coordCY],bx
 
   xchg ax,di        ; ax = a.y, di = b.y
   inc ah
-  mov [bp-0x17],ah  ; ya = (a.y + 1).intFloor();
+  mov [bp-yaInt],ah  ; ya = (a.y + 1).intFloor();
 
   mov ax,di         ; ax = b.y
-  sub ax,[bp-0x13]  ; a.y
+  sub ax,[bp-coordAY]  ; a.y
   mov bx,ax     ; yab = b.y - a.y
 
   cmp di,bx
@@ -401,30 +401,50 @@ notHorizontalAB:
 noSwapBCx:
   xchg ax,di    ; ax = b.y
   inc ah
-  mov [bp-0x1a],ah  ; ybc = (b.y + 1).intFloor();
+  mov [bp-ybc],ah  ; ybc = (b.y + 1).intFloor();
 
-  mov di,[bp-0x18]  ; ya (Note: low byte is kept as 0)
-  sub di,[bp-0x13]  ; yaa = ya - a.y
+  mov di,[bp-yaFrac]
+  sub di,[bp-coordAY]  ; yaa = ya - a.y
 
   slope dRpatch, si, cx, bx, di   ; c.x, a.x, yab, yaa
-  mov si,[bp-0x11]
+  mov si,[bp-coordBX]
   slope dLpatch, si, cx, bx, di   ; b.x, a.x, yab, yaa
   pop ax
   pop dx
-  mov si,[bp-2]     ; colour
-  mov bx,[bp-0x17]  ; ya
-  mov cx,[bp-0x1a]  ; ybc (Note: high byte is kept as 0)
+  mov si,[bp-colour]
+  mov bx,[bp-yaInt]
+  mov cx,[bp-ybc]
   call fillTrapezoid
   jmp doneTriangle
 
 notHorizontalBC:
   mov ax,di   ; ax = b.y
   inc ah
-  mov [bp-0x1c],ah  ; yb = (b.y + 1).intFloor();
+  mov [bp-ybInt],ah  ; yb = (b.y + 1).intFloor();
 
-  mov ax,[bp-0xb]   ; c.y
+  mov ax,[bp-coordCY]
   inc ah
-  mov [bp-0x1f],ah  ; yc = (c.y + 1).intFloor();
+  mov [bp-yc],ah  ; yc = (c.y + 1).intFloor();
+
+  mov ax,[bp-yaFrac]
+  sub ax,[bp-coordAY]
+  mov [bp-yaa],ax
+
+  mov ax,[bp-ybFrac]
+  sub ax,[bp-coordBY]
+  mov [bp-ybb],ax
+
+  mov ax,[bp-coordCY]
+  sub ax,[bp-coordAY]
+  mov [bp-yac],ax
+
+  mov ax,[bp-coordCY]
+  sub ax,[bp-coordBY]
+  mov [bp-ybc],ax
+
+  sub dx,cx  ; b.x - a.x
+  jc abRight
+
 
 
 
@@ -988,6 +1008,24 @@ dTheta: dw 0
 phi: dw 0
 dPhi: dw 0
 autoRotate: db 1
+
+ybFrac equ 0x1d
+ybInt equ 0x1c
+ybc equ 0x1a
+yaFrac equ 0x18
+yaInt equ 0x17
+coordAX equ 0x15
+coordAY equ 0x13
+coordBX equ 0x11
+coordBY equ 0xf
+coordCX equ 0xd
+coordCY equ 0xb
+yabFrac equ 9
+yabInt equ 8
+yc equ 6
+yac equ 4
+colour equ 2
+
   db 0
 yc: dw 0       ; bp-0x1f
   db 0
