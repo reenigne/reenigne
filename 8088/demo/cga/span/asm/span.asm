@@ -249,28 +249,25 @@ drawFacePart:
   mov [cs:%1-2], ax
 %endmacro
 
-; slopeRight dest {dLpatch, dRpatch}, xL {!ax}, xR, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}
+; slopeRight dest {dLpatch, dRpatch}, dy {!ax, !dx}, x0 {!dx, !dx} {a.x, b.x}, y0 {!ax, !dx}
+; ax = xR - xL
 ; Pushes initial x value onto stack
 ; Stomps ax, dx
 %macro slopeRight 6
-%ifnidni %3,ax
-  mov ax, %3
-%endif
-  sub ax, %2
-  cmp %4, 0x100
+  cmp %2, 0x100
   jae %%largeY
-  mul %6
-  div %4
+  mul %4
+  div %2
   mov dx,0xffff
   push dx
   jmp %%done
 %%largeY:
   xor dx, dx
-  div %4
+  div %2
   push ax
-  mul %6
+  mul %4
 %done:
-  add ax, %5
+  add ax, %3
   mov [cs:%1-2], ax
 %endmacro
 
@@ -442,8 +439,16 @@ notHorizontalBC:
   sub ax,[bp-coordBY]
   mov [bp-ybc],ax
 
-  sub dx,cx  ; b.x - a.x
+  mov ax,dx
+  sub ax,cx  ; b.x - a.x
   jc abRight
+
+  push ax
+  mov ax,si
+  sub ax,cx  ; c.x - a.x
+  jc acRight
+
+
 
 
 
