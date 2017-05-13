@@ -1,5 +1,5 @@
 int _xL;
-int _yL;
+int _xR;
 
 void fillTrapezoid(int yStart, int yEnd, int dxL, int dxR, int colour, int xL, int xR)
 {
@@ -11,11 +11,12 @@ void fillTrapezoid(int yStart, int yEnd, int dxL, int dxR, int colour, int xL, i
         : "D" );
 }
 
-typedef Fixed<8, Word> UFix8p8;
-typedef Vector2<UFix8p8> Point2;
-
 class UFix8p8
 {
+public:
+    UFix8p8(int x) : _x(x<<8) { }
+    bool operator<(const UFix8p8& x) const { return _x < x._x; }
+private:
     int _x;
 };
 
