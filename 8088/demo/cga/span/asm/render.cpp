@@ -16,9 +16,13 @@ class UFix8p8
 public:
     UFix8p8(int x) : _x(x<<8) { }
     bool operator<(const UFix8p8& x) const { return _x < x._x; }
-private:
-    int _x;
+    unsigned int _x;
 };
+
+UFix8p8 muld(UFix8p8 a, UFix8p8 b, UFix8p8 c)
+{
+    return (unsigned long)(a._x)*(unsigned long)(b._x)/(unsigned long)(c._x);
+}
 
 class Point2
 {

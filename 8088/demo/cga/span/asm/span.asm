@@ -590,7 +590,7 @@ fillTrapezoid:
   ;   cx = yEnd
   ;   dx = _xL
   ;   ax = _xR
-  ; stomps: ax, bx, cx, dx, si, di, bp
+  ; stomps: ax, bx, cx, dx, si, di
   push bp
   mov bp,bx
   and bp,1
