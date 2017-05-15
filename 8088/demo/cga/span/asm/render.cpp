@@ -1,27 +1,63 @@
-int _xL;
-int _xR;
-
-void fillTrapezoid(int yStart, int yEnd, int dxL, int dxR, int colour, int xL, int xR)
-{
-    _xL = xL;
-    _xR = xR;
-    asm volatile ("call fillTrapezoid1"
-        : "+S" (colour), "+b" (yStart), "+c" (yEnd), "+d" (dxL), "+a" (dxR)
-        :
-        : "D" );
-}
+template<class T> void swap(T& x, T& y) { T z = x; x = y; y = z; }
 
 class UFix8p8
 {
 public:
+    UFix8p8() { }
     UFix8p8(int x) : _x(x<<8) { }
+    static UFix8p8 fromRepresentation(unsigned int x) { UFix8p8 r; r._x = x; return r; }
     bool operator<(const UFix8p8& x) const { return _x < x._x; }
+    bool operator>(const UFix8p8& x) const { return _x > x._x; }
+    bool operator==(const UFix8p8& x) const { return _x == x._x; }
+    UFix8p8 operator-() const { UFix8p8 x; x._x = -_x; return x; }
+    const UFix8p8& operator+=(const UFix8p8& x) { _x += x._x; return *this; }
+    const UFix8p8& operator-=(const UFix8p8& x) { _x -= x._x; return *this; }
+    const UFix8p8& operator*=(const UFix8p8& x)
+    {
+        _x = (unsigned long)_x * (unsigned long)x._x >> 8;
+        return *this;
+    }
+    const UFix8p8& operator/=(const UFix8p8& x)
+    {
+        _x = ((unsigned long)_x << 8) / (unsigned long)x._x;
+        return *this;
+    }
+    UFix8p8 operator+(const UFix8p8& x) const { UFix8p8 y = *this; return y += x; }
+    UFix8p8 operator-(const UFix8p8& x) const { UFix8p8 y = *this; return y -= x; }
+    UFix8p8 operator*(const UFix8p8& x) const { UFix8p8 y = *this; return y *= x; }
+    UFix8p8 operator/(const UFix8p8& x) const { UFix8p8 y = *this; return y /= x; }
+    int intFloor() const { return static_cast<int>(_x>>8); }
+    int intCeiling() const
+    {
+        return static_cast<int>((_x + 0xff) >> 8);
+    }
+
     unsigned int _x;
 };
+
+UFix8p8 operator-(int x, const UFix8p8& y)
+{
+    return static_cast<UFix8p8>(x) - y;
+}
 
 UFix8p8 muld(UFix8p8 a, UFix8p8 b, UFix8p8 c)
 {
     return (unsigned long)(a._x)*(unsigned long)(b._x)/(unsigned long)(c._x);
+}
+
+static UFix8p8 _xL;
+static UFix8p8 _xR;
+UFix8p8 _dxL;
+UFix8p8 _dxR;
+
+void fillTrapezoid(int yStart, int yEnd, UFix8p8 dxL, UFix8p8 dxR, int colour)
+{
+    _dxL = dxL;
+    _dxR = dxR;
+    asm volatile ("call fillTrapezoid1"
+        : "+S" (colour), "+b" (yStart), "+c" (yEnd), "+d" (_xL), "+a" (_xR)
+        :
+        : "D" );
 }
 
 class Point2
