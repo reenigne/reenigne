@@ -253,7 +253,7 @@ drawFacePart:
 ; ax = xR - xL
 ; Pushes initial x value onto stack
 ; Stomps ax, dx
-%macro slopeRight 6
+%macro slopeRight 4
   cmp %2, 0x100
   jae %%largeY
   mul %4
@@ -443,10 +443,16 @@ notHorizontalBC:
   sub ax,cx  ; b.x - a.x
   jc abRight
 
-  push ax
+  mov di,[bp-yab]
+  mov bx,[bp-yaa]
+  slopeRight xbPatch1, di, cx, bx ; yab, a.x, yaa
+
   mov ax,si
   sub ax,cx  ; c.x - a.x
   jc acRight
+
+  mov di,[bp-yac]
+  slopeRight xcPatch1, di, cx, bx ; yac, a.x, yaa
 
 
 
