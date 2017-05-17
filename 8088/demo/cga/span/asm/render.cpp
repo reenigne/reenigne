@@ -1,5 +1,16 @@
 template<class T> void swap(T& x, T& y) { T z = x; x = y; y = z; }
 
+unsigned int udiv_hisihi(unsigned long int ad, unsigned int b)
+{
+    unsigned int a = (unsigned int)(ad);
+    unsigned int d = (unsigned int)(ad >> 16);
+    asm ("div %2"
+        : "+a" (a), "+d" (d)
+        : "rm" (b)
+        );
+    return a;
+}
+
 class UFix8p8
 {
 public:
@@ -19,7 +30,7 @@ public:
     }
     const UFix8p8& operator/=(const UFix8p8& x)
     {
-        _x = ((unsigned long)_x << 8) / (unsigned long)x._x;
+        _x = udiv_hisihi((unsigned long)_x << 8, x._x);
         return *this;
     }
     UFix8p8 operator+(const UFix8p8& x) const { UFix8p8 y = *this; return y += x; }
@@ -42,7 +53,7 @@ UFix8p8 operator-(int x, const UFix8p8& y)
 
 UFix8p8 muld(UFix8p8 a, UFix8p8 b, UFix8p8 c)
 {
-    return (unsigned long)(a._x)*(unsigned long)(b._x)/(unsigned long)(c._x);
+    return udiv_hisihi((unsigned long)(a._x)*(unsigned long)(b._x), c._x);
 }
 
 static UFix8p8 _xL;
@@ -57,7 +68,7 @@ void fillTrapezoid(int yStart, int yEnd, UFix8p8 dxL, UFix8p8 dxR, int colour)
     asm volatile ("call fillTrapezoid1"
         : "+S" (colour), "+b" (yStart), "+c" (yEnd), "+d" (_xL), "+a" (_xR)
         :
-        : "D" );
+        : "di" );
 }
 
 class Point2
