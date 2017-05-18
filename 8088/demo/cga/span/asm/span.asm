@@ -454,7 +454,30 @@ notHorizontalBC:
   mov di,[bp-yac]
   slopeRight xcPatch1, di, cx, bx ; yac, a.x, yaa
 
+  pop ax
+  pop bx
+  mov cx,9999
+xbPatch1:
+  mov dx,9999
+xcPatch1:
+  cmp bx,ax
+  jae dab_ge_dac
+  mov [cs:dLpatch-2],cx
+  mov [cs:dRpatch-2],dx
 
+  mov si,[bp-colour]
+  mov bx,[bp-yaInt]
+  mov cx,[bp-ybInt]
+  mov dx,_xL
+  mov ax,_xR
+  call fillTrapezoid
+
+  mov si,[bp-colour]
+  mov bx,[bp-ybInt]
+  mov cx,[bp-yc]
+  mov dx,_xL
+  mov ax,_xR
+  call fillTrapezoid
 
 
 
