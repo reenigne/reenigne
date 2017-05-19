@@ -466,17 +466,19 @@ xcPatch1:
   mov [cs:dRpatch-2],dx
 
   mov si,[bp-colour]
+  mov dx,bx
   mov bx,[bp-yaInt]
   mov cx,[bp-ybInt]
-  mov dx,_xL
-  mov ax,_xR
+  push ax
   call fillTrapezoid
+
+  slope dRpatch, ;
+  pop dx
 
   mov si,[bp-colour]
   mov bx,[bp-ybInt]
   mov cx,[bp-yc]
-  mov dx,_xL
-  mov ax,_xR
+  pop ax
   call fillTrapezoid
 
 
