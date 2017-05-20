@@ -415,6 +415,8 @@ noSwapBCx:
   jmp doneTriangle
 
 notHorizontalBC:
+  mov [bp-coordCX],si
+
   mov ax,di   ; ax = b.y
   inc ah
   mov [bp-ybInt],ah  ; yb = (b.y + 1).intFloor();
@@ -472,7 +474,11 @@ xcPatch1:
   push ax
   call fillTrapezoid
 
-  slope dRpatch, ;
+  mov si,[bp-coordCX]
+  mov bx,[bp-coordBX]
+  mov cx,[bp-ybc]
+  mov di,[bp-ybb]
+  slope dRpatch, si, bx, cx, di ; c.x, b.x, ybc, ybb
   pop dx
 
   mov si,[bp-colour]
