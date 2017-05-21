@@ -478,7 +478,7 @@ xcPatch1:
   mov bx,[bp-coordBX]
   mov cx,[bp-ybc]
   mov di,[bp-ybb]
-  slope dRpatch, si, bx, cx, di ; c.x, b.x, ybc, ybb
+  slope dLpatch, si, bx, cx, di ; c.x, b.x, ybc, ybb
   pop dx
 
   mov si,[bp-colour]
@@ -486,6 +486,33 @@ xcPatch1:
   mov cx,[bp-yc]
   pop ax
   call fillTrapezoid
+  jmp doneTriangle
+
+dab_ge_dac:
+  mov [cs:dLpatch-2],dx
+  mov [cs:dRpatch-2],cx
+
+  push ax
+  mov dx,ax
+  mov ax,bx
+  mov si,[bp-colour]
+  mov bx,[bp-yaInt]
+  mov cx,[bp-ybInt]
+  call fillTrapezoid
+
+  mov si,[bp-coordCX]
+  mov bx,[bp-coordBX]
+  mov cx,[bp-ybc]
+  mov di,[bp-ybb]
+  slope dRpatch, si, bx, cx, di ; c.x, b.x, ybc, ybb
+  pop ax
+
+  pop dx
+  mov si,[bp-colour]
+  mov bx,[bp-ybInt]
+  mov cx,[bp-yc]
+  call fillTrapezoid
+  jmp doneTriangle
 
 
 
