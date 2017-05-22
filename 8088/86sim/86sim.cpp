@@ -311,12 +311,13 @@ void stoS(Word data)
 }
 void push(Word value)
 {
+    o('{');
     setSP(sp() - 2);
     if (sp() <= stackLow)
         runtimeError("Stack overflow");
     writeWord(value, sp(), 2);
 }
-Word pop() { Word r = readWord(sp(), 2); setSP(sp() + 2); return r; }
+Word pop() { Word r = readWord(sp(), 2); setSP(sp() + 2); o('}'); return r; }
 void setCA() { setCF(true); setAF(true); }
 void doAF() { setAF(((data ^ source ^ destination) & 0x10) != 0); }
 void doCF() { setCF((data & (!wordSize ? 0x100 : 0x10000)) != 0); }
@@ -340,14 +341,14 @@ void setOFRotate()
 void doALUOperation()
 {
     switch (aluOperation) {
-        case 0: add(); break;
-        case 1: bitwise(destination | source); break;
-        case 2: source += cf() ? 1 : 0; add(); break;
-        case 3: source += cf() ? 1 : 0; sub(); break;
-        case 4: test(destination, source); break;
+        case 0: add(); o('+'); break;
+        case 1: bitwise(destination | source); o('|'); break;
+        case 2: source += cf() ? 1 : 0; add(); o('a'); break;
+        case 3: source += cf() ? 1 : 0; sub(); o('B'); break;
+        case 4: test(destination, source); o('t'); break;
         case 5:
-        case 7: sub(); break;
-        case 6: bitwise(destination ^ source); break;
+        case 7: sub(); o('-'); break;
+        case 6: bitwise(destination ^ source); o('^'); break;
     }
 }
 Word* modRMRW() { return &registers[modRMReg()]; }
@@ -674,6 +675,7 @@ int main(int argc, char* argv[])
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e:  // segment override
                 segmentOverride = operation - 4;
+                o("e%ZE"[segmentOverride]);
                 prefix = true;
                 break;
             case 0x27: case 0x2f:  // DA
@@ -690,6 +692,7 @@ int main(int argc, char* argv[])
                 wordSize = false;
                 data = al();
                 setPZS();
+                o(opcode == 0x27 ? 'y' : 'Y');
                 break;
             case 0x37: case 0x3f:  // AA
                 if (af() || (al() & 0xf) > 9) {
@@ -700,6 +703,7 @@ int main(int argc, char* argv[])
                 else
                     clearCA();
                 setAL(al() & 0x0f);
+                o(opcode == 0x37 ? 'A' : 'u');
                 break;
             case 0x40: case 0x41: case 0x42: case 0x43:
             case 0x44: case 0x45: case 0x46: case 0x47:
@@ -708,6 +712,7 @@ int main(int argc, char* argv[])
                 destination = rw();
                 wordSize = true;
                 setRW(incdec((opcode & 8) != 0));
+                o((opcode & 8) != 0 ? 'i' : 'd');
                 break;
             case 0x50: case 0x51: case 0x52: case 0x53:
             case 0x54: case 0x55: case 0x56: case 0x57:  // PUSH rw
@@ -746,6 +751,7 @@ int main(int argc, char* argv[])
                     default:   jump = sf() != of() || zf(); break;
                 }
                 jumpShort(fetchByte(), jump == ((opcode & 1) == 0));
+                o("MK[)=J(]GgpP<.,>"[opcode & 0xf]);
                 break;
             case 0x80: case 0x81: case 0x82: case 0x83:  // alu rmv,iv
                 destination = readEA();
@@ -762,34 +768,41 @@ int main(int argc, char* argv[])
             case 0x84: case 0x85:  // TEST rmv,rv
                 data = readEA();
                 test(data, getReg());
+                o('t');
                 break;
             case 0x86: case 0x87:  // XCHG rmv,rv
                 data = readEA();
                 finishWriteEA(getReg());
                 setReg(data);
+                o('x');
                 break;
             case 0x88: case 0x89:  // MOV rmv,rv
                 ea();
                 finishWriteEA(getReg());
+                o('m');
                 break;
             case 0x8a: case 0x8b:  // MOV rv,rmv
                 setReg(readEA());
+                o('m');
                 break;
             case 0x8c:  // MOV rmw,segreg
                 ea();
                 wordSize = 1;
                 finishWriteEA(registers[modRMReg() + 8]);
+                o('m');
                 break;
             case 0x8d:  // LEA
                 address = ea();
                 if (!useMemory)
                     runtimeError("LEA needs a memory address");
                 setReg(address);
+                o('l');
                 break;
             case 0x8e:  // MOV segreg,rmw
                 wordSize = 1;
                 data = readEA();
                 registers[modRMReg() + 8] = data;
+                o('m');
                 break;
             case 0x8f:  // POP rmw
                 writeEA(pop());
@@ -799,29 +812,37 @@ int main(int argc, char* argv[])
                 data = ax();
                 setAX(rw());
                 setRW(data);
+                o(";xxxxxxx"[opcode & 7]);
                 break;
             case 0x98:  // CBW
                 setAX(signExtend(al()));
+                o('b');
                 break;
             case 0x99:  // CWD
                 setDX((ax() & 0x8000) == 0 ? 0x0000 : 0xffff);
+                o('w');
                 break;
             case 0x9a:  // CALL cp
                 savedIP = fetchWord();
                 savedCS = fetchWord();
+                o('c');
                 farCall();
                 break;
             case 0x9c:  // PUSHF
+                o('U');
                 push((flags & 0x0fd7) | 0xf000);
                 break;
             case 0x9d:  // POPF
+                o('O');
                 flags = pop() | 2;
                 break;
             case 0x9e:  // SAHF
                 flags = (flags & 0xff02) | ah();
+                o('s');
                 break;
             case 0x9f:  // LAHF
                 setAH(flags & 0xd7);
+                o('L');
                 break;
             case 0xa0: case 0xa1:  // MOV accum,xv
                 data = read(fetchWord(), 3);
@@ -978,7 +999,7 @@ int main(int argc, char* argv[])
                             break;
                         }
                         data = read(fileDescriptor, pathBuffers[0], cx());
-			dsdx(true, cx());
+                        dsdx(true, cx());
                         if (data == (DWord)-1) {
                             setCF(true);
                             setAX(dosError(errno));
