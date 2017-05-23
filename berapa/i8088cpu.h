@@ -175,7 +175,7 @@ private:
                         (!_wordSize ? ib() : iw());
                     case 2: return "NOT " + ea();
                     case 3: return "NEG " + ea();
-                    case 4: return "NUL " + ea();
+                    case 4: return "MUL " + ea();
                     case 5: return "IMUL " + ea();
                     case 6: return "DIV " + ea();
                     case 7: return "IDIV " + ea();

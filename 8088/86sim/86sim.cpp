@@ -41,6 +41,17 @@ int length;
 int ios;
 bool running = false;
 int stackLow;
+int oCycle;
+
+void o(char c)
+{
+    while (oCycle < ios) {
+        ++oCycle;
+        printf(" ");
+    }
+    ++oCycle;
+    printf("%c", c);
+}
 
 Word cs() { return registers[9]; }
 void error(const char* operation)
@@ -192,7 +203,16 @@ void div()
     if (dividendNegative)
         remainder = (unsigned)-(signed)remainder;
 }
-void jumpShort(Byte data, bool jump) { if (jump) ip += signExtend(data); }
+void doJump(Word newIP)
+{
+    printf("\n");
+    ip = newIP;
+}
+void jumpShort(Byte data, bool jump)
+{
+    if (jump)
+        doJump(ip + signExtend(data));
+}
 void setCF(bool cf) { flags = (flags & ~1) | (cf ? 1 : 0); }
 void setAF(bool af) { flags = (flags & ~0x10) | (af ? 0x10 : 0); }
 void clearCA() { setCF(false); setAF(false); }
@@ -345,9 +365,9 @@ void doALUOperation()
         case 1: bitwise(destination | source); o('|'); break;
         case 2: source += cf() ? 1 : 0; add(); o('a'); break;
         case 3: source += cf() ? 1 : 0; sub(); o('B'); break;
-        case 4: test(destination, source); o('t'); break;
-        case 5:
-        case 7: sub(); o('-'); break;
+        case 4: test(destination, source); o('&'); break;
+        case 5: sub(); o('-'); break;
+        case 7: sub(); o('?'); break;
         case 6: bitwise(destination ^ source); o('^'); break;
     }
 }
@@ -426,7 +446,7 @@ void farLoad()
     savedIP = readWord(address);
     savedCS = readWord(address + 2);
 }
-void farJump() { setCS(savedCS); ip = savedIP; }
+void farJump() { setCS(savedCS); doJump(savedIP); }
 void farCall() { push(cs()); push(ip); farJump(); }
 Word incdec(bool decrement)
 {
@@ -443,7 +463,7 @@ Word incdec(bool decrement)
     setPZS();
     return data;
 }
-void call(Word address) { push(ip); ip = address; }
+void call(Word address) { push(ip); doJump(address); }
 char* dsdx(bool write = false, int bytes = 0x10000)
 {
     return initString(dx(), 3, write, 0, bytes);
@@ -847,14 +867,17 @@ int main(int argc, char* argv[])
             case 0xa0: case 0xa1:  // MOV accum,xv
                 data = read(fetchWord(), 3);
                 setAccum();
+                o('m');
                 break;
             case 0xa2: case 0xa3:  // MOV xv,accum
                 write(getAccum(), fetchWord(), 3);
+                o('m');
                 break;
             case 0xa4: case 0xa5:  // MOVSv
                 if (rep == 0 || cx() != 0)
                     stoS(lodS());
                 doRep(false);
+                o('4' + (opcode & 1));
                 break;
             case 0xa6: case 0xa7:  // CMPSv
                 if (rep == 0 || cx() != 0) {
@@ -863,15 +886,18 @@ int main(int argc, char* argv[])
                     sub();
                 }
                 doRep(true);
+                o('0' + (opcode & 1));
                 break;
             case 0xa8: case 0xa9:  // TEST accum,iv
                 data = fetch(wordSize);
                 test(getAccum(), data);
+                o('t');
                 break;
             case 0xaa: case 0xab:  // STOSv
                 if (rep == 0 || cx() != 0)
                     stoS(getAccum());
                 doRep(false);
+                o('8' + (opcode & 1));
                 break;
             case 0xac: case 0xad:  // LODSv
                 if (rep == 0 || cx() != 0) {
@@ -879,6 +905,7 @@ int main(int argc, char* argv[])
                     setAccum();
                 }
                 doRep(false);
+                o('2' + (opcode & 1));
                 break;
             case 0xae: case 0xaf:  // SCASv
                 if (rep == 0 || cx() != 0) {
@@ -887,20 +914,24 @@ int main(int argc, char* argv[])
                     sub();
                 }
                 doRep(true);
+                o('6' + (opcode & 1));
                 break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
             case 0xb4: case 0xb5: case 0xb6: case 0xb7:
                 setRB(fetchByte());
+                o('m');
                 break;
             case 0xb8: case 0xb9: case 0xba: case 0xbb:
             case 0xbc: case 0xbd: case 0xbe: case 0xbf:  // MOV rv,iv
                 setRW(fetchWord());
+                o('m');
                 break;
             case 0xc2: case 0xc3: case 0xca: case 0xcb:  // RET
                 savedIP = pop();
                 savedCS = (opcode & 8) == 0 ? cs() : pop();
                 if (!wordSize)
                     setSP(sp() + fetchWord());
+                o('R');
                 farJump();
                 break;
             case 0xc4: case 0xc5:  // LES/LDS
@@ -908,10 +939,12 @@ int main(int argc, char* argv[])
                 farLoad();
                 *modRMRW() = savedIP;
                 registers[8 + (!wordSize ? 0 : 3)] = savedCS;
+                o("NT"[opcode & 1]);
                 break;
             case 0xc6: case 0xc7:  // MOV rmv,iv
                 ea();
                 finishWriteEA(fetch(wordSize));
+                o('m');
                 break;
             case 0xcd:
                 data = fetchByte();
@@ -1108,9 +1141,11 @@ int main(int argc, char* argv[])
                         fprintf(stderr, "Unknown DOS call 0x%02x", ah());
                         runtimeError("");
                 }
+                o('$');
                 break;
-            case 0xcf:
-                ip = pop();
+            case 0xcf:  // IRET
+                o('I');
+                doJump(pop());
                 setCS(pop());
                 flags = pop() | 2;
                 break;
@@ -1177,6 +1212,7 @@ int main(int argc, char* argv[])
                     --source;
                 }
                 finishWriteEA(data);
+                o("hHfFvVvW"[modRMReg()]);
                 break;
             case 0xd4:  // AAM
                 data = fetchByte();
@@ -1186,18 +1222,22 @@ int main(int argc, char* argv[])
                 setAL(al() % data);
                 wordSize = true;
                 setPZS();
+                o('n');
                 break;
             case 0xd5:  // AAD
                 data = fetchByte();
                 setAL(al() + ah()*data);
                 setAH(0);
                 setPZS();
+                o('k');
                 break;
             case 0xd6:  // SALC
                 setAL(cf() ? 0xff : 0x00);
+                o('S');
                 break;
             case 0xd7:  // XLATB
                 setAL(readByte(bx() + al()));
+                o('@');
                 break;
             case 0xe0: case 0xe1: case 0xe2:  // LOOPc cb
                 setCX(cx() - 1);
@@ -1206,31 +1246,39 @@ int main(int argc, char* argv[])
                     case 0xe0: if (zf()) jump = false; break;
                     case 0xe1: if (!zf()) jump = false; break;
                 }
+                o("Qqo"[opcode & 3]);
                 jumpShort(fetchByte(), jump);
                 break;
             case 0xe3:  // JCXZ cb
+                o('z');
                 jumpShort(fetchByte(), cx() == 0);
                 break;
             case 0xe8:  // CALL cw
                 data = fetchWord();
+                o('c');
                 call(ip + data);
                 break;
             case 0xe9:  // JMP cw
-                ip += fetchWord();
+                o('j');
+                doJump(ip + fetchWord());
                 break;
             case 0xea:  // JMP cp
+                o('j');
                 savedIP = fetchWord();
                 savedCS = fetchWord();
                 farJump();
                 break;
             case 0xeb:  // JMP cb
+                o('j');
                 jumpShort(fetchByte(), true);
                 break;
             case 0xf2: case 0xf3:  // REP
+                o('r');
                 rep = opcode == 0xf2 ? 1 : 2;
                 prefix = true;
                 break;
             case 0xf5:  // CMC
+                o('\"');
                 flags ^= 1;
                 break;
             case 0xf6: case 0xf7:  // math rmv
@@ -1238,15 +1286,18 @@ int main(int argc, char* argv[])
                 switch (modRMReg()) {
                     case 0: case 1:  // TEST rmv,iv
                         test(data, fetch(wordSize));
+                        o('t');
                         break;
                     case 2:  // NOT iv
                         finishWriteEA(~data);
+                        o('~');
                         break;
                     case 3:  // NEG iv
                         source = data;
                         destination = 0;
                         sub();
                         finishWriteEA(data);
+                        o('_');
                         break;
                     case 4: case 5:  // MUL rmv, IMUL rmv
                         source = data;
@@ -1286,6 +1337,7 @@ int main(int argc, char* argv[])
                         }
                         setZF();
                         setOF(cf());
+                        o("*#"[opcode & 1]);
                         break;
                     case 6: case 7:  // DIV rmv, IDIV rmv
                         source = data;
@@ -1324,17 +1376,21 @@ int main(int argc, char* argv[])
                             setDX(remainder);
                             setAX(data);
                         }
+                        o("/\\"[opcode & 1]);
                         break;
                 }
                 break;
             case 0xf8: case 0xf9:  // STC/CLC
                 setCF(wordSize);
+                o("\'`"[opcode & 1]);
                 break;
             case 0xfa: case 0xfb:  // STI/CLI
                 setIF(wordSize);
+                o("!:"[opcode & 1]);
                 break;
             case 0xfc: case 0xfd:  // STD/CLD
                 setDF(wordSize);
+                o("CD"[opcode & 1]);
                 break;
             case 0xfe: case 0xff:  // misc
                 ea();
@@ -1348,18 +1404,23 @@ int main(int argc, char* argv[])
                     case 0: case 1:  // incdec rmv
                         destination = readEA2();
                         finishWriteEA(incdec(modRMReg() != 0));
+                        o("id"[modRMReg() & 1]);
                         break;
                     case 2:  // CALL rmv
+                        o('c');
                         call(readEA2());
                         break;
                     case 3:  // CALL mp
+                        o('c');
                         farLoad();
                         farCall();
                         break;
                     case 4:  // JMP rmw
-                        ip = readEA2();
+                        o('j');
+                        doJump(readEA2());
                         break;
                     case 5:  // JMP mp
+                        o('j');
                         farLoad();
                         farJump();
                         break;
