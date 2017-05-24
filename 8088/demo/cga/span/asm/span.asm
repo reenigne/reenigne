@@ -462,7 +462,7 @@ notHorizontalBC:
 xbPatch1:
   mov dx,9999
 xcPatch1:
-  cmp bx,ax
+  cmp bx,ax                    ; wrong - we need to compare slopes here but the slope* macros push initialX
   jae dab_ge_dac
   mov [cs:dLpatch-2],cx
   mov [cs:dRpatch-2],dx
@@ -514,7 +514,8 @@ dab_ge_dac:
   call fillTrapezoid
   jmp doneTriangle
 
-
+acRight:
+  slopeLeft d
 
 
 
@@ -545,6 +546,23 @@ vsync:
 
 
   ; Render deltas
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov cx,100
+  mov si,[spanBuffer]
+  mov bx,spanBuffer1 + spanBuffer0
+  sub bx,si
+renderLoop:
+  call renderDeltas
+  add bx,spanBufferEntries*2
+  add si,spanBufferEntries*2
+  add di,0x2000
+  call renderDeltas
+  add bx,spanBufferEntries*2
+  add si,spanBufferEntries*2
+  add di,80-0x2000
+  loop renderLoop
 
 
   ; Switch buffers
