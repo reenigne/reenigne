@@ -658,6 +658,14 @@ noDownAccel:
   jmp noKey
 
 
+renderDeltas:
+  ; inputs:
+  ;   es:di = VRAM pointer
+  ;   si = new spanbuffer
+  ;   bx = old spanbuffer
+
+
+
 ; Span buffer format
 ;   word[bx]   = bx+n*2+1 (n = number of entries (not including final sentinel with x == 255))
 ;   byte[bx+2] = colour of pixel 0
@@ -679,8 +687,9 @@ fillTrapezoid:
   add si,bp
   sub cx,bx
   add bx,bx
+  mov bx,[bx+spanBufferOffsets]
 spanBufferPatch:
-  mov bx,[bx+spanBuffer0]
+  add bx,9999
 fillTrapezoidLoop:
   cmp dx,ax
   jge skipAddSpan
@@ -1141,6 +1150,16 @@ spanBuffer0:
 spanBuffer1:
   times spanBufferSize db 0
 spanBufferEnd:
+
+spanBuffersOffsets:
+  %assign i 0
+  %rotate 1
+  %rep 100
+  dw i
+  %assign i i+spanBufferEntries*2
+  %endrep
+
+
 
 clearSpanBuffer:
   mov cx,lines
