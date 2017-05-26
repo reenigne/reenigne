@@ -551,15 +551,15 @@ vsync:
   xor di,di
   mov cx,100
   mov si,[spanBuffer]
-  mov bx,spanBuffer1 + spanBuffer0
-  sub bx,si
+  mov bp,spanBuffer1 + spanBuffer0
+  sub bp,si
 renderLoop:
   call renderDeltas
-  add bx,spanBufferEntries*2
+  add bp,spanBufferEntries*2
   add si,spanBufferEntries*2
   add di,0x2000
   call renderDeltas
-  add bx,spanBufferEntries*2
+  add bp,spanBufferEntries*2
   add si,spanBufferEntries*2
   add di,80-0x2000
   loop renderLoop
@@ -662,7 +662,30 @@ renderDeltas:
   ; inputs:
   ;   es:di = VRAM pointer
   ;   si = new spanbuffer
-  ;   bx = old spanbuffer
+  ;   bp = old spanbuffer
+  inc si
+  inc si
+  mov al,[si]  ; cn = sn->_c
+  inc si       ; ++sn
+  mov cl,0     ; xLn = 0
+  mov ch,[si]  ; xRn = sn->_x
+  inc bp
+  inc bp
+  mov ah,[bp]  ; co = so->_c
+  inc bp       ; ++so
+  mov dl,0     ; xLo = 0
+  mov dh,[bp]  ; xRo = so->_x
+  mov bl,0     ; havePartial = false
+.loop:
+  sub cl,ch
+  test cl,0xfc
+  jnz .notSameX
+  add cl,ch
+  cmp al,ah
+  jne
+
+  cmp bl,0
+
 
 
 
