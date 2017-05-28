@@ -671,26 +671,45 @@ renderDeltas:
   inc bp
   inc bp       ; ++so
   mov dl,0     ; xLo = 0
-  mov bl,0     ; havePartial = false
+  mov ah,0     ; havePartial = false
 .loop:
-  mov al,[si]  ; xRn
-  xor al,[bp]  ; xRn ^ xRo
-  and al,0xfc
+  mov ch,[si]  ; xRn
+  mov al,ch    ; xRn
+  xor al,cl    ; xRn^xLn
+  and al,0xfc  ; (xRn^xLn) & 3
   jnz .notSameByte
 
-  mov al,[si-1]
-  cmp al,[bp-1]
+  mov al,[si-1]  ; cn
+  cmp al,[bp-1]  ; co
   jne .notSameColour
   test bl,bl
   jz .sameColour
 .notSameColour:
-  mov bl,[
-  and al,[
+  mov bl,cl      ; xLn
+  and al,[bx+maskTable]  ; cn & mask[xLn]
+  mov bl,ch      ; xRn
+  and al,[bx+invMaskTable]  ; newBits = cn & mask[xLn] & ~mask[xRn]
+  test ah,ah     ; havePartial
+  jnz .gotPartial
+  mov ah,1       ; havePartial = true
+  test cl,3      ; xLn & 3
+  jnz .unaligned
+  mov dh,al      ; partial = newBits
+  jmp .doneDelta
+.unaligned:
+  mov bl,cl      ; xLn
+  mov dh,[bx+invMaskTAble]  ; ~mask[xLn]
+  shr bx,1
+  shr bx,1
+  and dh,[es:di+bx] ; partial = vram[xLn >> 2] &~mask[xLn]
+.gotPartial:
+  or dh,al       ; partial |= newBits
+  jmp .doneDelta
+.sameColour:
 
-  cmp al,ah
-  jne
 
-  cmp bl,0
+
+
 
 
 
