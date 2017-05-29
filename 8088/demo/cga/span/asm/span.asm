@@ -553,6 +553,7 @@ vsync:
   mov si,[spanBuffer]
   mov bp,spanBuffer1 + spanBuffer0
   sub bp,si
+  mov bh,0
 renderLoop:
   call renderDeltas
   add bp,spanBufferEntries*2
@@ -676,7 +677,7 @@ renderDeltas:
   mov ch,[si]  ; xRn
   mov al,ch    ; xRn
   xor al,cl    ; xRn^xLn
-  and al,0xfc  ; (xRn^xLn) & 3
+  and al,0xfc  ; (xRn^xLn) & 0xfc
   jnz .notSameByte
 
   mov al,[si-1]  ; cn
@@ -706,6 +707,14 @@ renderDeltas:
   or dh,al       ; partial |= newBits
   jmp .doneDelta
 .sameColour:
+  mov ch,[bp]  ; xRo
+  mov bl,ch
+  xor ah,cl    ; xRo^xLn
+  and ah,0xfc  ; (xRo^xLn) & 0xfc
+  jnz .doneDelta
+  mov dh,[bx+invMaskTable]
+  and dh,al
+
 
 
 
