@@ -707,14 +707,24 @@ renderDeltas:
   or dh,al       ; partial |= newBits
   jmp .doneDelta
 .sameColour:
-  mov ch,[bp]  ; xRo
-  mov bl,ch
-  xor ah,cl    ; xRo^xLn
-  and ah,0xfc  ; (xRo^xLn) & 0xfc
+  mov bl,[bp]  ; xRo
+  mov dh,cl
+  xor dh,bl    ; xRo^xLn
+  and dh,0xfc  ; (xRo^xLn) & 0xfc
   jnz .doneDelta
-  mov dh,[bx+invMaskTable]
-  and dh,al
-
+  mov dh,[bx+maskTable]
+  and al,dh    ; cn & mask[xRo]
+  not dh
+  mov bl,cl    ; xLn
+  shr bx,1
+  shr bx,1
+  and dh,[es:di+bx]
+  or dh,al     ; (vram[xLn >> 2] & ~mask[xRo]) | (cn & mask[xRo])
+  mov bl,ch    ; xRn
+  and dh,[bx+invMaskTable]
+  mov ah,1     ; havePartial = true
+  jmp .doneDelta
+.notSameByte:
 
 
 
