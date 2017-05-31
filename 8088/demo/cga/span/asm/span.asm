@@ -664,6 +664,16 @@ renderDeltas:
   ;   es:di = VRAM pointer
   ;   si = new spanbuffer
   ;   bp = old spanbuffer
+  ;   bh = 0
+  ; used:
+  ;   al
+  ;   ah = havePartial
+  ;   bl
+  ;   cl = xLn
+  ;   ch
+  ;   dl = xLo
+  ;   dh = partial
+
   inc si
   inc si
   inc si       ; ++sn
@@ -725,6 +735,36 @@ renderDeltas:
   mov ah,1     ; havePartial = true
   jmp .doneDelta
 .notSameByte:
+  mov al,[si-1]  ; cn
+  cmp al,[bp-1]  ; co
+  je .sameColour2
+  mov bl,cl
+  and al,[bx+maskTable]
+  test ah,ah
+  jnz .gotPartial2
+  mov dh,[bx+invMaskTable]
+  shr bx,1
+  shr bx,1
+  and dh,[es:di+bx]
+.gotPartial2:
+  or al,dh
+  mov [es:di+bx],al
+  jmp .doByteDelta
+.sameColour2:
+  test ah,ah
+  jz .notGotPartial2
+  mov bl,cl
+  and al,[bx+maskTable]
+  or al,dh
+  shr bx,1
+  shr bx,1
+  mov [es:di+bx],al
+  jmp .doByteDelta
+.notGotPartial2:
+  mov bl,[bp]
+  omp
+
+
 
 
 
