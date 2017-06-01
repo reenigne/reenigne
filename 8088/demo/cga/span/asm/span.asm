@@ -761,8 +761,13 @@ renderDeltas:
   mov [es:di+bx],al
   jmp .doByteDelta
 .notGotPartial2:
-  mov bl,[bp]
-  omp
+  mov bl,[bp]  ; xRo
+  xor bl,cl    ; xRo^xLn
+  and bl,0xfc
+  jnz .doByteDelta
+  mov bl,[
+  add bx,di
+
 
 
 
