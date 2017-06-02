@@ -765,8 +765,20 @@ renderDeltas:
   xor bl,cl    ; xRo^xLn
   and bl,0xfc
   jnz .doByteDelta
-  mov bl,[
-  add bx,di
+  mov bl,cl
+  and al,[bx+maskTable]
+  mov dh,[bx+invMaskTable]
+  mov bl,cl
+  shr bx,1
+  shr bx,1
+  and dh,[es:di+bx]
+  or al,dh
+  mov [es:di+bx],al
+.doByteDelta:
+  add cl,3
+  and cl,0xfc
+
+
 
 
 
