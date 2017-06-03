@@ -423,6 +423,7 @@ public:
             (_player._position.y/TILEY)*TILESX;
 
         _spawnGrid.allocate(TILESX*TILESY);
+		// Default level
         for (int y = 0; y < TILESY; ++y) {
             for (int x = 0; x < TILESX; ++x) {
                 int ch;
@@ -432,10 +433,13 @@ public:
                     ch = SKYTILE;
                 int i = y*TILESX + x;
                 _tileGrid[i] = ch;
+				_objectGrid[i] = 0;
                 _spawnGrid[i] = ch;
                 _zombieGrid[i] = 0;
             }
         }
+
+		// Loaded level
         try {
             String l = level.contents();
             for (int i = 0; i < TILESX*TILESY; ++i) {

@@ -777,6 +777,17 @@ renderDeltas:
 .doByteDelta:
   add cl,3
   and cl,0xfc
+  ; al = storeStart
+  ; ch = storeEnd
+  ; dh = store
+  mov al,cl
+  mov ch,cl
+  mov dh,0
+.doByteDeltaLoop:
+  test dh,dh
+  jz .noStore
+  cmp
+
 
 
 
