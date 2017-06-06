@@ -732,19 +732,22 @@ public:
 			int nameEnd = s.offset();
 			String n = s.subString(nameStart, nameEnd);
 			bool foundConst = false;
+			int bestLength = 0;
+			int bestC;
 			for (int c = 0; c < 632; ++c) {
-				if (constNames[c] == n.subString(0, constNames[c].length())) {
-					SRGB cc = ccols[c];
-					String hexColour = String(hex(cc.z, 2, false)) + hex(cc.y, 2, false) + hex(cc.x, 2, false);
-					styleData += "<Style id=\"constituencyColor" + decimal(constituency) + "\"><PolyStyle><color>ff" + hexColour + "</color></PolyStyle><LineStyle><color>ff" + hexColour + "</color></LineStyle></Style>\n";
-					//printf("\"<Style id=\\\"constituencyColor%i\\\"><PolyStyle><color>ff%02x%02x%02x</color></PolyStyle><LineStyle><color>ffffffff</color></LineStyle></Style>\\n\",\n",constituency,cc.z,cc.y,cc.x,cc.z,cc.y,cc.x);
-					NullTerminatedString s(n.subString(0, n.length() - 1));
-					printf("%s\t[%i,%i,%i,255]\n", s.operator const char*(), cc.x, cc.y, cc.z);
-					foundConst = true;
-					break;
+				int l = constNames[c].length();
+				if (constNames[c] == n.subString(0, l) && l > bestLength) {
+					bestLength = l;
+					bestC = c;
 				}
 			}
-			if (!foundConst) {
+			SRGB cc = ccols[bestC];
+			String hexColour = String(hex(cc.z, 2, false)) + hex(cc.y, 2, false) + hex(cc.x, 2, false);
+			styleData += "<Style id=\"constituencyColor" + decimal(constituency) + "\"><PolyStyle><color>ff" + hexColour + "</color></PolyStyle><LineStyle><color>ff" + hexColour + "</color></LineStyle></Style>\n";
+			//printf("\"<Style id=\\\"constituencyColor%i\\\"><PolyStyle><color>ff%02x%02x%02x</color></PolyStyle><LineStyle><color>ffffffff</color></LineStyle></Style>\\n\",\n",constituency,cc.z,cc.y,cc.x,cc.z,cc.y,cc.x);
+			NullTerminatedString s(n.subString(0, n.length() - 1));
+			printf("%s\t%i,%i,%i\n", s.operator const char*(), cc.x, cc.y, cc.z);
+			if (bestLength == 0) {
 				NullTerminatedString s(n);
 				printf("Error: Could not find constituency %s\n",s.operator const char*());
 			}
