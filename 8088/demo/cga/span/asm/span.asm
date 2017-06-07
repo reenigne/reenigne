@@ -786,14 +786,8 @@ renderDeltas:
 .doByteDeltaLoop:
   test dh,dh
   jz .noStore
-  cmp
-
-
-
-
-
-
-
+  cmp al,[bp-1]
+  jnz .byteLoopNext
 
 
 
