@@ -2048,6 +2048,12 @@ class Program : public ProgramBase
 public:
     void run()
     {
+        ConfigFile configFile;
+        String configPath("default.config");
+        if (_arguments.count() >= 2)
+            configPath = _arguments[1];
+        configFile.load(File(configPath, true));
+
 
     }
 };
