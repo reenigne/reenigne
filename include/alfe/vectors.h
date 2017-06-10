@@ -405,6 +405,11 @@ public:
         return x >= 0 && y >= 0 && z >= 0 && x < volume.x && y < volume.y &&
             z < volume.z;
     }
+	Hash hash() const
+	{
+		return Hash(typeid(Vector3)).mixin(x).mixin(y).mixin(z);
+	}
+
 
     T x;
     T y;

@@ -4,6 +4,7 @@
 #define INCLUDED_IMAGE_FILTER_H
 
 #include <memory>
+#include <functional>
 #include <intrin.h>
 #include "alfe/tuple.h"
 

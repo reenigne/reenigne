@@ -175,6 +175,7 @@ public:
             lookAhead = _lookAhead;
             combineScanlines = _combineScanlines;
             advance = _advance;
+			_diffuseInternally = true;
         }
 
         bool hres = (_mode & 1) != 0;
@@ -1292,9 +1293,10 @@ private:
             for (int x = 0; x < box->_lCompareToRCompare; ++x) {
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
-                Colour target =
-                    *input - _diffusionVertical2*error[-_errorStride];
-                if (*rgbi != 16)
+                Colour target = *input;
+				if (!_diffuseInternally || scanline != 0)
+                    target -= _diffusionVertical2*error[-_errorStride];
+                if (*rgbi != 16 && (!_diffuseInternally || x != 0))
                     target -= _diffusionHorizontal2*error[-1];
                 switch (_clipping2) {
                     case 1:
@@ -1520,6 +1522,7 @@ private:
     int _lookAhead;
     bool _combineScanlines;
     int _advance;
+	bool _diffuseInternally;
     bool _needRescale;
 
     bool _active;
@@ -2956,16 +2959,6 @@ public:
         Body(BitmapType bitmapType) : _bitmapType(bitmapType) { }
         Value evaluate(List<Value> arguments, Span span) const
         {
-            static const SRGB rgbiPalette[16] = {
-                SRGB(0x00, 0x00, 0x00), SRGB(0x00, 0x00, 0xaa),
-                SRGB(0x00, 0xaa, 0x00), SRGB(0x00, 0xaa, 0xaa),
-                SRGB(0xaa, 0x00, 0x00), SRGB(0xaa, 0x00, 0xaa),
-                SRGB(0xaa, 0x55, 0x00), SRGB(0xaa, 0xaa, 0xaa),
-                SRGB(0x55, 0x55, 0x55), SRGB(0x55, 0x55, 0xff),
-                SRGB(0x55, 0xff, 0x55), SRGB(0x55, 0xff, 0xff),
-                SRGB(0xff, 0x55, 0x55), SRGB(0xff, 0x55, 0xff),
-                SRGB(0xff, 0xff, 0x55), SRGB(0xff, 0xff, 0xff)};
-
             auto bitmap = static_cast<BitmapValue*>(
                 arguments.begin()->value<Structure*>())->bitmap();
             Vector size = bitmap.size();
