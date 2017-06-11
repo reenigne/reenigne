@@ -175,7 +175,7 @@ public:
             lookAhead = _lookAhead;
             combineScanlines = _combineScanlines;
             advance = _advance;
-			_diffuseInternally = true;
+			_diffuseInternally2 = _diffuseInternally;
         }
 
         bool hres = (_mode & 1) != 0;
@@ -776,9 +776,11 @@ public:
                         reinterpret_cast<const Colour*>(inputChangeLine);
                     Colour* error = errorChangeLine;
                     for (int x = 0; x < box->_lChangeToRChange; ++x) {
-                        Colour target = *input
-                            - _diffusionHorizontal2*error[-1]
-                            - _diffusionVertical2*error[-_errorStride];
+                        Colour target = *input;
+						if (!_diffuseInternally2 || x != 0)
+                            target -= _diffusionHorizontal2*error[-1];
+						if (!_diffuseInternally2 || scanline != 0)
+                            target -= _diffusionVertical2*error[-_errorStride];
                         target.x = clamp(0.0f, target.x, 1.0f);
                         target.y = clamp(0.0f, target.y, 1.0f);
                         target.z = clamp(0.0f, target.z, 1.0f);
@@ -1178,6 +1180,12 @@ public:
         _advance = advance;
     }
     int getAdvance() { return _advance; }
+	void setDiffuseInternally(bool diffuseInternally)
+	{
+		Lock lock(&_mutex);
+		_diffuseInternally = diffuseInternally;
+	}
+	bool getDiffuseInternally() { return _diffuseInternally; }
     void initFromData()
     {
         _mode = _data->getDataByte(CGAData::registerMode);
@@ -1294,9 +1302,9 @@ private:
                 SRGB o = *srgb;
                 Colour output = _linearizer.linear(o);
                 Colour target = *input;
-				if (!_diffuseInternally || scanline != 0)
+				if (!_diffuseInternally2 || scanline != 0)
                     target -= _diffusionVertical2*error[-_errorStride];
-                if (*rgbi != 16 && (!_diffuseInternally || x != 0))
+                if (*rgbi != 16 && (!_diffuseInternally2 || x != 0))
                     target -= _diffusionHorizontal2*error[-1];
                 switch (_clipping2) {
                     case 1:
@@ -1523,6 +1531,7 @@ private:
     bool _combineScanlines;
     int _advance;
 	bool _diffuseInternally;
+	bool _diffuseInternally2;
     bool _needRescale;
 
     bool _active;
@@ -1704,6 +1713,8 @@ public:
         _videoCard._matching._combineScanlines.setCheckState(
             _matcher->getCombineScanlines());
         _videoCard._matching._advance.set(_matcher->getAdvance());
+		_videoCard._matching._diffuseInternally.setCheckState(
+			_matcher->getDiffuseInternally());
     }
     void create()
     {
@@ -1802,7 +1813,8 @@ public:
         _videoCard._matching._combineScanlines.enableWindow(matchMode &&
             _matcher->getScanlinesPerRow() > 2);
         _videoCard._matching._advance.enableWindow(matchMode);
-            _monitor._colour._saturation.enableWindow(composite);
+		_videoCard._matching._diffuseInternally.enableWindow(matchMode);
+        _monitor._colour._saturation.enableWindow(composite);
         _monitor._colour._hue.enableWindow(composite);
         _monitor._filter.enableWindow(composite);
     }
@@ -2049,6 +2061,11 @@ public:
         _matcher->setAdvance(advance);
         beginConvert();
     }
+	void diffuseInternallySet(bool diffuseInternally)
+	{
+		_matcher->setDiffuseInternally(diffuseInternally);
+		beginConvert();
+	}
     void combineScanlinesSet(bool combineScanlines)
     {
         _matcher->setCombineScanlines(combineScanlines);
@@ -2789,6 +2806,10 @@ private:
                 _advance.add("8");
                 _advance.add("16");
                 add(&_advance);
+				_diffuseInternally.setClicked(
+					[&](bool value) { _host->diffuseInternallySet(value); });
+				_diffuseInternally.setText("Diffuse Internally");
+				add(&_diffuseInternally);
             }
             void layout()
             {
@@ -2819,7 +2840,9 @@ private:
                 r = max(r, _combineScanlines.right());
                 _advance.setTopLeft(_characterSet.bottomLeft() + vSpace);
                 r = max(r, _advance.right());
-                setInnerSize(Vector(r, _advance.bottom()) + _host->groupBR());
+				_diffuseInternally.setTopLeft(_advance.topRight() + hSpace);
+				int b = max(_advance.bottom(), _diffuseInternally.bottom());
+                setInnerSize(Vector(r, b) + _host->groupBR());
                 _progressBar.setTopLeft(_matchMode.topRight() + hSpace);
                 _progressBar.setInnerSize(Vector(r - _progressBar.topLeft().x,
                     _matchMode.outerSize().y));
@@ -2839,6 +2862,7 @@ private:
             CaptionedDropDownList _lookAhead;
             CheckBox _combineScanlines;
             CaptionedDropDownList _advance;
+			CheckBox _diffuseInternally;
         };
         MatchingGroup _matching;
         CGAArtWindow* _host;
@@ -3045,6 +3069,7 @@ public:
         configFile.addDefaultOption("prescalerProfile", 4);
         configFile.addDefaultOption("lookAhead", 3);
         configFile.addDefaultOption("advance", 2);
+		configFile.addDefaultOption("diffuseInternally", false);
         configFile.addDefaultOption("combineScanlines", true);
         configFile.addDefaultOption("scanlineBleeding", 2);
         configFile.addDefaultOption("horizontalBleeding", 2);
@@ -3233,6 +3258,8 @@ public:
             ";\n";
         s += "lookAhead = " + decimal(_matcher->getLookAhead()) + ";\n";
         s += "advance = " + decimal(_matcher->getAdvance()) + ";\n";
+		s += "diffuseInternally = " +
+			String::Boolean(_matcher->getDiffuseInternally()) + ";\n";
         s += "combineScanlines = " +
             String::Boolean(_matcher->getCombineScanlines()) + ";\n";
         s += "scanlineBleeding = " + decimal(_output->getScanlineBleeding()) +
@@ -3270,6 +3297,8 @@ public:
         _matcher->setQuality(_config->get<double>("quality"));
         _matcher->setLookAhead(_config->get<int>("lookAhead"));
         _matcher->setAdvance(_config->get<int>("advance"));
+		_matcher->setDiffuseInternally(
+			_config->get<bool>("diffuseInternally"));
         _matcher->setCombineScanlines(_config->get<bool>("combineScanlines"));
         _matcher->setGamma(_config->get<double>("gamma"));
         _matcher->setClipping(_config->get<int>("clipping"));
