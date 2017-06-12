@@ -3307,7 +3307,7 @@ public:
         _matcher->setInterlaceSync(_config->get<bool>("interlaceSync"));
         _matcher->setInterlacePhase(_config->get<bool>("interlacePhase"));
         _matcher->setFlicker(_config->get<bool>("flicker"));
-        bool phase = _config->get<bool>("phase");
+        bool phase = _config->get<int>("phase") == 0;
         _matcher->setPhase(phase ? 0 : 1);
         _output->setPhase(phase ? 0 : 1);
         _matcher->setCharacterSet(_config->get<int>("characterSet"));
