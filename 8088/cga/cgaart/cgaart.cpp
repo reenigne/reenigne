@@ -179,6 +179,8 @@ public:
         }
 
         bool hres = (_mode & 1) != 0;
+		if (!hres)
+			phase = 0;
         _isComposite = connector != 0;
         _graphics = (_mode & 2) != 0;
         bool oneBpp = (_mode & 0x10) != 0;
