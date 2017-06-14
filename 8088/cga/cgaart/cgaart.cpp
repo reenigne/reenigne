@@ -712,7 +712,7 @@ public:
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
         row = 0;
-        int phaseOffset = phase*2;
+        _phaseMode = phase*0x40;
 
         // Perform matching
         while (!cancelling()) {
@@ -750,8 +750,8 @@ public:
                 }
             }
 
-            _d0 = &_rowData[1 + phaseOffset];
-            Byte* d1 = &_rowData[1 + rowDataStride + phaseOffset];
+            _d0 = &_rowData[1];
+            Byte* d1 = &_rowData[1 + rowDataStride];
             _inputBlock = inputRow;
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
@@ -949,7 +949,7 @@ public:
                     d1 += incrementBytes;
                     column += incrementBytes;
                     if ((incrementBytes & 2) != 0)
-                        phaseOffset ^= phase*2;
+                        _phaseMode ^= 0x40;
                     if (column >= bytesPerRow)
                         break;
                 }
@@ -1247,7 +1247,7 @@ private:
             }
             else {
                 UInt64 rgbi = _sequencer->process(pattern + (_d0[-1] << 24),
-                    _modeThread, _palette2, s, false, 0);
+                    _modeThread | _phaseMode, _palette2, s, false, 0);
                 for (int x = 0; x < box->_lChangeToRChange; ++x)
                     _rgbiPattern[x] = (rgbi >> (x << 2)) & 0xf;
             }
@@ -1566,6 +1566,7 @@ private:
     int _shift;
 
     Byte* _d0;
+	int _phaseMode;
     const Byte* _inputBlock;
     Colour* _errorBlock;
     Byte* _rgbiBlock;
