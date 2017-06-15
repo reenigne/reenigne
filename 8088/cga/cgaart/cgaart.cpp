@@ -179,11 +179,11 @@ public:
         }
 
         bool hres = (_mode & 1) != 0;
-		if (!hres)
-			phase = 0;
         _isComposite = connector != 0;
         _graphics = (_mode & 2) != 0;
         bool oneBpp = (_mode & 0x10) != 0;
+		if (!hres || (!_graphics && !oneBpp))
+			phase = 0;
         _combineVertical = false;
         int boxCount;
         int boxIncrement = hres == _graphics ? 16 : 8;
@@ -712,7 +712,7 @@ public:
             _data->getDataByte(CGAData::registerLogCharactersPerBank) + 1;
         int bank = 0;
         row = 0;
-        _phaseMode = phase*0x40;
+        int phaseOffset = phase*2;
 
         // Perform matching
         while (!cancelling()) {
@@ -750,8 +750,8 @@ public:
                 }
             }
 
-            _d0 = &_rowData[1];
-            Byte* d1 = &_rowData[1 + rowDataStride];
+            _d0 = &_rowData[1 + phaseOffset];
+            Byte* d1 = &_rowData[1 + rowDataStride + phaseOffset];
             _inputBlock = inputRow;
             _errorBlock = errorRow;
             _rgbiBlock = rgbiRow;
@@ -949,7 +949,7 @@ public:
                     d1 += incrementBytes;
                     column += incrementBytes;
                     if ((incrementBytes & 2) != 0)
-                        _phaseMode ^= 0x40;
+                        phaseOffset ^= phase*2;
                     if (column >= bytesPerRow)
                         break;
                 }
@@ -1247,7 +1247,7 @@ private:
             }
             else {
                 UInt64 rgbi = _sequencer->process(pattern + (_d0[-1] << 24),
-                    _modeThread | _phaseMode, _palette2, s, false, 0);
+                    _modeThread, _palette2, s, false, 0);
                 for (int x = 0; x < box->_lChangeToRChange; ++x)
                     _rgbiPattern[x] = (rgbi >> (x << 2)) & 0xf;
             }
