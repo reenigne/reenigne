@@ -199,3 +199,260 @@ void fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
     }
 }
 
+void addSpan(int c, int xL, int xR)
+{
+    if (xL >= xR)
+        return;
+    int i;
+    for (i = 1; i < _n; ++i)
+        if (xL < _s[i]._x)
+            break;
+    int j;
+    for (j = i; j < _n; ++j)
+        if (xR < _s[j]._x)
+            break;
+    --i;
+    --j;
+    if (c == _s[i]._c)
+        xL = _s[i]._x;
+    else
+        if (i > 0 && xL == _s[i]._x && c == _s[i - 1]._c) {
+            --i;
+            xL = _s[i]._x;
+        }
+    if (c == _s[j]._c)
+        xR = _s[j + 1]._x;
+    else
+        if (j < _n - 1 && xR == _s[j + 1]._x && c == _s[j + 1]._c) {
+            ++j;
+            xR = _s[j + 1]._x;
+        }
+    int o = j - i;
+    if (xL == _s[i]._x) {
+        // Left of new span at left of left old
+        if (xR == _s[j + 1]._x) {
+            // Right of new span at right of right old
+            _s[i]._c = c;
+            _n -= o;
+            for (int k = i + 1; k <= _n; ++k)
+                _s[k] = _s[k + o];
+        }
+        else {
+            --o;
+            _n -= o;
+            switch (o) {
+                case -1:
+                    // Have to do the update after the move or we'd
+                    // be stomping on data we need to keep.
+                    for (int k = _n; k >= i - o; --k)
+                        _s[k] = _s[k + o];
+                    _s[i]._c = c;
+                    _s[i + 1]._x = xR;
+                    break;
+                case 0:
+                    _s[i]._c = c;
+                    _s[i + 1]._x = xR;
+                    break;
+                default:
+                    _s[i]._c = c;
+                    _s[i + 1]._x = xR;
+                    _s[i + 1]._c = _s[i + 1 + o]._c;
+                    for (int k = i + 2; k <= _n; ++k)
+                        _s[k] = _s[k + o];
+                    break;
+            }
+        }
+        if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
+            printf("Error\n");
+        return;
+    }
+    if (xR == _s[j + 1]._x) {
+        // Right of new span at right of right old
+        --o;
+        _n -= o;
+        switch (o) {
+            case -1:
+                // Untested
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                for (int k = _n; k > i - o; --k)
+                    _s[k] = _s[k + o];
+                break;
+            case 0:
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                break;
+            default:
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                for (int k = i + 2; k <= _n; ++k)
+                    _s[k] = _s[k + o];
+                break;
+        }
+    }
+    else {
+        o -= 2;
+        _n -= o;
+        switch (o) {
+            case -2:
+                // Have to do the update after the move
+                for (int k = _n; k > i - o; --k)
+                    _s[k] = _s[k + o];
+                _s[i + 2]._c = _s[i]._c;
+                _s[i + 2]._x = xR;
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                break;
+            case -1:
+                // Have to do the update after the move
+                for (int k = _n; k > i - o; --k)
+                    _s[k] = _s[k + o];
+                _s[i + 2]._x = xR;
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                break;
+            case 0:
+                _s[i + 2]._x = xR;
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                break;
+            default:
+                // Untested
+                _s[i + 2]._x = xR;
+                _s[i + 2]._c = _s[i + 2 + o]._c;
+                _s[i + 1]._x = xL;
+                _s[i + 1]._c = c;
+                for (int k = i + 3; k <= _n; ++k)
+                    _s[k] = _s[k + o];
+        }
+    }
+    if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
+        printf("Error\n");
+}
+
+void renderDeltas(Byte* vram, const Line* o) const
+{
+    ++globalCount;
+    if (globalCount == 0x00002a47)
+        printf("Break");
+    Byte* vram0 = vram;
+
+    static const Byte mask[4] = {0xff, 0x3f, 0x0f, 0x03};
+
+    const Span* sn = _s;
+    const Span* so = o->_s;
+    int cn = sn->_c;
+    ++sn;
+    int xLn = 0;
+    int xRn = sn->_x;
+    int co = so->_c;
+    ++so;
+    int xLo = 0;
+    int xRo = so->_x;
+
+    bool havePartial = false;
+    Byte partial;
+    do {
+        if ((xRn & 0xfc) == (xLn & 0xfc)) {
+            if (cn != co || havePartial) {
+                Byte newBits = cn & mask[xLn & 3] & ~mask[xRn & 3];
+                if (!havePartial) {
+                    if ((xLn & 3) == 0)
+                        partial = 0;
+                    else
+                        partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                    havePartial = true;
+                }
+                partial |= newBits;
+            }
+            else {
+                if ((xRo & 0xfc) == (xLn & 0xfc)) {
+                    partial = ((vram[xLn >> 2] & ~mask[xRo & 3]) | (cn & mask[xRo & 3])) & ~mask[xRn & 3];
+                    havePartial = true;
+                }
+            }
+        }
+        else {
+            if (cn != co) {
+                if (!havePartial)
+                    partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+            }
+            else {
+                if (havePartial)
+                    vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                else {
+                    if ((xRo & 0xfc) == (xLn & 0xfc)) {
+                        Byte* p = vram + (xLn >> 2);
+                        *p = (*p & ~mask[xLn & 3]) | (cn & mask[xLn & 3]);
+                    }
+                }
+            }
+            xLn = (xLn + 3) & 0xfc;
+            int storeStart = xLn;
+            int storeEnd = xLn;
+            bool store = false;
+            do {
+                if (store) {
+                    if (cn == co) {
+                        int aligned = (xLo + 3) & 0xfc;
+                        if (xRn >= aligned)
+                            storeEnd = aligned;
+                        else
+                            storeEnd = xLo;
+                        store = false;
+                    }
+                }
+                else {
+                    if (cn != co) {
+                        if ((xLo & 0xfc) > (storeEnd & 0xfc) + 4) {
+                            if (storeStart < storeEnd) {
+                                int startByte = storeStart >> 2;
+                                memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                            }
+                            storeStart = xLo;
+                        }
+                        store = true;
+                    }
+                }
+                if (xRo >= xRn)
+                    break;
+                xLo = xRo;
+                co = so->_c;
+                ++so;
+                xRo = so->_x;
+            } while (true);
+            if (store)
+                storeEnd = xRn;
+            if (storeStart < storeEnd) {
+                int startByte = storeStart >> 2;
+                memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
+                if ((xRn & 3) != 0) {
+                    partial = cn & ~mask[xRn & 3];
+                    havePartial = true;
+                }
+                else
+                    havePartial = false;
+            }
+            else {
+                if (co != cn && (xRn & 3) != 0) {
+                    partial = cn & ~mask[xRn & 3];
+                    havePartial = true;
+                }
+                else
+                    havePartial = false;
+            }
+        }
+        xLn = xRn;
+        cn = sn->_c;
+        ++sn;
+        xRn = sn->_x;
+        if (xRo == xLn) {
+            xLo = xRo;
+            co = so->_c;
+            ++so;
+            xRo = so->_x;
+        }
+    } while (xLn < 0xff);
+}
+
