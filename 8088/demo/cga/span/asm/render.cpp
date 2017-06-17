@@ -199,13 +199,16 @@ void fillTriangle(Point2 a, Point2 b, Point2 c, int colour)
     }
 }
 
-void addSpan(int c, int xL, int xR)
+void addSpan(Byte c, Byte xL, Byte xR, Byte* p)
 {
     if (xL >= xR)
         return;
-    int i;
-    for (i = 1; i < _n; ++i)
-        if (xL < _s[i]._x)
+
+    Byte* n = *(Byte**)(p - 1);
+
+    Byte* i;
+    for (i = p + 1;; i += 2)
+        if (xL < *p) //_s[i]._x)
             break;
     int j;
     for (j = i; j < _n; ++j)
