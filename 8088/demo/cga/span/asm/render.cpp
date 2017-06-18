@@ -206,16 +206,16 @@ void addSpan(Byte c, Byte xL, Byte xR, Byte* p)
 
     Byte* n = *(Byte**)(p - 1);
 
-    Byte* i;
-    for (i = p + 1;; i += 2)
-        if (xL < *p) //_s[i]._x)
-            break;
-    int j;
-    for (j = i; j < _n; ++j)
-        if (xR < _s[j]._x)
-            break;
-    --i;
-    --j;
+    Byte* i = p + 2;
+    do {
+        i += 2;
+    } while (xL >= *i);
+    i -= 2;
+    Byte* j = p;
+    do {
+        j += 2;
+    } while (xR >= *j);
+
     if (c == _s[i]._c)
         xL = _s[i]._x;
     else
