@@ -216,17 +216,17 @@ void addSpan(Byte c, Byte xL, Byte xR, Byte* p)
         j += 2;
     } while (xR >= *j);
 
-    if (c == _s[i]._c)
-        xL = _s[i]._x;
+    if (c == i[1])
+        xL = *i;
     else
-        if (i > 0 && xL == _s[i]._x && c == _s[i - 1]._c) {
+        if (i > 0 && xL == *i && c == i[-1]) {
             --i;
-            xL = _s[i]._x;
+            xL = *i;
         }
-    if (c == _s[j]._c)
-        xR = _s[j + 1]._x;
+    if (c == j[-1])
+        xR = *j;
     else
-        if (j < _n - 1 && xR == _s[j + 1]._x && c == _s[j + 1]._c) {
+        if (j < _n - 1 && xR == _s[j + 1]._x && c == _s[j + 1]._c) {    // TODO next
             ++j;
             xR = _s[j + 1]._x;
         }
