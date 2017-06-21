@@ -220,15 +220,15 @@ void addSpan(Byte c, Byte xL, Byte xR, Byte* p)
         xL = *i;
     else
         if (i > 0 && xL == *i && c == i[-1]) {
-            --i;
+            i -= 2;
             xL = *i;
         }
     if (c == j[-1])
         xR = *j;
     else
-        if (j < _n - 1 && xR == _s[j + 1]._x && c == _s[j + 1]._c) {    // TODO next
-            ++j;
-            xR = _s[j + 1]._x;
+        if (j < n && xR == *j && c == j[1]) {
+            j += 2;
+            xR = *j;
         }
     int o = j - i;
     if (xL == _s[i]._x) {
