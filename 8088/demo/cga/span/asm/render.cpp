@@ -230,11 +230,16 @@ void addSpan(Byte c, Byte xL, Byte xR, Byte* p)
             j += 2;
             xR = *j;
         }
-    int o = j - i;
-    if (xL == _s[i]._x) {
+
+    int o = (j - 2) - i;
+    if (xL == *i) {
         // Left of new span at left of left old
-        if (xR == _s[j + 1]._x) {
+        if (xR == *j) {
             // Right of new span at right of right old
+            n -= o;
+            *(Byte**)(p - 1) = n;
+
+
             _s[i]._c = c;
             _n -= o;
             for (int k = i + 1; k <= _n; ++k)
