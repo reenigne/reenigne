@@ -238,6 +238,8 @@ void addSpan(Byte c, Byte xL, Byte xR, Byte* p)
             // Right of new span at right of right old
             n -= o;
             *(Byte**)(p - 1) = n;
+            ++i;
+            *i = c;
 
 
             _s[i]._c = c;
