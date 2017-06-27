@@ -81,6 +81,63 @@ public:
         _buffers[0].clear();
         _buffers[1].clear();
     }
+    void create()
+    {
+        setText("CGA game");
+        setInnerSize(_outputSize);
+        _bitmap.setTopLeft(Vector(0, 0));
+        _bitmap.setInnerSize(_outputSize);
+        RootWindow::create();
+        _animated.start();
+    }
+    virtual void draw()
+    {
+        _data.change(0, 0, 0x4000, &_vram[0]);
+        _output.restart();
+        _animated.restart();
+    }
+    bool keyboardEvent(int key, bool up)
+    {
+        if (up)
+            return false;
+        switch (key) {
+            case VK_RIGHT:
+                if (_autoRotate)
+                    _dTheta += 1;
+                else
+                    _theta += 1;
+                return true;
+            case VK_LEFT:
+                if (_autoRotate)
+                    _dTheta -= 1;
+                else
+                    _theta -= 1;
+                return true;
+            case VK_UP:
+                if (_autoRotate)
+                    _dPhi -= 1;
+                else
+                    _phi -= 1;
+                return true;
+            case VK_DOWN:
+                if (_autoRotate)
+                    _dPhi += 1;
+                else
+                    _phi += 1;
+                return true;
+            case 'N':
+                _shape = (_shape + 1) % (sizeof(shapes)/sizeof(shapes[0]));
+                return true;
+            case VK_SPACE:
+                _autoRotate = !_autoRotate;
+                if (!_autoRotate) {
+                    _dTheta = 0;
+                    _dPhi = 0;
+                }
+                return true;
+        }
+        return false;
+    }
 private:
     FFTWWisdom<float> _wisdom;
     CGAData _data;
@@ -89,6 +146,10 @@ private:
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
 
+    Array<Byte> _background;
+    Array<Byte> _foreground;
+    Array<Byte> _buffer;
+    Array<Byte> _tiles;
 };
 
 class Program : public WindowProgram<GameWindow>
