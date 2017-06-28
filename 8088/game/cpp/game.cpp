@@ -77,9 +77,16 @@ public:
         _animated.setDrawWindow(this);
         _animated.setRate(60);
 
-        _buffer = 0;
-        _buffers[0].clear();
-        _buffers[1].clear();
+        _background.allocate(0x10000);
+        _foreground.allocate(0x10000);
+        _buffer.allocate(0x10000);
+        _tiles.allocate(0x10000);
+
+        for (int i = 0; i < 0x10000; ++i) {
+            _background[i] = rand() & 0xff;
+            _foreground[i] = rand() & 0xff;
+            _tiles[i] = rand() & 0xff;
+        }
     }
     void create()
     {
@@ -150,6 +157,10 @@ private:
     Array<Byte> _foreground;
     Array<Byte> _buffer;
     Array<Byte> _tiles;
+
+    int _tileWidth;
+    int _tileHeight;
+    int _
 };
 
 class Program : public WindowProgram<GameWindow>
