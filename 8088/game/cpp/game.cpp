@@ -81,6 +81,8 @@ public:
         _foreground.allocate(0x10000);
         _buffer.allocate(0x10000);
         _tiles.allocate(0x10000);
+        _tileWidth = 8;
+        _tileHeight = 16;
 
         for (int i = 0; i < 0x10000; ++i) {
             _background[i] = rand() & 0xff;
@@ -146,6 +148,22 @@ public:
         return false;
     }
 private:
+    void drawTileToBuffer(int tl, int tileIndex)
+    {
+        const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
+        for (int y = 0; y < _tileHeight; ++y)
+            for (int x = 0; x < _tileWidth; ++x) {
+                _buffer[tl] = *p;
+                ++p;
+                _buffer[tl + 1] = *p;
+                ++p;
+                tl += 2;
+                if (tl == 0x10000)
+                    tl = 0;
+            }
+    }
+
+
     FFTWWisdom<float> _wisdom;
     CGAData _data;
     CGASequencer _sequencer;
@@ -160,7 +178,6 @@ private:
 
     int _tileWidth;
     int _tileHeight;
-    int _
 };
 
 class Program : public WindowProgram<GameWindow>
