@@ -83,6 +83,9 @@ public:
         _tiles.allocate(0x8000);
         _tileWidth = 8;
         _tileHeight = 16;
+        _bufferStride = 128;
+        _screenColumns = 80;
+        _screenRows = 100;
 
         for (int i = 0; i < 0x10000; ++i) {
             _background[i] = rand() & 0xff;
@@ -151,17 +154,45 @@ public:
 private:
     void drawTileToBuffer(int tl, int tileIndex)
     {
-        const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
-        for (int y = 0; y < _tileHeight; ++y)
+        const Word* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
+        int rowIncrement = _bufferStride - _tileWidth;
+        for (int y = 0; y < _tileHeight; ++y) {
             for (int x = 0; x < _tileWidth; ++x) {
                 _buffer[tl] = *p;
                 ++p;
-                _buffer[tl + 1] = *p;
-                ++p;
-                tl += 2;
-                if (tl == 0x10000)
+                ++tl;
+                if (tl == 0x8000)
                     tl = 0;
             }
+            tl += rowIncrement;
+        }
+    }
+    void drawTransparentTileToBuffer(int tl, int tileIndex)
+    {
+        const Word* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
+        int rowIncrement = _bufferStride - _tileWidth;
+        for (int y = 0; y < _tileHeight; ++y) {
+            for (int x = 0; x < _tileWidth; ++x) {
+                if (*p != 0xffff)
+                    _buffer[tl] = *p;
+                ++p;
+                ++tl;
+                if (tl == 0x8000)
+                    tl = 0;
+            }
+            tl += rowIncrement;
+        }
+    }
+    void drawInitialScreen(int tl)  // tl here is index into foreground/background, not buffer
+    {
+        int bufferRow = 0;
+        for (int y = -_tileHeight; y < _screenRows + _tileHeight; y += _tileHeight) {
+            int buffer
+            for (int x = -_tileWidth; x < _screenColumns + _tileWidth; x += _tileWidth) {
+
+            }
+            bufferRow += _bufferStride;
+        }
     }
 
 
@@ -179,6 +210,9 @@ private:
 
     int _tileWidth;
     int _tileHeight;
+    int _bufferStride;
+    int _screenColumns;
+    int _screenRows;
 };
 
 class Program : public WindowProgram<GameWindow>
