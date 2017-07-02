@@ -79,20 +79,20 @@ public:
 
         _background.allocate(0x10000);
         _foreground.allocate(0x10000);
-        _buffer.allocate(0x8000);
-        _tiles.allocate(0x8000);
-        _tileWidth = 8;
+        _buffer.allocate(0x10000);
+        _tiles.allocate(0x10000);
+        _tileWidth = 16;
         _tileHeight = 16;
-        _bufferStride = 128;
-        _screenColumns = 80;
+        _bufferStride = 256;
+        _screenColumns = 160;
         _screenRows = 100;
+        _mapStride = 256;
 
         for (int i = 0; i < 0x10000; ++i) {
             _background[i] = rand() & 0xff;
             _foreground[i] = rand() & 0xff;
+            _tiles[i] = rand() & 0xff;
         }
-        for (int i = 0; i < 0x8000; ++i)
-            _tiles[i] = (rand() & 0xff) | ((rand() & 0xff) << 8);
     }
     void create()
     {
@@ -152,47 +152,55 @@ public:
         return false;
     }
 private:
-    void drawTileToBuffer(int tl, int tileIndex)
+    void drawTileToBuffer(Word tl, int tileIndex)
     {
-        const Word* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
+        const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
         int rowIncrement = _bufferStride - _tileWidth;
         for (int y = 0; y < _tileHeight; ++y) {
-            for (int x = 0; x < _tileWidth; ++x) {
-                _buffer[tl] = *p;
-                ++p;
-                ++tl;
-                if (tl == 0x8000)
-                    tl = 0;
+            for (int x = 0; x < _tileWidth; x += 2) {
+                Word c = *reinterpret_cast<Word*>(p);
+                *reinterpret_cast<Word*>(_buffer + tl) = c;
+                p += 2;
+                tl += 2;
             }
             tl += rowIncrement;
         }
     }
-    void drawTransparentTileToBuffer(int tl, int tileIndex)
+    void drawTransparentTileToBuffer(Word tl, int tileIndex)
     {
-        const Word* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
+        const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
         int rowIncrement = _bufferStride - _tileWidth;
         for (int y = 0; y < _tileHeight; ++y) {
-            for (int x = 0; x < _tileWidth; ++x) {
-                if (*p != 0xffff)
-                    _buffer[tl] = *p;
-                ++p;
-                ++tl;
-                if (tl == 0x8000)
-                    tl = 0;
+            for (int x = 0; x < _tileWidth; x += 2) {
+                Word c = *reinterpret_cast<Word*>(p);
+                if (c != 0xffff)
+                    *reinterpret_cast<Word*>(_buffer + tl) = c;
+                p += 2;
+                tl += 2;
             }
             tl += rowIncrement;
         }
     }
     void drawInitialScreen(int tl)  // tl here is index into foreground/background, not buffer
     {
-        int bufferRow = 0;
+        int bufferRow = -_tileHeight*_bufferStride - _tileWidth;
+        int mapRow = -_mapStride - 1;
         for (int y = -_tileHeight; y < _screenRows + _tileHeight; y += _tileHeight) {
-            int buffer
+            int buffer = bufferRow;
+            int map = mapRow;
             for (int x = -_tileWidth; x < _screenColumns + _tileWidth; x += _tileWidth) {
-
+                drawTileToBuffer(buffer, _background[map]);
+                drawTransparentTiletoBuffer(buffer, _foreground[map]);
+                buffer += _tileWidth;
+                ++map;
             }
-            bufferRow += _bufferStride;
+            bufferRow += _bufferStride*_tileHeight;
+            mapRow += _mapStride;
         }
+    }
+    void scroll(Word offset)
+    {
+
     }
 
 
@@ -202,17 +210,19 @@ private:
     CGAOutput _output;
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
+    Byte _vram[0x4000];
 
     Array<Byte> _background;
     Array<Byte> _foreground;
-    Array<Word> _buffer;
-    Array<Word> _tiles;
+    Array<Byte> _buffer;
+    Array<Byte> _tiles;
 
     int _tileWidth;
     int _tileHeight;
     int _bufferStride;
     int _screenColumns;
     int _screenRows;
+    int _mapStride;
 };
 
 class Program : public WindowProgram<GameWindow>
