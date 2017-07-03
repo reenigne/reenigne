@@ -36,9 +36,9 @@ public:
         _output.setLobes(1.5);
         _output.setPhase(1);
 
-        static const int regs = -CGAData::registerLogCharactersPerBank;
-        Byte cgaRegistersData[regs] = { 0 };
-        Byte* cgaRegisters = &cgaRegistersData[regs];
+        _regs = -CGAData::registerLogCharactersPerBank;
+        _cgaBytes.allocate(0x4000 + _regs);
+        Byte* cgaRegisters = &_cgaBytes[_regs];
         cgaRegisters[CGAData::registerLogCharactersPerBank] = 12;
         cgaRegisters[CGAData::registerScanlinesRepeat] = 1;
         cgaRegisters[CGAData::registerHorizontalTotalHigh] = 0;
@@ -65,9 +65,8 @@ public:
         cgaRegisters[CGAData::registerStartAddressLow] = 0;
         cgaRegisters[CGAData::registerCursorAddressHigh] = 0;
         cgaRegisters[CGAData::registerCursorAddressLow] = 0;
-        _data.change(0, -regs, regs, &cgaRegistersData[0]);
         _data.setTotals(238944, 910, 238875);
-        _data.change(0, 0, 0x4000, &_vram[0]);
+        _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
 
         _outputSize = _output.requiredSize();
 
@@ -93,6 +92,7 @@ public:
             _foreground[i] = rand() & 0xff;
             _tiles[i] = rand() & 0xff;
         }
+        drawInitialScreen(0);
     }
     void create()
     {
@@ -105,48 +105,29 @@ public:
     }
     virtual void draw()
     {
-        _data.change(0, 0, 0x4000, &_vram[0]);
+        cgaRegisters[CGAData::registerStartAddressHigh] = _startAddress >> 8;
+        cgaRegisters[CGAData::registerStartAddressLow] = _startAddress & 0xff;
+        _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
         _output.restart();
         _animated.restart();
     }
     bool keyboardEvent(int key, bool up)
     {
-        if (up)
-            return false;
         switch (key) {
             case VK_RIGHT:
-                if (_autoRotate)
-                    _dTheta += 1;
-                else
-                    _theta += 1;
+                _rightPressed = !up;
                 return true;
             case VK_LEFT:
-                if (_autoRotate)
-                    _dTheta -= 1;
-                else
-                    _theta -= 1;
+                _leftPressed = !up;
                 return true;
             case VK_UP:
-                if (_autoRotate)
-                    _dPhi -= 1;
-                else
-                    _phi -= 1;
+                _upPressed = !up;
                 return true;
             case VK_DOWN:
-                if (_autoRotate)
-                    _dPhi += 1;
-                else
-                    _phi += 1;
-                return true;
-            case 'N':
-                _shape = (_shape + 1) % (sizeof(shapes)/sizeof(shapes[0]));
+                _downPressed = !up;
                 return true;
             case VK_SPACE:
-                _autoRotate = !_autoRotate;
-                if (!_autoRotate) {
-                    _dTheta = 0;
-                    _dPhi = 0;
-                }
+                _spacePressed = !up;
                 return true;
         }
         return false;
@@ -198,10 +179,6 @@ private:
             mapRow += _mapStride;
         }
     }
-    void scroll(Word offset)
-    {
-
-    }
 
 
     FFTWWisdom<float> _wisdom;
@@ -210,7 +187,10 @@ private:
     CGAOutput _output;
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
-    Byte _vram[0x4000];
+    Array<Byte> _cgaBytes;
+
+    Byte* _vram;
+    Word _startAddress;
 
     Array<Byte> _background;
     Array<Byte> _foreground;
@@ -223,6 +203,13 @@ private:
     int _screenColumns;
     int _screenRows;
     int _mapStride;
+    int _regs;
+
+    bool _upPressed;
+    bool _downPressed;
+    bool _leftPressed;
+    bool _rightPressed;
+    bool _spacePressed;
 };
 
 class Program : public WindowProgram<GameWindow>
