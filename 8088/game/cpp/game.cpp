@@ -105,11 +105,11 @@ public:
     }
     virtual void draw()
     {
-        cgaRegisters[CGAData::registerStartAddressHigh] = _startAddress >> 8;
-        cgaRegisters[CGAData::registerStartAddressLow] = _startAddress & 0xff;
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
         _output.restart();
         _animated.restart();
+
+
     }
     bool keyboardEvent(int key, bool up)
     {
@@ -133,6 +133,13 @@ public:
         return false;
     }
 private:
+    struct Node
+    {
+        Byte drawn;
+        Byte undrawn;
+        Word next;
+    };
+
     void drawTileToBuffer(Word tl, int tileIndex)
     {
         const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
@@ -178,6 +185,11 @@ private:
             bufferRow += _bufferStride*_tileHeight;
             mapRow += _mapStride;
         }
+    }
+    void setStartAddress(int a)
+    {
+        _cgaBytes[_regs + CGAData::registerStartAddressHigh] = a >> 8;
+        _cgaBytes[_regs + CGAData::registerStartAddressLow] = a & 0xff;
     }
 
 
