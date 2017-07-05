@@ -81,11 +81,16 @@ public:
         _buffer.allocate(0x10000);
         _tiles.allocate(0x10000);
         _tileWidth = 16;
+        _tileWidthCharacters = _tileWidth >> 1;
         _tileHeight = 16;
         _bufferStride = 256;
-        _screenColumns = 160;
+        _screenColumns = 80;
         _screenRows = 100;
         _mapStride = 256;
+        _horizontalAcceleration = 0x100;
+        _verticalAcceleration = 0x100;
+        _horizontalMaxVelocity = 0x100;
+        _verticalMaxVelocity = 0x100;
 
         for (int i = 0; i < 0x10000; ++i) {
             _background[i] = rand() & 0xff;
@@ -105,11 +110,147 @@ public:
     }
     virtual void draw()
     {
+        // Time: immediately before active region starts
+        // IRQ0 fires to stop VRAM accessing
+        // (not emulated here - we assume there's time for all VRAM writes)
+
+        // Time: active region starts
+        // CRTC latches start address
+        // (VRAM data is also latched here but we don't write to that in
+        // active region anyway so it's fine)
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
         _output.restart();
         _animated.restart();
 
+        // onScreenHandler
+        // EOI
+        // Switch IRQ0 handler to offScreenHandler
+        // Set count for PIT channel 0 to inactive cycles
+        // Start foreground sound
+        // Set start address:
+        _cgaBytes[_regs + CGAData::registerStartAddressHigh] =
+            _startAddress >> 8;
+        _cgaBytes[_regs + CGAData::registerStartAddressLow] =
+            _startAddress & 0xff;
+        // Check keyboard
+        if (_leftPressed) {
+            if (!_rightPressed) {
+                // Speed up leftwards
+                _xVelocity -= _horizontalAcceleration;
+                if (_xVelocity < -_horizontalMaxVelocity)
+                    _xVelocity = -_horizontalMaxVelocity;
+            }
+            // If both left and right are pressed, maintain horizontal velocity
+        }
+        else {
+            if (_rightPressed) {
+                // Speed up rightwards
+                _xVelocity += _horizontalAcceleration;
+                if (_xVelocity > _horizontalMaxVelocity)
+                    _xVelocity = _horizontalMaxVelocity;
+            }
+            else {
+                // Slow down
+                if (_xVelocity > 0) {
+                    _xVelocity -= _horizontalAcceleration;
+                    if (_xVelocity < 0)
+                        _xVelocity = 0;
+                }
+                else {
+                    _xVelocity += _horizontalAcceleration;
+                    if (_xVelocity > 0)
+                        _xVelocity = 0;
+                }
+            }
+        }
+        if (_upPressed) {
+            if (!_downPressed) {
+                // Speed up downwards
+                _yVelocity -= _verticalAcceleration;
+                if (_yVelocity < -_verticalMaxVelocity)
+                    _yVelocity = -_verticalMaxVelocity;
+            }
+            // If both up and down are pressed, maintain vertical velocity
+        }
+        else {
+            if (_downPressed) {
+                // Speed up downwards
+                _yVelocity += _verticalAcceleration;
+                if (_yVelocity > _verticalMaxVelocity)
+                    _yVelocity = _verticalMaxVelocity;
+            }
+            else {
+                // Slow down
+                if (_yVelocity > 0) {
+                    _yVelocity -= _verticalAcceleration;
+                    if (_yVelocity < 0)
+                        _yVelocity = 0;
+                }
+                else {
+                    _yVelocity += _verticalAcceleration;
+                    if (_yVelocity > 0)
+                        _yVelocity = 0;
+                }
+            }
+        }
+        // Move
+        int xSubTileHighOld = _xSubTile >> 8;
+        int ySubTileHighOld = _ySubTile >> 8;
+        if (_xVelocity > 0) {
+            _xSubTile += _xVelocity;
+            if ((_xSubTile >> 8) > _tileWidthCharacters) {
+                _xSubTile -= _tileWidthCharacters << 8;
+                ++_xTile;
+            }
+        }
+        else {
+            _xSubTile += _xVelocity;
+            if ((_xSubTile >> 8) < 0) {
+                _xSubTile += _tileWidthCharacters << 8;
+                --_xTile;
+            }
+        }
+        if (_yVelocity > 0) {
+            _ySubTile += _yVelocity;
+            if ((_ySubTile >> 8) > _tileHeight) {
+                _ySubTile -= _tileHeight << 8;
+                ++_yTile;
+            }
+        }
+        else {
+            _ySubTile += _yVelocity;
+            if ((_ySubTile >> 8) < 0) {
+                _ySubTile += _tileHeight << 8;
+                --_yTile;
+            }
+        }
+        int deltaX = (_xSubTile >> 8) - xSubTileHighOld;
+        int deltaY = (_ySubTile >> 8) - ySubTileHighOld;
+        int delta = deltaY*screenColumns + deltaX;
+        _startAddress += delta;
+        switch (delta) {
+            case 0:
 
+        }
+
+
+
+
+
+
+        // Time: inactive region starts
+        // IRQ0 fires to start VRAM update
+
+        // offScreenHandler
+        // EOI
+        // Switch IRQ0 handler to onScreenHandler
+        // Set count for PIT channel 0 to active cycles
+        // Start background sound
+        // Start interrupts
+        // Switch stack to VRAM update list
+        // Copy from buffer to VRAM
+        for (auto i : _updateBlocks)
+            updateBlock(i);
     }
     bool keyboardEvent(int key, bool up)
     {
@@ -138,6 +279,15 @@ private:
         Byte drawn;
         Byte undrawn;
         Word next;
+    };
+    struct UpdateBlock
+    {
+        Word bufferTopLeft;
+        Word vramTopLeft;
+        Word sourceAdd;
+        Word destinationAdd;
+        Word columns;
+        Word rows;
     };
 
     void drawTileToBuffer(Word tl, int tileIndex)
@@ -176,7 +326,7 @@ private:
         for (int y = -_tileHeight; y < _screenRows + _tileHeight; y += _tileHeight) {
             int buffer = bufferRow;
             int map = mapRow;
-            for (int x = -_tileWidth; x < _screenColumns + _tileWidth; x += _tileWidth) {
+            for (int x = -_tileWidth; x < _screenColumns*2 + _tileWidth; x += _tileWidth) {
                 drawTileToBuffer(buffer, _background[map]);
                 drawTransparentTiletoBuffer(buffer, _foreground[map]);
                 buffer += _tileWidth;
@@ -186,10 +336,21 @@ private:
             mapRow += _mapStride;
         }
     }
-    void setStartAddress(int a)
+    void updateBlock(UpdateBlock b)
     {
-        _cgaBytes[_regs + CGAData::registerStartAddressHigh] = a >> 8;
-        _cgaBytes[_regs + CGAData::registerStartAddressLow] = a & 0xff;
+        Word s = b.bufferTopLeft;
+        Word d = b.vramTopLeft;
+        Byte* buffer = &_buffer[0];
+        for (int y = 0; y < b.rows; ++y) {
+            for (int x = 0; x < b.columns; ++x) {
+                *reinterpret_cast<Word*>(_vram + d) =
+                    *reinterpret_cast<Word*>(buffer + s);
+                s += 2;
+                d += 2;
+            }
+            s += b.sourceAdd;
+            d += b.destinationAdd;
+        }
     }
 
 
@@ -200,6 +361,7 @@ private:
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
     Array<Byte> _cgaBytes;
+    int _regs;
 
     Byte* _vram;
     Word _startAddress;
@@ -210,18 +372,31 @@ private:
     Array<Byte> _tiles;
 
     int _tileWidth;
+    int _tileWidthCharacters;
     int _tileHeight;
     int _bufferStride;
     int _screenColumns;
     int _screenRows;
     int _mapStride;
-    int _regs;
+    int _horizontalAcceleration;
+    int _verticalAcceleration;
+    int _horizontalMaxVelocity;
+    int _verticalMaxVelocity;
 
     bool _upPressed;
     bool _downPressed;
     bool _leftPressed;
     bool _rightPressed;
     bool _spacePressed;
+
+    int _xVelocity;
+    int _yVelocity;
+    int _xSubtile;
+    int _ySubtile;
+    int _xTile;
+    int _yTile;
+
+    AppendableArray<UpdateBlock> _updateBlocks;
 };
 
 class Program : public WindowProgram<GameWindow>
