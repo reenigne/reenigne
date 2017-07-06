@@ -80,11 +80,12 @@ public:
         _foreground.allocate(0x10000);
         _buffer.allocate(0x10000);
         _tiles.allocate(0x10000);
-        _tileWidth = 16;
-        _tileWidthCharacters = _tileWidth >> 1;
-        _tileHeight = 16;
+        _tileColumns = 8;
+        _tileWidthBytes = _tileColumns << 1;
+        _tileRows = 16;
         _bufferStride = 256;
         _screenColumns = 80;
+		_screenWidthBytes = _screenColumns << 1;
         _screenRows = 100;
         _mapStride = 256;
         _horizontalAcceleration = 0x100;
@@ -92,13 +93,67 @@ public:
         _horizontalMaxVelocity = 0x100;
         _verticalMaxVelocity = 0x100;
 
+		_tilesPerScreenHorizontally =
+			(_screenColumns + 2*_tileColumns - 2) / _tileColumns;
+		_tilesPerScreenVertically =
+			(_screenRows + 2*_tileRows - 2) / _tileRows;
+		int maxNodes = ((_tilesPerScreenHorizontally + 1)/2 +
+			(_tilesPerScreenVertically + 1)/2)*2;
+	    _nodePool.allocate(maxNodes);
+		initList(&_freeNodes);
+		initList(&_leftNodes);
+		initList(&_topNodes);
+		initList(&_rightNodes);
+		initList(&_bottomNodes);
+		for (int i = 0; i < maxNodes; ++i)
+			freeNode(&_nodePool[i]);
+		Node* n = getNode();
+		n->drawn = _tilesPerScreenVertically;
+		n->undrawn = 0;
+		insertNodeAfter(n, &_leftNodes);
+		n = getNode();
+		n->drawn = _tilesPerScreenHorizontally;
+		n->undrawn = 0;
+		insertNodeAfter(n, &_topNodes);
+		n = getNode();
+		n->drawn = _tilesPerScreenVertically;
+		n->undrawn = 0;
+		insertNodeAfter(n, &_rightNodes);
+		n = getNode();
+		n->drawn = _tilesPerScreenHorizontally;
+		n->undrawn = 0;
+		insertNodeAfter(n, &_bottomNodes);
+		
+
+
+
+
+
         for (int i = 0; i < 0x10000; ++i) {
             _background[i] = rand() & 0xff;
             _foreground[i] = rand() & 0xff;
             _tiles[i] = rand() & 0xff;
         }
-        drawInitialScreen(0);
-    }
+
+		// Draw initial screen
+		int bufferRow = -_tileRows*_bufferStride - _tileWidthBytes;
+		int mapRow = -_mapStride - 1;
+		for (int y = -_tileRows; y < _screenRows + _tileRows;
+			y += _tileRows) {
+			int buffer = bufferRow;
+			int map = mapRow;
+			for (int x = -_tileWidthBytes;
+				x < _screenWidthBytes + _tileWidthBytes;
+				x += _tileWidthBytes) {
+				drawTileToBuffer(buffer, _background[map]);
+				drawTransparentTileToBuffer(buffer, _foreground[map]);
+				buffer += _tileWidthBytes;
+				++map;
+			}
+			bufferRow += _bufferStride*_tileRows;
+			mapRow += _mapStride;
+		}
+	}
     void create()
     {
         setText("CGA game");
@@ -198,41 +253,104 @@ public:
         int ySubTileHighOld = _ySubTile >> 8;
         if (_xVelocity > 0) {
             _xSubTile += _xVelocity;
-            if ((_xSubTile >> 8) > _tileWidthCharacters) {
-                _xSubTile -= _tileWidthCharacters << 8;
+            if ((_xSubTile >> 8) > _tileColumns) {
+                _xSubTile -= _tileColumns << 8;
                 ++_xTile;
             }
         }
         else {
             _xSubTile += _xVelocity;
             if ((_xSubTile >> 8) < 0) {
-                _xSubTile += _tileWidthCharacters << 8;
+                _xSubTile += _tileColumns << 8;
                 --_xTile;
             }
         }
         if (_yVelocity > 0) {
             _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) > _tileHeight) {
-                _ySubTile -= _tileHeight << 8;
+            if ((_ySubTile >> 8) > _tileRows) {
+                _ySubTile -= _tileRows << 8;
                 ++_yTile;
             }
         }
         else {
             _ySubTile += _yVelocity;
             if ((_ySubTile >> 8) < 0) {
-                _ySubTile += _tileHeight << 8;
+                _ySubTile += _tileRows << 8;
                 --_yTile;
             }
         }
         int deltaX = (_xSubTile >> 8) - xSubTileHighOld;
         int deltaY = (_ySubTile >> 8) - ySubTileHighOld;
-        int delta = deltaY*screenColumns + deltaX;
-        _startAddress += delta;
-        switch (delta) {
-            case 0:
-
-        }
-
+		if (deltaX < 0) {
+			if (deltaY < 0) {
+				// Move up and left
+				_startAddress -= _screenColumns + 1;
+				_bufferTopLeft -= _screenWidthBytes;
+				addUpdateBlock(0, 0, _screenColumns, 1);
+				addUpdateBlock(0, 1, 1, _screenRows - 1);
+			}
+			else {
+				if (deltaY > 0) { 
+					// Move down and left
+					_startAddress += _screenColumns - 1;
+					_bufferTopLeft += _screenWidthBytes - 2;
+					addUpdateBlock(_screenRows - 1, 0, _screenColumns, 1);
+					addUpdateBlock(0, 0, 1, _screenRows - 1);
+				}
+				else {
+					// Move left
+					--_startAddress;
+					_bufferTopLeft -= 2;
+					addUpdateBlock(0, 0, 1, _screenRows);
+				}
+			}
+		}
+		else {
+			if (deltaX > 0) {
+				if (deltaY < 0) {
+					// Move up and right
+					_startAddress -= _screenColumns - 1;
+					_bufferTopLeft -= _screenWidthBytes - 2;
+					addUpdateBlock(0, 0, _screenColumns, 1);
+					addUpdateBlock(_screenColumns - 1, 1, 1, _screenRows - 1);
+				}
+				else {
+					if (deltaY > 0) { 
+						// Move down and right
+						_startAddress += _screenColumns + 1;
+						_bufferTopLeft += _screenWidthBytes + 2;
+						addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+						addUpdateBlock(_screenColumns - 1, 0, 1,
+							_screenRows - 1);
+					}
+					else {
+						// Move right
+						++_startAddress;
+						_bufferTopLeft += 2;
+						addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows);
+					}
+				}
+			}
+			else {
+				if (deltaY < 0) {
+					// Move up
+					_startAddress -= _screenColumns;
+					_bufferTopLeft -= _screenWidthBytes;
+					addUpdateBlock(0, 0, _screenColumns, 1);
+				}
+				else {
+					if (deltaY > 0) {
+						// Move down
+						_startAddress += _screenColumns;
+						_bufferTopLeft += _screenWidthBytes;
+						addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+					}
+					else {
+						// No change
+					}
+				}
+			}
+		}
 
 
 
@@ -278,7 +396,8 @@ private:
     {
         Byte drawn;
         Byte undrawn;
-        Word next;
+        Node* next;
+		Node* previous;
     };
     struct UpdateBlock
     {
@@ -292,12 +411,13 @@ private:
 
     void drawTileToBuffer(Word tl, int tileIndex)
     {
-        const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
-        int rowIncrement = _bufferStride - _tileWidth;
-        for (int y = 0; y < _tileHeight; ++y) {
-            for (int x = 0; x < _tileWidth; x += 2) {
-                Word c = *reinterpret_cast<Word*>(p);
-                *reinterpret_cast<Word*>(_buffer + tl) = c;
+        const Byte* p = &_tiles[tileIndex*_tileWidthBytes*_tileRows];
+        int rowIncrement = _bufferStride - _tileWidthBytes;
+		Byte* buffer = &_buffer[0];
+        for (int y = 0; y < _tileRows; ++y) {
+            for (int x = 0; x < _tileColumns; ++x) {
+                Word c = *reinterpret_cast<const Word*>(p);
+                *reinterpret_cast<Word*>(buffer + tl) = c;
                 p += 2;
                 tl += 2;
             }
@@ -306,35 +426,23 @@ private:
     }
     void drawTransparentTileToBuffer(Word tl, int tileIndex)
     {
-        const Byte* p = &_tiles[tileIndex*_tileWidth*_tileHeight];
-        int rowIncrement = _bufferStride - _tileWidth;
-        for (int y = 0; y < _tileHeight; ++y) {
-            for (int x = 0; x < _tileWidth; x += 2) {
-                Word c = *reinterpret_cast<Word*>(p);
+        const Byte* p = &_tiles[tileIndex*_tileWidthBytes*_tileRows];
+        int rowIncrement = _bufferStride - _tileWidthBytes;
+		Byte* buffer = &_buffer[0];
+		for (int y = 0; y < _tileRows; ++y) {
+            for (int x = 0; x < _tileColumns; ++x) {
+                Word c = *reinterpret_cast<const Word*>(p);
                 if (c != 0xffff)
-                    *reinterpret_cast<Word*>(_buffer + tl) = c;
+                    *reinterpret_cast<Word*>(buffer + tl) = c;
                 p += 2;
                 tl += 2;
             }
             tl += rowIncrement;
         }
     }
-    void drawInitialScreen(int tl)  // tl here is index into foreground/background, not buffer
+	// tl here is index into foreground/background, not buffer
+    void drawInitialScreen(int tl)
     {
-        int bufferRow = -_tileHeight*_bufferStride - _tileWidth;
-        int mapRow = -_mapStride - 1;
-        for (int y = -_tileHeight; y < _screenRows + _tileHeight; y += _tileHeight) {
-            int buffer = bufferRow;
-            int map = mapRow;
-            for (int x = -_tileWidth; x < _screenColumns*2 + _tileWidth; x += _tileWidth) {
-                drawTileToBuffer(buffer, _background[map]);
-                drawTransparentTiletoBuffer(buffer, _foreground[map]);
-                buffer += _tileWidth;
-                ++map;
-            }
-            bufferRow += _bufferStride*_tileHeight;
-            mapRow += _mapStride;
-        }
     }
     void updateBlock(UpdateBlock b)
     {
@@ -352,6 +460,50 @@ private:
             d += b.destinationAdd;
         }
     }
+	void addUpdateBlock(int left, int top, int columns, int rows)
+	{
+		UpdateBlock b;
+		b.bufferTopLeft = left + top*_bufferStride + _bufferTopLeft;
+		b.vramTopLeft = left + top*_screenWidthBytes + _startAddress;
+		b.sourceAdd = _bufferStride - columns*2;
+		b.destinationAdd = _screenWidthBytes - columns*2;
+		b.columns = columns;
+		b.rows = rows;
+		_updateBlocks.append(b);
+	}
+	void removeNodeFromList(Node* node)
+	{
+		Node* next = node->next;
+		Node* previous = node->previous;
+		next->previous = previous;
+		previous->next = next;
+	}
+	void insertNodeAfter(Node* node, Node* newPrevious)
+	{
+		Node* newNext = newPrevious->next;
+		node->previous = newPrevious;
+		node->next = newNext;
+		newPrevious->next = node;
+		newNext->previous = node;
+	}
+	Node* getNode()
+	{
+		Node* node = _freeNodes.next;
+		removeNodeFromList(node);
+		return node;
+	}
+	void freeNode(Node* node)
+	{
+		insertNodeAfter(node, &_freeNodes);
+	}
+	void initList(Node* node)
+	{
+		node->next = node;
+		node->previous = node;
+	}
+	void shiftLeftUp(Node* list)
+	{
+	}
 
 
     FFTWWisdom<float> _wisdom;
@@ -360,7 +512,8 @@ private:
     CGAOutput _output;
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
-    Array<Byte> _cgaBytes;
+	Vector _outputSize;
+	Array<Byte> _cgaBytes;
     int _regs;
 
     Byte* _vram;
@@ -371,13 +524,16 @@ private:
     Array<Byte> _buffer;
     Array<Byte> _tiles;
 
-    int _tileWidth;
-    int _tileWidthCharacters;
-    int _tileHeight;
+    int _tileColumns;
+    int _tileWidthBytes;
+    int _tileRows;
     int _bufferStride;
     int _screenColumns;
+	int _screenWidthBytes;
     int _screenRows;
     int _mapStride;
+	int _tilesPerScreenHorizontally;
+	int _tilesPerScreenVertically;
     int _horizontalAcceleration;
     int _verticalAcceleration;
     int _horizontalMaxVelocity;
@@ -391,12 +547,20 @@ private:
 
     int _xVelocity;
     int _yVelocity;
-    int _xSubtile;
-    int _ySubtile;
+    int _xSubTile;
+    int _ySubTile;
     int _xTile;
     int _yTile;
+	Word _bufferTopLeft;
 
     AppendableArray<UpdateBlock> _updateBlocks;
+	Array<Node> _nodePool;
+	Node* _nodes;
+	Node _freeNodes;
+	Node _leftNodes;
+	Node _topNodes;
+	Node _rightNodes;
+	Node _bottomNodes;
 };
 
 class Program : public WindowProgram<GameWindow>
