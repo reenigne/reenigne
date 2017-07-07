@@ -97,7 +97,12 @@ public:
 			(_screenColumns + 2*_tileColumns - 2) / _tileColumns;
 		_tilesPerScreenVertically =
 			(_screenRows + 2*_tileRows - 2) / _tileRows;
-		int maxNodes = ((_tilesPerScreenHorizontally + 1)/2 +
+		// We extend the horizontal transition areas out to the corners.
+		// TODO: Decide whether to associate the corners with the horizontal
+		// transition areas or the vertical transition areas based on
+		// _tilesPerScreenHorizontally/_tileRows and
+		// _tilesPerScreenVertically/_tileColumns .
+		int maxNodes = ((_tilesPerScreenHorizontally + 3)/2 +
 			(_tilesPerScreenVertically + 1)/2)*2;
 	    _nodePool.allocate(maxNodes);
 		initList(&_freeNodes);
@@ -111,22 +116,39 @@ public:
 		n->drawn = _tilesPerScreenVertically;
 		n->undrawn = 0;
 		insertNodeAfter(n, &_leftNodes);
+		_leftNodes.drawn = n->drawn;
 		n = getNode();
-		n->drawn = _tilesPerScreenHorizontally;
+		n->drawn = _tilesPerScreenHorizontally + 2;
 		n->undrawn = 0;
 		insertNodeAfter(n, &_topNodes);
+		_topNodes.drawn = n->drawn;
 		n = getNode();
 		n->drawn = _tilesPerScreenVertically;
 		n->undrawn = 0;
 		insertNodeAfter(n, &_rightNodes);
+		_rightNodes.drawn = n->drawn;
 		n = getNode();
-		n->drawn = _tilesPerScreenHorizontally;
+		n->drawn = _tilesPerScreenHorizontally + 2;
 		n->undrawn = 0;
 		insertNodeAfter(n, &_bottomNodes);
-		
+		_bottomNodes.drawn = n->drawn;
 
-
-
+		_minTransitionalTilesForSubTileLeft.allocate(_tileColumns);
+		_minTransitionalTilesForSubTileTop.allocate(_tileRows);
+		_minTransitionalTilesForSubTileRight.allocate(_tileColumns);
+		_minTransitionalTilesForSubTileBottom.allocate(_tileRows);
+		for (int i = 0; i < _tileColumns; ++i) {
+			_minTransitionalTilesForSubTileLeft[i] =
+				(_tileColumns - i)*_tilesPerScreenVertically/_tileColumns;
+			_minTransitionalTilesForSubTileRight[i] =
+				(1 + i)*_tilesPerScreenVertically/_tileColumns;
+		}
+		for (int i = 0; i < _tileRows; ++i) {
+			_minTransitionalTilesForSubTileTop[i] =
+				(_tileRows - i)*(_tilesPerScreenHorizontally + 2)/_tileRows;
+			_minTransitionalTilesForSubTileBottom[i] =
+				(1 + i)*(_tilesPerScreenHorizontally + 2)/_tileRows;
+		}
 
 
         for (int i = 0; i < 0x10000; ++i) {
@@ -138,13 +160,10 @@ public:
 		// Draw initial screen
 		int bufferRow = -_tileRows*_bufferStride - _tileWidthBytes;
 		int mapRow = -_mapStride - 1;
-		for (int y = -_tileRows; y < _screenRows + _tileRows;
-			y += _tileRows) {
+		for (int y = -1; y < _tilesPerScreenVertically + 1; ++y) {
 			int buffer = bufferRow;
 			int map = mapRow;
-			for (int x = -_tileWidthBytes;
-				x < _screenWidthBytes + _tileWidthBytes;
-				x += _tileWidthBytes) {
+			for (int x = -1; x < _tilesPerScreenHorizontally + 1; ++x) {
 				drawTileToBuffer(buffer, _background[map]);
 				drawTransparentTileToBuffer(buffer, _foreground[map]);
 				buffer += _tileWidthBytes;
@@ -256,6 +275,10 @@ public:
             if ((_xSubTile >> 8) > _tileColumns) {
                 _xSubTile -= _tileColumns << 8;
                 ++_xTile;
+				setListFilled(&_leftNodes, _tilesPerScreenVertically);
+				setListEmpty(&_rightNodes, _tilesPerScreenVertically);
+				shiftLeft(&_topNodes);
+				shiftLeft(&_bottomNodes);
             }
         }
         else {
@@ -263,6 +286,10 @@ public:
             if ((_xSubTile >> 8) < 0) {
                 _xSubTile += _tileColumns << 8;
                 --_xTile;
+				setListEmpty(&_leftNodes, _tilesPerScreenVertically);
+				setListFilled(&_rightNodes, _tilesPerScreenVertically);
+				shiftRight(&_topNodes);
+				shiftRight(&_bottomNodes);
             }
         }
         if (_yVelocity > 0) {
@@ -270,6 +297,10 @@ public:
             if ((_ySubTile >> 8) > _tileRows) {
                 _ySubTile -= _tileRows << 8;
                 ++_yTile;
+				setListFilled(&_topNodes, _tilesPerScreenHorizontally + 2);
+				setListEmpty(&_bottomNodes, _tilesPerScreenHorizontally + 2);
+				shiftUp(&_leftNodes);
+				shiftUp(&_rightNodes);
             }
         }
         else {
@@ -277,6 +308,10 @@ public:
             if ((_ySubTile >> 8) < 0) {
                 _ySubTile += _tileRows << 8;
                 --_yTile;
+				setListEmpty(&_topNodes, _tilesPerScreenHorizontally + 2);
+				setListFilled(&_bottomNodes, _tilesPerScreenHorizontally + 2);
+				shiftDown(&_leftNodes);
+				shiftDown(&_rightNodes);
             }
         }
         int deltaX = (_xSubTile >> 8) - xSubTileHighOld;
@@ -288,6 +323,7 @@ public:
 				_bufferTopLeft -= _screenWidthBytes;
 				addUpdateBlock(0, 0, _screenColumns, 1);
 				addUpdateBlock(0, 1, 1, _screenRows - 1);
+
 			}
 			else {
 				if (deltaY > 0) { 
@@ -501,8 +537,89 @@ private:
 		node->next = node;
 		node->previous = node;
 	}
-	void shiftLeftUp(Node* list)
+	void shiftLeft(Node* list)
 	{
+		Node* n = list->next;
+		if (n->drawn != 0) {
+			--n->drawn;
+			return;
+		}
+		if (n->undrawn != 0) {
+			--n->undrawn;
+			if (n->undrawn == 0) {
+				removeNodeFromList(n);
+				freeNode(n);
+			}
+		}
+	}
+	void shiftUp(Node* list)
+	{
+		Node* n = list->next;
+		if (n->drawn != 0) {
+			--n->drawn;
+			return;
+		}
+		if (n->undrawn != 0) {
+			--n->undrawn;
+			if (n->undrawn == 0) {
+				removeNodeFromList(n);
+				freeNode(n);
+			}
+		}
+	}
+	void shiftRight(Node* list)
+	{
+	}
+	void shiftDown(Node* list)
+	{
+	}
+	void clearList(Node* list)
+	{
+		Node* n = list->next;
+		Node* p = list->previous;
+		if (n != p) {
+			Node* nn = n->next;
+			nn->previous = &_freeNodes;
+			p->next = _freeNodes.next;
+			_freeNodes.next->previous = p;
+			_freeNodes.next = nn;
+
+			_freeNodes.previous = p;
+			_freeNodes.next = nn;
+
+			n->next = list;
+			list->previous = n;
+		}
+	}
+	void setListEmpty(Node* list, int tiles)
+	{
+		list->drawn = 0;
+		list->next->drawn = 0;
+		list->next->undrawn = tiles;
+		clearList(list);
+	}
+	void setListFilled(Node* list, int tiles)
+	{
+		list->drawn = tiles;
+		list->next->drawn = tiles;
+		list->next->undrawn = 0;
+		clearList(list);
+	}
+	int findUndrawnTile(Node* list)
+	{
+		Node* n = list->next;
+		int i = n->drawn;
+		++n->drawn;
+		--n->undrawn;
+		if (n->undrawn == 0) {
+			Node* nn = n->next;
+			if (nn != list) {
+                n->drawn += nn->drawn;
+			    n->undrawn = nn->undrawn;
+			    removeNodeFromList(n);
+			    freeNode(n);
+			}
+		}
 	}
 
 
@@ -538,6 +655,10 @@ private:
     int _verticalAcceleration;
     int _horizontalMaxVelocity;
     int _verticalMaxVelocity;
+	Array<Byte> _minTransitionalTilesForSubTileLeft;
+	Array<Byte> _minTransitionalTilesForSubTileTop;
+	Array<Byte> _minTransitionalTilesForSubTileRight;
+	Array<Byte> _minTransitionalTilesForSubTileBottom;
 
     bool _upPressed;
     bool _downPressed;
