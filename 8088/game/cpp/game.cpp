@@ -67,6 +67,7 @@ public:
         cgaRegisters[CGAData::registerCursorAddressLow] = 0;
         _data.setTotals(238944, 910, 238875);
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
+		_vram = &_cgaBytes[_regs];
 
         _outputSize = _output.requiredSize();
 
@@ -83,15 +84,22 @@ public:
         _tileColumns = 8;
         _tileWidthBytes = _tileColumns << 1;
         _tileRows = 16;
-        _bufferStride = 256;
+        _bufferStride = 0x100;
         _screenColumns = 80;
 		_screenWidthBytes = _screenColumns << 1;
         _screenRows = 100;
-        _mapStride = 256;
+        _mapStride = 0x100;
         _horizontalAcceleration = 0x100;
         _verticalAcceleration = 0x100;
         _horizontalMaxVelocity = 0x100;
         _verticalMaxVelocity = 0x100;
+		_tilePointers.allocate(0x100);
+		Word tilePointer = 0;
+		int tileBytes = _tileRows*_tileWidthBytes;
+		for (int i = 0; i < 0x100; ++i) {
+			_tilePointers[i] = tilePointer;
+			tilePointer += tileBytes;
+		}
 
 		_tilesPerScreenHorizontally =
 			(_screenColumns + 2*_tileColumns - 2) / _tileColumns;
@@ -132,21 +140,55 @@ public:
 		n->undrawn = 0;
 		insertNodeAfter(n, &_bottomNodes);
 		_bottomNodes.drawn = n->drawn;
+		_bufferLeft.allocate(_tilesPerScreenVertically);
+		_mapLeft.allocate(_tilesPerScreenVertically);
+		_bufferTop.allocate(_tilesPerScreenHorizontally + 2);
+		_bufferRight.allocate(_tilesPerScreenVertically);
+		_mapRight.allocate(_tilesPerScreenVertically);
+		_bufferBottom.allocate(_tilesPerScreenHorizontally + 2);
+		_mapBottom.allocate(_tilesPerScreenHorizontally + 2);
+		int bufferTileStride = _bufferStride*_tileRows;
+		int bufferLeft = bufferTileStride;
+		int mapLeft = _mapStride;
+		int bufferRight = bufferLeft +
+			(_tilesPerScreenHorizontally + 1)*_tileColumns;
+		int mapRight = mapLeft + _tilesPerScreenHorizontally + 1;
+		for (int i = 0; i < _tilesPerScreenVertically; ++i) {
+			_bufferLeft[i] = bufferLeft;
+			_mapLeft[i] = mapLeft;
+			_bufferRight[i] = bufferRight;
+			_mapRight[i] = mapRight;
+			bufferLeft += bufferTileStride;
+			bufferRight += bufferTileStride;
+			mapLeft += _mapStride;
+			mapRight += _mapStride;
+		}
+		int bufferTop = 0;
+		int bufferBottom = (_tilesPerScreenVertically + 1)*bufferTileStride;
+		int mapBottom = (_tilesPerScreenVertically + 1)*_mapStride;
+		for (int i = 0; i < _tilesPerScreenHorizontally + 2; ++i) {
+			_bufferTop[i] = bufferTop;
+			_bufferBottom[i] = bufferBottom;
+			_mapBottom[i] = mapBottom;
+			bufferTop += _tileColumns;
+			bufferBottom += _tileColumns;
+			++mapBottom;
+		}
 
-		_minTransitionalTilesForSubTileLeft.allocate(_tileColumns);
-		_minTransitionalTilesForSubTileTop.allocate(_tileRows);
-		_minTransitionalTilesForSubTileRight.allocate(_tileColumns);
-		_minTransitionalTilesForSubTileBottom.allocate(_tileRows);
+		_transitionCountLeft.allocate(_tileColumns);
+		_transitionCountTop.allocate(_tileRows);
+		_transitionCountRight.allocate(_tileColumns);
+		_transitionCountBottom.allocate(_tileRows);
 		for (int i = 0; i < _tileColumns; ++i) {
-			_minTransitionalTilesForSubTileLeft[i] =
+			_transitionCountLeft[i] =
 				(_tileColumns - i)*_tilesPerScreenVertically/_tileColumns;
-			_minTransitionalTilesForSubTileRight[i] =
+			_transitionCountRight[i] =
 				(1 + i)*_tilesPerScreenVertically/_tileColumns;
 		}
 		for (int i = 0; i < _tileRows; ++i) {
-			_minTransitionalTilesForSubTileTop[i] =
+			_transitionCountTop[i] =
 				(_tileRows - i)*(_tilesPerScreenHorizontally + 2)/_tileRows;
-			_minTransitionalTilesForSubTileBottom[i] =
+			_transitionCountBottom[i] =
 				(1 + i)*(_tilesPerScreenHorizontally + 2)/_tileRows;
 		}
 
@@ -158,20 +200,27 @@ public:
         }
 
 		// Draw initial screen
+		_bufferTL = 0;
+		_mapTL = 0;
 		int bufferRow = -_tileRows*_bufferStride - _tileWidthBytes;
 		int mapRow = -_mapStride - 1;
 		for (int y = -1; y < _tilesPerScreenVertically + 1; ++y) {
 			int buffer = bufferRow;
 			int map = mapRow;
 			for (int x = -1; x < _tilesPerScreenHorizontally + 1; ++x) {
-				drawTileToBuffer(buffer, _background[map]);
-				drawTransparentTileToBuffer(buffer, _foreground[map]);
+				drawTile(buffer, map);
 				buffer += _tileWidthBytes;
 				++map;
 			}
 			bufferRow += _bufferStride*_tileRows;
 			mapRow += _mapStride;
 		}
+		_bufferTopLeft = _tileColumns + _tileRows*_bufferStride;
+
+		addUpdateBlock(0, 0, _screenColumns, _screenRows);
+		for (auto i : _updateBlocks)
+			updateBlock(i);
+		_updateBlocks.clear();
 	}
     void create()
     {
@@ -274,7 +323,7 @@ public:
             _xSubTile += _xVelocity;
             if ((_xSubTile >> 8) > _tileColumns) {
                 _xSubTile -= _tileColumns << 8;
-                ++_xTile;
+                ++_mapTL;
 				setListFilled(&_leftNodes, _tilesPerScreenVertically);
 				setListEmpty(&_rightNodes, _tilesPerScreenVertically);
 				shiftLeft(&_topNodes);
@@ -285,7 +334,7 @@ public:
             _xSubTile += _xVelocity;
             if ((_xSubTile >> 8) < 0) {
                 _xSubTile += _tileColumns << 8;
-                --_xTile;
+                --_mapTL;
 				setListEmpty(&_leftNodes, _tilesPerScreenVertically);
 				setListFilled(&_rightNodes, _tilesPerScreenVertically);
 				shiftRight(&_topNodes);
@@ -296,7 +345,7 @@ public:
             _ySubTile += _yVelocity;
             if ((_ySubTile >> 8) > _tileRows) {
                 _ySubTile -= _tileRows << 8;
-                ++_yTile;
+				_mapTL += _mapStride;
 				setListFilled(&_topNodes, _tilesPerScreenHorizontally + 2);
 				setListEmpty(&_bottomNodes, _tilesPerScreenHorizontally + 2);
 				shiftUp(&_leftNodes);
@@ -307,7 +356,7 @@ public:
             _ySubTile += _yVelocity;
             if ((_ySubTile >> 8) < 0) {
                 _ySubTile += _tileRows << 8;
-                --_yTile;
+				_mapTL -= _mapStride;
 				setListEmpty(&_topNodes, _tilesPerScreenHorizontally + 2);
 				setListFilled(&_bottomNodes, _tilesPerScreenHorizontally + 2);
 				shiftDown(&_leftNodes);
@@ -323,7 +372,8 @@ public:
 				_bufferTopLeft -= _screenWidthBytes;
 				addUpdateBlock(0, 0, _screenColumns, 1);
 				addUpdateBlock(0, 1, 1, _screenRows - 1);
-
+				leftTiles();
+				topTiles();
 			}
 			else {
 				if (deltaY > 0) { 
@@ -332,12 +382,17 @@ public:
 					_bufferTopLeft += _screenWidthBytes - 2;
 					addUpdateBlock(_screenRows - 1, 0, _screenColumns, 1);
 					addUpdateBlock(0, 0, 1, _screenRows - 1);
+					leftTiles();
+					bottomTiles();
 				}
 				else {
 					// Move left
 					--_startAddress;
 					_bufferTopLeft -= 2;
 					addUpdateBlock(0, 0, 1, _screenRows);
+					leftTiles();
+					topTiles();
+					bottomTiles();
 				}
 			}
 		}
@@ -349,6 +404,8 @@ public:
 					_bufferTopLeft -= _screenWidthBytes - 2;
 					addUpdateBlock(0, 0, _screenColumns, 1);
 					addUpdateBlock(_screenColumns - 1, 1, 1, _screenRows - 1);
+					topTiles();
+					rightTiles();
 				}
 				else {
 					if (deltaY > 0) { 
@@ -358,12 +415,17 @@ public:
 						addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
 						addUpdateBlock(_screenColumns - 1, 0, 1,
 							_screenRows - 1);
+						bottomTiles();
+						rightTiles();
 					}
 					else {
 						// Move right
 						++_startAddress;
 						_bufferTopLeft += 2;
 						addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows);
+						rightTiles();
+						topTiles();
+						bottomTiles();
 					}
 				}
 			}
@@ -373,6 +435,7 @@ public:
 					_startAddress -= _screenColumns;
 					_bufferTopLeft -= _screenWidthBytes;
 					addUpdateBlock(0, 0, _screenColumns, 1);
+					topTiles();
 				}
 				else {
 					if (deltaY > 0) {
@@ -380,6 +443,7 @@ public:
 						_startAddress += _screenColumns;
 						_bufferTopLeft += _screenWidthBytes;
 						addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+						bottomTiles();
 					}
 					else {
 						// No change
@@ -405,6 +469,7 @@ public:
         // Copy from buffer to VRAM
         for (auto i : _updateBlocks)
             updateBlock(i);
+		_updateBlocks.clear();
     }
     bool keyboardEvent(int key, bool up)
     {
@@ -445,41 +510,30 @@ private:
         Word rows;
     };
 
-    void drawTileToBuffer(Word tl, int tileIndex)
-    {
-        const Byte* p = &_tiles[tileIndex*_tileWidthBytes*_tileRows];
-        int rowIncrement = _bufferStride - _tileWidthBytes;
-		Byte* buffer = &_buffer[0];
-        for (int y = 0; y < _tileRows; ++y) {
-            for (int x = 0; x < _tileColumns; ++x) {
-                Word c = *reinterpret_cast<const Word*>(p);
-                *reinterpret_cast<Word*>(buffer + tl) = c;
-                p += 2;
-                tl += 2;
-            }
-            tl += rowIncrement;
-        }
-    }
-    void drawTransparentTileToBuffer(Word tl, int tileIndex)
-    {
-        const Byte* p = &_tiles[tileIndex*_tileWidthBytes*_tileRows];
-        int rowIncrement = _bufferStride - _tileWidthBytes;
+	void drawTile(Word tl, Word map)
+	{
+		tl += _bufferTL;
+		map += _mapTL;
+		const Byte* f = &_tiles[_tilePointers[_foreground[map]]];
+		const Byte* b = &_tiles[_tilePointers[_background[map]]];
+		int rowIncrement = _bufferStride - _tileWidthBytes;
 		Byte* buffer = &_buffer[0];
 		for (int y = 0; y < _tileRows; ++y) {
-            for (int x = 0; x < _tileColumns; ++x) {
-                Word c = *reinterpret_cast<const Word*>(p);
-                if (c != 0xffff)
-                    *reinterpret_cast<Word*>(buffer + tl) = c;
-                p += 2;
-                tl += 2;
-            }
-            tl += rowIncrement;
-        }
-    }
-	// tl here is index into foreground/background, not buffer
-    void drawInitialScreen(int tl)
-    {
-    }
+			for (int x = 0; x < _tileColumns; ++x) {
+				Word c = *reinterpret_cast<const Word*>(f);
+				Word* p = reinterpret_cast<Word*>(buffer + tl);
+				if (c != 0xffff)
+					*p = c;
+				else
+					*p = *reinterpret_cast<const Word*>(b);
+				f += 2;
+				b += 2;
+				tl += 2;
+			}
+			tl += rowIncrement;
+		}
+	}
+
     void updateBlock(UpdateBlock b)
     {
         Word s = b.bufferTopLeft;
@@ -620,6 +674,35 @@ private:
 			    freeNode(n);
 			}
 		}
+		return i;
+	}
+	void leftTiles()
+	{
+		while (_leftNodes.drawn < _transitionCountLeft[_xSubTile >> 8]) {
+			int y = findUndrawnTile(&_leftNodes);
+			drawTile(_bufferLeft[y], _mapLeft[y]);
+		}
+	}
+	void topTiles()
+	{
+		while (_topNodes.drawn < _transitionCountTop[_ySubTile >> 8]) {
+			int x = findUndrawnTile(&_topNodes);
+			drawTile(_bufferTop[x], x);
+		}
+	}
+	void rightTiles()
+	{
+		while (_rightNodes.drawn < _transitionCountRight[_xSubTile >> 8]) {
+			int y = findUndrawnTile(&_rightNodes);
+			drawTile(_bufferRight[y], _mapRight[y]);
+		}
+	}
+	void bottomTiles()
+	{
+		while (_bottomNodes.drawn < _transitionCountBottom[_ySubTile >> 8]) {
+			int x = findUndrawnTile(&_bottomNodes);
+			drawTile(_bufferBottom[x], _mapBottom[x]);
+		}
 	}
 
 
@@ -631,10 +714,8 @@ private:
     BitmapWindow _bitmap;
 	Vector _outputSize;
 	Array<Byte> _cgaBytes;
-    int _regs;
-
-    Byte* _vram;
-    Word _startAddress;
+	Byte* _vram;
+	int _regs;
 
     Array<Byte> _background;
     Array<Byte> _foreground;
@@ -655,10 +736,18 @@ private:
     int _verticalAcceleration;
     int _horizontalMaxVelocity;
     int _verticalMaxVelocity;
-	Array<Byte> _minTransitionalTilesForSubTileLeft;
-	Array<Byte> _minTransitionalTilesForSubTileTop;
-	Array<Byte> _minTransitionalTilesForSubTileRight;
-	Array<Byte> _minTransitionalTilesForSubTileBottom;
+	Array<Byte> _transitionCountLeft;
+	Array<Byte> _transitionCountTop;
+	Array<Byte> _transitionCountRight;
+	Array<Byte> _transitionCountBottom;
+	Array<Word> _bufferLeft;
+	Array<Word> _mapLeft;
+	Array<Word> _bufferTop;
+	Array<Word> _bufferRight;
+	Array<Word> _mapRight;
+	Array<Word> _bufferBottom;
+	Array<Word> _mapBottom;
+	Array<Word> _tilePointers;
 
     bool _upPressed;
     bool _downPressed;
@@ -670,9 +759,10 @@ private:
     int _yVelocity;
     int _xSubTile;
     int _ySubTile;
-    int _xTile;
-    int _yTile;
-	Word _bufferTopLeft;
+	Word _startAddress;
+	Word _bufferTopLeft;  // Position in buffer corresponding to TL of screen
+	Word _bufferTL; // Position in buffer corresponding to TL of tilescreen
+	Word _mapTL;    // Position in map corresponding to TL of tilescreen 
 
     AppendableArray<UpdateBlock> _updateBlocks;
 	Array<Node> _nodePool;
