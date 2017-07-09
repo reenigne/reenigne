@@ -1759,7 +1759,7 @@ public:
                     break;
             }
 #endif
-            decodeTimer.output("Decoder: ");
+            //decodeTimer.output("Decoder: ");
         }
         // Shift, clip, show clipping and linearization
         _linearizer.setShowClipping(showClipping && _connector != 0);
