@@ -7,6 +7,8 @@ public:
     GameWindow()
       : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap)
     {
+        _sequencer.setROM(File("5788005.u33"));
+
         _output.setConnector(1);          // old composite
         _output.setScanlineProfile(0);    // rectangle
         _output.setHorizontalProfile(0);  // rectangle
@@ -81,6 +83,7 @@ public:
         _tileWidthBytes = _tileColumns << 1;
         _tileRows = 16;
         _bufferStride = 0x100;
+        _bufferTileStride = _bufferStride*_tileRows;
         _screenColumns = 80;
         _screenWidthBytes = _screenColumns << 1;
         _screenRows = 100;
@@ -104,48 +107,45 @@ public:
         _midTileVertically = _tilesPerScreenVertically/2;
         _bufferLeft.allocate(_tilesPerScreenVertically);
         _mapLeft.allocate(_tilesPerScreenVertically);
-        _bufferTop.allocate(_tilesPerScreenHorizontally + 2);
+        _bufferTop.allocate(_tilesPerScreenHorizontally);
         _bufferRight.allocate(_tilesPerScreenVertically);
         _mapRight.allocate(_tilesPerScreenVertically);
-        _bufferBottom.allocate(_tilesPerScreenHorizontally + 2);
-        _mapBottom.allocate(_tilesPerScreenHorizontally + 2);
-        int bufferTileStride = _bufferStride*_tileRows;
-        int bufferLeft = bufferTileStride;
+        _bufferBottom.allocate(_tilesPerScreenHorizontally);
+        int bufferLeft = _bufferTileStride;
         int mapLeft = _mapStride;
         int bufferRight = bufferLeft +
-            (_tilesPerScreenHorizontally + 1)*_tileColumns;
+            (_tilesPerScreenHorizontally + 1)*_tileWidthBytes;
         int mapRight = mapLeft + _tilesPerScreenHorizontally + 1;
         for (int i = 0; i < _tilesPerScreenVertically; ++i) {
             _bufferLeft[i] = bufferLeft;
             _mapLeft[i] = mapLeft;
             _bufferRight[i] = bufferRight;
             _mapRight[i] = mapRight;
-            bufferLeft += bufferTileStride;
-            bufferRight += bufferTileStride;
+            bufferLeft += _bufferTileStride;
+            bufferRight += _bufferTileStride;
             mapLeft += _mapStride;
             mapRight += _mapStride;
         }
-        int bufferTop = 0;
-        int bufferBottom = (_tilesPerScreenVertically + 1)*bufferTileStride;
-        int mapBottom = (_tilesPerScreenVertically + 1)*_mapStride;
-        for (int i = 0; i < _tilesPerScreenHorizontally + 2; ++i) {
+        int bufferTop = _tileWidthBytes;
+        int bufferBottom = _tileWidthBytes +
+            (_tilesPerScreenVertically + 1)*_bufferTileStride;
+        _mapBottom = 1 + (_tilesPerScreenVertically + 1)*_mapStride;
+        for (int i = 0; i < _tilesPerScreenHorizontally; ++i) {
             _bufferTop[i] = bufferTop;
             _bufferBottom[i] = bufferBottom;
-            _mapBottom[i] = mapBottom;
-            bufferTop += _tileColumns;
-            bufferBottom += _tileColumns;
-            ++mapBottom;
+            bufferTop += _tileWidthBytes;
+            bufferBottom += _tileWidthBytes;
         }
-        _topLeftBuffer = _tileColumns + bufferTileStride;
+        _topLeftBuffer = _tileWidthBytes + _bufferTileStride;
         _topLeftMap = 1 + _mapStride;
-        _topRightBuffer = _tileColumns*_tilesPerScreenHorizontally +
-            bufferTileStride;
+        _topRightBuffer = _tileWidthBytes*_tilesPerScreenHorizontally +
+            _bufferTileStride;
         _topRightMap = _tilesPerScreenHorizontally + _mapStride;
-        _bottomLeftBuffer = _tileColumns +
-            bufferTileStride*_tilesPerScreenVertically;
+        _bottomLeftBuffer = _tileWidthBytes +
+            _bufferTileStride*_tilesPerScreenVertically;
         _bottomLeftMap = 1 + _mapStride*_tilesPerScreenVertically;
-        _bottomRightBuffer = _tileColumns*_tilesPerScreenHorizontally +
-            bufferTileStride*_tilesPerScreenVertically;
+        _bottomRightBuffer = _tileWidthBytes*_tilesPerScreenHorizontally +
+            _bufferTileStride*_tilesPerScreenVertically;
         _bottomRightMap = _tilesPerScreenHorizontally +
             _mapStride*_tilesPerScreenVertically;
 
@@ -154,46 +154,46 @@ public:
         _transitionCountRight.allocate(_tileColumns);
         _transitionCountBottom.allocate(_tileRows);
         for (int i = 0; i < _tileColumns; ++i) {
-            _transitionCountLeft[i] = (_tileColumns - i)*
-                (_tilesPerScreenVertically + 1)/_tileColumns - 1;
-            _transitionCountRight[i] =
-                (1 + i)*(_tilesPerScreenVertically + 1)/_tileColumns - 1;
+            _transitionCountLeft[i] = max(0, (_tileColumns - i)*
+                (_tilesPerScreenVertically + 1)/_tileColumns - 1);
+            _transitionCountRight[i] = max(0, 
+                (1 + i)*(_tilesPerScreenVertically + 1)/_tileColumns - 1);
         }
         for (int i = 0; i < _tileRows; ++i) {
-            _transitionCountTop[i] = (_tileRows - i)*
-                (_tilesPerScreenHorizontally + 1)/_tileRows - 1;
-            _transitionCountBottom[i] =
-                (1 + i)*(_tilesPerScreenHorizontally + 1)/_tileRows - 1;
+            _transitionCountTop[i] = max(0, (_tileRows - i)*
+                (_tilesPerScreenHorizontally + 1)/_tileRows - 1);
+            _transitionCountBottom[i] = max(0, 
+                (1 + i)*(_tilesPerScreenHorizontally + 1)/_tileRows - 1);
         }
 
-
+        String world = File("world.dat").contents();
         _background.allocate(0x10000);
         _foreground.allocate(0x10000);
         _buffer.allocate(0x10000);
         _tiles.allocate(0x10000);
         for (int i = 0; i < 0x10000; ++i) {
-            _background[i] = rand() & 0xff;
-            _foreground[i] = rand() & 0xff;
-            _tiles[i] = rand() & 0xff;
+            _background[i] = world[i];
+            _foreground[i] = world[i];
+            _tiles[i] = world[i + 0x10000];
         }
 
         // Draw initial screen
         _bufferTL = 0;
         _mapTL = 0;
-        int bufferRow = -_tileRows*_bufferStride - _tileWidthBytes;
-        int mapRow = -_mapStride - 1;
-        for (int y = -1; y < _tilesPerScreenVertically + 1; ++y) {
+        int bufferRow = 0;
+        int mapRow = 0;
+        for (int y = 0; y < _tilesPerScreenVertically + 2; ++y) {
             int buffer = bufferRow;
             int map = mapRow;
-            for (int x = -1; x < _tilesPerScreenHorizontally + 1; ++x) {
+            for (int x = 0; x < _tilesPerScreenHorizontally + 2; ++x) {
                 drawTile(buffer, map);
                 buffer += _tileWidthBytes;
                 ++map;
             }
-            bufferRow += _bufferStride*_tileRows;
+            bufferRow += _bufferTileStride;
             mapRow += _mapStride;
         }
-        _bufferTopLeft = _tileColumns + _tileRows*_bufferStride;
+        _bufferTopLeft = _tileWidthBytes + _bufferTileStride;
         _vramTopLeft = 0;
         _startAddress = 0;
         _leftStart = 0;
@@ -319,9 +319,10 @@ public:
         int tileBoundary = 0;
         if (_xVelocity > 0) {
             _xSubTile += _xVelocity;
-            if ((_xSubTile >> 8) > _tileColumns) {
+            if ((_xSubTile >> 8) >= _tileColumns) {
                 _xSubTile -= _tileColumns << 8;
                 ++_mapTL;
+                _bufferTL += _tileWidthBytes;
                 _leftStart = 0;
                 _leftEnd = _tilesPerScreenVertically;
                 _rightStart = _midTileVertically;
@@ -350,6 +351,7 @@ public:
             if ((_xSubTile >> 8) < 0) {
                 _xSubTile += _tileColumns << 8;
                 --_mapTL;
+                _bufferTL -= _tileWidthBytes;
                 _leftStart = _midTileVertically;
                 _leftEnd = _midTileVertically;
                 _rightStart = 0;
@@ -375,9 +377,10 @@ public:
         }
         if (_yVelocity > 0) {
             _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) > _tileRows) {
+            if ((_ySubTile >> 8) >= _tileRows) {
                 _ySubTile -= _tileRows << 8;
                 _mapTL += _mapStride;
+                _bufferTL += _bufferTileStride;
                 _topStart = 0;
                 _topEnd = _tilesPerScreenHorizontally;
                 _bottomStart = _midTileHorizontally;
@@ -411,6 +414,7 @@ public:
             if ((_ySubTile >> 8) < 0) {
                 _ySubTile += _tileRows << 8;
                 _mapTL -= _mapStride;
+                _bufferTL -= _bufferTileStride;
                 _topStart = _midTileHorizontally;
                 _topEnd = _midTileHorizontally;
                 _bottomStart = 0;
@@ -697,7 +701,7 @@ private:
                     ++_topEnd;
                 }
             }
-            drawTile(_bufferTop[x], x);
+            drawTile(_bufferTop[x], x + 1);
         }
     }
     void rightTiles()
@@ -753,7 +757,7 @@ private:
                     ++_bottomEnd;
                 }
             }
-            drawTile(_bufferBottom[x], _mapBottom[x]);
+            drawTile(_bufferBottom[x], _mapBottom + x);
         }
     }
 
@@ -778,6 +782,7 @@ private:
     int _tileWidthBytes;
     int _tileRows;
     int _bufferStride;
+    int _bufferTileStride;
     int _screenColumns;
     int _screenWidthBytes;
     int _screenRows;
@@ -800,7 +805,7 @@ private:
     Array<Word> _bufferRight;
     Array<Word> _mapRight;
     Array<Word> _bufferBottom;
-    Array<Word> _mapBottom;
+    Word _mapBottom;
     Array<Word> _tilePointers;
     Word _topLeftBuffer;
     Word _topLeftMap;
