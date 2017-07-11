@@ -110,6 +110,18 @@ public:
                 }
             }
         }
+
+        String sphere = File(String("q:\\pictures\\reenigne\\cga2ntsc\\sphere1_out.dat"), true).contents();
+        for (int y = 0; y < 16; ++y)
+            for (int x = 0; x < 16; x += 2) {
+                int p = (y + 3)*160 + x + 4;
+                Word ch = sphere[p] + (sphere[p + 1] << 8);
+                if (ch == 0x1213)
+                    ch = 0xffff;
+                tileGraphics[y*16+x] = ch & 0xff;
+                tileGraphics[y*16+x + 1] = ch >> 8;
+            }
+
         fs.write(tileGraphics);
     }
 };

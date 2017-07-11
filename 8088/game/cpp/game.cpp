@@ -179,7 +179,7 @@ public:
 
         // Draw initial screen
         _bufferTL = 0;
-        _mapTL = 0;
+        _mapTL = 0x8080;
         int bufferRow = 0;
         int mapRow = 0;
         for (int y = 0; y < _tilesPerScreenVertically + 2; ++y) {
@@ -219,6 +219,12 @@ public:
         _rightPressed = false;
         _downPressed = false;
         _spacePressed = false;
+
+        _xPlayer = (_screenColumns - _tileColumns)/2;
+        _yPlayer = (_screenRows - _tileRows)/2;
+        _playerTopLeft = _yPlayer*_bufferStride + _xPlayer*2;
+        _underPlayer.allocate(_tileWidthBytes*_tileRows);
+        saveTile(_playerTopLeft, &_underPlayer[0]);
     }
     ~GameWindow() { _output.join(); }
     void create()
@@ -249,9 +255,7 @@ public:
         // Switch IRQ0 handler to offScreenHandler
         // Set count for PIT channel 0 to inactive cycles
         // Start foreground sound
-        // Set start address:
-        _vram[CGAData::registerStartAddressHigh] = _startAddress >> 8;
-        _vram[CGAData::registerStartAddressLow] = _startAddress & 0xff;
+
         // Check keyboard
         if (_leftPressed) {
             if (!_rightPressed) {
@@ -313,138 +317,163 @@ public:
                 }
             }
         }
+
+        // Restore background under player
+        restoreTile(_playerTopLeft, &_underPlayer[0]);
+
         // Move
         int xSubTileHighOld = _xSubTile >> 8;
         int ySubTileHighOld = _ySubTile >> 8;
         int tileBoundary = 0;
+        int deltaX = 0;
+        int deltaY = 0;
+        _tilesDrawn = 0;
         if (_xVelocity > 0) {
             _xSubTile += _xVelocity;
-            if ((_xSubTile >> 8) >= _tileColumns) {
-                _xSubTile -= _tileColumns << 8;
-                ++_mapTL;
-                _bufferTL += _tileWidthBytes;
-                _leftStart = 0;
-                _leftEnd = _tilesPerScreenVertically;
-                _rightStart = _midTileVertically;
-                _rightEnd = _midTileVertically;
-                if (_topStart > 0)
-                    --_topStart;
-                if (_topEnd > 0)
-                    --_topEnd;
-                if (_topStart == _topEnd) {
-                    _topStart = _tilesPerScreenHorizontally;
-                    _topEnd = _tilesPerScreenHorizontally;
+            if ((_xSubTile >> 8) != xSubTileHighOld) {
+                deltaX = 1;
+                if ((_xSubTile >> 8) >= _tileColumns) {
+                    _xSubTile -= _tileColumns << 8;
+                    ++_mapTL;
+                    _bufferTL += _tileWidthBytes;
+                    _leftStart = 0;
+                    _leftEnd = _tilesPerScreenVertically;
+                    _rightStart = _midTileVertically;
+                    _rightEnd = _midTileVertically;
+                    if (_topStart > 0)
+                        --_topStart;
+                    if (_topEnd > 0)
+                        --_topEnd;
+                    if (_topStart == _topEnd) {
+                        _topStart = _tilesPerScreenHorizontally;
+                        _topEnd = _tilesPerScreenHorizontally;
+                    }
+                    if (_bottomStart > 0)
+                        --_bottomStart;
+                    if (_bottomEnd > 0)
+                        --_bottomEnd;
+                    if (_bottomStart == _bottomEnd) {
+                        _bottomStart = _tilesPerScreenHorizontally;
+                        _bottomEnd = _tilesPerScreenHorizontally;
+                    }
+                    tileBoundary = 1;
                 }
-                if (_bottomStart > 0)
-                    --_bottomStart;
-                if (_bottomEnd > 0)
-                    --_bottomEnd;
-                if (_bottomStart == _bottomEnd) {
-                    _bottomStart = _tilesPerScreenHorizontally;
-                    _bottomEnd = _tilesPerScreenHorizontally;
-                }
-                tileBoundary = 1;
             }
         }
         else {
             _xSubTile += _xVelocity;
-            if ((_xSubTile >> 8) < 0) {
-                _xSubTile += _tileColumns << 8;
-                --_mapTL;
-                _bufferTL -= _tileWidthBytes;
-                _leftStart = _midTileVertically;
-                _leftEnd = _midTileVertically;
-                _rightStart = 0;
-                _rightEnd = _tilesPerScreenVertically;
-                if (_topStart < _tilesPerScreenHorizontally)
-                    ++_topStart;
-                if (_topEnd < _tilesPerScreenHorizontally)
-                    ++_topEnd;
-                if (_topStart == _topEnd) {
-                    _topStart = 0;
-                    _topEnd = 0;
+            if ((_xSubTile >> 8) != xSubTileHighOld) {
+                deltaX = -1;
+                if ((_xSubTile >> 8) < 0) {
+                    _xSubTile += _tileColumns << 8;
+                    --_mapTL;
+                    _bufferTL -= _tileWidthBytes;
+                    _leftStart = _midTileVertically;
+                    _leftEnd = _midTileVertically;
+                    _rightStart = 0;
+                    _rightEnd = _tilesPerScreenVertically;
+                    if (_topStart < _tilesPerScreenHorizontally)
+                        ++_topStart;
+                    if (_topEnd < _tilesPerScreenHorizontally)
+                        ++_topEnd;
+                    if (_topStart == _topEnd) {
+                        _topStart = 0;
+                        _topEnd = 0;
+                    }
+                    if (_bottomStart < _tilesPerScreenHorizontally)
+                        ++_bottomStart;
+                    if (_bottomEnd < _tilesPerScreenHorizontally)
+                        ++_bottomEnd;
+                    if (_bottomStart == _bottomEnd) {
+                        _bottomStart = 0;
+                        _bottomEnd = 0;
+                    }
+                    tileBoundary = -1;
                 }
-                if (_bottomStart < _tilesPerScreenHorizontally)
-                    ++_bottomStart;
-                if (_bottomEnd < _tilesPerScreenHorizontally)
-                    ++_bottomEnd;
-                if (_bottomStart == _bottomEnd) {
-                    _bottomStart = 0;
-                    _bottomEnd = 0;
-                }
-                tileBoundary = -1;
             }
         }
         if (_yVelocity > 0) {
             _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) >= _tileRows) {
-                _ySubTile -= _tileRows << 8;
-                _mapTL += _mapStride;
-                _bufferTL += _bufferTileStride;
-                _topStart = 0;
-                _topEnd = _tilesPerScreenHorizontally;
-                _bottomStart = _midTileHorizontally;
-                _bottomEnd = _midTileHorizontally;
-                if (_leftStart > 0)
-                    --_leftStart;
-                if (_leftEnd > 0)
-                    --_leftEnd;
-                if (_leftStart == _leftEnd) {
-                    _leftStart = _tilesPerScreenVertically;
-                    _leftEnd = _tilesPerScreenVertically;
-                }
-                if (_rightStart > 0)
-                    --_rightStart;
-                if (_rightEnd > 0)
-                    --_rightEnd;
-                if (_rightStart == _rightEnd) {
-                    _rightStart = _tilesPerScreenVertically;
-                    _rightEnd = _tilesPerScreenVertically;
-                }
-                if (tileBoundary != 0) {
-                    if (tileBoundary < 0)
-                        drawTile(_bottomLeftBuffer, _bottomLeftMap);
-                    else
-                        drawTile(_bottomRightBuffer, _bottomRightMap);
+            if ((_ySubTile >> 8) != ySubTileHighOld) {
+                deltaY = 1;
+                if ((_ySubTile >> 8) >= _tileRows) {
+                    _ySubTile -= _tileRows << 8;
+                    _mapTL += _mapStride;
+                    _bufferTL += _bufferTileStride;
+                    _topStart = 0;
+                    _topEnd = _tilesPerScreenHorizontally;
+                    _bottomStart = _midTileHorizontally;
+                    _bottomEnd = _midTileHorizontally;
+                    if (_leftStart > 0)
+                        --_leftStart;
+                    if (_leftEnd > 0)
+                        --_leftEnd;
+                    if (_leftStart == _leftEnd) {
+                        _leftStart = _tilesPerScreenVertically;
+                        _leftEnd = _tilesPerScreenVertically;
+                    }
+                    if (_rightStart > 0)
+                        --_rightStart;
+                    if (_rightEnd > 0)
+                        --_rightEnd;
+                    if (_rightStart == _rightEnd) {
+                        _rightStart = _tilesPerScreenVertically;
+                        _rightEnd = _tilesPerScreenVertically;
+                    }
+                    if (tileBoundary != 0) {
+                        if (tileBoundary < 0) {
+                            //printf("BL");
+                            drawTile(_bottomLeftBuffer, _bottomLeftMap);
+                        }
+                        else {
+                            //printf("BR");
+                            drawTile(_bottomRightBuffer, _bottomRightMap);
+                        }
+                    }
                 }
             }
         }
         else {
             _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) < 0) {
-                _ySubTile += _tileRows << 8;
-                _mapTL -= _mapStride;
-                _bufferTL -= _bufferTileStride;
-                _topStart = _midTileHorizontally;
-                _topEnd = _midTileHorizontally;
-                _bottomStart = 0;
-                _bottomEnd = _tilesPerScreenHorizontally;
-                if (_leftStart < _tilesPerScreenVertically)
-                    ++_leftStart;
-                if (_leftEnd < _tilesPerScreenVertically)
-                    ++_leftEnd;
-                if (_leftStart == _leftEnd) {
-                    _leftStart = 0;
-                    _leftEnd = 0;
-                }
-                if (_rightStart < _tilesPerScreenVertically)
-                    ++_rightStart;
-                if (_rightEnd < _tilesPerScreenVertically)
-                    ++_rightEnd;
-                if (_rightStart == _rightEnd) {
-                    _rightStart = 0;
-                    _rightEnd = 0;
-                }
-                if (tileBoundary != 0) {
-                    if (tileBoundary < 0)
-                        drawTile(_topLeftBuffer, _topLeftMap);
-                    else
-                        drawTile(_topRightBuffer, _topRightMap);
+            if ((_ySubTile >> 8) != ySubTileHighOld) {
+                deltaY = -1;
+                if ((_ySubTile >> 8) < 0) {
+                    _ySubTile += _tileRows << 8;
+                    _mapTL -= _mapStride;
+                    _bufferTL -= _bufferTileStride;
+                    _topStart = _midTileHorizontally;
+                    _topEnd = _midTileHorizontally;
+                    _bottomStart = 0;
+                    _bottomEnd = _tilesPerScreenHorizontally;
+                    if (_leftStart < _tilesPerScreenVertically)
+                        ++_leftStart;
+                    if (_leftEnd < _tilesPerScreenVertically)
+                        ++_leftEnd;
+                    if (_leftStart == _leftEnd) {
+                        _leftStart = 0;
+                        _leftEnd = 0;
+                    }
+                    if (_rightStart < _tilesPerScreenVertically)
+                        ++_rightStart;
+                    if (_rightEnd < _tilesPerScreenVertically)
+                        ++_rightEnd;
+                    if (_rightStart == _rightEnd) {
+                        _rightStart = 0;
+                        _rightEnd = 0;
+                    }
+                    if (tileBoundary != 0) {
+                        if (tileBoundary < 0) {
+                            //printf("TL");
+                            drawTile(_topLeftBuffer, _topLeftMap);
+                        }
+                        else {
+                            //printf("TR");
+                            drawTile(_topRightBuffer, _topRightMap);
+                        }
+                    }
                 }
             }
         }
-        int deltaX = (_xSubTile >> 8) - xSubTileHighOld;
-        int deltaY = (_ySubTile >> 8) - ySubTileHighOld;
         if (deltaX < 0) {
             if (deltaY < 0) {
                 // Move up and left
@@ -462,7 +491,7 @@ public:
                     _startAddress += _screenColumns - 1;
                     _vramTopLeft += _screenWidthBytes - 2;
                     _bufferTopLeft += _bufferStride - 2;
-                    addUpdateBlock(_screenRows - 1, 0, _screenColumns, 1);
+                    addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
                     addUpdateBlock(0, 0, 1, _screenRows - 1);
                     leftTiles();
                     bottomTiles();
@@ -522,7 +551,9 @@ public:
                     _vramTopLeft -= _screenWidthBytes;
                     _bufferTopLeft -= _bufferStride;
                     addUpdateBlock(0, 0, _screenColumns, 1);
+                    leftTiles();
                     topTiles();
+                    rightTiles();
                 }
                 else {
                     if (deltaY > 0) {
@@ -531,7 +562,9 @@ public:
                         _vramTopLeft += _screenWidthBytes;
                         _bufferTopLeft += _bufferStride;
                         addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+                        leftTiles();
                         bottomTiles();
+                        rightTiles();
                     }
                     else {
                         // No change
@@ -539,6 +572,98 @@ public:
                 }
             }
         }
+        // Set start address:
+        _vram[CGAData::registerStartAddressHigh] = _startAddress >> 8;
+        _vram[CGAData::registerStartAddressLow] = _startAddress & 0xff;
+
+        printf("ST %i,%i ", _xSubTile >> 8, _ySubTile >> 8);
+        printf("tl-TL %04x\n", _bufferTopLeft-_bufferTL);
+        //printf("SA %04x ", _startAddress);
+        //if (_vramTopLeft != ((_startAddress << 1) & 0xffff))
+        //    printf("_vramTopLeft incorrect!\n");
+        ////printf("vramTopLeft = %04x  ", _vramTopLeft);
+        //printf("tl %04x ", _bufferTopLeft);
+        //printf("TL %04x ", _bufferTL);
+        //printf("m %04x ", _mapTL);
+        //printf("l %i-%i " , _leftStart, _leftEnd);
+        //printf("t %i-%i ", _topStart, _topEnd);
+        //printf("r %i-%i ", _rightStart, _rightEnd);
+        //printf("b %i-%i\n",_bottomStart, _bottomEnd);
+
+        //printf("%i  ",_tilesDrawn);
+        //if (_tilesDrawn >= 4)
+        //    printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+        //LARGE_INTEGER time;
+        //QueryPerformanceCounter(&time);
+        //time.QuadPart -= _startTime.QuadPart;
+        //LARGE_INTEGER frequency;
+        //QueryPerformanceFrequency(&frequency);
+        //printf("%lf us\n",time.QuadPart*1000000.0/frequency.QuadPart);
+        //QueryPerformanceCounter(&_startTime);
+
+        //for (int i = 0; i < 0x10000; i += 2) {
+        //    Word p = i;
+        //    p -= _bufferTL;
+        //    int x = (p % _bufferStride) / _tileWidthBytes - 1;
+        //    int y = (p / _bufferStride) / _tileRows - 1;
+        //    if (x >= 0 && y >= 0 && x < _tilesPerScreenHorizontally && y < _tilesPerScreenVertically)
+        //        continue;
+        //    if (x == -1 && y >= _leftStart && y < _leftEnd)
+        //        continue;
+        //    if (x == _tilesPerScreenHorizontally && y >= _rightStart && y < _rightEnd)
+        //        continue;
+        //    if (y == -1 && x >= _topStart && x < _topEnd)
+        //        continue;
+        //    if (y == _tilesPerScreenVertically && x >= _bottomStart && x < _bottomEnd)
+        //        continue;
+        //    *reinterpret_cast<Word*>(&_buffer[i]) = 0xdddd;
+        //}
+
+
+        saveTile(_playerTopLeft, &_underPlayer[0]);
+        drawTransparentTile(_playerTopLeft, 0);
+        if (deltaX < 0) {
+            if (deltaY < 0) {
+                addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows + 1);
+            }
+            else {
+                if (deltaY > 0) {
+                    addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
+                }
+                else {
+                    addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows);
+                }
+            }
+        }
+        else {
+            if (deltaX > 0) {
+                if (deltaY < 0) {
+                    addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows + 1);
+                }
+                else {
+                    if (deltaY > 0) {
+                        addUpdateBlock(_xPlayer - 1, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
+                    }
+                    else {
+                        addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows);
+                    }
+                }
+            }
+            else {
+                if (deltaY < 0) {
+                    addUpdateBlock(_xPlayer, _yPlayer, _tileColumns, _tileRows + 1);
+                }
+                else {
+                    if (deltaY > 0) {
+                        addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns, _tileRows + 1);
+                    }
+                    else {
+                    }
+                }
+            }
+        }
+
 
         // Move other entities
         // For each moving entity:
@@ -621,7 +746,57 @@ private:
             }
             tl += rowIncrement;
         }
+        ++_tilesDrawn;
     }
+    // tl here is relative to top-left of screen
+    void drawTransparentTile(Word tl, int tile)
+    {
+        tl += _bufferTopLeft;
+        const Byte* f = &_tiles[_tilePointers[tile]];
+        int rowIncrement = _bufferStride - _tileWidthBytes;
+        Byte* buffer = &_buffer[0];
+        for (int y = 0; y < _tileRows; ++y) {
+            for (int x = 0; x < _tileColumns; ++x) {
+                Word c = *reinterpret_cast<const Word*>(f);
+                if (c != 0xffff)
+                    *reinterpret_cast<Word*>(buffer + tl) = c;
+                f += 2;
+                tl += 2;
+            }
+            tl += rowIncrement;
+        }
+    }
+    void saveTile(Word tl, Byte* under)
+    {
+        tl += _bufferTopLeft;
+        int rowIncrement = _bufferStride - _tileWidthBytes;
+        const Byte* buffer = &_buffer[0];
+        for (int y = 0; y < _tileRows; ++y) {
+            for (int x = 0; x < _tileColumns; ++x) {
+                *reinterpret_cast<Word*>(under) =
+                    *reinterpret_cast<const Word*>(buffer + tl);
+                under += 2;
+                tl += 2;
+            }
+            tl += rowIncrement;
+        }
+    }
+    void restoreTile(Word tl, const Byte* under)
+    {
+        tl += _bufferTopLeft;
+        int rowIncrement = _bufferStride - _tileWidthBytes;
+        Byte* buffer = &_buffer[0];
+        for (int y = 0; y < _tileRows; ++y) {
+            for (int x = 0; x < _tileColumns; ++x) {
+                *reinterpret_cast<Word*>(buffer + tl) =
+                    *reinterpret_cast<const Word*>(under);
+                under += 2;
+                tl += 2;
+            }
+            tl += rowIncrement;
+        }
+    }
+
 
     void updateBlock(UpdateBlock b)
     {
@@ -630,8 +805,10 @@ private:
         Byte* buffer = &_buffer[0];
         for (int y = 0; y < b.rows; ++y) {
             for (int x = 0; x < b.columns; ++x) {
-                *reinterpret_cast<Word*>(_vram + (d & 0x3fff)) =
-                    *reinterpret_cast<Word*>(buffer + s);
+                Word c = *reinterpret_cast<Word*>(buffer + s);
+                //if (c == 0xdddd)
+                //    printf("Error!!!!\n");
+                *reinterpret_cast<Word*>(_vram + (d & 0x3fff)) = c;
                 s += 2;
                 d += 2;
             }
@@ -815,6 +992,9 @@ private:
     Word _bottomLeftMap;
     Word _bottomRightBuffer;
     Word _bottomRightMap;
+    int _xPlayer;
+    int _yPlayer;
+    int _playerTopLeft;
 
     bool _upPressed;
     bool _downPressed;
@@ -839,6 +1019,11 @@ private:
     int _rightEnd;
     int _bottomStart;
     int _bottomEnd;
+
+    Array<Byte> _underPlayer;
+
+    int _tilesDrawn;
+    LARGE_INTEGER _startTime;
 
     AppendableArray<UpdateBlock> _updateBlocks;
 };
