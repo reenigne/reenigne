@@ -2,24 +2,72 @@ cpu 8086
 
 pitCyclesPerScanline equ 76     ; Fixed by CGA hardware
 scanlinesPerFrame    equ 262    ; Fixed by NTSC standard
-activeScanlines      equ 200
+activeScanlines      equ 200    ; Standard CGA full-screen
+screenColumns        equ 80     ; Standard CGA full-screen
+scanlinesPerRow      equ 2
+tileColumns          equ 8
+tileRows             equ 16
+bufferStride         equ 0x100
+mapStride            equ 0x100
+horizontalAcceleration equ 0x10
+verticalAcceleration   equ 0x10
+horizontalMaxVelocity  equ 0x100
+verticalMaxVelocity    equ 0x100
+
+screenWidthBytes     equ screenColumns*2
+bufferTileStride     equ tileRows*bufferStride
 overscanPitCycles    equ pitCyclesPerScanline*(scanlinesPerFrame - activeScanlines)
 onScreenPitCycles    equ pitCyclesPerScanline*activeScanlines
-screenWidth          equ 80
-charactersPerTile    equ 8
-rowsPerTile          equ 16
+tileWidthBytes       equ tileColumns*2
+screenRows           equ activeScanlines/scanlinesPerRow
+tilesPerScreenHorizontally  equ (screenColumns + 2*tileColumns - 2) / tileColumns
+tilesPerScreenVertically    equ (screenRows + 2*tileRows - 2) / tileRows
+midTileHorizontally         equ tilesPerScreenHorizontally/2
+midTileVertically           equ tilesPerScreenVertically/2
+mapBottom                   equ 1 + (tilesPerScreenVertically + 1)*mapStride
+%define bufferPosition(x, y) (tileWidthBytes*(x) + bufferTileStride*(y))
+%define mapPosition(x, y)    ((x) + mapStride*(y))
+topLeftBuffer               equ bufferPosition(1, 1)
+topLeftMap                  equ mapPosition(1, 1)
+topRightBuffer              equ bufferPosition(tilesPerScreenHorizontally, 1)
+topRightMap                 equ mapPosition(tilesPerScreenHorizontally, 1)
+bottomLeftBuffer            equ bufferPosition(1, tilesPerScreenVertically)
+bottomLeftMap               equ mapPosition(1, tilesPerScreenVertically)
+bottomRightBuffer           equ bufferPosition(tilesPerScreenHorizontally, tilesPerScreenVertically)
+bottomRightMap              equ mapPosition(tilesPerScreenHorizontally, tilesPerScreenVertically)
+xPlayer                     equ (screenColumns - tileColumns)/2
+yPlayer                     equ (screenRows - tileRows)/2
+playerTopLeft               equ yPlayer*bufferStride + xPlayer*2
+
 plotBufferSize       equ 100
 updateBufferSize     equ 100
 updateBufferStart    equ endCode + plotBufferSize*8 + 12
 updateBufferEnd      equ updateBufferStart + updateBufferSize*10 + 14
 preBufferParagraphs  equ (updateBufferEnd & 15) >> 4
-%assign bufferWidthTiles  screenWidth/charactersPerTile + 3
-%assign bufferHeightTiles (activeScanlines/2)/rowsPerTile + 3
+;%assign bufferWidthTiles  screenColumns/tileColumns + 3
+;%assign bufferHeightTiles (activeScanlines/2)/tileRows + 3
 
+
+  mov ax,cs
+  mov ds,ax
+  mov [soundPointer+2],ax
+  mov [musicPointer+2],ax
+  mov bx,endPreBuffer
+  add bx,15
+  mov cl,4
+  shr bx,cl
+  add ax,bx
+  mov [bufferSegment],ax
+  add ax,0x1000
+  mov [foregroundSegment],ax
+  add ax,0x1000
+  mov [backgroundSegment],ax
+  add ax,0x1000
+  mov [tilesSegment],ax
 
 
 %assign i 1
-%rep screenWidth
+%rep screenColumns
   %assign plotterHeights%[i] 0
   %assign updaterHeights%[i] 0
   %assign i i+1
@@ -42,6 +90,27 @@ preBufferParagraphs  equ (updateBufferEnd & 15) >> 4
 makePlotter 2,3
 mov ax,plotter(2,3)
 
+
+; TODO: Load world.dat
+; TODO: Draw initial screen
+;        for (int y = 0; y < _tilesPerScreenVertically + 2; ++y) {
+;            int buffer = bufferRow;
+;            int map = mapRow;
+;            for (int x = 0; x < _tilesPerScreenHorizontally + 2; ++x) {
+;                drawTile(buffer, map);
+;                buffer += _tileWidthBytes;
+;                ++map;
+;            }
+;            bufferRow += _bufferTileStride;
+;            mapRow += _mapStride;
+;        }
+;
+;        _underPlayer.allocate(_tileWidthBytes*_tileRows);
+;        drawPlayer();
+
+
+
+
 startup:
   mov ax,0x40
   mov ds,ax
@@ -51,21 +120,6 @@ checkMotorShutoff:
   mov byte[0x40],1
   jmp checkMotorShutoff
 noMotorShutoff:
-
-  mov ax,cs
-  mov ds,ax
-  mov [soundPointer+2],ax
-  mov [musicPointer+2],ax
-  mov bx,endPreBuffer
-  add bx,15
-  mov cl,4
-  shr bx,cl
-  add ax,bx
-  mov [bufferSegment],ax
-  add ax,0x1000
-  mov [mapSegment],ax
-  add ax,0x1000
-  mov [tilesSegment],ax
 
   in al,0x61
   or al,3
@@ -90,6 +144,24 @@ noMotorShutoff:
   mov ax,3
   int 0x10
   mov dx,0x3d8
+  mov al,1
+  out dx,al
+
+  mov ax,0xb800
+  mov es,ax
+  xor si,si
+  mov di,[bufferTopLeft]
+  mov ds,[bufferSegment]
+  mov ax,bufferStride - screenWidthBytes
+  mov bx,screenRows
+  mov bp,screenColumns
+firstDrawY:
+  mov cx,bp
+  rep movsw
+  add di,ax
+  dec bx
+  jnz firstDrawY
+
   mov al,9
   out dx,al
   mov dl,0xd4
@@ -203,30 +275,117 @@ frameCount: dw 0, 0
 soundPointer: dw 0, 0
 musicPointer: dw 0, 0
 startAddress: dw 0
+vramTopLeft: dw 0
+bufferTopLeft: dw topLeftBuffer
+bufferTL: dw 0
+mapTL: dw 0x8080  ; Start location
 soundEnd: dw 0
 soundStart: dw 0
 musicEnd: dw 0
 musicStart: dw 0
 bufferSegment: dw 0
-mapSegment: dw 0
+foregroundSegment: dw 0
+backgroundSegment: dw 0
 tilesSegment: dw 0
 xVelocity: dw 0  ; In characters per 0x100 frames
 yVelocity: dw 0  ; In rows per 0x100 frames
-xTilePosition: db 0  ; In tiles
-yTilePosition: db 0  ; In tiles
-xCharPosition: dw 0  ; In characters /0x100
-yRowPosition: dw 0  ; In rows /0x100
+;xTilePosition: db 0  ; In tiles
+;yTilePosition: db 0  ; In tiles
+xSubTile: dw 0  ; In characters /0x100
+ySubTile: dw 0  ; In rows /0x100
+xSubTileHighOld: db 0
+ySubTileHighOld: db 0
 imr: db 0
-upDown: db 0
-downDown: db 0
-leftDown: db 0
-rightDown: db 0
-spaceDown: db 0
-xAcceleration: dw accelerateNone ; Pointer to acceleration table
-topTiles: dw 0
-bottomTiles: dw 0
-leftTiles: dw 0
-rightTiles: dw 0
+;xAcceleration: dw accelerateNone ; Pointer to acceleration table
+leftStart: db 0
+leftEnd: db tilesPerScreenVertically
+topStart: db 0
+topEnd: db tilesPerScreenHorizontally
+rightStart: db 0
+rightEnd: db tilesPerScreenVertically
+bottomStart: db 0
+bottomEnd: db tilesPerScreenHorizontally
+shifts: db 1,2,4,8,0x10,0x20,0x40,0x80
+keyboardFlags: db 8 dup (0)
+
+bufferLeft:
+%assign i 0
+%rep tilesPerScreenVertically
+  db bufferPosition(0, i + 1)
+%assign i i + 1
+%endrep
+
+mapLeft:
+%assign i 0
+%rep tilesPerScreenVertically
+  db mapPosition(0, i + 1)
+%assign i i + 1
+%endrep
+
+bufferTop:
+%assign i 0
+%rep tilesPerScreenHorizontally
+  db bufferPosition(i + 1, 0)
+%assign i i + 1
+%endrep
+
+bufferRight:
+%assign i 0
+%rep tilesPerScreenVertically
+  db bufferPosition(tilesPerScreenHorizontally + 1, i + 1)
+%assign i i + 1
+%endrep
+
+mapRight:
+%assign i 0
+%rep tilesPerScreenVertically
+  db mapPosition(tilesPerScreenHorizontally + 1, i + 1)
+%assign i i + 1
+%endrep
+
+bufferBottom:
+%assign i 0
+%rep tilesPerScreenHorizontally
+  db bufferPosition(i + 1, tilesPerScreenVertically + 1)
+%assign i i + 1
+%endrep
+
+%macro positive 1
+  %if %1 < 0
+    db 0
+  %else
+    db %1
+  %endif
+%endmacro
+
+transitionCountLeft:
+%assign i 0
+%rep tileColumns
+positive (tileColumns - i)*(tilesPerScreenVertically + 1)/tileColumns - 1
+%assign i i + 1
+%endrep
+
+transitionCountTop:
+%assign i 0
+%rep tileRows
+positive (tileRows - i)*(tilesPerScreenHorizonally + 1)/tileRows - 1
+%assign i i + 1
+%endrep
+
+transitionCountLeft:
+%assign i 0
+%rep tileColumns
+positive (1 + i)*(tilesPerScreenVertically + 1)/tileColumns - 1
+%assign i i + 1
+%endrep
+
+transitionCountBottom:
+%assign i 0
+%rep tileRows
+positive (1 + i)*(tilesPerScreenHorizonally + 1)/tileRows - 1
+%assign i i + 1
+%endrep
+
 
 
 offScreenHandler:
@@ -305,19 +464,12 @@ onScreenHandler:
 noRestartSound:
   mov [soundPointer],si
 
-  mov dx,0x3d4
-  mov al,0x0c
-  mov ah,[startAddress+1]
-  out dx,ax
-  inc ax
-  mov ah,[startAddress]
-  out dx,ax
-
   inc word[frameCount]
   jz noFrameCountCarry
   inc word[frameCount+2]
 noFrameCountCarry:
 
+checkKey:
   in al,0x20
   and al,2    ; Check for IRR bit 1 (IRQ 1) high
   jz noKey
@@ -334,17 +486,97 @@ port61low:
   mov al,0x4f
   out 0x61,al
 
-  add bx,bx
-  jmp word[bx+keyboardTable]
+  mov al,bl
+  and bx,7
+  mov cl,[shifts+bx]
+  mov bl,al
+  shr bl,1
+  shr bl,1
+  shr bl,1
+  and bl,0x0f
+  test al,0x80
+  jz keyPressed
+  not cl
+  and [keyboardFlags+bx],cl
+  jmp checkKey
+keyPressed:
+  or [keyboardFlags+bx],cl
+  jmp checkKey
+
+; keyboardFlags    1     2      4    8  0x10   0x20      0x40 0x08
+
+;  0                   Esc      1    2     3      4         5    6
+;  1               7     8      9    0     -      = Backspace  Tab
+;  2               Q     W      E    R     T      Y         U    I
+;  3               O     P      [    ] Enter   Ctrl         A    S
+;  4               D     F      G    H     J      K         L    ;
+;  5               '     ` LShift    \     Z      X         C    B
+;  6               B     N      M    ,     .      /    RShift  KP*
+;  7             Alt Space   Caps   F1    F2     F3        F4   F5
+;  8              F6    F7     F8   F9   F10    Num    Scroll Home
+;  9              Up  PgUp    KP- Left   KP5  Right       KP+  End
+; 10            Down  PgDn    Ins  Del                         F11
+; 11             F12
+
 noKey:
+  mov ax,[xVelocity]
+  test byte[keyboardFlags+9],8
+  jz leftNotPressed
+  test byte[keyboardFlags+9],0x20
+  jnz noHorizontalAcceleration
+  ; Speed up leftwards
+  sub ax,horizontalAcceleration
+  cmp ax,-horizontalMaxVelocity
+  jge noHorizontalAcceleration
+  mov ax,-horizontalMaxVelocity
+  jmp noHorizontalAcceleration
+leftNotPressed:
+  test byte[keyboardFlags+9],0x20
+  jz rightNotPressed
+  ; Speed up rightwards
+  add ax,horizontalAcceleration
+  cmp ax,horizontalMaxVelocity
+  jle noHorizontalAcceleration
+  mov ax,horizontalMaxVelocity
+  jmp noHorizontalAcceleration
+rightNotPressed:
+  ; Slow down
+  cmp word[xVelocity],0
+  jl slowDownLeftwards
+  sub ax,horizontalAcceleration
+  cmp ax,0
+  jg noHorizontalAcceleration
+  xor ax,ax
+
+
+
+
+
+
+
+
+
+  mov dx,0x3d4
+  mov al,0x0c
+  mov ah,[startAddress+1]
+  out dx,ax
+  inc ax
+  mov ah,[startAddress]
+  out dx,ax
+
+
+
+
+
+
   mov bx,[xVelocity]
   mov si,[xAcceleration]
   mov bx,[bx+si]
   mov [xVelocity],bx
 
-  add bx,[xCharPosition]
+  add bx,[xSubTile]
   cmp bh,
-  mov [xCharPosition],bx
+  mov [xSubTile],bx
 
 
   ; TODO: create update buffer
@@ -353,7 +585,7 @@ noKey:
   ; TODO: create plotter buffer
   ;   TODO: end with idle
   ; TODO: movement processing
-  ;   xCharPosition
+  ;   xSubTile
   ;   xTilePosition
   ;   startAddress
   ; TODO: game logic
@@ -370,72 +602,10 @@ noKey:
   ret
 
 
-escPressed:
-  jmp teardown
-upPressed:
-  mov byte[upDown],1
-  jmp noKey
-upReleased:
-  mov byte[upDown],0
-  jmp noKey
-downPressed:
-  mov byte[downDown],1
-  jmp noKey
-downReleased:
-  mov byte[downDown],0
-  jmp noKey
-leftPressed:
-  mov byte[leftDown],1
-doLeft:
-  mov word[xAcceleration],accelerateLeft
-  jmp leftRightLeft
-leftReleased:
-  mov byte[leftDown],0
-  test byte[rightDown],1
-  jnz doRight
-  mov word[xAcceleration],accelerateNone
-  jmp noKey
-rightPressed:
-  mov byte[rightDown],1
-doRight:
-  mov word[xAcceleration],accelerateRight
-  jmp noKey
-rightReleased:
-  mov byte[rightDown],0
-  test byte[leftDown],1
-  jnz doLeft
-  mov word[xAcceleration],accelerateNone
-  jmp noKey
-spacePressed:
-  mov byte[spaceDown],1
-  jmp noKey
-spaceReleased:
-  mov byte[spaceDown],0
-  jmp noKey
-
-
-
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 0       Esc  1   2   3   4   5      6    7    8     9      0    -     =     Backspace Tab
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 1  Q    W    E   R   T   Y   U      I    O    P     [      ]    Enter Ctrl  A         S
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 2  D    F    G   H   J   K   L      ;    '    `     LShift \    Z     X     C         V
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 3  B    N    M   ,   .   /   RShift KP*  Alt  Space Caps   F1   F2    F3    F4        F5
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, upReleased, noKey, noKey, leftReleased, noKey, rightReleased, noKey, noKey  ; 4  F6   F7   F8  F9  F10 Num Scroll Home Up   PgUp  KP-    Left KP5   Right KP+       End
-  dw downReleased, noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 5  Down PgDn Ins Del                F11  F12
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey
-keyboardTable:                                                                                                                                        ;    0    1    2   3   4   5   6      7    8    9     A      B    C     D     E         F
-  dw noKey,        escPressed,  noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 0       Esc  1   2   3   4   5      6    7    8     9      0    -     =     Backspace Tab
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 1  Q    W    E   R   T   Y   U      I    O    P     [      ]    Enter Ctrl  A         S
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 2  D    F    G   H   J   K   L      ;    '    `     LShift \    Z     X     C         V
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 3  B    N    M   ,   .   /   RShift KP*  Alt  Space Caps   F1   F2    F3    F4        F5
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, upPressed,  noKey, noKey, leftPressed,  noKey, rightPressed,  noKey, noKey  ; 4  F6   F7   F8  F9  F10 Num Scroll Home Up   PgUp  KP-    Left KP5   Right KP+       End
-  dw downPressed,  noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey  ; 5  Down PgDn Ins Del                F11  F12
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey
-  dw noKey,        noKey,       noKey, noKey, noKey, noKey, noKey, noKey, noKey,      noKey, noKey, noKey,        noKey,                noKey, noKey
 
 
 %assign i 1
-%rep screenWidth
+%rep screenColumns
   %assign n plotterHeights%[i]
   %if n > 0
     %assign j 0
@@ -459,7 +629,7 @@ keyboardTable:                                                                  
     %rep n
       times i movsw
       %if j < n - 1
-        %if i != screenWidth
+        %if i != screenColumns
           add di,bx
         %endif
         add si,cx
