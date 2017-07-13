@@ -541,12 +541,60 @@ leftNotPressed:
   jmp noHorizontalAcceleration
 rightNotPressed:
   ; Slow down
-  cmp word[xVelocity],0
+  cmp ax,0
   jl slowDownLeftwards
   sub ax,horizontalAcceleration
-  cmp ax,0
-  jg noHorizontalAcceleration
+  jge noHorizontalAcceleration
+stopHorizontal:
   xor ax,ax
+  jmp noHorizontalAcceleration
+slowDownLeftwards:
+  add ax,horizontalAcceleration
+  jns stopHorizontal
+noHorizontalAcceleration:
+
+  xchg ax,bx
+  mov ax,[yVelocity]
+  test byte[keyboardFlags+9],1
+  jz upNotPressed
+  test byte[keyboardFlags+10],1
+  jnz noVerticalAcceleration
+  ; Speed up upwards
+  sub ax,verticalAcceleration
+  cmp ax,-verticalMaxVelocity
+  jge noVerticalAcceleration
+  mov ax,-verticalMaxVelocity
+  jmp noVerticalAcceleration
+upNotPressed:
+  test byte[keyboardFlags+10],1
+  jz downNotPressed
+  ; Speed up downwards
+  add ax,verticalAcceleration
+  cmp ax,verticalMaxVelocity
+  jle noVerticalAcceleration
+  mov ax,verticalMaxVelocity
+  jmp noVerticalAcceleration
+downNotPressed:
+  ; Slow down
+  cmp ax,0
+  jl slowDownUpwards
+  sub ax,verticalAcceleration
+  jge noVerticalalAcceleration
+stopVertical:
+  xor ax,ax
+  jmp noVerticalAcceleration
+slowDownUpwards:
+  add ax,verticalAcceleration
+  jns stopVertical
+noVerticalAcceleration:
+
+  mov cl,[xSubTile+1]
+  mov ch,[ySubTile+1]
+  cmp bx,0
+  jle notMovingRight
+  mov dx,[xSubTile]
+  add dx,bx
+  cmp dx
 
 
 
