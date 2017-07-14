@@ -293,6 +293,8 @@ public:
             box->_bitOffset = 0;
             box->_lBlockToLChange = 0;
             box->_lChangeToRChange = boxIncrement;
+            for (int pixel = 0; pixel < 35; ++pixel)
+                box->_positionForPixel[pixel] = pixel < boxIncrement ? 0 : -1;
             _patternCount = 0x10000;
             _combineShift = 0;
         }

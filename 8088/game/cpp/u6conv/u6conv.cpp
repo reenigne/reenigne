@@ -111,12 +111,14 @@ public:
             }
         }
 
-        String sphere = File(String("q:\\pictures\\reenigne\\cga2ntsc\\sphere1_out.dat"), true).contents();
+        String sphere = File(String("q:\\pictures\\reenigne\\cga2ntsc\\sphere1s_out.dat"), true).contents();
         for (int y = 0; y < 16; ++y)
             for (int x = 0; x < 16; x += 2) {
-                int p = (y + 3)*160 + x + 4;
+                int p = (y + 3)*24 + x + 4;
                 Word ch = sphere[p] + (sphere[p + 1] << 8);
-                if (ch == 0x1213)
+                float yy = (static_cast<float>(y) - 7.5f)*3.0f;
+                float xx = (static_cast<float>(x >> 1) - 3.5f)*5.0f;
+                if (xx*xx + yy*yy >= 20.0f*20.0f /*22.5f*22.5f*/)
                     ch = 0xffff;
                 tileGraphics[y*16+x] = ch & 0xff;
                 tileGraphics[y*16+x + 1] = ch >> 8;

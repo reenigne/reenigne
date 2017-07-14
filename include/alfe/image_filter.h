@@ -663,8 +663,28 @@ public:
         std::function<Tuple<float,float>(float)> kernelFunction, int* inputTop,
         int* inputBottom, float zoom, float offset)
     {
-        int channelsPerUnit = (useSSE2() ? 4 : 1);
         _height = outputSize.y;
+
+        int nTotals = 4 + static_cast<int>(kernelRadius)*2 +
+            static_cast<int>(static_cast<float>(_height - 1)/zoom);
+        Array<float> totals(nTotals);
+        int totalsOffset = 1 + static_cast<int>(kernelRadius) - static_cast<int>(offset);
+        for (int i = 0; i < nTotals; ++i) {
+            float ii = static_cast<float>(i - totalsOffset);
+            float total = 0;
+            float tp = (ii - kernelRadius - offset)*zoom;
+            int topOutput = static_cast<int>(tp);
+            float bp = (ii + kernelRadius - offset)*zoom;
+            int bottomOutput = static_cast<int>(bp);
+            for (int y = topOutput; y <= bottomOutput; ++y) {
+                float dist = static_cast<float>(y)/zoom + offset - ii;
+                if (dist >= -kernelRadius && dist <= kernelRadius)
+                    total += kernelFunction(dist).second();
+            }
+            totals[i] = total;
+        }
+
+        int channelsPerUnit = (useSSE2() ? 4 : 1);
         _width = (outputSize.x*channels + channelsPerUnit - 1)/
             channelsPerUnit;
         _kernelSizes.ensure(_height);
@@ -680,7 +700,6 @@ public:
         int top = std::numeric_limits<int>::max();
         int bottom = std::numeric_limits<int>::min();
         for (int y = 0; y < _height; ++y) {
-            float total = 0;
             // Compute topmost and bottommost possible input positions
             float tp = offset - kernelRadius + 1 + static_cast<float>(y)/zoom;
             if (tp < 0)
@@ -694,8 +713,6 @@ public:
 
             float centerInputPixel = static_cast<float>(y)/zoom + offset;
 
-            top = min(top, topInput);
-            bottom = max(bottom, bottomInput);
             float* kernelStart = kernel;
             int realTop = bottomInput + 1;
             int realBottom;
@@ -704,8 +721,8 @@ public:
                 Tuple<float, float> v(0, 0);
                 if (dist >= -kernelRadius && dist <= kernelRadius)
                     v = kernelFunction(dist);
-                total += v.second();
                 if (v.first() != 0) {
+                    v.first() *= zoom/totals[i + totalsOffset];
                     if (realTop <= bottomInput) {
                         ++realBottom;
                         for (;realBottom < i; ++realBottom) {
@@ -734,9 +751,8 @@ public:
             }
             sizes[y] = 1 + realBottom - realTop;
             offsets[y] = realTop;
-            float scale = 1/total;
-            for (;kernelStart != kernel; ++kernelStart)
-                *kernelStart *= scale;
+            top = min(top, realTop);
+            bottom = max(bottom, realBottom);
         }
         *inputTop = top;
         *inputBottom = bottom + 1;

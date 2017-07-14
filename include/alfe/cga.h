@@ -1495,7 +1495,8 @@ public:
             // Change to 1 to use FIR decoding for output
 #define FIR_DECODING 0
 #if FIR_DECODING
-            _decoder.setLength(512 - 2*decoderPadding);
+            int decoderOutputLength = 512 - 2*decoderPadding
+            _decoder.setLength(decoderOutputLength);
 #else
             _decoder.setPadding(decoderPadding);
 #endif
@@ -1544,6 +1545,7 @@ public:
             Timer decodeTimer;
 
 #if FIR_DECODING
+            stride = decoderOutputLength;
             switch (combFilter) {
                 case 0:
                     // No comb filter
@@ -1574,7 +1576,8 @@ public:
                             ++ip;
                         }
 #endif
-                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
+                        _decoder.execute();
+                        _decoder.outputToSRGB(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
@@ -1616,7 +1619,8 @@ public:
                         }
 #endif
 
-                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
+                        _decoder.execute();
+                        _decoder.outputToSRGB(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }
@@ -1656,8 +1660,8 @@ public:
                             ++ip2;
                         }
 #endif
-
-                        _decoder.decodeBlock(reinterpret_cast<SRGB*>(srgb));
+                        _decoder.execute();
+                        _decoder.outputToSRGB(reinterpret_cast<SRGB*>(srgb));
                         srgb += stride*3;
                         ntscBlock += stride;
                     }

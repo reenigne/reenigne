@@ -635,7 +635,7 @@ public:
 #if FIR_FP
         _output.ensure(_outputLength*3*sizeof(float), 1);
 #else
-        _output.ensure(_outputLength*3*sizeof(UInt16), 1);
+        _output.ensure(_outputLength*3*sizeof(SInt16), 1);
 #endif
 
         int n = 1 + right - left;
@@ -839,12 +839,17 @@ public:
     int inputRight() { return _inputRight; }
     int outputLeft() const { return _filter.outputLeft(); }
     int outputRight() const { return _filter.outputRight(); }
+#if FIR_FP
+    int shift() const { return 0; }
+    float bias() const { return _brightness2; }
+#else
     int shift() const { return _filter.shift(); }
     int bias() const
     {
         int s = shift();
         return (_brightness2 << s) + (1 << (s - 1));
     }
+#endif
 #if FIR_FP
     float* inputData() { return reinterpret_cast<float*>(_input.data()); }
     float* outputData() { return reinterpret_cast<float*>(_output.data()); }

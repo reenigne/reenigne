@@ -550,10 +550,14 @@ stopHorizontal:
   jmp noHorizontalAcceleration
 slowDownLeftwards:
   add ax,horizontalAcceleration
-  jns stopHorizontal
+  jg stopHorizontal
 noHorizontalAcceleration:
+  mov [xVelocity],ax
+  xchg ax,si
+  mov dx,[xSubTile]
+  mov cl,dh
+  add dx,si
 
-  xchg ax,bx
   mov ax,[yVelocity]
   test byte[keyboardFlags+9],1
   jz upNotPressed
@@ -585,16 +589,54 @@ stopVertical:
   jmp noVerticalAcceleration
 slowDownUpwards:
   add ax,verticalAcceleration
-  jns stopVertical
+  jg stopVertical
 noVerticalAcceleration:
+  mov [yVelocity],ax
+  mov bx,[ySubtile]
+  mov ch,bh
+  add bx,ax
 
-  mov cl,[xSubTile+1]
-  mov ch,[ySubTile+1]
-  cmp bx,0
+%macro doRight 1
+  cmp ax,0
+  jle %%notMovingDown
+  cmp bh,ch
+  je %%notMovingVertically
+  cmp bh,tileRows
+  jl %%notDownTileBoundary
+  ; downTile();
+  %if %1 != 0
+    ; drawTile(bottomRightBuffer, bottomRightMap)
+  %endif
+%%notdownTileBoundary:
+  ; downRight();
+  jmp doneMove
+%%notMovingVertically:
+  ; right();
+  jmp doneMove
+%%notMovingDown:
+
+
+%endmacro
+
+
+  cmp si,0
   jle notMovingRight
-  mov dx,[xSubTile]
-  add dx,bx
-  cmp dx
+  cmp dh,cl
+  je notMovingHorizontally
+  ; restoreTile(_playerTopLeft, &_underPlayer[0]);
+  cmp dh,tileColumns
+  jl doRightFalse
+  ; rightTile();
+  doRight(1)
+  jmp doneMove
+doRightFalse:
+  doRight(0)
+  jmp doneMove
+notMovingHorizontally:
+  ; vertical();
+  jmp doneMove
+notMovingRight:
+
 
 
 
