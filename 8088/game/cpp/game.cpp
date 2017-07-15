@@ -320,38 +320,9 @@ public:
         }
 
 
-        // Move
-        _xSubTileHighOld = _xSubTile >> 8;
-        _ySubTileHighOld = _ySubTile >> 8;
         _tilesDrawn = 0;
-        if (_xVelocity > 0) {
-            _xSubTile += _xVelocity;
-            if ((_xSubTile >> 8) != _xSubTileHighOld) {
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
-                if ((_xSubTile >> 8) >= _tileColumns) {
-                    rightTile();
-                    doRight(true);
-                }
-                else
-                    doRight(false);
-            }
-            else
-                vertical();
-        }
-        else {
-            _xSubTile += _xVelocity;
-            if ((_xSubTile >> 8) != _xSubTileHighOld) {
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
-                if ((_xSubTile >> 8) < 0) {
-                    leftTile();
-                    doLeft(true);
-                }
-                else
-                    doLeft(false);
-            }
-            else
-                vertical();
-        }
+        move();
+
         // Set start address:
         _vram[CGAData::registerStartAddressHigh] = _startAddress >> 8;
         _vram[CGAData::registerStartAddressLow] = _startAddress & 0xff;
@@ -678,179 +649,177 @@ private:
         saveTile(_playerTopLeft, &_underPlayer[0]);
         drawTransparentTile(_playerTopLeft, 0);
     }
-    void upLeft()
+    void move()
     {
-        _startAddress -= _screenColumns + 1;
-        _vramTopLeft -= _screenWidthBytes + 2;
-        _bufferTopLeft -= _bufferStride + 2;
-        addUpdateBlock(0, 0, _screenColumns, 1);
-        addUpdateBlock(0, 1, 1, _screenRows - 1);
-        leftTiles();
-        topTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows + 1);
-    }
-    void up()
-    {
-        _startAddress -= _screenColumns;
-        _vramTopLeft -= _screenWidthBytes;
-        _bufferTopLeft -= _bufferStride;
-        addUpdateBlock(0, 0, _screenColumns, 1);
-        leftTiles();
-        topTiles();
-        rightTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer, _yPlayer, _tileColumns, _tileRows + 1);
-    }
-    void upRight()
-    {
-        _startAddress -= _screenColumns - 1;
-        _vramTopLeft -= _screenWidthBytes - 2;
-        _bufferTopLeft -= _bufferStride - 2;
-        addUpdateBlock(0, 0, _screenColumns, 1);
-        addUpdateBlock(_screenColumns - 1, 1, 1, _screenRows - 1);
-        topTiles();
-        rightTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows + 1);
-    }
-    void left()
-    {
-        --_startAddress;
-        _vramTopLeft -= 2;
-        _bufferTopLeft -= 2;
-        addUpdateBlock(0, 0, 1, _screenRows);
-        leftTiles();
-        topTiles();
-        bottomTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows);
-    }
-    void right()
-    {
-        ++_startAddress;
-        _vramTopLeft += 2;
-        _bufferTopLeft += 2;
-        addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows);
-        rightTiles();
-        topTiles();
-        bottomTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows);
-    }
-    void downLeft()
-    {
-        _startAddress += _screenColumns - 1;
-        _vramTopLeft += _screenWidthBytes - 2;
-        _bufferTopLeft += _bufferStride - 2;
-        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
-        addUpdateBlock(0, 0, 1, _screenRows - 1);
-        leftTiles();
-        bottomTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
-    }
-    void down()
-    {
-        _startAddress += _screenColumns;
-        _vramTopLeft += _screenWidthBytes;
-        _bufferTopLeft += _bufferStride;
-        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
-        leftTiles();
-        bottomTiles();
-        rightTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns, _tileRows + 1);
-    }
-    void downRight()
-    {
-        _startAddress += _screenColumns + 1;
-        _vramTopLeft += _screenWidthBytes + 2;
-        _bufferTopLeft += _bufferStride + 2;
-        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
-        addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows - 1);
-        bottomTiles();
-        rightTiles();
-        drawPlayer();
-        addUpdateBlock(_xPlayer - 1, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
-    }
-    void vertical()
-    {
+        int xSubTileHighOld = _xSubTile >> 8;
+        int ySubTileHighOld = _ySubTile >> 8;
+        _xSubTile += _xVelocity;
+        _ySubTile += _yVelocity;
+        if (_xVelocity > 0) {
+            if ((_xSubTile >> 8) != xSubTileHighOld) {
+                restoreTile(_playerTopLeft, &_underPlayer[0]);
+                if (_yVelocity > 0) {
+                    if ((_ySubTile >> 8) != ySubTileHighOld) {
+                        if ((_ySubTile >> 8) >= _tileRows) {
+                            downTile();
+                            if ((_xSubTile >> 8) >= _tileColumns) {
+                                rightTile();
+                                drawTile(_bottomRightBuffer, _bottomRightMap);
+                            }
+                        }
+                        else {
+                            if ((_xSubTile >> 8) >= _tileColumns)
+                                rightTile();
+                        }
+                        _startAddress += _screenColumns + 1;
+                        _vramTopLeft += _screenWidthBytes + 2;
+                        _bufferTopLeft += _bufferStride + 2;
+                        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+                        addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows - 1);
+                        bottomTiles();
+                        rightTiles();
+                        drawPlayer();
+                        addUpdateBlock(_xPlayer - 1, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
+                        return;
+                    }
+                }
+                else {
+                    if ((_ySubTile >> 8) != ySubTileHighOld) {
+                        if ((_ySubTile >> 8) < 0) {
+                            upTile();
+                            if ((_xSubTile >> 8) >= _tileColumns) {
+                                rightTile();
+                                drawTile(_topRightBuffer, _topRightMap);
+                            }
+                        }
+                        else {
+                            if ((_xSubTile >> 8) >= _tileColumns)
+                                rightTile();
+                        }
+                        _startAddress -= _screenColumns - 1;
+                        _vramTopLeft -= _screenWidthBytes - 2;
+                        _bufferTopLeft -= _bufferStride - 2;
+                        addUpdateBlock(0, 0, _screenColumns, 1);
+                        addUpdateBlock(_screenColumns - 1, 1, 1, _screenRows - 1);
+                        topTiles();
+                        rightTiles();
+                        drawPlayer();
+                        addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows + 1);
+                        return;
+                    }
+                }
+                if ((_xSubTile >> 8) >= _tileColumns)
+                    rightTile();
+                ++_startAddress;
+                _vramTopLeft += 2;
+                _bufferTopLeft += 2;
+                addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows);
+                rightTiles();
+                topTiles();
+                bottomTiles();
+                drawPlayer();
+                addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows);
+                return;
+            }
+        }
+        else {
+            if ((_xSubTile >> 8) != xSubTileHighOld) {
+                restoreTile(_playerTopLeft, &_underPlayer[0]);
+                if (_yVelocity > 0) {
+                    if ((_ySubTile >> 8) != ySubTileHighOld) {
+                        if ((_ySubTile >> 8) >= _tileRows) {
+                            downTile();
+                            if ((_xSubTile >> 8) < 0) {
+                                leftTile();
+                                drawTile(_bottomLeftBuffer, _bottomLeftMap);
+                            }
+                        }
+                        else {
+                            if ((_xSubTile >> 8) < 0)
+                                leftTile();
+                        }
+                        _startAddress += _screenColumns - 1;
+                        _vramTopLeft += _screenWidthBytes - 2;
+                        _bufferTopLeft += _bufferStride - 2;
+                        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+                        addUpdateBlock(0, 0, 1, _screenRows - 1);
+                        leftTiles();
+                        bottomTiles();
+                        drawPlayer();
+                        addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
+                        return;
+                    }
+                }
+                else {
+                    if ((_ySubTile >> 8) != ySubTileHighOld) {
+                        if ((_ySubTile >> 8) < 0) {
+                            upTile();
+                            if ((_xSubTile >> 8) < 0) {
+                                leftTile();
+                                drawTile(_topLeftBuffer, _topLeftMap);
+                            }
+                        }
+                        else {
+                            if ((_xSubTile >> 8) < 0)
+                                leftTile();
+                        }
+                        _startAddress -= _screenColumns + 1;
+                        _vramTopLeft -= _screenWidthBytes + 2;
+                        _bufferTopLeft -= _bufferStride + 2;
+                        addUpdateBlock(0, 0, _screenColumns, 1);
+                        addUpdateBlock(0, 1, 1, _screenRows - 1);
+                        leftTiles();
+                        topTiles();
+                        drawPlayer();
+                        addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows + 1);
+                        return;
+                    }
+                }
+                if ((_xSubTile >> 8) < 0)
+                    leftTile();
+                --_startAddress;
+                _vramTopLeft -= 2;
+                _bufferTopLeft -= 2;
+                addUpdateBlock(0, 0, 1, _screenRows);
+                leftTiles();
+                topTiles();
+                bottomTiles();
+                drawPlayer();
+                addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows);
+                return;
+            }
+        }
         if (_yVelocity > 0) {
-            _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) != _ySubTileHighOld) {
+            if ((_ySubTile >> 8) != ySubTileHighOld) {
                 restoreTile(_playerTopLeft, &_underPlayer[0]);
                 if ((_ySubTile >> 8) >= _tileRows)
                     downTile();
-                down();
+                _startAddress += _screenColumns;
+                _vramTopLeft += _screenWidthBytes;
+                _bufferTopLeft += _bufferStride;
+                addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+                leftTiles();
+                bottomTiles();
+                rightTiles();
+                drawPlayer();
+                addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns, _tileRows + 1);
             }
         }
         else {
-            _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) != _ySubTileHighOld) {
+            if ((_ySubTile >> 8) != ySubTileHighOld) {
                 restoreTile(_playerTopLeft, &_underPlayer[0]);
                 if ((_ySubTile >> 8) < 0)
                     upTile();
-                up();
+                _startAddress -= _screenColumns;
+                _vramTopLeft -= _screenWidthBytes;
+                _bufferTopLeft -= _bufferStride;
+                addUpdateBlock(0, 0, _screenColumns, 1);
+                leftTiles();
+                topTiles();
+                rightTiles();
+                drawPlayer();
+                addUpdateBlock(_xPlayer, _yPlayer, _tileColumns, _tileRows + 1);
             }
-        }
-    }
-    void doRight(bool tileBoundary)
-    {
-        if (_yVelocity > 0) {
-            _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) != _ySubTileHighOld) {
-                if ((_ySubTile >> 8) >= _tileRows) {
-                    downTile();
-                    if (tileBoundary)
-                        drawTile(_bottomRightBuffer, _bottomRightMap);
-                }
-                downRight();
-            }
-            else
-                right();
-        }
-        else {
-            _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) != _ySubTileHighOld) {
-                if ((_ySubTile >> 8) < 0) {
-                    upTile();
-                    if (tileBoundary)
-                        drawTile(_topRightBuffer, _topRightMap);
-                }
-                upRight();
-            }
-            else
-                right();
-        }
-    }
-    void doLeft(bool tileBoundary)
-    {
-        if (_yVelocity > 0) {
-            _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) != _ySubTileHighOld) {
-                if ((_ySubTile >> 8) >= _tileRows) {
-                    downTile();
-                    if (tileBoundary)
-                        drawTile(_bottomLeftBuffer, _bottomLeftMap);
-                }
-                downLeft();
-            }
-            else
-                left();
-        }
-        else {
-            _ySubTile += _yVelocity;
-            if ((_ySubTile >> 8) != _ySubTileHighOld) {
-                if ((_ySubTile >> 8) < 0) {
-                    upTile();
-                    if (tileBoundary)
-                        drawTile(_topLeftBuffer, _topLeftMap);
-                }
-                upLeft();
-            }
-            else
-                left();
         }
     }
     void leftTile()
@@ -1026,8 +995,6 @@ private:
     int _yVelocity;
     int _xSubTile;
     int _ySubTile;
-    int _xSubTileHighOld;
-    int _ySubTileHighOld;
     Word _startAddress;   // CRTC character number for TL of screen
     Word _vramTopLeft;    // Position in VRAM corresponding to TL of screen
     Word _bufferTopLeft;  // Position in buffer corresponding to TL of screen
