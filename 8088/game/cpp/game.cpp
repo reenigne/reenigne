@@ -657,7 +657,6 @@ private:
         _ySubTile += _yVelocity;
         if (_xVelocity > 0) {
             if ((_xSubTile >> 8) != xSubTileHighOld) {
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 if (_yVelocity > 0) {
                     if ((_ySubTile >> 8) != ySubTileHighOld) {
                         if ((_ySubTile >> 8) >= _tileRows) {
@@ -671,6 +670,7 @@ private:
                             if ((_xSubTile >> 8) >= _tileColumns)
                                 rightTile();
                         }
+                        restoreTile(_playerTopLeft, &_underPlayer[0]);
                         _startAddress += _screenColumns + 1;
                         _vramTopLeft += _screenWidthBytes + 2;
                         _bufferTopLeft += _bufferStride + 2;
@@ -696,6 +696,7 @@ private:
                             if ((_xSubTile >> 8) >= _tileColumns)
                                 rightTile();
                         }
+                        restoreTile(_playerTopLeft, &_underPlayer[0]);
                         _startAddress -= _screenColumns - 1;
                         _vramTopLeft -= _screenWidthBytes - 2;
                         _bufferTopLeft -= _bufferStride - 2;
@@ -710,6 +711,7 @@ private:
                 }
                 if ((_xSubTile >> 8) >= _tileColumns)
                     rightTile();
+                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 ++_startAddress;
                 _vramTopLeft += 2;
                 _bufferTopLeft += 2;
@@ -724,7 +726,6 @@ private:
         }
         else {
             if ((_xSubTile >> 8) != xSubTileHighOld) {
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 if (_yVelocity > 0) {
                     if ((_ySubTile >> 8) != ySubTileHighOld) {
                         if ((_ySubTile >> 8) >= _tileRows) {
@@ -738,6 +739,7 @@ private:
                             if ((_xSubTile >> 8) < 0)
                                 leftTile();
                         }
+                        restoreTile(_playerTopLeft, &_underPlayer[0]);
                         _startAddress += _screenColumns - 1;
                         _vramTopLeft += _screenWidthBytes - 2;
                         _bufferTopLeft += _bufferStride - 2;
@@ -763,6 +765,7 @@ private:
                             if ((_xSubTile >> 8) < 0)
                                 leftTile();
                         }
+                        restoreTile(_playerTopLeft, &_underPlayer[0]);
                         _startAddress -= _screenColumns + 1;
                         _vramTopLeft -= _screenWidthBytes + 2;
                         _bufferTopLeft -= _bufferStride + 2;
@@ -777,6 +780,7 @@ private:
                 }
                 if ((_xSubTile >> 8) < 0)
                     leftTile();
+                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 --_startAddress;
                 _vramTopLeft -= 2;
                 _bufferTopLeft -= 2;
@@ -791,9 +795,9 @@ private:
         }
         if (_yVelocity > 0) {
             if ((_ySubTile >> 8) != ySubTileHighOld) {
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 if ((_ySubTile >> 8) >= _tileRows)
                     downTile();
+                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 _startAddress += _screenColumns;
                 _vramTopLeft += _screenWidthBytes;
                 _bufferTopLeft += _bufferStride;
@@ -807,9 +811,9 @@ private:
         }
         else {
             if ((_ySubTile >> 8) != ySubTileHighOld) {
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 if ((_ySubTile >> 8) < 0)
                     upTile();
+                restoreTile(_playerTopLeft, &_underPlayer[0]);
                 _startAddress -= _screenColumns;
                 _vramTopLeft -= _screenWidthBytes;
                 _bufferTopLeft -= _bufferStride;

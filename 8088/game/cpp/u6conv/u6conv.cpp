@@ -122,6 +122,9 @@ public:
                     ch = 0xffff;
                 tileGraphics[y*16+x] = ch & 0xff;
                 tileGraphics[y*16+x + 1] = ch >> 8;
+
+                tileGraphics[y*16+x + 0xff00] = 0xff;
+                tileGraphics[y*16+x + 0xff01] = 0xff;
             }
 
         fs.write(tileGraphics);
