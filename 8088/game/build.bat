@@ -1,1 +1,1 @@
-nasm game.asm -o game.obj -f obj -l game.lst
+nasm game.asm -o game.com -f bin -l game.lst

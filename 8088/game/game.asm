@@ -1,5 +1,5 @@
-cpu 8086
 org 0x100
+cpu 8086
 
 pitCyclesPerScanline equ 76     ; Fixed by CGA hardware
 scanlinesPerFrame    equ 262    ; Fixed by NTSC standard
@@ -14,6 +14,7 @@ xAcceleration        equ 0x10
 yAcceleration        equ 0x10
 xMaxVelocity         equ 0x100
 yMaxVelocity         equ 0x100
+updateBufferSize     equ 100
 
 screenWidthBytes     equ screenSize_x*2
 bufferTileStride     equ tileSize_y*bufferStride
@@ -34,69 +35,114 @@ down_leftMap                equ mapPosition(1, tilesPerScreen_y)
 down_rightBuffer            equ bufferPosition(tilesPerScreen_x, tilesPerScreen_y)
 down_rightMap               equ mapPosition(tilesPerScreen_x, tilesPerScreen_y)
 playerTopLeft               equ yPlayer*bufferStride + xPlayer*2
+noneScrollIncrement         equ 0
+noneBufferScrollIncrement   equ 0
 
-%macro axisInfo 2
-  tilesPerScreen_%1     equ (screenSize_%1 + 2*tileSize_%1 - 2) / tileSize_%1
-  %1Player              equ (screenSize_%1 - tileSize_%1)/2
-  %1Perpendicular       equ %2
-%endmacro
-axisInfo x, y
-axisInfo y, x
+%macro drawTile 0  ; buffer location in di, map location in bx
+  add di,[bufferTL]
+  add bx,[mapTL]
 
-%macro directionInfo 3
-  %1Total                   equ tilesPerScreen_%[%[%1Axis]Perpendicular]
-  %1MidTile                 equ %1Total/2
-  %1Axis                    equ %2
-  %1MapIncrement            equ %3*tileSize_%2
-  %ifidn %2,x
-    %1MapIncrement          equ %3
-    %1BufferIncrement       equ %3*tileWidthBytes
-    %1ScrollIncrement       equ %3
-    %1BufferScrollIncrement equ %3
+  mov es,[bufferSegment]
+
+  %if tileWidthBytes*tileSize_y == 0x100
+  mov ds,[foregroundSegment]
+  mov ah,[bx]
+  mov ds,[cs:backgroundSegment]
+  mov bh,[bx]
+  mov bl,0
+  mov al,0
+  xchg ax,si
   %else
-    %1MapIncrement          equ %3*mapStride
-    %1BufferIncrement       equ %3*bufferTileStride
-    %1ScrollIncrement       equ %3*screenSize_x
-    %1BufferScrollIncrement equ %3*bufferStride
+  mov ds,[backgroundSegment]
+  mov al,[bx]
+  mov ds,[cs:foregroundSegment]
+  mov bl,[bx]
+  mov bh,0
+  add bx,bx
+  mov si,[cs:tilePointers + bx]
+  mov bl,al
+  mov bh,0
+  add bx,bx
+  mov bx,[cs:tilePointers + bx]
   %endif
+
+  mov ds,[cs:tilesSegment]
+  mov bp,tileSize_y
+  mov dx,bufferStride-tileWidthBytes
+  mov ch,0
+  %%yLoop:
+  mov cl,tileSize_x
+  %%xLoop:
+  lodsw
+  cmp ax,0xffff
+  jne %%opaque
+  mov ax,[bx]
+  %%opaque:
+  stosw
+  inc bx
+  inc bx
+  loop %%xLoop
+  add di,dx
+  dec bp
+  jnz %%yLoop
 %endmacro
-directionInfo left, x, -1
-directionInfo up, y, -1
-directionInfo right, x, 1
-directionInfo down, y, 1
 
-plotBufferSize       equ 100
-updateBufferSize     equ 100
-underPlayerSize      equ tileWidthBytes*tileSize_y
-underPlayer          equ endCode
-updateBufferStart    equ endCode + plotBufferSize*8 + 12
-updateBufferEnd      equ updateBufferStart + updateBufferSize*10 + 14
-preBufferParagraphs  equ (updateBufferEnd & 15) >> 4
-
-%assign i 1
-%rep screenSize_x
-  %assign plotterHeights%[i] 0
-  %assign updaterHeights%[i] 0
-  %assign i i+1
-%endrep
-
-%define plotter(x,y) (plotter %+ x - y*(x + 2) + 2)
-
-%macro makePlotter 2  ;  width height
-  %if %2 > plotterHeights%[%1]
-    %assign plotterHeights%[%1] %2
-  %endif
+%macro saveTile 2
+  mov si,%1
+  add si,[bufferTopLeft]
+  mov di,%2
+  mov ds,[bufferSegment]
+  mov ax,cs
+  mov es,ax
+  mov bx,tileSize_x
+  %rep tileSize_y
+  mov cx,bx
+  rep movsw
+  add si,bufferStride-tileWidthBytes
+  %endrep
 %endmacro
 
-%macro makeUpdater 2  ;  width height
-  %if %2 > updaterHeights%[%1]
-    %assign updaterHeights%[%1] %2
-  %endif
+%macro drawTransparentTile 2
+  mov si,%2*tileWidthBytes*tileSize_y
+  mov di,%1
+  add di,[bufferTopLeft]
+  mov es,[bufferSegment]
+  mov ds,[tilesSegment]
+  mov bx,tileSize_y
+  mov dx,bufferStride-tileWidthBytes
+  mov bp,tileSize_x
+  %%yLoop:
+  mov cx,bp
+  %%xLoop:
+  lodsw
+  cmp ax,0xffff
+  je %%transparent
+  stosw
+  jmp %%doneWord
+  %%transparent:
+  inc di
+  inc di
+  %%doneWord:
+  loop %%xLoop
+  add di,dx
+  dec bx
+  jnz %%yLoop
+%endmacro
+
+%macro drawPlayer 0
+  saveTile playerTopLeft, underPlayer
+  mov ax,cs
+  mov ds,ax
+  drawTransparentTile playerTopLeft, 0
 %endmacro
 
 setUpMemory:
   mov ax,cs
   mov ds,ax
+  cli
+  mov ss,ax
+  mov sp,stackHigh
+  sti
   mov [soundPointer+2],ax
   mov [musicPointer+2],ax
   mov bx,endPreBuffer
@@ -127,8 +173,6 @@ setUpMemory:
   jmp exit
 .noError:
 
-
-
 loadWorldDat:
   mov dx,worldDat
   mov ax,0x3d00
@@ -147,13 +191,16 @@ loadWorldDat:
   mov ds,[backgroundSegment]
   int 0x21
   jc .error
+  mov ah,0x3f
   mov dx,cx
   int 0x21
   jc .error
   mov ds,[cs:tilesSegment]
+  mov ah,0x3f
   xor dx,dx
   int 0x21
   jc .error
+  mov ah,0x3f
   mov dx,cx
   int 0x21
   jc .error
@@ -175,6 +222,8 @@ drawInitialScreen:
   push cx
   push bx
   push di
+  mov ax,cs
+  mov ds,ax
   drawTile
   pop di
   add di,tileWidthBytes
@@ -186,6 +235,8 @@ drawInitialScreen:
   add bx,mapStride - (tilesPerScreen_x + 2)
   add di,bufferTileStride - tileWidthBytes*(tilesPerScreen_x + 2)
   loop .yLoop
+  mov ax,cs
+  mov ds,ax
   drawPlayer
 
   mov ax,0x40
@@ -197,6 +248,8 @@ checkMotorShutoff:
   jmp checkMotorShutoff
 noMotorShutoff:
 
+  mov ax,cs
+  mov ds,ax
   in al,0x61
   or al,3
   out 0x61,al
@@ -225,8 +278,8 @@ noMotorShutoff:
 
   mov ax,0xb800
   mov es,ax
-  xor si,si
-  mov di,[bufferTopLeft]
+  xor di,di
+  mov si,[bufferTopLeft]
   mov ds,[bufferSegment]
   mov ax,bufferStride - screenWidthBytes
   mov bx,screenSize_y
@@ -234,7 +287,7 @@ noMotorShutoff:
 firstDrawY:
   mov cx,bp
   rep movsw
-  add di,ax
+  add si,ax
   dec bx
   jnz firstDrawY
 
@@ -288,6 +341,15 @@ waitForDisplayEnable:
   mov [cs:oldInterrupt8+2],ax
   mov word[0x20],offScreenHandler
   mov [0x22],cs
+
+  mov ax,cs
+  mov ds,ax
+  mov es,ax
+  mov di,[updatePointer]
+  add di,8
+  mov ax,offScreenHandlerEnd
+  stosw
+  mov [updatePointer],di
 
   mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
   out 0x20,al  ;  read Interrupt Request Register
@@ -345,6 +407,64 @@ exit:
   mov ax,0x4c00
   int 0x21
 
+%macro axisInfo 3
+  tilesPerScreen_%1     equ (screenSize_%1 + 2*tileSize_%1 - 2) / tileSize_%1
+  %1Player              equ (screenSize_%1 - tileSize_%1)/2
+  %define %1Perpendicular %2
+  %define %1SubTileReg    %3
+  %1Velocity: dw 0
+  %1SubTile: dw 0
+%endmacro
+axisInfo x, y, dh
+axisInfo y, x, bh
+
+%macro directionInfo 3
+  %define %1Axis            %2
+  %1Total                   equ tilesPerScreen_%[%[%1Axis]Perpendicular]
+  %1MidTile                 equ %1Total/2
+  %1Increase                equ %3
+  %1TileIncrement           equ %3*tileSize_%[%1Axis]
+  %ifidn %2,x
+    %1MapIncrement          equ %3
+    %1BufferIncrement       equ %3*tileWidthBytes
+    %1ScrollIncrement       equ %3
+    %1BufferScrollIncrement equ %3
+  %else
+    %1MapIncrement          equ %3*mapStride
+    %1BufferIncrement       equ %3*bufferTileStride
+    %1ScrollIncrement       equ %3*screenSize_x
+    %1BufferScrollIncrement equ %3*bufferStride
+  %endif
+  %1Start: db 0
+  %1End: db %1Total
+%endmacro
+directionInfo left, x, -1
+directionInfo up, y, -1
+directionInfo right, x, 1
+directionInfo down, y, 1
+
+
+%assign i 1
+%rep screenSize_x
+  %assign plotterHeights%[i] 0
+  %assign updaterHeights%[i] 0
+  %assign i i+1
+%endrep
+
+;%define plotter(x,y) (plotter %+ x - y*(x + 2) + 2)
+
+;%macro makePlotter 2  ;  width height
+;  %if %2 > plotterHeights%[%1]
+;    %assign plotterHeights%[%1] %2
+;  %endif
+;%endmacro
+
+%macro makeUpdater 2  ;  width height
+  %if %2 > updaterHeights%[%1]
+    %assign updaterHeights%[%1] %2
+  %endif
+%endmacro
+
 worldDat: db 'world.dat',0
 worldDatError: db 'Error reading world.dat file.$'
 memoryError: db 'Not enough memory.$'
@@ -365,64 +485,28 @@ bufferSegment: dw 0
 foregroundSegment: dw 0
 backgroundSegment: dw 0
 tilesSegment: dw 0
-xVelocity: dw 0  ; In characters per 0x100 frames
-yVelocity: dw 0  ; In rows per 0x100 frames
-xSubTile: dw 0  ; In characters /0x100
-ySubTile: dw 0  ; In rows /0x100
 imr: db 0
-leftStart: db 0
-leftEnd: db leftTotal
-upStart: db 0
-upEnd: db upTotal
-rightStart: db 0
-rightEnd: db rightTotal
-downStart: db 0
-downEnd: db downTotal
 shifts: db 1,2,4,8,0x10,0x20,0x40,0x80
-keyboardFlags: db 16 dup (0)
-updatePointer: dw 0
+keyboardFlags: times 16 db 0
+updatePointer: dw updateBufferStart
 
-leftBuffer:
-%assign i 0
-%rep tilesPerScreen_y
-  dw bufferPosition(0, i + 1)
-%assign i i + 1
-%endrep
+%macro linear 4
+  %1:
+  %assign i %3
+  %rep %2
+    dw i
+  %assign i i + %4
+  %endrep
+%endmacro
 
-leftMap:
-%assign i 0
-%rep tilesPerScreen_y
-  dw mapPosition(0, i + 1)
-%assign i i + 1
-%endrep
-
-upBuffer:
-%assign i 0
-%rep tilesPerScreen_x
-  dw bufferPosition(i + 1, 0)
-%assign i i + 1
-%endrep
-
-rightBuffer:
-%assign i 0
-%rep tilesPerScreen_y
-  dw bufferPosition(tilesPerScreen_x + 1, i + 1)
-%assign i i + 1
-%endrep
-
-rightMap:
-%assign i 0
-%rep tilesPerScreen_y
-  dw mapPosition(tilesPerScreen_x + 1, i + 1)
-%assign i i + 1
-%endrep
-
-downBuffer:
-%assign i 0
-%rep tilesPerScreen_x
-  dw bufferPosition(i + 1, tilesPerScreen_y + 1)
-%assign i i + 1
-%endrep
+linear leftBuffer, leftTotal, bufferTileStride, bufferTileStride
+linear leftMap, leftTotal, mapStride, mapStride
+linear upBuffer, upTotal, tileWidthBytes, tileWidthBytes
+;linear upMap, upTotal, 1, 1
+linear rightBuffer, rightTotal, (tilesPerScreen_x + 1)*tileWidthBytes + bufferTileStride, bufferTileStride
+linear rightMap, rightTotal, tilesPerScreen_x + 1 + mapStride, mapStride
+linear downBuffer, downTotal, (tilesPerScreen_y + 1)*bufferTileStride + tileWidthBytes, tileWidthBytes
+;linear downMap, downTotal, (tilesPerScreen_y + 1)*mapStride + 1, 1
 
 %macro positive 1
   %if %1 < 0
@@ -442,7 +526,7 @@ positive (tileSize_x - i)*(tilesPerScreen_y + 1)/tileSize_x - 1
 upTransitionCount:
 %assign i 0
 %rep tileSize_y
-positive (tileSize_y - i)*(tilesPerScreenHorizonally + 1)/tileSize_y - 1
+positive (tileSize_y - i)*(tilesPerScreen_x + 1)/tileSize_y - 1
 %assign i i + 1
 %endrep
 
@@ -456,19 +540,13 @@ positive (1 + i)*(tilesPerScreen_y + 1)/tileSize_x - 1
 downTransitionCount:
 %assign i 0
 %rep tileSize_y
-positive (1 + i)*(tilesPerScreenHorizonally + 1)/tileSize_y - 1
+positive (1 + i)*(tilesPerScreen_x + 1)/tileSize_y - 1
 %assign i i + 1
 %endrep
 
 %if tileWidthBytes*tileSize_y != 0x100
-tilePointers:
-%assign i 0
-%rep 0x100
-  dw i
-%assign i i+tileWidthBytes*tileSize_y
-%endrep
+linear tilePointers, 0x100, 0, tileWidthBytes*tileSize_y
 %endif
-
 
 offScreenHandler:
   push bx
@@ -499,7 +577,7 @@ offScreenHandler:
 noRestartMusic:
   mov [musicPointer],si
 
-  mov sp,updateBufferStart + 6
+  mov sp,updateBufferStart
   pop si
   pop di
   pop bx
@@ -512,10 +590,11 @@ offScreenHandlerEnd:
   pop si
   pop di
   pop bx
-  pop ax
-  pop bp
-  pop bp
-  jmp ax
+  iret
+;  pop ax
+;  pop bp
+;  pop bp
+;  jmp ax
 
 
 onScreenHandler:
@@ -547,15 +626,16 @@ noRestartSound:
   mov [soundPointer],si
 
   inc word[frameCount]
-  jz noFrameCountCarry
+  jnz noFrameCountCarry
   inc word[frameCount+2]
 noFrameCountCarry:
+
+  mov word[updatePointer],updateBufferStart
 
 checkKey:
   in al,0x20
   and al,2    ; Check for IRR bit 1 (IRQ 1) high
   jz noKey
-readKey
   ; Read the keyboard byte and store it
   in al,0x60
   cbw
@@ -677,12 +757,43 @@ doneVerticalAcceleration:
   mov [yVelocity],ax
 noVerticalAcceleration:
   xchg ax,di
-  mov bx,[ySubtile]
+  mov bx,[ySubTile]
   mov ch,bh
   add bx,di
 
+%macro twice 1
+  %1
+  %1
+%endmacro
+
+%macro addConstantHelper 3
+  %ifidni %1,ax
+    twice {%3 %1}
+  %elifidni %1,bx
+    twice {%3 %1}
+  %elifidni %1,cx
+    twice {%3 %1}
+  %elifidni %1,dx
+    twice {%3 %1}
+  %elifidni %1,si
+    twice {%3 %1}
+  %elifidni %1,di
+    twice {%3 %1}
+  %elifidni %1,sp
+    twice {%3 %1}
+  %elifidni %1,bp
+    twice {%3 %1}
+  %else
+    add %1,%2
+  %endif
+%endmacro
+
 %macro addConstant 2
-  %if %2==1
+  %if %2==2
+    addConstantHelper %1, %2, inc
+  %elif %2==-2
+    addConstantHelper %1, %2, dec
+  %elif %2==1
     inc %1
   %elif %2==-1
     dec %1
@@ -704,8 +815,8 @@ noVerticalAcceleration:
     mov byte[%1Start],0
     mov byte[%1End],0
   %else
-    mov byte[%1Start],%2MidTile
-    mov byte[%1End],%2MidTile
+    mov byte[%1Start],%1MidTile
+    mov byte[%1End],%1MidTile
   %endif
 %endmacro
 
@@ -743,68 +854,37 @@ noVerticalAcceleration:
   %%noClear:
 %endmacro
 
-%macro checkTileBoundary 2
-  %ifnidn %1,none
-    %ifidn %[%1Axis],x
-      %assign subTile dh
-      %assign increase right
-    %else
-      %assign subTile bh
-      %assign increase down
-    %endif
-    %ifidn %1,increase
-      cmp subTile,tileSize_%[%1Axis]
-      jl %%noTileBoundary
-    %else
-      cmp subTile,0
-      jge %%noTileBoundary
-    %endif
-    add byte[%[%1Axis]SubTile+1],-%1TileIncrement
-    addConstant word[mapTL],%1MapIncrement
-    add word[bufferTL],%1BufferIncrement
-    emptyEdge %1,0
-    %ifidn %1,left
-      fillEdge right
-      incrementEdge up
-      incrementEdge down
-    %endif
-    %ifidn %1,up
-      fillEdge down
-      incrementEdge left
-      incrementEdge right
-    %endif
-    %ifidn %1,right
-      fillEdge left
-      decrementEdge up
-      decrementEdge down
-    %endif
-    %ifidn %1,down
-      fillEdge up
-      decrementEdge left
-      decrementEdge right
-    %endif
-    %2
-    %%noTileBoundary:
+%macro drawTile2 2
+  mov di,%1
+  mov bx,%2
+  drawTile
+%endmacro
+
+%macro doTileBoundary 1
+  add byte[%[%1Axis]SubTile+1],-tileSize_%[%1Axis]
+  addConstant word[mapTL],%1MapIncrement
+  add word[bufferTL],%1BufferIncrement
+  emptyEdge %1,0
+  %ifidn %1,left
+    fillEdge right
+    incrementEdge up
+    incrementEdge down
   %endif
-%endmacro
-
-%macro diagonal 2
-  checkTileBoundary %2, {drawTile %1_%2Buffer, %1_%2Map}
-%endmacro
-
-%macro saveTile 2
-  mov si,%1
-  add si,[bufferTopLeft]
-  mov di,%2
-  mov ds,[bufferSegment]
-  mov ax,cs
-  mov es,ax
-  mov bx,tileSize_x
-  %rep tileSize_y
-  mov cx,bx
-  rep movsw
-  add si,bufferStride-tileWidthBytes
-  %endrep
+  %ifidn %1,up
+    fillEdge down
+    incrementEdge left
+    incrementEdge right
+  %endif
+  %ifidn %1,right
+    fillEdge left
+    decrementEdge up
+    decrementEdge down
+  %endif
+  %ifidn %1,down
+    fillEdge up
+    decrementEdge left
+    decrementEdge right
+  %endif
 %endmacro
 
 %macro restoreTile 2
@@ -820,85 +900,24 @@ noVerticalAcceleration:
   %endrep
 %endmacro
 
-%macro drawTransparentTile 2
-  mov bx,%2*tileWidthBytes*tileSize_y
-  mov di,%1
-  add di,[bufferTopLeft]
-  mov es,[bufferSegment]
-  mov ds,[tilesSegment]
-  mov bx,tileSize_y
-  mov dx,bufferStride-tileWidthBytes
-  mov bp,tileSize_x
-  %%yLoop:
-  mov cx,bp
-  %%xLoop:
-  lodsw
-  cmp ax,0xffff
-  je %%transparent
-  stosw
-  jmp %%doneWord
-  %%transparent:
-  inc di
-  inc di
-  %%doneWord:
-  loop %%xLoop
-  add di,dx
-  dec bx
-  jnz %%yLoop
-%endmacro
-
 %macro addUpdateBlock 4  ; left top width height
-  mov di,
-  mov ax,
-%endmacro
-
-%macro drawTile 0  ; buffer location in di, map location in bx
-  add di,[bufferTL]
-  add bx,[mapTL]
-
-  mov es,[bufferSegment]
-
-  %if tileWidthBytes*tileSize_y == 0x100
-  mov ds,[foregroundSegment]
-  mov ah,[bx]
-  mov ds,[cs:backgroundSegment]
-  mov bh,[bx]
-  mov bl,0
-  mov al,0
-  xchg ax,si
-  %else
-  mov ds,[backgroundSegment]
-  mov al,[bx]
-  mov ds,[cs:foregroundSegment]
-  mov bl,[bx]
-  mov bh,0
-  add bx,bx
-  mov si,[cs:tilePointers + bx]
-  mov bl,al
-  mov bh,0
-  add bx,bx
-  mov bx,[cs:tilePointers + bx]
-  %endif
-
-  mov ds,[cs:tilesSegment]
-  mov bp,tileSize_y
-  mov dx,bufferStride-tileWidthBytes
-  mov ch,0
-  %%yLoop:
-  mov cl,tileSize_x
-  %%xLoop:
-  lodsw
-  cmp ax,0xffff
-  jne %%opaque
-  mov ax,[bx]
-  %%opaque:
-  stosw
-  inc bx
-  inc bx
-  loop %%xLoop
-  add di,dx
-  dec bp
-  jnz %%yLoop
+  mov di,[updatePointer]
+  mov ax,[bufferTopLeft]
+  add ax,%1*2 + %2*bufferStride
+  stosw                              ; source top-left
+  mov ax,[vramTopLeft]
+  add ax,%1*2 + %2*screenWidthBytes
+  stosw                              ; destination top-left
+  mov ax,screenWidthBytes - 2*%3
+  stosw                              ; destination add
+  mov ax,bufferStride - 2*%3
+  stosw                              ; source add
+  %assign width %3
+  %assign height %4
+  makeUpdater width, height
+  mov ax,updater%[width]_%[height]
+  stosw                              ; code chunk (encodes width and height)
+  mov [updatePointer],di
 %endmacro
 
 %macro ensureEnoughTiles 1
@@ -929,16 +948,57 @@ noVerticalAcceleration:
   mov di,[bx+%1Buffer]
   mov bx,[bx+%1Map]
   drawTile
+  mov ax,cs
+  mov ds,ax
   jmp %%loopTop
   %%enoughTiles:
+%endmacro
+
+%macro checkTileBoundary1 2
+  %ifnidn %1,none
+    %ifidn %1,%1Increase
+      cmp %[%1Axis]SubTileReg,tileSize_%[%1Axis]
+      jl %%noTileBoundary
+    %else
+      cmp %[%1Axis]SubTileReg,0
+      jge %%noTileBoundary
+    %endif
+    doTileBoundary %1
+    %2
+    %%noTileBoundary:
+  %endif
+%endmacro
+
+%macro diagonal 2
+  checkTileBoundary1 %2, {drawTile2 %1_%2Buffer, %1_%2Map}
+%endmacro
+
+%macro checkTileBoundary 2
+  %ifnidn %1,none
+    %ifidn %1,%1Increase
+      cmp %[%1Axis]SubTileReg,%1TileIncrement
+      jl %%noTileBoundary
+    %else
+      cmp %[%1Axis]SubTileReg,0
+      jge %%noTileBoundary
+    %endif
+    doTileBoundary %1
+    %2
+    %%noTileBoundary:
+  %endif
 %endmacro
 
 %macro scroll 2                  ; %1 == up/down/none, %2 == left/right/none
   checkTileBoundary %2, { }
   restoreTile playerTopLeft, underPlayer
   addConstant word[startAddress],%1ScrollIncrement + %2ScrollIncrement
-  addConstant word[vramTopLeft],2*(%1ScrollIncrement + %2ScrollIncrement)
+  mov ax,[vramTopLeft]
+  addConstant ax,2*(%1ScrollIncrement + %2ScrollIncrement)
+  and ax,0x3fff
+  mov [vramTopLeft],ax
   addConstant word[bufferTopLeft],%1BufferScrollIncrement + %2BufferScrollIncrement
+  mov ax,cs
+  mov es,ax
   %ifidn %2,left
     addUpdateBlock 0, 0, 1, screenSize_y
     %ifidn %1,up
@@ -956,7 +1016,7 @@ noVerticalAcceleration:
       addUpdateBlock xPlayer, yPlayer, tileSize_x, tileSize_y + 1
     %elifidn %1,none
     %else
-      addUpdateBlock 0, _screenSize_y - 1, _screenSize_x, 1
+      addUpdateBlock 0, screenSize_y - 1, screenSize_x, 1
       addUpdateBlock xPlayer, yPlayer - 1, tileSize_x, tileSize_y + 1
     %endif
   %else
@@ -967,7 +1027,7 @@ noVerticalAcceleration:
     %elifidn %1,none
       addUpdateBlock xPlayer - 1, yPlayer, tileSize_x + 1, tileSize_y
     %else
-      addUpdateBlock 0, _screenSize_y - 1, _screenSize_x, 1
+      addUpdateBlock 0, screenSize_y - 1, screenSize_x, 1
       addUpdateBlock xPlayer - 1, yPlayer - 1, tileSize_x + 1, tileSize_y + 1
     %endif
   %endif
@@ -984,11 +1044,9 @@ noVerticalAcceleration:
     %ifnidn %1,down
       ensureEnoughTiles up
     %endif
-    saveTile playerTopLeft, underPlayer
-    drawTransparentTile playerTopLeft, 0
+    drawPlayer
   %endif
 %endmacro
-
 
 %macro vertical 2
   cmp bh,ch
@@ -1023,12 +1081,14 @@ notMovingHorizontally:
   verticals none
 noneMove:
 
-
-
-
-
-
-
+  mov ax,cs
+  mov ds,ax
+  mov es,ax
+  mov di,[updatePointer]
+  add di,8
+  mov ax,offScreenHandlerEnd
+  stosw
+  mov [updatePointer],di
 
 
 
@@ -1043,60 +1103,81 @@ noneMove:
   out dx,ax
 
 
-
-
-  mov sp,endCode + 6  ; == plotter buffer start
   pop si
   pop di
   pop bx
   pop cx
-  sti
-  ret
+  iret
+
+
+;  mov sp,updateBufferStart
+;  pop si
+;  pop di
+;  pop bx
+;  pop dx
+;  sti
+;  ret
 
 
 
 
 %assign i 1
 %rep screenSize_x
-  %assign n plotterHeights%[i]
-  %if n > 0
-    %assign j 0
-    %rep n
-      times i movsw
-      %if j < n - 1
-        add di,bx
-      %endif
-      %assign j j+1
-    %endrep
-  plotter%[i]:
-    pop si
-    pop di
-    pop bx
-    ret
-  %endif
+;  %assign n plotterHeights%[i]
+;  %if n > 0
+;    %assign j 0
+;    %rep n
+;      times i movsw
+;      %if j < n - 1
+;        add di,bx
+;      %endif
+;      %assign j j+1
+;    %endrep
+;  plotter%[i]:
+;    pop si
+;    pop di
+;    pop bx
+;    ret
+;  %endif
 
   %assign n updaterHeights%[i]
   %if n > 0
     %assign j 0
     %rep n
-      times i movsw
+      %assign y n-j
+      updater%[i]_%[y]:
+      %if i < 12
+        times i movsw
+      %else
+        mov cl,i
+        rep movsw
+      %endif
       %if j < n - 1
         %if i != screenSize_x
           add di,bx
         %endif
-        add si,cx
+        add si,dx
       %endif
       %assign j j+1
     %endrep
-  updater%[i]:
     pop si
     pop di
     pop bx
-    pop cx
+    pop dx
     ret
   %endif
 
   %assign i i+1
 %endrep
 
-endCode:
+section .bss
+
+stackLow:
+  resb 128
+stackHigh:
+updateBufferStart:
+  resb updateBufferSize
+underPlayer:
+  resb tileWidthBytes*tileSize_y
+endPreBuffer:
+
