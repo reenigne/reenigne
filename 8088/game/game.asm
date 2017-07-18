@@ -95,10 +95,11 @@ noneBufferScrollIncrement   equ 0
   mov ax,cs
   mov es,ax
   mov bx,tileSize_x
+  mov dx,bufferStride-tileWidthBytes
   %rep tileSize_y
   mov cx,bx
   rep movsw
-  add si,bufferStride-tileWidthBytes
+  add si,dx
   %endrep
 %endmacro
 
@@ -428,7 +429,7 @@ axisInfo y, x, bh
     %1MapIncrement          equ %3
     %1BufferIncrement       equ %3*tileWidthBytes
     %1ScrollIncrement       equ %3
-    %1BufferScrollIncrement equ %3
+    %1BufferScrollIncrement equ %3*2
   %else
     %1MapIncrement          equ %3*mapStride
     %1BufferIncrement       equ %3*bufferTileStride
@@ -451,15 +452,7 @@ directionInfo down, y, 1
   %assign i i+1
 %endrep
 
-;%define plotter(x,y) (plotter %+ x - y*(x + 2) + 2)
-
-;%macro makePlotter 2  ;  width height
-;  %if %2 > plotterHeights%[%1]
-;    %assign plotterHeights%[%1] %2
-;  %endif
-;%endmacro
-
-%macro makeUpdater 2  ;  width height
+%macro makeUpdater 2.nolist  ;  width height
   %if %2 > updaterHeights%[%1]
     %assign updaterHeights%[%1] %2
   %endif
@@ -470,17 +463,18 @@ worldDatError: db 'Error reading world.dat file.$'
 memoryError: db 'Not enough memory.$'
 oldInterrupt8: dw 0, 0
 frameCount: dw 0, 0
-soundPointer: dw 0, 0
-musicPointer: dw 0, 0
+soundPointer: dw silent, 0
+musicPointer: dw silent, 0
 startAddress: dw 0
 vramTopLeft: dw 0
 bufferTopLeft: dw up_leftBuffer
 bufferTL: dw 0
 mapTL: dw 0x8080  ; Start location
-soundEnd: dw 0
-soundStart: dw 0
-musicEnd: dw 0
-musicStart: dw 0
+soundEnd: dw silent+2
+soundStart: dw silent
+musicEnd: dw silent+2
+musicStart: dw silent
+silent: dw 20
 bufferSegment: dw 0
 foregroundSegment: dw 0
 backgroundSegment: dw 0
@@ -578,10 +572,14 @@ noRestartMusic:
   mov [musicPointer],si
 
   mov sp,updateBufferStart
+  mov ax,0xb800
+  mov es,ax
+  mov ds,[bufferSegment]
+  mov ch,0
   pop si
   pop di
   pop bx
-  pop cx
+  pop dx
   sti
   ret
 
@@ -591,10 +589,6 @@ offScreenHandlerEnd:
   pop di
   pop bx
   iret
-;  pop ax
-;  pop bp
-;  pop bp
-;  jmp ax
 
 
 onScreenHandler:
@@ -638,7 +632,6 @@ checkKey:
   jz noKey
   ; Read the keyboard byte and store it
   in al,0x60
-  cbw
   xchg ax,bx
   ; Acknowledge the previous byte
 port61high:
@@ -650,7 +643,7 @@ port61low:
 
   mov al,bl
   and bx,7
-  mov cl,[shifts+bx]
+  mov dl,[shifts+bx]
   mov bl,al
   shr bl,1
   shr bl,1
@@ -658,12 +651,13 @@ port61low:
   and bl,0x0f
   test al,0x80
   jz keyPressed
-  not cl
-  and [keyboardFlags+bx],cl
-  jmp checkKey
+  not dl
+  and [keyboardFlags+bx],dl
+;  jmp checkKey
+    jmp noKey
 keyPressed:
-  or [keyboardFlags+bx],cl
-  jmp checkKey
+  or [keyboardFlags+bx],dl
+;  jmp checkKey
 
 ; keyboardFlags    1     2      4    8  0x10   0x20      0x40 0x08
 
@@ -720,6 +714,7 @@ noHorizontalAcceleration:
   mov dx,[xSubTile]
   mov cl,dh
   add dx,si
+  mov [xSubTile],dx
 
   mov ax,[yVelocity]
   test byte[keyboardFlags+9],1
@@ -760,13 +755,14 @@ noVerticalAcceleration:
   mov bx,[ySubTile]
   mov ch,bh
   add bx,di
+  mov [ySubTile],bx
 
-%macro twice 1
+%macro twice 1.nolist
   %1
   %1
 %endmacro
 
-%macro addConstantHelper 3
+%macro addConstantHelper 3.nolist
   %ifidni %1,ax
     twice {%3 %1}
   %elifidni %1,bx
@@ -788,7 +784,7 @@ noVerticalAcceleration:
   %endif
 %endmacro
 
-%macro addConstant 2
+%macro addConstant 2.nolist
   %if %2==2
     addConstantHelper %1, %2, inc
   %elif %2==-2
@@ -893,27 +889,28 @@ noVerticalAcceleration:
   add di,[bufferTopLeft]
   mov es,[bufferSegment]
   mov bx,tileSize_x
+  mov dx,bufferStride-tileWidthBytes
   %rep tileSize_y
   mov cx,bx
   rep movsw
-  add di,bufferStride-tileWidthBytes
+  add di,dx
   %endrep
 %endmacro
 
 %macro addUpdateBlock 4  ; left top width height
-  mov di,[updatePointer]
-  mov ax,[bufferTopLeft]
-  add ax,%1*2 + %2*bufferStride
-  stosw                              ; source top-left
-  mov ax,[vramTopLeft]
-  add ax,%1*2 + %2*screenWidthBytes
-  stosw                              ; destination top-left
-  mov ax,screenWidthBytes - 2*%3
-  stosw                              ; destination add
-  mov ax,bufferStride - 2*%3
-  stosw                              ; source add
   %assign width %3
   %assign height %4
+  mov di,[updatePointer]
+  mov ax,[bufferTopLeft]
+  add ax,(%1)*2 + (%2)*bufferStride
+  stosw                              ; source top-left
+  mov ax,[vramTopLeft]
+  add ax,(%1)*2 + (%2)*screenWidthBytes
+  stosw                              ; destination top-left
+  mov ax,screenWidthBytes - 2*width
+  stosw                              ; destination add
+  mov ax,bufferStride - 2*width
+  stosw                              ; source add
   makeUpdater width, height
   mov ax,updater%[width]_%[height]
   stosw                              ; code chunk (encodes width and height)
@@ -956,7 +953,7 @@ noVerticalAcceleration:
 
 %macro checkTileBoundary1 2
   %ifnidn %1,none
-    %ifidn %1,%1Increase
+    %if %1Increase==1
       cmp %[%1Axis]SubTileReg,tileSize_%[%1Axis]
       jl %%noTileBoundary
     %else
@@ -975,7 +972,7 @@ noVerticalAcceleration:
 
 %macro checkTileBoundary 2
   %ifnidn %1,none
-    %ifidn %1,%1Increase
+    %if %1Increase==1
       cmp %[%1Axis]SubTileReg,%1TileIncrement
       jl %%noTileBoundary
     %else
@@ -1010,7 +1007,7 @@ noVerticalAcceleration:
       addUpdateBlock 1, screenSize_y - 1, screenSize_x - 1, 1
       addUpdateBlock xPlayer, yPlayer - 1, tileSize_x + 1, tileSize_y + 1
     %endif
-  %elifidn %1,none
+  %elifidn %2,none
     %ifidn %1,up
       addUpdateBlock 0, 0, screenSize_x, 1
       addUpdateBlock xPlayer, yPlayer, tileSize_x, tileSize_y + 1
@@ -1046,6 +1043,7 @@ noVerticalAcceleration:
     %endif
     drawPlayer
   %endif
+  jmp noneMove
 %endmacro
 
 %macro vertical 2
@@ -1053,7 +1051,6 @@ noVerticalAcceleration:
   je %2Move
   checkTileBoundary %1, {diagonal %1, %2}
   scroll %1, %2
-  jmp noneMove
 %endmacro
 
 %macro verticals 1
@@ -1110,36 +1107,8 @@ noneMove:
   iret
 
 
-;  mov sp,updateBufferStart
-;  pop si
-;  pop di
-;  pop bx
-;  pop dx
-;  sti
-;  ret
-
-
-
-
 %assign i 1
 %rep screenSize_x
-;  %assign n plotterHeights%[i]
-;  %if n > 0
-;    %assign j 0
-;    %rep n
-;      times i movsw
-;      %if j < n - 1
-;        add di,bx
-;      %endif
-;      %assign j j+1
-;    %endrep
-;  plotter%[i]:
-;    pop si
-;    pop di
-;    pop bx
-;    ret
-;  %endif
-
   %assign n updaterHeights%[i]
   %if n > 0
     %assign j 0
@@ -1175,6 +1144,7 @@ section .bss
 stackLow:
   resb 128
 stackHigh:
+
 updateBufferStart:
   resb updateBufferSize
 underPlayer:
