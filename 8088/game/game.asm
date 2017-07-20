@@ -15,11 +15,12 @@ yAcceleration        equ 0x10
 xMaxVelocity         equ 0x100
 yMaxVelocity         equ 0x100
 updateBufferSize     equ 100
+use_iret             equ 1
 
 screenWidthBytes     equ screenSize_x*2
 bufferTileStride     equ tileSize_y*bufferStride
-overscanPitCycles    equ pitCyclesPerScanline*(scanlinesPerFrame - activeScanlines)
-onScreenPitCycles    equ pitCyclesPerScanline*activeScanlines
+onScreenPitCycles    equ pitCyclesPerScanline*activeScanlines - 22
+offScreenPitCycles   equ pitCyclesPerScanline*scanlinesPerFrame - (onScreenPitCycles)
 tileWidthBytes       equ tileSize_x*2
 screenSize_y         equ activeScanlines/scanlinesPerRow
 upMap                equ 1
@@ -186,31 +187,43 @@ loadWorldDat:
   jmp exit
 .noError:
   mov bx,ax
+
   mov ah,0x3f
   mov cx,0x8000
   xor dx,dx
   mov ds,[backgroundSegment]
   int 0x21
   jc .error
+
   mov ah,0x3f
   mov dx,cx
   int 0x21
   jc .error
+
   mov ds,[cs:tilesSegment]
   mov ah,0x3f
   xor dx,dx
   int 0x21
   jc .error
+
   mov ah,0x3f
   mov dx,cx
   int 0x21
   jc .error
+
+  mov ds,[cs:foregroundSegment]
+  mov ah,0x3f
+  xor dx,dx
+  int 0x21
+  jc .error
+
+  mov ah,0x3f
+  mov dx,cx
+  int 0x21
+  jc .error
+
   mov ah,0x3e
   int 0x21
-  mov es,[cs:foregroundSegment]
-  mov ax,0xffff  ; 0xff is empty tile
-  xor di,di
-  rep stosw
 
 drawInitialScreen:
   xor di,di
@@ -277,6 +290,15 @@ noMotorShutoff:
   mov al,1
   out dx,al
 
+  mov ax,cs
+  mov ds,ax
+  mov es,ax
+  mov di,[updatePointer]
+  add di,8
+  mov ax,offScreenHandlerEnd
+  stosw
+  mov [updatePointer],di
+
   mov ax,0xb800
   mov es,ax
   xor di,di
@@ -306,107 +328,85 @@ firstDrawY:
   mov ax,0x0109
   out dx,ax
   mov dl,0xda
-waitForVSync:
-  in al,dx
-  test al,8
-  jz waitForVSync
   cli
   xor ax,ax
   mov ds,ax
+
+  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
+  out 0x20,al  ;  read Interrupt Request Register
+
+  mov al,0x34
+  out 0x43,al
+
+%macro setPIT0Count 1
+  mov al,(%1) & 0xff
+  out 0x40,al
+  %if ((%1) & 0xff) != ((%1) >> 8)
+  mov al,(%1) >> 8
+  %endif
+  out 0x40,al
+%endmacro
+
+  setPIT0Count 2  ; PIT was reset so we start counting down from 2 immediately
+
+%macro waitForVerticalSync 0
+  %%waitForVerticalSync:
+    in al,dx
+    test al,8
+    jz %%waitForVerticalSync       ;         jump if not +VSYNC, finish if +VSYNC
+%endmacro
+
+%macro waitForNoVerticalSync 0
+  %%waitForNoVerticalSync:
+    in al,dx
+    test al,8
+    jnz %%waitForNoVerticalSync    ;         jump if +VSYNC, finish if -VSYNC
+%endmacro
+
+  ; Wait for a while to be sure that IRQ0 is pending
+  waitForVerticalSync
+  waitForNoVerticalSync
+  waitForVerticalSync
 
 waitForDisplayEnable:
   in al,dx
   test al,1
   jnz waitForDisplayEnable
 
-  mov al,0x34
-  out 0x43,al
-  mov ax,2
-  out 0x40,al
-  mov al,ah
-  out 0x40,al
+  setPIT0Count onScreenPitCycles
 
-  mov ax,onScreenPitCycles/2
-  out 0x40,al
-  mov al,ah
-  out 0x40,al
-
-  times 5 nop
-  sti
-  times 5 nop
-  cli
+  ; PIT channel 0 is now counting down from onScreenPitCycles in top half of onscreen area and IRQ0 is pending
 
   mov ax,[0x20]
   mov [cs:oldInterrupt8],ax
   mov ax,[0x22]
   mov [cs:oldInterrupt8+2],ax
+  mov word[0x20],transitionHandler
+  mov [0x22],cs
+
+  sti
+  jmp idle
+
+transitionHandler:
+  mov al,0x20
+  out 0x20,al
+
+  ; PIT channel 0 is now counting down from onScreenPitCycles in onscreen area
+
+  setPIT0Count offScreenPitCycles
+
+  ; When the next interrupt happens, PIT channel 0 will start counting down from offScreenPitCycles in offscreen area
+
   mov word[0x20],offScreenHandler
   mov [0x22],cs
 
-  mov ax,cs
-  mov ds,ax
-  mov es,ax
-  mov di,[updatePointer]
-  add di,8
-  mov ax,offScreenHandlerEnd
-  stosw
-  mov [updatePointer],di
 
-  mov al,0x0a  ; OCW3 - no bit 5 action, no poll command issued, act on bit 0,
-  out 0x20,al  ;  read Interrupt Request Register
   sti
 
 idle:
   hlt
   jmp idle
 
-
-teardown:
-  xor ax,ax
-  mov ds,ax
-  cli
-  mov ax,[cs:oldInterrupt8]
-  mov [0x20],ax
-  mov ax,[cs:oldInterrupt8+2]
-  mov [0x22],ax
-  sti
-
-  in al,0x61
-  and al,0xfc
-  out 0x61,al
-
-  mov ax,cs
-  mov ds,ax
-  mov al,[imr]
-  out 0x21,al
-
-  mov ax,3
-  int 0x10
-
-  mov ax,19912
-  mul word[frameCount]
-  mov cx,dx
-  mov ax,19912
-  mul word[frameCount+2]
-  add ax,cx
-  adc dx,0
-  mov cx,0x40
-  mov ds,cx
-  add [0x6c],ax
-  adc [0x6e],dx
-dateLoop:
-  cmp word[0x6c],0x18
-  jb doneDateLoop
-  cmp word[0x6e],0xb0
-  jb doneDateLoop
-  mov byte[0x70],1
-  sub word[0x6c],0xb0
-  sbb word[0x6e],0x18
-  jmp dateLoop
-doneDateLoop:
-exit:
-  mov ax,0x4c00
-  int 0x21
 
 %macro axisInfo 3
   tilesPerScreen_%1     equ (screenSize_%1 + 2*tileSize_%1 - 2) / tileSize_%1
@@ -543,6 +543,7 @@ linear tilePointers, 0x100, 0, tileWidthBytes*tileSize_y
 %endif
 
 offScreenHandler:
+%if use_iret!=0
   push bx
   push di
   push si
@@ -550,15 +551,16 @@ offScreenHandler:
 
   mov al,0x20
   out 0x20,al
+%endif
 
   xor ax,ax
   mov ds,ax
+%if use_iret==0
+  mov ss,ax
+%endif
   mov word[0x20],onScreenHandler
 
-  mov al,(onScreenPitCycles & 0xff)
-  out 0x40,al
-  mov al,(onScreenPitCycles >> 8)
-  out 0x40,al
+  setPIT0Count onScreenPitCycles
 
   lds si,[cs:musicPointer]
   lodsw
@@ -580,15 +582,24 @@ noRestartMusic:
   pop di
   pop bx
   pop dx
+%if use_iret!=0
   sti
+%endif
   ret
 
 offScreenHandlerEnd:
+%if use_iret!=0
   mov sp,bp
   pop si
   pop di
   pop bx
   iret
+%else
+  mov al,0x20
+  out 0x20,al
+  sti
+  jmp idle
+%endif
 
 
 onScreenHandler:
@@ -596,17 +607,16 @@ onScreenHandler:
   push bx
   push di
   push si
+%if use_iret!=0
   mov al,0x20
   out 0x20,al
+%endif
 
   xor ax,ax
   mov ds,ax
   mov word[0x20],offScreenHandler
 
-  mov al,(overscanPitCycles & 0xff)
-  out 0x40,al
-  mov al,(overscanPitCycles >> 8)
-  out 0x40,al
+  setPIT0Count offScreenPitCycles
 
   lds si,[cs:soundPointer]
   lodsw
@@ -624,6 +634,11 @@ noRestartSound:
   inc word[frameCount+2]
 noFrameCountCarry:
 
+%if use_iret==0
+  mov sp,stackHigh
+  mov ax,cs
+  mov ss,ax
+%endif
   mov word[updatePointer],updateBufferStart
 
 checkKey:
@@ -854,10 +869,12 @@ noVerticalAcceleration:
   mov di,%1
   mov bx,%2
   drawTile
+  mov ax,cs
+  mov ds,ax
 %endmacro
 
 %macro doTileBoundary 1
-  add byte[%[%1Axis]SubTile+1],-tileSize_%[%1Axis]
+  add byte[%[%1Axis]SubTile+1],-%1TileIncrement
   addConstant word[mapTL],%1MapIncrement
   add word[bufferTL],%1BufferIncrement
   emptyEdge %1,0
@@ -941,9 +958,21 @@ noVerticalAcceleration:
   dec byte[%1Start]
   mov bl,[%1Start]
   %%doDraw:
+  %ifidn %1,up
+  lea ax,[bx+1]
+  add bx,bx
+  mov di,[bx+%1Buffer]
+  xchg ax,bx
+  %elifidn %1,down
+  lea ax,[bx+(tilesPerScreen_y + 1)*mapStride + 1]
+  add bx,bx
+  mov di,[bx+%1Buffer]
+  xchg ax,bx
+  %else
   add bx,bx
   mov di,[bx+%1Buffer]
   mov bx,[bx+%1Map]
+  %endif
   drawTile
   mov ax,cs
   mov ds,ax
@@ -1099,12 +1128,74 @@ noneMove:
   mov ah,[startAddress]
   out dx,ax
 
+%if use_iret!=0
+  test byte[keyboardFlags],2
+  jnz teardown
 
   pop si
   pop di
   pop bx
   pop cx
   iret
+%else
+  mov al,0x20
+  out 0x20,al
+  sti
+
+  test byte[keyboardFlags],2
+  jz idle
+%endif
+
+
+teardown:
+  xor ax,ax
+  mov ds,ax
+  cli
+  mov ax,[cs:oldInterrupt8]
+  mov [0x20],ax
+  mov ax,[cs:oldInterrupt8+2]
+  mov [0x22],ax
+  sti
+
+  in al,0x61
+  and al,0xfc
+  out 0x61,al
+
+  mov ax,cs
+  mov ds,ax
+  mov al,[imr]
+  out 0x21,al
+
+  setPIT0Count 0
+
+  mov ax,3
+  int 0x10
+
+  mov ax,19912
+  mul word[frameCount]
+  mov cx,dx
+  mov ax,19912
+  mul word[frameCount+2]
+  add ax,cx
+  adc dx,0
+  mov cx,0x40
+  mov ds,cx
+  add [0x6c],ax
+  adc [0x6e],dx
+dateLoop:
+  cmp word[0x6c],0x18
+  jb doneDateLoop
+  cmp word[0x6e],0xb0
+  jb doneDateLoop
+  mov byte[0x70],1
+  sub word[0x6c],0xb0
+  sbb word[0x6e],0x18
+  jmp dateLoop
+doneDateLoop:
+exit:
+  mov ax,0x4c00
+  int 0x21
+
 
 
 %assign i 1
@@ -1142,9 +1233,9 @@ noneMove:
 section .bss
 
 stackLow:
-  resb 128
+  resb 4096
 stackHigh:
-
+  resb 128
 updateBufferStart:
   resb updateBufferSize
 underPlayer:

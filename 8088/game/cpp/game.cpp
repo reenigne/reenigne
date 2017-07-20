@@ -173,7 +173,7 @@ public:
         _tiles.allocate(0x10000);
         for (int i = 0; i < 0x10000; ++i) {
             _background[i] = world[i];
-            _foreground[i] = world[i];
+            _foreground[i] = world[i + 0x20000];
             _tiles[i] = world[i + 0x10000];
         }
 

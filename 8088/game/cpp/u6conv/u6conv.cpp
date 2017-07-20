@@ -127,6 +127,32 @@ public:
                 tileGraphics[y*16+x + 0xff01] = 0xff;
             }
 
+        String coin = File(String("q:\\pictures\\reenigne\\cga2ntsc\\coin2_out.dat"), true).contents();
+        for (int y = 0; y < 16; ++y)
+            for (int x = 0; x < 16; x += 2) {
+                int p = (y + 4)*24 + x + 4;
+                Word ch = coin[p] + (coin[p + 1] << 8);
+                float yy = (static_cast<float>(y) - 7.5f)*3.0f;
+                float xx = (static_cast<float>(x >> 1) - 3.5f)*5.0f;
+                if (xx*xx + yy*yy >= 20.0f*20.0f /*22.5f*22.5f*/)
+                    ch = 0xffff;
+                tileGraphics[y*16+x + 0x0600] = ch & 0xff;
+                tileGraphics[y*16+x + 0x0601] = ch >> 8;
+            }
+
         fs.write(tileGraphics);
+
+        srand(0);
+        Array<Byte> foreground(0x10000);
+        for (int y = 0; y < 0x100; ++y) {
+            for (int x = 0; x < 0x100; ++x) {
+                int m = 0xff;
+                if (rand() % 1000 == 0)
+                    m = 6;
+                foreground[y*0x100 + x] = m;
+            }
+        }
+        fs.write(foreground);
+
     }
 };
