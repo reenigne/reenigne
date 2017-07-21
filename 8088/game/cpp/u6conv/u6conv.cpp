@@ -154,5 +154,20 @@ public:
         }
         fs.write(foreground);
 
+        Array<Byte> collisionMasks(8*16*256);
+        for (int t = 0; t < 0x100; ++t) {
+            for (int r = 0; r < 8; ++r) {
+                for (int y = 0; y < 16; ++y) {
+                    int b = 0;
+                    Byte* p = &foreground[t*0x100 + y*16];
+                    for (int x = 0; x < 8; ++x)
+                        if (p[x*2] == 0xff && p[x*2 + 1] == 0xff)
+                            b |= 1 << x;
+                    b = (b << r) | (b >> (8 - r));
+                    collisionMasks[t*8*16 + r*16 + y] = b;
+                }
+            }
+        }
+
     }
 };
