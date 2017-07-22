@@ -1197,6 +1197,44 @@ exit:
   int 0x21
 
 
+doCollisions:
+
+%assign i tileSize_y
+%rep tileSize_y/2
+collisionTest%[i]:
+  lodsw
+  and ax,cx
+  and ax,[bx+tileSize_y-i]
+  or dx,bx
+  %assign i i-2
+%endrep
+  test dx,dx
+  jnz collided
+  ret
+%assign i tileSize_y-1
+%rep (tileSize_y-1)/2
+collisionTest%[i]:
+  lodsw
+  and ax,cx
+  and ax,[bx+tileSize_y-i]
+  or dx,bx
+  %assign i i-2
+%endrep
+collisionTest1:
+  lodsb
+  and al,cl
+  and al,[bx+tileSize_y-1]
+  or dl,al
+  test dx,dx
+  jnz collided
+  ret
+collisionTable:
+%assign i 1
+%rep tileSize_y
+  dw collisionTest%[i]
+  %assign i i+1
+%endrep
+
 
 %assign i 1
 %rep screenSize_x

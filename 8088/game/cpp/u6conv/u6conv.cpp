@@ -155,7 +155,10 @@ public:
         fs.write(foreground);
 
         Array<Byte> collisionMasks(8*16*256);
+        Array<Byte> collisionMaskPointers(256);
+        Array<bool> used(256);
         for (int t = 0; t < 0x100; ++t) {
+            used[t] = false;
             for (int r = 0; r < 8; ++r) {
                 for (int y = 0; y < 16; ++y) {
                     int b = 0;
@@ -167,7 +170,19 @@ public:
                     collisionMasks[t*8*16 + r*16 + y] = b;
                 }
             }
+            int t1;
+            for (t1 = 0; t1 <= t; ++t1) {
+                int j;
+                for (j = 0; j < 8*16; ++j)
+                    if (collisionMasks[t*8*16 + j] == collisionMasks[t1*8*16 + j])
+                        break;
+                if (j == 8*16) {
+                    collisionMaskPointers[t] = t1;
+                    used[t1] = true;
+                    break;
+                }
+            }
         }
-
+        
     }
 };
