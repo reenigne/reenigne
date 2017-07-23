@@ -1198,31 +1198,31 @@ exit:
 
 
 doCollisions:
+  add di,di
+  call word[collisionTable + di]
 
 %assign i tileSize_y
 %rep tileSize_y/2
 collisionTest%[i]:
   lodsw
-  and ax,cx
   and ax,[bx+tileSize_y-i]
   or dx,bx
   %assign i i-2
 %endrep
-  test dx,dx
+  test dx,cx
   jnz collided
+collisionTest0:
   ret
 %assign i tileSize_y-1
 %rep (tileSize_y-1)/2
 collisionTest%[i]:
   lodsw
-  and ax,cx
   and ax,[bx+tileSize_y-i]
   or dx,bx
   %assign i i-2
 %endrep
 collisionTest1:
   lodsb
-  and al,cl
   and al,[bx+tileSize_y-1]
   or dl,al
   test dx,dx
@@ -1234,6 +1234,10 @@ collisionTable:
   dw collisionTest%[i]
   %assign i i+1
 %endrep
+leftCollisionTable:
+  db 0xff, 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80
+rightCollisionTable:
+  db 0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f
 
 
 %assign i 1

@@ -154,6 +154,11 @@ public:
         }
         fs.write(foreground);
 
+        Array<bool> moveable(256);
+        for (int i = 0; i < 256; ++i)
+            moveable[i] = false;
+        moveable[0] = true;
+
         Array<Byte> collisionMasks(8*16*256);
         Array<Byte> collisionMaskPointers(256);
         Array<bool> used(256);
@@ -183,6 +188,10 @@ public:
                 }
             }
         }
-        
+        printf("collisionMasks:");
+        for (int t = 0; t < 0x100; ++t)
+            printf("  dw collisionMask%i\n",collisionMaskPointers[t]);
+        printf("\n");
+        for (int t = 0; t < 0x1
     }
 };
