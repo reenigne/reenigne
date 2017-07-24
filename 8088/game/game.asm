@@ -1198,6 +1198,38 @@ exit:
 
 
 doCollisions:
+  mov bl,[xSubTile+1]
+  mov bh,0
+  %if mapStride != 0x100
+    %error "Collision handling needs to be changed to handle map strides other than 0x100."
+  %endif
+  mov al,[xSubTileToMapOffset+bx]
+  mov ah,[ySubTileToMapOffset+bx]
+  mov bx,[mapTL]
+  add bx,ax
+  %if tileSize_x != 8
+    %error "Collision handling needs to be changed to handle tile widths other than 8."
+  %endif
+
+  mov es,[foregroundSegment]
+  mov ax,[bx+mapStride]         ; al = bottom-left, ah = bottom-right
+  mov bx,[bx]                   ; bl = top-left, bh = top-right
+  push ax
+  push bx
+
+  mov bh,0
+  add bx,bx
+  mov bx,[collisionPointers]
+
+
+
+; Collision data format:
+;   256-element table (one for each possible foreground tile). Each entry contains a pointer to:
+;     1 byte: top of collision area (a)
+;     1 byte: bottom of collision area (b)
+;     b-a bytes: collision mask bytes
+
+
   add di,di
   call word[collisionTable + di]
 
@@ -1228,16 +1260,45 @@ collisionTest1:
   test dx,dx
   jnz collided
   ret
+
+%rep tileSize_y
+  dw collisionTest0
+%endrep
 collisionTable:
 %assign i 1
 %rep tileSize_y
   dw collisionTest%[i]
   %assign i i+1
 %endrep
+
 leftCollisionTable:
-  db 0xff, 0xfe, 0xfc, 0xf8, 0xf0, 0xe0, 0xc0, 0x80
+%assign i 0
+%rep tileSize_x
+  db 0xff >> ((i + xPlayer) & 7)
+  %assign i i+1
+%endrep
+
 rightCollisionTable:
-  db 0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f
+%assign i 0
+%rep tileSize_x
+  db ~(0xff >> ((i + xPlayer) & 7))
+  %assign i i+1
+%endrep
+
+
+xSubTileToMapOffset:
+%assign i 0
+%rep tileSize_x
+  db (xPlayer + i)/tileSize_x
+  %assign i i+1
+%endrep
+
+ySubTileToMapOffset:
+%assign i 0
+%rep tileSize_y
+  db (yPlayer + i)/tileSize_y
+  %assign i i+1
+%endrep
 
 
 %assign i 1
