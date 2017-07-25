@@ -155,9 +155,14 @@ public:
         fs.write(foreground);
 
         Array<bool> moveable(256);
-        for (int i = 0; i < 256; ++i)
+        Array<bool> moveableMask(256);
+        for (int i = 0; i < 256; ++i) {
             moveable[i] = false;
+            moveableMask[i] = false;
+        }
         moveable[0] = true;
+        Array<String> handlerNames(256);
+        handlerNames[6] = String("Coin");
 
         Array<Byte> collisionMasks(8*16*256);
         Array<Byte> collisionMaskPointers(256);
@@ -167,9 +172,9 @@ public:
             for (int r = 0; r < 8; ++r) {
                 for (int y = 0; y < 16; ++y) {
                     int b = 0;
-                    Byte* p = &foreground[t*0x100 + y*16];
+                    Byte* p = &tileGraphics[t*0x100 + y*16];
                     for (int x = 0; x < 8; ++x)
-                        if (p[x*2] == 0xff && p[x*2 + 1] == 0xff)
+                        if (p[x*2] != 0xff || p[x*2 + 1] != 0xff)
                             b |= 1 << x;
                     b = (b << r) | (b >> (8 - r));
                     collisionMasks[t*8*16 + r*16 + y] = b;
@@ -179,19 +184,85 @@ public:
             for (t1 = 0; t1 <= t; ++t1) {
                 int j;
                 for (j = 0; j < 8*16; ++j)
-                    if (collisionMasks[t*8*16 + j] == collisionMasks[t1*8*16 + j])
+                    if (collisionMasks[t*8*16 + j] != collisionMasks[t1*8*16 + j])
                         break;
                 if (j == 8*16) {
                     collisionMaskPointers[t] = t1;
                     used[t1] = true;
+                    if (moveable[t])
+                        moveableMask[t1] = true;
                     break;
                 }
             }
         }
-        printf("collisionMasks:");
+        String asmOutput;
+        asmOutput += "collisionMasks:\n";
         for (int t = 0; t < 0x100; ++t)
-            printf("  dw collisionMask%i\n",collisionMaskPointers[t]);
-        printf("\n");
-        for (int t = 0; t < 0x1
+            asmOutput += String("  dw collisionMask") + decimal(collisionMaskPointers[t]) + "\n";
+        asmOutput += "\n";
+        for (int t = 0; t < 0x100; ++t) {
+            if (!used[t])
+                continue;
+            asmOutput += String("collisionMask") + decimal(t) + ":\n";
+            for (int r = 0; r < 8; ++r) {
+                asmOutput += "  db ";
+                for (int y = 0; y < 16; ++y) {
+                    asmOutput += hex(collisionMasks[t*8*16 + r*16 + y], 2);
+                    if (y < 15)
+                        asmOutput += ", ";
+                }
+                asmOutput += "\n";
+                if (!moveableMask[t])
+                    break;
+            }
+        }
+        asmOutput += "\n";
+        asmOutput += "collisionHandlers:\n";
+        for (int t = 0; t < 0x100; ++t) {
+            String s = handlerNames[t];
+            if (s != "")
+                asmOutput += "  dw collisionHandler" + s + "\n";
+            else
+                asmOutput += "  dw 0\n";
+        }
+        File("collisionData.inc").openWrite().write(asmOutput);
+
+
+        String cOutput;
+        for (int t = 0; t < 0x100; ++t) {
+            if (!used[t])
+                continue;
+            cOutput += String("CollisionMask collisionMask") + decimal(t) + " = {\n";
+            for (int r = 0; r < 8; ++r) {
+                cOutput += "  ";
+                for (int y = 0; y < 16; ++y) {
+                    cOutput += hex(collisionMasks[t*8*16 + r*16 + y], 2);
+                    if (y < 15)
+                        cOutput += ", ";
+                }
+                cOutput += "\n";
+                if (!moveableMask[t])
+                    break;
+            }
+            cOutput += "};\n";
+        }
+        cOutput += "\n";
+        cOutput += "CollisionMask* collisionMasks[0x100] = {\n";
+        for (int t = 0; t < 0x100; ++t)
+            cOutput += String("  &collisionMask") + decimal(collisionMaskPointers[t]) + "\n";
+        cOutput += "};\n";
+        cOutput += "void* collisionHandlers[0x100] = {\n";
+        for (int t = 0; t < 0x100; ++t) {
+            String s = handlerNames[t];
+            if (s != "")
+                cOutput += "  collisionHandler" + s + "";
+            else
+                cOutput += "  0";
+            if (t != 0x100)
+                cOutput += ",";
+            cOutput += "\n";
+        }
+        cOutput += "};\n";
+        File("collisionData.h").openWrite().write(cOutput);
     }
 };
