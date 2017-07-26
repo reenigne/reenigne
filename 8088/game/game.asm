@@ -1228,6 +1228,8 @@ doCollisions:
 ;     1 byte: top of collision area (a)
 ;     1 byte: bottom of collision area (b)
 ;     b-a bytes: collision mask bytes
+;   256-element table (one for each possible foreground tile). Each entry contains a pointer to the collision function
+;     collision function takes map location in bx
 
 
   add di,di

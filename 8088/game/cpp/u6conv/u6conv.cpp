@@ -235,11 +235,8 @@ public:
             cOutput += String("CollisionMask collisionMask") + decimal(t) + " = {\n";
             for (int r = 0; r < 8; ++r) {
                 cOutput += "  ";
-                for (int y = 0; y < 16; ++y) {
-                    cOutput += hex(collisionMasks[t*8*16 + r*16 + y], 2);
-                    if (y < 15)
-                        cOutput += ", ";
-                }
+                for (int y = 0; y < 16; ++y)
+                    cOutput += hex(collisionMasks[t*8*16 + r*16 + y], 2) + ", ";
                 cOutput += "\n";
                 if (!moveableMask[t])
                     break;
@@ -249,15 +246,15 @@ public:
         cOutput += "\n";
         cOutput += "CollisionMask* collisionMasks[0x100] = {\n";
         for (int t = 0; t < 0x100; ++t)
-            cOutput += String("  &collisionMask") + decimal(collisionMaskPointers[t]) + "\n";
+            cOutput += String("  &collisionMask") + decimal(collisionMaskPointers[t]) + ",\n";
         cOutput += "};\n";
-        cOutput += "void* collisionHandlers[0x100] = {\n";
+        cOutput += "CollisionHandler collisionHandlers[0x100] = {\n";
         for (int t = 0; t < 0x100; ++t) {
             String s = handlerNames[t];
             if (s != "")
                 cOutput += "  collisionHandler" + s + "";
             else
-                cOutput += "  0";
+                cOutput += "  collisionHandlerNone";
             if (t != 0x100)
                 cOutput += ",";
             cOutput += "\n";

@@ -1,6 +1,33 @@
 #include "alfe/main.h"
 #include "alfe/cga.h"
 
+struct CollisionMask
+{
+    CollisionMask(std::initializer_list<Byte> data) : _data(data) { }
+    std::initializer_list<Byte> _data;
+};
+
+enum CollisionHandler
+{
+    collisionHandlerNone = 0,
+    collisionHandlerCoin
+};
+
+enum Direction
+{
+    directionUpLeft,
+    directionUp,
+    directionUpRight,
+    directionLeft,
+    directionStopped,
+    directionRight,
+    directionDownLeft,
+    directionDown,
+    directionDownRight
+};
+
+#include "u6conv/collisionData.h"
+
 class GameWindow : public RootWindow
 {
 public:
@@ -534,120 +561,106 @@ private:
         b.rows = rows;
         _updateBlocks.append(b);
     }
-    void leftTiles()
-    {
-        while (_leftEnd - _leftStart < _transitionCountLeft[_xSubTile >> 8]) {
-            int y;
-            if (_yVelocity > 0) {
-                if (_leftEnd < _tilesPerScreenVertically) {
-                    y = _leftEnd;
-                    ++_leftEnd;
-                }
-                else {
-                    y = _leftStart - 1;
-                    --_leftStart;
-                }
-            }
-            else {
-                if (_leftStart > 0) {
-                    y = _leftStart - 1;
-                    --_leftStart;
-                }
-                else {
-                    y = _leftEnd;
-                    ++_leftEnd;
-                }
-            }
-            drawTile(_bufferLeft[y], _mapLeft[y]);
-        }
-    }
-    void topTiles()
-    {
-        while (_topEnd - _topStart < _transitionCountTop[_ySubTile >> 8]) {
-            int x;
-            if (_xVelocity > 0) {
-                if (_topEnd < _tilesPerScreenHorizontally) {
-                    x = _topEnd;
-                    ++_topEnd;
-                }
-                else {
-                    x = _topStart - 1;
-                    --_topStart;
-                }
-            }
-            else {
-                if (_topStart > 0) {
-                    x = _topStart - 1;
-                    --_topStart;
-                }
-                else {
-                    x = _topEnd;
-                    ++_topEnd;
-                }
-            }
-            drawTile(_bufferTop[x], x + 1);
-        }
-    }
-    void rightTiles()
-    {
-        while (_rightEnd - _rightStart <
-            _transitionCountRight[_xSubTile >> 8]) {
-            int y;
-            if (_yVelocity > 0) {
-                if (_rightEnd < _tilesPerScreenVertically) {
-                    y = _rightEnd;
-                    ++_rightEnd;
-                }
-                else {
-                    y = _rightStart - 1;
-                    --_rightStart;
-                }
-            }
-            else {
-                if (_rightStart > 0) {
-                    y = _rightStart - 1;
-                    --_rightStart;
-                }
-                else {
-                    y = _rightEnd;
-                    ++_rightEnd;
-                }
-            }
-            drawTile(_bufferRight[y], _mapRight[y]);
-        }
-    }
-    void bottomTiles()
-    {
-        while (_bottomEnd - _bottomStart <
-            _transitionCountBottom[_ySubTile >> 8]) {
-            int x;
-            if (_xVelocity > 0) {
-                if (_bottomEnd < _tilesPerScreenHorizontally) {
-                    x = _bottomEnd;
-                    ++_bottomEnd;
-                }
-                else {
-                    x = _bottomStart - 1;
-                    --_bottomStart;
-                }
-            }
-            else {
-                if (_bottomStart > 0) {
-                    x = _bottomStart - 1;
-                    --_bottomStart;
-                }
-                else {
-                    x = _bottomEnd;
-                    ++_bottomEnd;
-                }
-            }
-            drawTile(_bufferBottom[x], _mapBottom + x);
-        }
-    }
     void drawPlayer()
     {
         saveTile(_playerTopLeft, &_underPlayer[0]);
         drawTransparentTile(_playerTopLeft, 0);
+    }
+    Direction combineDown(Direction d)
+    {
+        if (d == directionRight)
+            return directionDownRight;
+        if (d == directionLeft)
+            return directionDownLeft;
+        return directionDown;
+    }
+    Direction combineUp(Direction d)
+    {
+        if (d == directionRight)
+            return directionUpRight;
+        if (d == directionLeft)
+            return directionUpLeft;
+        return directionUp;
+    }
+    bool isLeft(Direction d)
+    {
+        return d == directionLeft || d == directionDownLeft ||
+            d == directionUpLeft;
+    }
+    bool isUp(Direction d)
+    {
+        return d == directionUp || d == directionUpLeft ||
+            d == directionUpRight;
+    }
+    bool isRight(Direction d)
+    {
+        return d == directionRight || d == directionDownRight ||
+            d == directionUpRight;
+    }
+    bool isDown(Direction d)
+    {
+        return d == directionDown || d == directionDownRight ||
+            d == directionDownLeft;
+    }
+    Direction calculateDirection(int xSubTileHighOld, int ySubTileHighOld)
+    {
+        Direction d = directionStopped;
+        if ((_xSubTile >> 8) > xSubTileHighOld)
+            d = directionRight;
+        else {
+            if ((_xSubTile >> 8) < xSubTileHighOld)
+                d = directionLeft;
+        }
+        if ((_ySubTile >> 8) > ySubTileHighOld)
+            d = combineDown(d);
+        else {
+            if ((_ySubTile >> 8) < ySubTileHighOld)
+                d = combineUp(d);
+        }
+        return d;
+    }
+    Direction normalize(Direction d)
+    {
+        Direction tileDirection = directionStopped;
+        if ((_xSubTile >> 8) >= _tileColumns) {
+            tileDirection = directionRight;
+            _xSubTile -= _tileColumns << 8;
+            ++_mapTL;
+        }
+        else {
+            if ((_xSubTile >> 8) < 0) {
+                tileDirection = directionLeft;
+                _xSubTile += _tileColumns << 8;
+                --_mapTL;
+            }
+        }
+        if ((_ySubTile >> 8) >= _tileRows) {
+            tileDirection = combineDown(tileDirection);
+            _ySubTile -= _tileRows << 8;
+            _mapTL += _mapStride;
+        }
+        else {
+            if ((_ySubTile >> 8) < 0) {
+                tileDirection = combineUp(tileDirection);
+                _ySubTile += _tileRows << 8;
+                _mapTL -= _mapStride;
+            }
+        }
+        return tileDirection;
+    }
+    void checkPlayerTileCollision(int x, int y)
+    {
+        int m = _mapTL + (y + (_yPlayer + (_ySubTile >> 8))/_tileRows)*_mapStride + (_xPlayer + (_xSubTile >> 8))/_tileColumns + x;
+        Byte f = _foreground[m];
+        CollisionMask* playerMask = collisionMasks[0];
+        CollisionMask* tileMask = collisionMasks[m];
+        int y;
+        for (y = 0; y < 16; ++y)
+
+        switch (collisionHandlers[f]) {
+            case collisionHandlerCoin:
+
+        }
     }
     void move()
     {
@@ -655,279 +668,308 @@ private:
         int ySubTileHighOld = _ySubTile >> 8;
         _xSubTile += _xVelocity;
         _ySubTile += _yVelocity;
-        if (_xVelocity > 0) {
-            if ((_xSubTile >> 8) != xSubTileHighOld) {
-                if (_yVelocity > 0) {
-                    if ((_ySubTile >> 8) != ySubTileHighOld) {
-                        if ((_ySubTile >> 8) >= _tileRows) {
-                            downTile();
-                            if ((_xSubTile >> 8) >= _tileColumns) {
-                                rightTile();
-                                drawTile(_bottomRightBuffer, _bottomRightMap);
-                            }
-                        }
-                        else {
-                            if ((_xSubTile >> 8) >= _tileColumns)
-                                rightTile();
-                        }
-                        restoreTile(_playerTopLeft, &_underPlayer[0]);
-                        _startAddress += _screenColumns + 1;
-                        _vramTopLeft += _screenWidthBytes + 2;
-                        _bufferTopLeft += _bufferStride + 2;
-                        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
-                        addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows - 1);
-                        bottomTiles();
-                        rightTiles();
-                        drawPlayer();
-                        addUpdateBlock(_xPlayer - 1, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
-                        return;
-                    }
-                }
-                else {
-                    if ((_ySubTile >> 8) != ySubTileHighOld) {
-                        if ((_ySubTile >> 8) < 0) {
-                            upTile();
-                            if ((_xSubTile >> 8) >= _tileColumns) {
-                                rightTile();
-                                drawTile(_topRightBuffer, _topRightMap);
-                            }
-                        }
-                        else {
-                            if ((_xSubTile >> 8) >= _tileColumns)
-                                rightTile();
-                        }
-                        restoreTile(_playerTopLeft, &_underPlayer[0]);
-                        _startAddress -= _screenColumns - 1;
-                        _vramTopLeft -= _screenWidthBytes - 2;
-                        _bufferTopLeft -= _bufferStride - 2;
-                        addUpdateBlock(0, 0, _screenColumns, 1);
-                        addUpdateBlock(_screenColumns - 1, 1, 1, _screenRows - 1);
-                        topTiles();
-                        rightTiles();
-                        drawPlayer();
-                        addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows + 1);
-                        return;
-                    }
-                }
-                if ((_xSubTile >> 8) >= _tileColumns)
-                    rightTile();
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
-                ++_startAddress;
-                _vramTopLeft += 2;
-                _bufferTopLeft += 2;
-                addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows);
-                rightTiles();
-                topTiles();
-                bottomTiles();
-                drawPlayer();
-                addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows);
-                return;
+
+        Direction d = calculateDirection(xSubTileHighOld, ySubTileHighOld);
+        Direction tileDirection = normalize(d);
+
+        checkPlayerTileCollision(0, 0);
+        checkPlayerTileCollision(1, 0);
+        checkPlayerTileCollision(0, 1);
+        checkPlayerTileCollision(1, 1);
+
+        if (isRight(tileDirection)) {
+            _bufferTL += _tileWidthBytes;
+            _leftStart = 0;
+            _leftEnd = _tilesPerScreenVertically;
+            _rightStart = _midTileVertically;
+            _rightEnd = _midTileVertically;
+            if (_topStart > 0)
+                --_topStart;
+            if (_topEnd > 0)
+                --_topEnd;
+            if (_topStart == _topEnd) {
+                _topStart = _tilesPerScreenHorizontally;
+                _topEnd = _tilesPerScreenHorizontally;
+            }
+            if (_bottomStart > 0)
+                --_bottomStart;
+            if (_bottomEnd > 0)
+                --_bottomEnd;
+            if (_bottomStart == _bottomEnd) {
+                _bottomStart = _tilesPerScreenHorizontally;
+                _bottomEnd = _tilesPerScreenHorizontally;
             }
         }
         else {
-            if ((_xSubTile >> 8) != xSubTileHighOld) {
-                if (_yVelocity > 0) {
-                    if ((_ySubTile >> 8) != ySubTileHighOld) {
-                        if ((_ySubTile >> 8) >= _tileRows) {
-                            downTile();
-                            if ((_xSubTile >> 8) < 0) {
-                                leftTile();
-                                drawTile(_bottomLeftBuffer, _bottomLeftMap);
-                            }
-                        }
-                        else {
-                            if ((_xSubTile >> 8) < 0)
-                                leftTile();
-                        }
-                        restoreTile(_playerTopLeft, &_underPlayer[0]);
-                        _startAddress += _screenColumns - 1;
-                        _vramTopLeft += _screenWidthBytes - 2;
-                        _bufferTopLeft += _bufferStride - 2;
-                        addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
-                        addUpdateBlock(0, 0, 1, _screenRows - 1);
-                        leftTiles();
-                        bottomTiles();
-                        drawPlayer();
-                        addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
-                        return;
-                    }
+            if (isLeft(tileDirection)) {
+                _bufferTL -= _tileWidthBytes;
+                _leftStart = _midTileVertically;
+                _leftEnd = _midTileVertically;
+                _rightStart = 0;
+                _rightEnd = _tilesPerScreenVertically;
+                if (_topStart < _tilesPerScreenHorizontally)
+                    ++_topStart;
+                if (_topEnd < _tilesPerScreenHorizontally)
+                    ++_topEnd;
+                if (_topStart == _topEnd) {
+                    _topStart = 0;
+                    _topEnd = 0;
                 }
-                else {
-                    if ((_ySubTile >> 8) != ySubTileHighOld) {
-                        if ((_ySubTile >> 8) < 0) {
-                            upTile();
-                            if ((_xSubTile >> 8) < 0) {
-                                leftTile();
-                                drawTile(_topLeftBuffer, _topLeftMap);
-                            }
-                        }
-                        else {
-                            if ((_xSubTile >> 8) < 0)
-                                leftTile();
-                        }
-                        restoreTile(_playerTopLeft, &_underPlayer[0]);
-                        _startAddress -= _screenColumns + 1;
-                        _vramTopLeft -= _screenWidthBytes + 2;
-                        _bufferTopLeft -= _bufferStride + 2;
-                        addUpdateBlock(0, 0, _screenColumns, 1);
-                        addUpdateBlock(0, 1, 1, _screenRows - 1);
-                        leftTiles();
-                        topTiles();
-                        drawPlayer();
-                        addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows + 1);
-                        return;
-                    }
+                if (_bottomStart < _tilesPerScreenHorizontally)
+                    ++_bottomStart;
+                if (_bottomEnd < _tilesPerScreenHorizontally)
+                    ++_bottomEnd;
+                if (_bottomStart == _bottomEnd) {
+                    _bottomStart = 0;
+                    _bottomEnd = 0;
                 }
-                if ((_xSubTile >> 8) < 0)
-                    leftTile();
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
+            }
+        }
+        if (isDown(tileDirection)) {
+            _bufferTL += _bufferTileStride;
+            _topStart = 0;
+            _topEnd = _tilesPerScreenHorizontally;
+            _bottomStart = _midTileHorizontally;
+            _bottomEnd = _midTileHorizontally;
+            if (_leftStart > 0)
+                --_leftStart;
+            if (_leftEnd > 0)
+                --_leftEnd;
+            if (_leftStart == _leftEnd) {
+                _leftStart = _tilesPerScreenVertically;
+                _leftEnd = _tilesPerScreenVertically;
+            }
+            if (_rightStart > 0)
+                --_rightStart;
+            if (_rightEnd > 0)
+                --_rightEnd;
+            if (_rightStart == _rightEnd) {
+                _rightStart = _tilesPerScreenVertically;
+                _rightEnd = _tilesPerScreenVertically;
+            }
+        }
+        else {
+            if (isUp(tileDirection)) {
+                _bufferTL -= _bufferTileStride;
+                _topStart = _midTileHorizontally;
+                _topEnd = _midTileHorizontally;
+                _bottomStart = 0;
+                _bottomEnd = _tilesPerScreenHorizontally;
+                if (_leftStart < _tilesPerScreenVertically)
+                    ++_leftStart;
+                if (_leftEnd < _tilesPerScreenVertically)
+                    ++_leftEnd;
+                if (_leftStart == _leftEnd) {
+                    _leftStart = 0;
+                    _leftEnd = 0;
+                }
+                if (_rightStart < _tilesPerScreenVertically)
+                    ++_rightStart;
+                if (_rightEnd < _tilesPerScreenVertically)
+                    ++_rightEnd;
+                if (_rightStart == _rightEnd) {
+                    _rightStart = 0;
+                    _rightEnd = 0;
+                }
+            }
+        }
+        
+        // When diagonally scrolling across both horizontal and vertical tile
+        // boundaries, we bring an undrawn tile into the drawn area, so need
+        // to draw it.
+        switch (tileDirection) {
+            case directionUpLeft:
+                drawTile(_topLeftBuffer, _topLeftMap);
+                break;
+            case directionUpRight:
+                drawTile(_topRightBuffer, _topRightMap);
+                break;
+            case directionDownLeft:
+                drawTile(_bottomLeftBuffer, _bottomLeftMap);
+                break;
+            case directionDownRight:
+                drawTile(_bottomRightBuffer, _bottomRightMap);
+                break;
+        }
+
+        if (d == directionStopped)
+            return;
+
+        restoreTile(_playerTopLeft, &_underPlayer[0]);
+
+        // Do the actual scrolling
+        switch (d) {
+            case directionUpLeft:
+                _startAddress -= _screenColumns + 1;
+                _vramTopLeft -= _screenWidthBytes + 2;
+                _bufferTopLeft -= _bufferStride + 2;
+                addUpdateBlock(0, 1, 1, _screenRows - 1);
+                addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows + 1);
+                break;
+            case directionUp:
+                _startAddress -= _screenColumns;
+                _vramTopLeft -= _screenWidthBytes;
+                _bufferTopLeft -= _bufferStride;
+                addUpdateBlock(_xPlayer, _yPlayer, _tileColumns, _tileRows + 1);
+                break;
+            case directionUpRight:
+                _startAddress -= _screenColumns - 1;
+                _vramTopLeft -= _screenWidthBytes - 2;
+                _bufferTopLeft -= _bufferStride - 2;
+                addUpdateBlock(_screenColumns - 1, 1, 1, _screenRows - 1);
+                addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows + 1);
+                break;
+            case directionLeft:
                 --_startAddress;
                 _vramTopLeft -= 2;
                 _bufferTopLeft -= 2;
                 addUpdateBlock(0, 0, 1, _screenRows);
-                leftTiles();
-                topTiles();
-                bottomTiles();
-                drawPlayer();
                 addUpdateBlock(_xPlayer, _yPlayer, _tileColumns + 1, _tileRows);
-                return;
-            }
-        }
-        if (_yVelocity > 0) {
-            if ((_ySubTile >> 8) != ySubTileHighOld) {
-                if ((_ySubTile >> 8) >= _tileRows)
-                    downTile();
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
+                break;
+            case directionRight:
+                ++_startAddress;
+                _vramTopLeft += 2;
+                _bufferTopLeft += 2;
+                addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows);
+                addUpdateBlock(_xPlayer - 1, _yPlayer, _tileColumns + 1, _tileRows);
+                break;
+            case directionDownLeft:
+                _startAddress += _screenColumns - 1;
+                _vramTopLeft += _screenWidthBytes - 2;
+                _bufferTopLeft += _bufferStride - 2;
+                addUpdateBlock(0, 0, 1, _screenRows - 1);
+                addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
+                break;
+            case directionDown:
                 _startAddress += _screenColumns;
                 _vramTopLeft += _screenWidthBytes;
                 _bufferTopLeft += _bufferStride;
-                addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
-                leftTiles();
-                bottomTiles();
-                rightTiles();
-                drawPlayer();
                 addUpdateBlock(_xPlayer, _yPlayer - 1, _tileColumns, _tileRows + 1);
-            }
+                break;
+            case directionDownRight:
+                _startAddress += _screenColumns + 1;
+                _vramTopLeft += _screenWidthBytes + 2;
+                _bufferTopLeft += _bufferStride + 2;
+                addUpdateBlock(_screenColumns - 1, 0, 1, _screenRows - 1);
+                addUpdateBlock(_xPlayer - 1, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
+                break;
         }
+        if (isUp(d))
+            addUpdateBlock(0, 0, _screenColumns, 1);
         else {
-            if ((_ySubTile >> 8) != ySubTileHighOld) {
-                if ((_ySubTile >> 8) < 0)
-                    upTile();
-                restoreTile(_playerTopLeft, &_underPlayer[0]);
-                _startAddress -= _screenColumns;
-                _vramTopLeft -= _screenWidthBytes;
-                _bufferTopLeft -= _bufferStride;
-                addUpdateBlock(0, 0, _screenColumns, 1);
-                leftTiles();
-                topTiles();
-                rightTiles();
-                drawPlayer();
-                addUpdateBlock(_xPlayer, _yPlayer, _tileColumns, _tileRows + 1);
+            if (isDown(d))
+                addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
+        }
+
+        drawPlayer();
+
+        // Restore tile invariants
+
+        if (!isRight(d)) {
+            while (_leftEnd - _leftStart < _transitionCountLeft[_xSubTile >> 8]) {
+                int y;
+                if (_yVelocity > 0) {
+                    if (_leftEnd < _tilesPerScreenVertically) {
+                        y = _leftEnd;
+                        ++_leftEnd;
+                    }
+                    else {
+                        y = _leftStart - 1;
+                        --_leftStart;
+                    }
+                }
+                else {
+                    if (_leftStart > 0) {
+                        y = _leftStart - 1;
+                        --_leftStart;
+                    }
+                    else {
+                        y = _leftEnd;
+                        ++_leftEnd;
+                    }
+                }
+                drawTile(_bufferLeft[y], _mapLeft[y]);
             }
         }
-    }
-    void leftTile()
-    {
-        _xSubTile += _tileColumns << 8;
-        --_mapTL;
-        _bufferTL -= _tileWidthBytes;
-        _leftStart = _midTileVertically;
-        _leftEnd = _midTileVertically;
-        _rightStart = 0;
-        _rightEnd = _tilesPerScreenVertically;
-        if (_topStart < _tilesPerScreenHorizontally)
-            ++_topStart;
-        if (_topEnd < _tilesPerScreenHorizontally)
-            ++_topEnd;
-        if (_topStart == _topEnd) {
-            _topStart = 0;
-            _topEnd = 0;
+        if (!isLeft(d)) {
+            while (_rightEnd - _rightStart <
+                _transitionCountRight[_xSubTile >> 8]) {
+                int y;
+                if (_yVelocity > 0) {
+                    if (_rightEnd < _tilesPerScreenVertically) {
+                        y = _rightEnd;
+                        ++_rightEnd;
+                    }
+                    else {
+                        y = _rightStart - 1;
+                        --_rightStart;
+                    }
+                }
+                else {
+                    if (_rightStart > 0) {
+                        y = _rightStart - 1;
+                        --_rightStart;
+                    }
+                    else {
+                        y = _rightEnd;
+                        ++_rightEnd;
+                    }
+                }
+                drawTile(_bufferRight[y], _mapRight[y]);
+            }
         }
-        if (_bottomStart < _tilesPerScreenHorizontally)
-            ++_bottomStart;
-        if (_bottomEnd < _tilesPerScreenHorizontally)
-            ++_bottomEnd;
-        if (_bottomStart == _bottomEnd) {
-            _bottomStart = 0;
-            _bottomEnd = 0;
+        if (!isDown(d)) {
+            while (_topEnd - _topStart < _transitionCountTop[_ySubTile >> 8]) {
+                int x;
+                if (_xVelocity > 0) {
+                    if (_topEnd < _tilesPerScreenHorizontally) {
+                        x = _topEnd;
+                        ++_topEnd;
+                    }
+                    else {
+                        x = _topStart - 1;
+                        --_topStart;
+                    }
+                }
+                else {
+                    if (_topStart > 0) {
+                        x = _topStart - 1;
+                        --_topStart;
+                    }
+                    else {
+                        x = _topEnd;
+                        ++_topEnd;
+                    }
+                }
+                drawTile(_bufferTop[x], x + 1);
+            }
         }
-    }
-    void upTile()
-    {
-        _ySubTile += _tileRows << 8;
-        _mapTL -= _mapStride;
-        _bufferTL -= _bufferTileStride;
-        _topStart = _midTileHorizontally;
-        _topEnd = _midTileHorizontally;
-        _bottomStart = 0;
-        _bottomEnd = _tilesPerScreenHorizontally;
-        if (_leftStart < _tilesPerScreenVertically)
-            ++_leftStart;
-        if (_leftEnd < _tilesPerScreenVertically)
-            ++_leftEnd;
-        if (_leftStart == _leftEnd) {
-            _leftStart = 0;
-            _leftEnd = 0;
-        }
-        if (_rightStart < _tilesPerScreenVertically)
-            ++_rightStart;
-        if (_rightEnd < _tilesPerScreenVertically)
-            ++_rightEnd;
-        if (_rightStart == _rightEnd) {
-            _rightStart = 0;
-            _rightEnd = 0;
-        }
-    }
-    void rightTile()
-    {
-        _xSubTile -= _tileColumns << 8;
-        ++_mapTL;
-        _bufferTL += _tileWidthBytes;
-        _leftStart = 0;
-        _leftEnd = _tilesPerScreenVertically;
-        _rightStart = _midTileVertically;
-        _rightEnd = _midTileVertically;
-        if (_topStart > 0)
-            --_topStart;
-        if (_topEnd > 0)
-            --_topEnd;
-        if (_topStart == _topEnd) {
-            _topStart = _tilesPerScreenHorizontally;
-            _topEnd = _tilesPerScreenHorizontally;
-        }
-        if (_bottomStart > 0)
-            --_bottomStart;
-        if (_bottomEnd > 0)
-            --_bottomEnd;
-        if (_bottomStart == _bottomEnd) {
-            _bottomStart = _tilesPerScreenHorizontally;
-            _bottomEnd = _tilesPerScreenHorizontally;
-        }
-    }
-    void downTile()
-    {
-        _ySubTile -= _tileRows << 8;
-        _mapTL += _mapStride;
-        _bufferTL += _bufferTileStride;
-        _topStart = 0;
-        _topEnd = _tilesPerScreenHorizontally;
-        _bottomStart = _midTileHorizontally;
-        _bottomEnd = _midTileHorizontally;
-        if (_leftStart > 0)
-            --_leftStart;
-        if (_leftEnd > 0)
-            --_leftEnd;
-        if (_leftStart == _leftEnd) {
-            _leftStart = _tilesPerScreenVertically;
-            _leftEnd = _tilesPerScreenVertically;
-        }
-        if (_rightStart > 0)
-            --_rightStart;
-        if (_rightEnd > 0)
-            --_rightEnd;
-        if (_rightStart == _rightEnd) {
-            _rightStart = _tilesPerScreenVertically;
-            _rightEnd = _tilesPerScreenVertically;
+        if (!isUp(d)) {
+            while (_bottomEnd - _bottomStart <
+                _transitionCountBottom[_ySubTile >> 8]) {
+                int x;
+                if (_xVelocity > 0) {
+                    if (_bottomEnd < _tilesPerScreenHorizontally) {
+                        x = _bottomEnd;
+                        ++_bottomEnd;
+                    }
+                    else {
+                        x = _bottomStart - 1;
+                        --_bottomStart;
+                    }
+                }
+                else {
+                    if (_bottomStart > 0) {
+                        x = _bottomStart - 1;
+                        --_bottomStart;
+                    }
+                    else {
+                        x = _bottomEnd;
+                        ++_bottomEnd;
+                    }
+                }
+                drawTile(_bufferBottom[x], _mapBottom + x);
+            }
         }
     }
 

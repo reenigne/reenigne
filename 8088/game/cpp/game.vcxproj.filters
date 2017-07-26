@@ -22,4 +22,9 @@
   <ItemGroup>
     <Natvis Include="..\..\..\include\alfe.natvis" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="u6conv\collisionData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>
