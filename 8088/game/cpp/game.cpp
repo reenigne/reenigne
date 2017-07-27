@@ -659,7 +659,14 @@ private:
 
         switch (collisionHandlers[f]) {
             case collisionHandlerCoin:
-
+                _foreground[m] = 0xff;
+                {
+                    int bufferPosition = m + _bufferTL - _mapTL;
+                    drawTile(bufferPosition, m);
+                    int screenTL = bufferPosition - _bufferTopLeft;
+                    addUpdateBlock(screenTL, 0, _tileColumns, _tileRows);
+                }
+                break;
         }
     }
     void move()

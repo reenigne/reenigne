@@ -1204,6 +1204,7 @@ doCollisions:
     %error "Collision handling needs to be changed to handle map strides other than 0x100."
   %endif
   mov al,[xSubTileToMapOffset+bx]
+  mov bl,[ySubTile+1]
   mov ah,[ySubTileToMapOffset+bx]
   mov bx,[mapTL]
   add bx,ax
