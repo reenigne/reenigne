@@ -419,7 +419,7 @@ idle:
 axisInfo x, y, dh
 axisInfo y, x, bh
 
-%macro directionInfo 3
+%macro directionInfo 4
   %define %1Axis            %2
   %1Total                   equ tilesPerScreen_%[%[%1Axis]Perpendicular]
   %1MidTile                 equ %1Total/2
@@ -438,11 +438,12 @@ axisInfo y, x, bh
   %endif
   %1Start: db 0
   %1End: db %1Total
+  %1Direction: db %4
 %endmacro
-directionInfo left, x, -1
-directionInfo up, y, -1
-directionInfo right, x, 1
-directionInfo down, y, 1
+directionInfo left, x, -1, 2
+directionInfo up, y, -1, 4
+directionInfo right, x, 1, 8
+directionInfo down, y, 1, 0x10
 
 
 %assign i 1
@@ -483,6 +484,9 @@ imr: db 0
 shifts: db 1,2,4,8,0x10,0x20,0x40,0x80
 keyboardFlags: times 16 db 0
 updatePointer: dw updateBufferStart
+direction: db 0
+tileDirection: db 0
+
 
 %macro linear 4
   %1:

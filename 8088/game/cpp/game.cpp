@@ -1,12 +1,6 @@
 #include "alfe/main.h"
 #include "alfe/cga.h"
 
-struct CollisionMask
-{
-    CollisionMask(std::initializer_list<Byte> data) : _data(data) { }
-    std::initializer_list<Byte> _data;
-};
-
 enum CollisionHandler
 {
     collisionHandlerNone = 0,
@@ -247,12 +241,21 @@ public:
         _playerTopLeft = _yPlayer*_bufferStride + _xPlayer*2;
         _underPlayer.allocate(_tileWidthBytes*_tileRows);
 
+        _leftCollisionTable.allocate(8);
+        _rightCollisionTable.allocate(8);
+        for (int i = 0; i < 8; ++i) {
+            _leftCollisionTable[i] = (0xff << ((i + _xPlayer) & 7)) & 0xff;
+            _rightCollisionTable[i] = (~(0xff << ((i + _xPlayer) & 7))) & 0xff;
+        }
+
+
         drawPlayer();
 
         addUpdateBlock(0, 0, _screenColumns, _screenRows);
         for (auto i : _updateBlocks)
             updateBlock(i);
         _updateBlocks.clear();
+
     }
     ~GameWindow() { _output.join(); }
     void create()
@@ -386,7 +389,7 @@ public:
         //    int x = (p % _bufferStride) / _tileWidthBytes - 1;
         //    int y = (p / _bufferStride) / _tileRows - 1;
         //    if (x >= 0 && y >= 0 && x < _tilesPerScreenHorizontally && y < _tilesPerScreenVertically)
-        //        continue;
+        //        continue;zzzzzzzzzzzz
         //    if (x == -1 && y >= _leftStart && y < _leftEnd)
         //        continue;
         //    if (x == _tilesPerScreenHorizontally && y >= _rightStart && y < _rightEnd)
@@ -408,7 +411,6 @@ public:
         // Collision detection
         // Update for modified tiles
         // Other game logic
-
 
 
         // Time: inactive region starts
@@ -456,6 +458,11 @@ private:
         Word destinationAdd;
         Word columns;
         Word rows;
+    };
+    struct TileModification
+    {
+        Word mapLocation;
+        Byte oldTile;
     };
 
     void drawTile(Word tl, Word map)
@@ -561,10 +568,18 @@ private:
         b.rows = rows;
         _updateBlocks.append(b);
     }
+    void addTileModification(Word mapLocation, Byte oldTile)
+    {
+        TileModification m;
+        m.mapLocation = mapLocation;
+        m.oldTile = oldTile;
+        _tileModifications.append(m);
+    }
     void drawPlayer()
     {
         saveTile(_playerTopLeft, &_underPlayer[0]);
         drawTransparentTile(_playerTopLeft, 0);
+        _redrawPlayer = false;
     }
     Direction combineDown(Direction d)
     {
@@ -650,22 +665,38 @@ private:
     }
     void checkPlayerTileCollision(int x, int y)
     {
-        int m = _mapTL + (y + (_yPlayer + (_ySubTile >> 8))/_tileRows)*_mapStride + (_xPlayer + (_xSubTile >> 8))/_tileColumns + x;
+        int m = _mapTL + ((_yPlayer + (_ySubTile >> 8))/_tileRows + y + 1)*_mapStride + (_xPlayer + (_xSubTile >> 8))/_tileColumns + x + 1;
         Byte f = _foreground[m];
-        CollisionMask* playerMask = collisionMasks[0];
-        CollisionMask* tileMask = collisionMasks[m];
-        int y;
-        for (y = 0; y < 16; ++y)
+        const Byte* playerMask = collisionMasks[0] + ((_xPlayer + (_xSubTile >> 8)) & 7)*_tileRows;
+        const Byte* tileMask = collisionMasks[f];
+
+        Byte c = 0;
+        if (y == 0) {
+            int yp = 0;
+            for (int yy = (_yPlayer + (_ySubTile >> 8)) % _tileRows; yy < _tileRows; ++yy) {
+                c |= (playerMask[yp] & tileMask[yy]);
+                ++yp;
+            }
+        }
+        else {
+            int yy = 0;
+            for (int yp = _tileRows - (_yPlayer + (_ySubTile >> 8))%_tileRows; yp < _tileRows; ++yp) {
+                c |= (playerMask[yp] & tileMask[yy]);
+                ++yy;
+            }
+        }
+        if (x == 0)
+            c &= _leftCollisionTable[_xSubTile >> 8];
+        else
+            c &= _rightCollisionTable[_xSubTile >> 8];
+        if (c == 0)
+            return;
 
         switch (collisionHandlers[f]) {
             case collisionHandlerCoin:
                 _foreground[m] = 0xff;
-                {
-                    int bufferPosition = m + _bufferTL - _mapTL;
-                    drawTile(bufferPosition, m);
-                    int screenTL = bufferPosition - _bufferTopLeft;
-                    addUpdateBlock(screenTL, 0, _tileColumns, _tileRows);
-                }
+                addTileModification(m, f);
+                _redrawPlayer = true;
                 break;
         }
     }
@@ -798,11 +829,11 @@ private:
                 drawTile(_bottomRightBuffer, _bottomRightMap);
                 break;
         }
+        if (d != directionStopped)
+            _redrawPlayer = true;
 
-        if (d == directionStopped)
-            return;
-
-        restoreTile(_playerTopLeft, &_underPlayer[0]);
+        if (_redrawPlayer)
+            restoreTile(_playerTopLeft, &_underPlayer[0]);
 
         // Do the actual scrolling
         switch (d) {
@@ -868,7 +899,20 @@ private:
                 addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
         }
 
-        drawPlayer();
+        for (auto i : _tileModifications) {
+            int m = i.mapLocation;
+            int rm = m - _mapTL;
+            int xMap = rm % _mapStride;
+            int yMap = rm / _mapStride;
+            int b = xMap*_tileWidthBytes + yMap*_bufferTileStride;
+            drawTile(b, rm);
+            int s = b + _bufferTL - _bufferTopLeft;
+            addUpdateBlock((s % _bufferStride) >> 1, s / _bufferStride, _tileColumns, _tileRows);
+        }
+        _tileModifications.clear();
+
+        if (_redrawPlayer)
+            drawPlayer();
 
         // Restore tile invariants
 
@@ -1018,6 +1062,8 @@ private:
     Array<Byte> _transitionCountTop;
     Array<Byte> _transitionCountRight;
     Array<Byte> _transitionCountBottom;
+    Array<Byte> _leftCollisionTable;
+    Array<Byte> _rightCollisionTable;
     Array<Word> _bufferLeft;
     Array<Word> _mapLeft;
     Array<Word> _bufferTop;
@@ -1037,6 +1083,7 @@ private:
     int _xPlayer;
     int _yPlayer;
     int _playerTopLeft;
+    bool _redrawPlayer;
 
     bool _upPressed;
     bool _downPressed;
@@ -1068,6 +1115,7 @@ private:
     LARGE_INTEGER _startTime;
 
     AppendableArray<UpdateBlock> _updateBlocks;
+    AppendableArray<TileModification> _tileModifications;
 };
 
 class Program : public WindowProgram<GameWindow>

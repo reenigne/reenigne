@@ -232,7 +232,7 @@ public:
         for (int t = 0; t < 0x100; ++t) {
             if (!used[t])
                 continue;
-            cOutput += String("CollisionMask collisionMask") + decimal(t) + " = {\n";
+            cOutput += String("Byte collisionMask") + decimal(t) + "[] = {\n";
             for (int r = 0; r < 8; ++r) {
                 cOutput += "  ";
                 for (int y = 0; y < 16; ++y)
@@ -244,9 +244,9 @@ public:
             cOutput += "};\n";
         }
         cOutput += "\n";
-        cOutput += "CollisionMask* collisionMasks[0x100] = {\n";
+        cOutput += "Byte* collisionMasks[0x100] = {\n";
         for (int t = 0; t < 0x100; ++t)
-            cOutput += String("  &collisionMask") + decimal(collisionMaskPointers[t]) + ",\n";
+            cOutput += String("  collisionMask") + decimal(collisionMaskPointers[t]) + ",\n";
         cOutput += "};\n";
         cOutput += "CollisionHandler collisionHandlers[0x100] = {\n";
         for (int t = 0; t < 0x100; ++t) {
