@@ -634,7 +634,32 @@ private:
         }
         return d;
     }
-    Direction normalize(Direction d)
+    Direction calculateTileDirection(int oldMapTL)
+    {
+        int delta = _mapTL - oldMapTL;
+        if (delta < 0) {
+            if (delta < -_mapStride)
+                return directionUpLeft;
+            if (delta > -_mapStride) {
+                if (delta < -1)
+                    return directionUpRight;
+                return directionLeft;
+            }
+            return directionUp;
+        }
+        if (delta > 0) {
+            if (delta < _mapStride) {
+                if (delta > 1)
+                    return directionDownLeft;
+                return directionRight;
+            }
+            if (delta > _mapStride)
+                return directionDownRight;
+            return directionDown;
+        }
+        return directionStopped;
+    }
+    Direction normalize()
     {
         Direction tileDirection = directionStopped;
         if ((_xSubTile >> 8) >= _tileColumns) {
@@ -704,16 +729,19 @@ private:
     {
         int xSubTileHighOld = _xSubTile >> 8;
         int ySubTileHighOld = _ySubTile >> 8;
+        Word oldMapTL = _mapTL;
         _xSubTile += _xVelocity;
         _ySubTile += _yVelocity;
 
         Direction d = calculateDirection(xSubTileHighOld, ySubTileHighOld);
-        Direction tileDirection = normalize(d);
+        normalize();
 
         checkPlayerTileCollision(0, 0);
         checkPlayerTileCollision(1, 0);
         checkPlayerTileCollision(0, 1);
         checkPlayerTileCollision(1, 1);
+
+        Direction tileDirection = calculateTileDirection(oldMapTL);
 
         if (isRight(tileDirection)) {
             _bufferTL += _tileWidthBytes;
