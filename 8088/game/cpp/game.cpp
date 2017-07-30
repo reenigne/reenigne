@@ -636,7 +636,7 @@ private:
     }
     Direction calculateTileDirection(int oldMapTL)
     {
-        int delta = _mapTL - oldMapTL;
+        SInt16 delta = _mapTL - oldMapTL;
         if (delta < 0) {
             if (delta < -_mapStride)
                 return directionUpLeft;
@@ -692,7 +692,7 @@ private:
     {
         int m = _mapTL + ((_yPlayer + (_ySubTile >> 8))/_tileRows + y + 1)*_mapStride + (_xPlayer + (_xSubTile >> 8))/_tileColumns + x + 1;
         Byte f = _foreground[m];
-        const Byte* playerMask = collisionMasks[0] + ((_xPlayer + (_xSubTile >> 8)) & 7)*_tileRows;
+        const Byte* playerMask = collisionMasks[0] + ((_xSubTile >> 8) & 7)*_tileRows;
         const Byte* tileMask = collisionMasks[f];
 
         Byte c = 0;

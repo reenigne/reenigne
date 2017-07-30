@@ -154,69 +154,95 @@ public:
         }
         fs.write(foreground);
 
-        Array<bool> moveable(256);
-        Array<bool> moveableMask(256);
-        for (int i = 0; i < 256; ++i) {
-            moveable[i] = false;
-            moveableMask[i] = false;
-        }
-        moveable[0] = true;
         Array<String> handlerNames(256);
         handlerNames[6] = String("Coin");
 
-        Array<Byte> collisionMasks(8*16*256);
-        Array<Byte> collisionMaskPointers(256);
-        Array<bool> used(256);
+        Array<bool> moveable(256);
+        for (int i = 0; i < 256; ++i)
+            moveable[i] = false;
+        moveable[0] = true;
+
+        Array<Byte> unshiftedMasks(16*256);
         for (int t = 0; t < 0x100; ++t) {
-            used[t] = false;
-            for (int r = 0; r < 8; ++r) {
-                for (int y = 0; y < 16; ++y) {
-                    int b = 0;
-                    Byte* p = &tileGraphics[t*0x100 + y*16];
-                    for (int x = 0; x < 8; ++x)
-                        if (p[x*2] != 0xff || p[x*2 + 1] != 0xff)
-                            b |= 1 << x;
-                    b = (b << r) | (b >> (8 - r));
-                    collisionMasks[t*8*16 + r*16 + y] = b;
-                }
+            for (int y = 0; y < 16; ++y) {
+                int b = 0;
+                Byte* p = &tileGraphics[t*0x100 + y*16];
+                for (int x = 0; x < 8; ++x)
+                    if (p[x*2] != 0xff || p[x*2 + 1] != 0xff)
+                        b |= 1 << x;
+                unshiftedMasks[t*16 + y] = b;
             }
+        }
+
+        int tileColumns = 8;
+        int screenColumns = 80;
+        int xPlayer = (screenColumns - tileColumns)/2;
+
+        Array<Byte> maskData(8*16*256);
+        int maskDataPointer = 0;
+        Array<int> maskPointers(256);
+        for (int t = 0; t < 0x100; ++t) {
+            if (!moveable[t])
+                continue;
             int t1;
-            for (t1 = 0; t1 <= t; ++t1) {
-                int j;
-                for (j = 0; j < 8*16; ++j)
-                    if (collisionMasks[t*8*16 + j] != collisionMasks[t1*8*16 + j])
+            for (t1 = 0; t1 < t; ++t1) {
+                int y;
+                for (y = 0; y < 16; ++y)
+                    if (unshiftedMasks[t*16 + y] != unshiftedMasks[t1*16 + t])
                         break;
-                if (j == 8*16) {
-                    collisionMaskPointers[t] = t1;
-                    used[t1] = true;
-                    if (moveable[t])
-                        moveableMask[t1] = true;
+                if (y == 16) {
+                    maskPointers[t] = maskPointers[t1];
                     break;
                 }
             }
+            if (t1 == t) {
+                maskPointers[t] = maskDataPointer;
+                for (int r = 0; r < 8; ++r) {
+                    int s = (xPlayer + r) & 7;
+                    for (int y = 0; y < 16; ++y) {
+                        Byte b = unshiftedMasks[t*16 + y];
+                        maskData[maskDataPointer + r*16 + y] = (b << s) | (b >> (8 - s));
+                    }
+                }
+                maskDataPointer += 8*16;
+            }
         }
+        for (int t = 0; t < 0x100; ++t) {
+            if (moveable[t])
+                continue;
+            int i;
+            for (i = 0; i <= maskDataPointer - 16; ++i) {
+                int y;
+                for (y = 0; y < 16; ++y)
+                    if (unshiftedMasks[t*16 + y] != maskData[i + y])
+                        break;
+                if (y == 16) {
+                    maskPointers[t] = i;
+                    break;
+                }
+            }
+            if (i == maskDataPointer - 15) {
+                maskPointers[t] = maskDataPointer;
+                for (int y = 0; y < 16; ++y)
+                    maskData[maskDataPointer + y] = unshiftedMasks[t*16 + y];
+                maskDataPointer += 16;
+            }
+        }
+
         String asmOutput;
         asmOutput += "collisionMasks:\n";
         for (int t = 0; t < 0x100; ++t)
-            asmOutput += String("  dw collisionMask") + decimal(collisionMaskPointers[t]) + "\n";
-        asmOutput += "\n";
-        for (int t = 0; t < 0x100; ++t) {
-            if (!used[t])
-                continue;
-            asmOutput += String("collisionMask") + decimal(t) + ":\n";
-            for (int r = 0; r < 8; ++r) {
-                asmOutput += "  db ";
-                for (int y = 0; y < 16; ++y) {
-                    asmOutput += hex(collisionMasks[t*8*16 + r*16 + y], 2);
-                    if (y < 15)
-                        asmOutput += ", ";
-                }
+            asmOutput += String("  dw collisionData + ") + hex(maskPointers[t], 4) + "\n";
+        asmOutput += "\ncollisionData:\n";
+        for (int i = 0; i < maskDataPointer; ++i) {
+            if ((i & 15) == 0)
+                asmOutput += "  dw ";
+            asmOutput += hex(maskData[i], 2);
+            if ((i & 15) == 15)
                 asmOutput += "\n";
-                if (!moveableMask[t])
-                    break;
-            }
+            else
+                asmOutput += ", ";
         }
-        asmOutput += "\n";
         asmOutput += "collisionHandlers:\n";
         for (int t = 0; t < 0x100; ++t) {
             String s = handlerNames[t];
@@ -229,24 +255,23 @@ public:
 
 
         String cOutput;
-        for (int t = 0; t < 0x100; ++t) {
-            if (!used[t])
-                continue;
-            cOutput += String("Byte collisionMask") + decimal(t) + "[] = {\n";
-            for (int r = 0; r < 8; ++r) {
+        cOutput += "Byte collisionData[] = {\n";
+        for (int i = 0; i < maskDataPointer; ++i) {
+            if ((i & 15) == 0)
                 cOutput += "  ";
-                for (int y = 0; y < 16; ++y)
-                    cOutput += hex(collisionMasks[t*8*16 + r*16 + y], 2) + ", ";
+            cOutput += hex(maskData[i], 2);
+            if (i != maskDataPointer - 1)
+                cOutput += ",";
+            else
+                cOutput += "};\n";
+            if ((i & 15) == 15)
                 cOutput += "\n";
-                if (!moveableMask[t])
-                    break;
-            }
-            cOutput += "};\n";
+            else
+                cOutput += " ";
         }
-        cOutput += "\n";
-        cOutput += "Byte* collisionMasks[0x100] = {\n";
+        cOutput += "const Byte* collisionMasks[0x100] = {\n";
         for (int t = 0; t < 0x100; ++t)
-            cOutput += String("  collisionMask") + decimal(collisionMaskPointers[t]) + ",\n";
+            cOutput += String("  &collisionData[") + decimal(maskPointers[t]) + "],\n";
         cOutput += "};\n";
         cOutput += "CollisionHandler collisionHandlers[0x100] = {\n";
         for (int t = 0; t < 0x100; ++t) {
