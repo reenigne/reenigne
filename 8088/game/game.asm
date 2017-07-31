@@ -439,7 +439,7 @@ axisInfo y, x, bh
   %endif
   %1Start: db 0
   %1End: db %1Total
-  %1Direction: db %4
+  %1Direction               equ %4
 %endmacro
 directionInfo left, x, -1, 2
 directionInfo up, y, -1, 4
@@ -507,13 +507,6 @@ linear rightBuffer, rightTotal, (tilesPerScreen_x + 1)*tileWidthBytes + bufferTi
 linear rightMap, rightTotal, tilesPerScreen_x + 1 + mapStride, mapStride
 linear downBuffer, downTotal, (tilesPerScreen_y + 1)*bufferTileStride + tileWidthBytes, tileWidthBytes
 ;linear downMap, downTotal, (tilesPerScreen_y + 1)*mapStride + 1, 1
-
-times16:
-  %assign i 0
-  %rep 8
-    db i
-    %assign i i+16
-  %endrep
 
 %macro positive 1
   %if %1 < 0
@@ -857,7 +850,7 @@ noVerticalAcceleration:
 %%notUp:
   jmp %%done
 %%down:
-  mov byte,[ySubTile+1],0
+  mov byte[ySubTile+1],0
   add word[mapTL],mapStride
   jmp %%done
 %%right:
@@ -886,7 +879,7 @@ noVerticalAcceleration:
   mov bh,0
   add bx,bx
   mov bp,bx
-  mov ax,[collisionMasks+bx]
+  mov dx,[collisionMasks+bx]
 
   mov bx,[xSubTile+1]
   %if %1==0
@@ -896,47 +889,26 @@ noVerticalAcceleration:
     mov cl,[rightCollisionTable+bx]
     mov ch,cl
   %endif
-
-
-; end iteration will be at BX+tileSize_y
-; So, if we're doing N iterations, first iteration will be at BX+tileSize_y-N
-; So, if we want to start at p, set BX = p+N-tileSize_y
-
+  add bx,bx
+  mov si,[playerMaskOffsetForX+bx]
 
   %if %2==0
-;    add ax,bx
-;    mov dx,[collisionTable + ...]
-
-    ; si = collisionMasks[0] + ((_xSubTile >> 8) & 7)*tileSize_y
-    ; bx = collisionMasks[f] + (yPlayer + (ySubTile >> 8))%tileSize_y - (yPlayer + (ySubTile >> 8))%tileSize_y
-    ; dx = collisionTable[tileSize_y - (yPlayer + (ySubTile >> 8))%tileSize_y]
-
-;            int yp = 0;
-;            for (int yy = (_yPlayer + (_ySubTile >> 8)) % _tileRows; yy < _tileRows; ++yy) {
-;                c |= (playerMask[yp] & tileMask[yy]);
-;                ++yp;
-;            }
-
+    mov bx,[ysubTile+1]
+    add bx,bx
+    mov ax,[collisionTableUp+bx]
   %else
-;    mov dx,[collisionTable + ...]
-
-    ; si = collisionMasks[0] + ((_xSubTile >> 8) & 7)*tileSize_y + tileSize_y - (yPlayer + (ySubTile >> 8))%tileSize_y
-    ; bx = collisionMasks[f] + (yPlayer + (ySubTile >> 8))%tileSize_y - tileSize_y
-    ; dx = collisionTable[(yPlayer + (ySubTile >> 8))%tileSize_y]
-
-;            int yy = 0;
-;            for (int yp = _tileRows - (_yPlayer + (_ySubTile >> 8))%_tileRows; yp < _tileRows; ++yp) {
-;                c |= (playerMask[yp] & tileMask[yy]);
-;                ++yy;
-;            }
-
+    mov bx,[ysubTile+1]
+    mov al,[collisionDownAdjust+bx]
+    cbw
+    add dx,ax
+    sub si,ax
+    add bx,bx
+    mov ax,[collisionTableDown+bx]
   %endif
-;  mov bl,[times16+bx]
-;  mov si,[collisionMasks+bx]
 
-
-
-  call dx
+    mov bx,dx
+  xor dx,dx
+  call ax
 
 %endmacro
 
@@ -986,7 +958,7 @@ noVerticalAcceleration:
 %%upLeft:
   mov %2,upDirection | leftDirection
   jmp %%done
-%%upRightOrLeft
+%%upRightOrLeft:
   cmp ax,-1
   jl %%upRight
   mov %2,leftDirection
@@ -1535,8 +1507,8 @@ collided:
   jmp word[collisionHandlers + bp]
 
 collisionTable:
-%assign i 1
-%rep tileSize_y
+%assign i 0
+%rep tileSize_y+1
   dw collisionTest%[i]
   %assign i i+1
 %endrep
@@ -1555,6 +1527,34 @@ rightCollisionTable:
   %assign i i+1
 %endrep
 
+playerMaskOffsetForX:
+  %assign i 0
+  %rep 8
+    dw collisionData + i
+    %assign i i+tileSize_y
+  %endrep
+
+collisionTableUp:
+%assign i 0
+%rep tileSize_y
+  dw collisionTest%[tileSize_y - (yPlayer + i)%tileSize_y]
+  %assign i i+1
+%endrep
+
+collisionTableDown:
+%assign i 0
+%rep tileSize_y
+  dw (yPlayer + i)%tileSize_y
+;  dw collisionTest%[(yPlayer + i)%tileSize_y]  ;(yPlayer + i)%tileSize_y
+  %assign i i+1
+%endrep
+
+collisionDownAdjust:
+%assign i 0
+%rep tileSize_y
+  db (yPlayer + i)%tileSize_y - tileSize_y
+  %assign i i+1
+%endrep
 
 xSubTileToMapOffset:
 %assign i 0
