@@ -39,6 +39,7 @@ playerTopLeft               equ yPlayer*bufferStride + xPlayer*2
 noneScrollIncrement         equ 0
 noneBufferScrollIncrement   equ 0
 
+; Stomps ax, bx, cx, dx, si, di, bp, es, ds
 %macro drawTile 0  ; buffer location in di, map location in bx
   add di,[bufferTL]
   add bx,[mapTL]
@@ -488,7 +489,8 @@ keyboardFlags: times 16 db 0
 updatePointer: dw updateBufferStart
 direction: dw 0
 tileDirection: dw 0
-
+redrawPlayer: db 0
+tileModificationPointer: dw 0
 
 %macro linear 4
   %1:
@@ -875,6 +877,8 @@ noVerticalAcceleration:
   mov [oldMapTL],ax
   normalize dh, bh
 
+  mov word[tileModificationPointer],tileModificationBufferStart
+
 %macro checkPlayerTileCollision 2  ; x, y  (tileNumber to collide with in bl)
   mov bh,0
   add bx,bx
@@ -892,12 +896,11 @@ noVerticalAcceleration:
   add bx,bx
   mov si,[playerMaskOffsetForX+bx]
 
+  mov bx,[ySubTile+1]
   %if %2==0
-    mov bx,[ysubTile+1]
     add bx,bx
     mov ax,[collisionTableUp+bx]
   %else
-    mov bx,[ysubTile+1]
     mov al,[collisionDownAdjust+bx]
     cbw
     add dx,ax
@@ -906,7 +909,7 @@ noVerticalAcceleration:
     mov ax,[collisionTableDown+bx]
   %endif
 
-    mov bx,dx
+  mov bx,dx
   xor dx,dx
   call ax
 
@@ -938,9 +941,6 @@ noVerticalAcceleration:
   inc di
   mov bl,[es:di]
   checkPlayerTileCollision 1, 1
-
-
-
 
 %macro calculateTileDirection 2  ; oldMapTL, output
   mov ax,[mapTL]
@@ -986,7 +986,6 @@ noVerticalAcceleration:
 %endmacro
 
   calculateTileDirection [oldMapTL], byte[tileDirection]
-
 
 %macro twice 1.nolist
   %1
@@ -1134,7 +1133,7 @@ noTileDown:
 checkTileDiagonal:
 
   mov bx,[tileDirection]
-  jmp [tileBoundaryTable + bx]
+  jmp [tileDiagonalTable + bx]
 tileDiagonalTable:
   dw noTileDiagonal
   dw noTileDiagonal
@@ -1203,6 +1202,29 @@ noPlayerRestore:
   makeUpdater width, height
   mov ax,updater%[width]_%[height]
   stosw                              ; code chunk (encodes width and height)
+  mov [updatePointer],di
+%endmacro
+
+%macro addTileUpdateBlock 0  ; ax = buffer position, width = tileSize_x, height = tileSize_y
+  %assign width tileSize_x
+  %assign height tileSize_y
+  mov di,[updatePointer]
+  stosw                              ; source top-left
+  add ax,[bufferTL]
+  sub ax,[bufferTopLeft]
+  xor bx,bx
+  xchg bl,ah
+  add bx,bx
+  add ax,[rowToVRAM + bx]
+  add ax,[vramTopLeft]
+  stosw
+  mov ax,screenWidthBytes - tileWidthBytes
+  stosw
+  mov ax,bufferStride - tileWidthBytes
+  stosw
+  makeUpdater width, height
+  mov ax,updater%[width]_%[height]
+  stosw
   mov [updatePointer],di
 %endmacro
 
@@ -1385,6 +1407,37 @@ scrollDownRight:
   scroll down, right
 scrollNone:
 
+  mov si,tileModificationBufferStart
+  cmp si,[tileModificationPointer]
+  je doneTileModifications
+  lodsw
+  inc si  ; Ignore tile number for now. Eventually use it to optimize draw and update
+  push si
+  mov di,ax
+  sub ax,[mapTL]
+  %if bufferStride != 0x100
+    %error "Collision handling needs to be modified to handle buffer strides other than 0x100."
+  %endif
+  %if mapStride != 0x100
+    %error "Collision handling needs to be changed to handle map strides other than 0x100."
+  %endif
+  mov bl,al
+  mov bh,0
+  mov al,[mapToBufferX+bx]
+  mov bl,ah
+  mov ah,[mapToBufferY+bx]
+  xchg ax,di
+  xchg bx,ax
+  push bx
+  drawTile
+  mov ax,cs
+  mov ds,ax
+  pop ax
+  add ax,[bufferTL]
+  sub ax,[bufferTopLeft]
+  addTileUpdateBlock
+  pop si
+doneTileModifications:
 
   mov ax,cs
   mov ds,ax
@@ -1516,14 +1569,14 @@ collisionTable:
 leftCollisionTable:
 %assign i 0
 %rep tileSize_x
-  db 0xff << ((i + xPlayer) & 7)
+  db (0xff << ((i + xPlayer) & 7)) & 0xff
   %assign i i+1
 %endrep
 
 rightCollisionTable:
 %assign i 0
 %rep tileSize_x
-  db ~(0xff << ((i + xPlayer) & 7))
+  db (~(0xff << ((i + xPlayer) & 7))) & 0xff
   %assign i i+1
 %endrep
 
@@ -1537,15 +1590,16 @@ playerMaskOffsetForX:
 collisionTableUp:
 %assign i 0
 %rep tileSize_y
-  dw collisionTest%[tileSize_y - (yPlayer + i)%tileSize_y]
+  %assign p tileSize_y - (yPlayer + i) % tileSize_y
+  dw collisionTest%[p]
   %assign i i+1
 %endrep
 
 collisionTableDown:
 %assign i 0
 %rep tileSize_y
-  dw (yPlayer + i)%tileSize_y
-;  dw collisionTest%[(yPlayer + i)%tileSize_y]  ;(yPlayer + i)%tileSize_y
+  %assign p (yPlayer + i) % tileSize_y
+  dw collisionTest%[p]
   %assign i i+1
 %endrep
 
@@ -1570,6 +1624,41 @@ ySubTileToMapOffset:
   %assign i i+1
 %endrep
 
+rowToVRAM:
+%assign i 0
+%rep screenSize_y
+  dw i
+  %assign i i+160
+%endrep
+
+mapToBufferX:
+%assign i 0
+%rep tilesPerScreen_x
+  db i
+  %assign i i+tileWidthBytes
+%endrep
+
+mapToBufferY:
+%assign i 0
+%rep tilesPerScreen_y
+  db i
+  %assign i i+bufferTileStride/0x100
+%endrep
+
+
+%macro addTileModification 1
+  mov si,[tileModificationPointer]
+  mov [si],di
+  mov byte[si+2],%1
+  add si,3
+  mov [tileModificationPointer],si
+%endmacro
+
+collisionHandlerCoin:
+  mov byte[es:di],0xff
+  addTileModification 6
+  mov byte[redrawPlayer],1
+  ret
 
 %assign i 1
 %rep screenSize_x
@@ -1615,5 +1704,7 @@ updateBufferStart:
   resb updateBufferSize
 underPlayer:
   resb tileWidthBytes*tileSize_y
+tileModificationBufferStart:
+  resb 4*3
 endPreBuffer:
 
