@@ -136,6 +136,7 @@ noneBufferScrollIncrement   equ 0
   saveTile playerTopLeft, underPlayer
   mov ax,cs
   mov ds,ax
+  mov byte[redrawPlayer],1
   drawTransparentTile playerTopLeft, 0
 %endmacro
 
@@ -945,6 +946,7 @@ noVerticalAcceleration:
 %macro calculateTileDirection 2  ; oldMapTL, output
   mov ax,[mapTL]
   sub ax,%1
+  cmp ax,0
   jl %%negative
   jg %%positive
   mov %2,0
@@ -1209,8 +1211,8 @@ noPlayerRestore:
   %assign width tileSize_x
   %assign height tileSize_y
   mov di,[updatePointer]
-  stosw                              ; source top-left
   add ax,[bufferTL]
+  stosw                              ; source top-left
   sub ax,[bufferTopLeft]
   xor bx,bx
   xchg bl,ah
@@ -1362,7 +1364,6 @@ noPlayerRestore:
     %ifnidn %1,down
       ensureEnoughTiles up
     %endif
-    drawPlayer
   %endif
 %endmacro
 
@@ -1408,13 +1409,14 @@ scrollDownRight:
 scrollNone:
 
   mov si,tileModificationBufferStart
+checkTileModifications:
   cmp si,[tileModificationPointer]
   je doneTileModifications
   lodsw
   inc si  ; Ignore tile number for now. Eventually use it to optimize draw and update
   push si
-  mov di,ax
   sub ax,[mapTL]
+  mov di,ax
   %if bufferStride != 0x100
     %error "Collision handling needs to be modified to handle buffer strides other than 0x100."
   %endif
@@ -1428,16 +1430,23 @@ scrollNone:
   mov ah,[mapToBufferY+bx]
   xchg ax,di
   xchg bx,ax
-  push bx
+  push di
   drawTile
   mov ax,cs
   mov ds,ax
-  pop ax
-  add ax,[bufferTL]
-  sub ax,[bufferTopLeft]
+  pop ax                   ; == b  (add bufferTL to this to get actual buffer address)
+;  add ax,[bufferTL]
+;  sub ax,[bufferTopLeft]
   addTileUpdateBlock
   pop si
+  jmp checkTileModifications
 doneTileModifications:
+
+  cmp byte[redrawPlayer],0
+  je skipRedrawPlayer
+  drawPlayer
+skipRedrawPlayer:
+
 
   mov ax,cs
   mov ds,ax
@@ -1646,7 +1655,7 @@ mapToBufferY:
 %endrep
 
 
-%macro addTileModification 1
+%macro addTileModification 1       ; map location in di, tile number in %1
   mov si,[tileModificationPointer]
   mov [si],di
   mov byte[si+2],%1

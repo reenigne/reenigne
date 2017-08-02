@@ -236,7 +236,7 @@ public:
         asmOutput += "\ncollisionData:\n";
         for (int i = 0; i < maskDataPointer; ++i) {
             if ((i & 15) == 0)
-                asmOutput += "  dw ";
+                asmOutput += "  db ";
             asmOutput += hex(maskData[i], 2);
             if ((i & 15) == 15)
                 asmOutput += "\n";
