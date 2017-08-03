@@ -15,7 +15,7 @@ yAcceleration        equ 0x10
 xMaxVelocity         equ 0x100
 yMaxVelocity         equ 0x100
 updateBufferSize     equ 100
-use_iret             equ 1
+;use_iret             equ 1
 
 screenWidthBytes     equ screenSize_x*2
 bufferTileStride     equ tileSize_y*bufferStride
@@ -136,7 +136,7 @@ noneBufferScrollIncrement   equ 0
   saveTile playerTopLeft, underPlayer
   mov ax,cs
   mov ds,ax
-  mov byte[redrawPlayer],1
+  mov byte[redrawPlayer],0
   drawTransparentTile playerTopLeft, 0
 %endmacro
 
@@ -552,21 +552,22 @@ linear tilePointers, 0x100, 0, tileWidthBytes*tileSize_y
 %endif
 
 offScreenHandler:
-%if use_iret!=0
-  push bx
-  push di
-  push si
-  mov bp,sp
-
+;%if use_iret!=0
+;  push bx
+;  push di
+;  push si
+;  mov bp,sp
+;
   mov al,0x20
   out 0x20,al
-%endif
+;%endif
+
+    mov al,14
+    mov dx,0x3d9
+    out dx,al
 
   xor ax,ax
   mov ds,ax
-%if use_iret==0
-  mov ss,ax
-%endif
   mov word[0x20],onScreenHandler
 
   setPIT0Count onScreenPitCycles
@@ -582,6 +583,8 @@ offScreenHandler:
 noRestartMusic:
   mov [musicPointer],si
 
+  mov ax,cs
+  mov ss,ax
   mov sp,updateBufferStart
   mov ax,0xb800
   mov es,ax
@@ -591,24 +594,28 @@ noRestartMusic:
   pop di
   pop bx
   pop dx
-%if use_iret!=0
-  sti
-%endif
+;%if use_iret!=0
+;  sti
+;%endif
   ret
 
 offScreenHandlerEnd:
-%if use_iret!=0
-  mov sp,bp
-  pop si
-  pop di
-  pop bx
-  iret
-%else
-  mov al,0x20
-  out 0x20,al
+    mov al,15
+    mov dx,0x3d9
+    out dx,al
+;%if use_iret!=0
+;  mov sp,bp
+;  pop si
+;  pop di
+;  pop bx
+;  iret
+;%else
+;  mov al,0x20
+;  out 0x20,al
+  mov sp,stackHigh
   sti
   jmp idle
-%endif
+;%endif
 
 
 onScreenHandler:
@@ -616,10 +623,13 @@ onScreenHandler:
   push bx
   push di
   push si
-%if use_iret!=0
+;%if use_iret!=0
   mov al,0x20
   out 0x20,al
-%endif
+;%endif
+    mov al,1
+    mov dx,0x3d9
+    out dx,al
 
   xor ax,ax
   mov ds,ax
@@ -643,11 +653,11 @@ noRestartSound:
   inc word[frameCount+2]
 noFrameCountCarry:
 
-%if use_iret==0
-  mov sp,stackHigh
-  mov ax,cs
-  mov ss,ax
-%endif
+;%if use_iret==0
+;  mov sp,stackHigh
+;  mov ax,cs
+;  mov ss,ax
+;%endif
   mov word[updatePointer],updateBufferStart
 
 checkKey:
@@ -699,6 +709,9 @@ keyPressed:
 ; 11             F12
 
 noKey:
+    mov al,2
+    mov dx,0x3d9
+    out dx,al
   mov ax,[xVelocity]
   test byte[keyboardFlags+9],8
   jz leftNotPressed
@@ -820,6 +833,12 @@ noVerticalAcceleration:
 %%done:
 %endmacro
 
+    push dx
+    mov al,3
+    mov dx,0x3d9
+    out dx,al
+    pop dx
+
   calculateDirection cl, ch, dh, bh, byte[direction]
 
 %macro normalize 2  ; xSubTileHigh, ySubTileHigh
@@ -874,6 +893,12 @@ noVerticalAcceleration:
 %%done:
 %endmacro
 
+    push dx
+    mov al,4
+    mov dx,0x3d9
+    out dx,al
+    pop dx
+
   mov ax,[mapTL]
   mov [oldMapTL],ax
   normalize dh, bh
@@ -916,6 +941,10 @@ noVerticalAcceleration:
 
 %endmacro
 
+    mov al,5
+    mov dx,0x3d9
+    out dx,al
+
   mov bl,[xSubTile+1]
   mov bh,0
   %if mapStride != 0x100
@@ -942,6 +971,10 @@ noVerticalAcceleration:
   inc di
   mov bl,[es:di]
   checkPlayerTileCollision 1, 1
+
+    mov al,6
+    mov dx,0x3d9
+    out dx,al
 
 %macro calculateTileDirection 2  ; oldMapTL, output
   mov ax,[mapTL]
@@ -1115,6 +1148,10 @@ noVerticalAcceleration:
   %endif
 %endmacro
 
+    mov al,7
+    mov dx,0x3d9
+    out dx,al
+
   test byte[tileDirection],rightDirection
   jz noTileRight
   doTileBoundary right
@@ -1163,6 +1200,10 @@ tileDiagonalDownRight:
   drawTile2 down_rightBuffer, down_rightMap
   jmp noTileDiagonal
 noTileDiagonal:
+
+    mov al,8
+    mov dx,0x3d9
+    out dx,al
 
 %macro restoreTile 2
   mov si,%2
@@ -1367,6 +1408,10 @@ noPlayerRestore:
   %endif
 %endmacro
 
+    mov al,9
+    mov dx,0x3d9
+    out dx,al
+
   mov bx,[direction]
   jmp [scrollTable + bx]
 scrollTable:
@@ -1408,6 +1453,10 @@ scrollDownRight:
   scroll down, right
 scrollNone:
 
+    mov al,10
+    mov dx,0x3d9
+    out dx,al
+
   mov si,tileModificationBufferStart
 checkTileModifications:
   cmp si,[tileModificationPointer]
@@ -1434,6 +1483,7 @@ checkTileModifications:
   drawTile
   mov ax,cs
   mov ds,ax
+  mov es,ax
   pop ax                   ; == b  (add bufferTL to this to get actual buffer address)
 ;  add ax,[bufferTL]
 ;  sub ax,[bufferTopLeft]
@@ -1442,11 +1492,18 @@ checkTileModifications:
   jmp checkTileModifications
 doneTileModifications:
 
+    mov al,11
+    mov dx,0x3d9
+    out dx,al
+
   cmp byte[redrawPlayer],0
   je skipRedrawPlayer
   drawPlayer
 skipRedrawPlayer:
 
+    mov al,12
+    mov dx,0x3d9
+    out dx,al
 
   mov ax,cs
   mov ds,ax
@@ -1457,7 +1514,9 @@ skipRedrawPlayer:
   stosw
   mov [updatePointer],di
 
-
+    mov al,13
+    mov dx,0x3d9
+    out dx,al
 
   mov ax,cs
   mov ds,ax
@@ -1469,23 +1528,27 @@ skipRedrawPlayer:
   mov ah,[startAddress]
   out dx,ax
 
-%if use_iret!=0
-  test byte[keyboardFlags],2
-  jnz teardown
+;%if use_iret!=0
+;  test byte[keyboardFlags],2
+;  jnz teardown
 
-  pop si
-  pop di
-  pop bx
-  pop cx
-  iret
-%else
-  mov al,0x20
-  out 0x20,al
+  mov al,0
+  mov dx,0x3d9
+  out dx,al
+
+;  pop si
+;  pop di
+;  pop bx
+;  pop cx
+;  iret
+;%else
+;  mov al,0x20
+;  out 0x20,al
   sti
 
   test byte[keyboardFlags],2
   jz idle
-%endif
+;%endif
 
 
 teardown:
