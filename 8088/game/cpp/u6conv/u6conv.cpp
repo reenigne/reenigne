@@ -152,10 +152,16 @@ public:
                 foreground[y*0x100 + x] = m;
             }
         }
+        for (int i = 0; i < 2000; ++i) {
+            int p = (rand() & 0xff) + (rand() & 0xff)*0x100;
+            for (int x = 0; x < 5; ++x)
+                foreground[p + x] = 0xd8;
+        }
         fs.write(foreground);
 
         Array<String> handlerNames(256);
         handlerNames[6] = String("Coin");
+        handlerNames[0xd8] = String("Platform");
 
         Array<bool> moveable(256);
         for (int i = 0; i < 256; ++i)
@@ -177,6 +183,7 @@ public:
         int tileColumns = 8;
         int screenColumns = 80;
         int xPlayer = (screenColumns - tileColumns)/2;
+        int bufferStride = 0x100;
 
         Array<Byte> maskData(8*16*256);
         int maskDataPointer = 0;
@@ -251,7 +258,65 @@ public:
             else
                 asmOutput += "  dw 0\n";
         }
+        asmOutput += "playerSprite:\n";
+        bool gotDW = false;
+        bool needComma = false;
+        int spaces = 0;
+        for (int i = 0; i < 0x100; i += 2) {
+            Byte ch = tileGraphics[i];
+            Byte cl = tileGraphics[i + 1];
+            Word c = ch + (cl << 8);
+            if (c != 0xffff) {
+                if (!gotDW) {
+                    asmOutput += "  dw ";
+                    gotDW = true;
+                }
+                if (needComma)
+                    asmOutput += ", ";
+                if (spaces != 0)
+                    asmOutput += String(" ")*spaces;
+                asmOutput += hex(c, 4);
+                needComma = true;
+                spaces = 0;
+            }
+            else
+                spaces += 8;
+            if ((i & 0xe) == 0xe) {
+                asmOutput += "\n";
+                needComma = false;
+                gotDW = false;
+                spaces = 0;
+            }
+        }
         File("collisionData.inc").openWrite().write(asmOutput);
+
+        String macrosOutput;
+        macrosOutput += "%macro playerDraw 1\n";
+        int offset = 0;
+        int initialOffset = -1;
+        for (int i = 0; i < 0x100; i += 2) {
+            Byte ch = tileGraphics[i];
+            Byte cl = tileGraphics[i + 1];
+            Word c = ch + (cl << 8);
+            int p = (i & 0xf) + (i >> 4) * bufferStride;
+            if (c != 0xffff) {
+                int delta = p - offset;
+                if (initialOffset == -1)
+                    initialOffset = delta;
+                else {
+                    if (delta != 0)
+                        macrosOutput += String("  add %1,") + decimal(delta) + "\n";
+                }
+                offset = p;
+                macrosOutput += "  movsw\n";
+                offset += 2;
+            }
+        }
+        macrosOutput += "%endmacro\n";
+        macrosOutput += "playerDrawInitialOffset equ " + decimal(initialOffset);
+        macrosOutput += "\n";
+
+        File("gameMacros.inc").openWrite().write(macrosOutput);
 
 
         String cOutput;

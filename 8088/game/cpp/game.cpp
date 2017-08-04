@@ -4,7 +4,8 @@
 enum CollisionHandler
 {
     collisionHandlerNone = 0,
-    collisionHandlerCoin
+    collisionHandlerCoin,
+    collisionHandlerPlatform
 };
 
 enum Direction
@@ -174,17 +175,18 @@ public:
         _transitionCountTop.allocate(_tileRows);
         _transitionCountRight.allocate(_tileColumns);
         _transitionCountBottom.allocate(_tileRows);
+        int fudge = 1;
         for (int i = 0; i < _tileColumns; ++i) {
             _transitionCountLeft[i] = max(0, (_tileColumns - i)*
-                (_tilesPerScreenVertically + 1)/_tileColumns - 1);
+                (_tilesPerScreenVertically + fudge)/_tileColumns - fudge);
             _transitionCountRight[i] = max(0, 
-                (1 + i)*(_tilesPerScreenVertically + 1)/_tileColumns - 1);
+                (1 + i)*(_tilesPerScreenVertically + fudge)/_tileColumns - fudge);
         }
         for (int i = 0; i < _tileRows; ++i) {
             _transitionCountTop[i] = max(0, (_tileRows - i)*
-                (_tilesPerScreenHorizontally + 1)/_tileRows - 1);
+                (_tilesPerScreenHorizontally + fudge)/_tileRows - fudge);
             _transitionCountBottom[i] = max(0, 
-                (1 + i)*(_tilesPerScreenHorizontally + 1)/_tileRows - 1);
+                (1 + i)*(_tilesPerScreenHorizontally + fudge)/_tileRows - fudge);
         }
 
         String world = File("world.dat").contents();
@@ -318,36 +320,36 @@ public:
                 }
             }
         }
-        if (_upPressed) {
-            if (!_downPressed) {
-                // Speed up downwards
-                _yVelocity -= _verticalAcceleration;
-                if (_yVelocity < -_verticalMaxVelocity)
-                    _yVelocity = -_verticalMaxVelocity;
-            }
-            // If both up and down are pressed, maintain vertical velocity
-        }
-        else {
-            if (_downPressed) {
-                // Speed up downwards
-                _yVelocity += _verticalAcceleration;
-                if (_yVelocity > _verticalMaxVelocity)
-                    _yVelocity = _verticalMaxVelocity;
-            }
-            else {
-                // Slow down
-                if (_yVelocity > 0) {
-                    _yVelocity -= _verticalAcceleration;
-                    if (_yVelocity < 0)
-                        _yVelocity = 0;
-                }
-                else {
-                    _yVelocity += _verticalAcceleration;
-                    if (_yVelocity > 0)
-                        _yVelocity = 0;
-                }
-            }
-        }
+        //if (_upPressed) {
+        //    if (!_downPressed) {
+        //        // Speed up downwards
+        //        _yVelocity -= _verticalAcceleration;
+        //        if (_yVelocity < -_verticalMaxVelocity)
+        //            _yVelocity = -_verticalMaxVelocity;
+        //    }
+        //    // If both up and down are pressed, maintain vertical velocity
+        //}
+        //else {
+        //    if (_downPressed) {
+        //        // Speed up downwards
+        //        _yVelocity += _verticalAcceleration;
+        //        if (_yVelocity > _verticalMaxVelocity)
+        //            _yVelocity = _verticalMaxVelocity;
+        //    }
+        //    else {
+        //        // Slow down
+        //        if (_yVelocity > 0) {
+        //            _yVelocity -= _verticalAcceleration;
+        //            if (_yVelocity < 0)
+        //                _yVelocity = 0;
+        //        }
+        //        else {
+        //            _yVelocity += _verticalAcceleration;
+        //            if (_yVelocity > 0)
+        //                _yVelocity = 0;
+        //        }
+        //    }
+        //}
 
 
         _tilesDrawn = 0;
@@ -372,8 +374,8 @@ public:
         //printf("b %i-%i\n",_bottomStart, _bottomEnd);
 
         //printf("%i  ",_tilesDrawn);
-        //if (_tilesDrawn >= 4)
-        //    printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        if (_tilesDrawn >= 4)
+            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
         //LARGE_INTEGER time;
         //QueryPerformanceCounter(&time);
@@ -383,23 +385,23 @@ public:
         //printf("%lf us\n",time.QuadPart*1000000.0/frequency.QuadPart);
         //QueryPerformanceCounter(&_startTime);
 
-        //for (int i = 0; i < 0x10000; i += 2) {
-        //    Word p = i;
-        //    p -= _bufferTL;
-        //    int x = (p % _bufferStride) / _tileWidthBytes - 1;
-        //    int y = (p / _bufferStride) / _tileRows - 1;
-        //    if (x >= 0 && y >= 0 && x < _tilesPerScreenHorizontally && y < _tilesPerScreenVertically)
-        //        continue;zzzzzzzzzzzz
-        //    if (x == -1 && y >= _leftStart && y < _leftEnd)
-        //        continue;
-        //    if (x == _tilesPerScreenHorizontally && y >= _rightStart && y < _rightEnd)
-        //        continue;
-        //    if (y == -1 && x >= _topStart && x < _topEnd)
-        //        continue;
-        //    if (y == _tilesPerScreenVertically && x >= _bottomStart && x < _bottomEnd)
-        //        continue;
-        //    *reinterpret_cast<Word*>(&_buffer[i]) = 0xdddd;
-        //}
+        for (int i = 0; i < 0x10000; i += 2) {
+            Word p = i;
+            p -= _bufferTL;
+            int x = (p % _bufferStride) / _tileWidthBytes - 1;
+            int y = (p / _bufferStride) / _tileRows - 1;
+            if (x >= 0 && y >= 0 && x < _tilesPerScreenHorizontally && y < _tilesPerScreenVertically)
+                continue;
+            if (x == -1 && y >= _leftStart && y < _leftEnd)
+                continue;
+            if (x == _tilesPerScreenHorizontally && y >= _rightStart && y < _rightEnd)
+                continue;
+            if (y == -1 && x >= _topStart && x < _topEnd)
+                continue;
+            if (y == _tilesPerScreenVertically && x >= _bottomStart && x < _bottomEnd)
+                continue;
+            *reinterpret_cast<Word*>(&_buffer[i]) = 0xdddd;
+        }
 
 
         // Move other entities
@@ -547,8 +549,8 @@ private:
         for (int y = 0; y < b.rows; ++y) {
             for (int x = 0; x < b.columns; ++x) {
                 Word c = *reinterpret_cast<Word*>(buffer + s);
-                //if (c == 0xdddd)
-                //    printf("Error!!!!\n");
+                if (c == 0xdddd)
+                    printf("Error!!!!\n");
                 *reinterpret_cast<Word*>(_vram + (d & 0x3fff)) = c;
                 s += 2;
                 d += 2;
@@ -617,26 +619,32 @@ private:
         return d == directionDown || d == directionDownRight ||
             d == directionDownLeft;
     }
-    Direction calculateDirection(int xSubTileHighOld, int ySubTileHighOld)
+    Direction calculateDirection()
     {
         Direction d = directionStopped;
-        if ((_xSubTile >> 8) > xSubTileHighOld)
+        int x = ((_xSubTile >> 8) - _xSubTileHighOld) & 7;
+        if (x == 1)
             d = directionRight;
         else {
-            if ((_xSubTile >> 8) < xSubTileHighOld)
+            if (x == 7)
                 d = directionLeft;
         }
-        if ((_ySubTile >> 8) > ySubTileHighOld)
+        if (x >= 2 && x <= 6)
+            printf("Error: x moved %i\n",x);
+        int y = ((_ySubTile >> 8) - _ySubTileHighOld) & 15;
+        if (y == 1)
             d = combineDown(d);
         else {
-            if ((_ySubTile >> 8) < ySubTileHighOld)
+            if (y == 15)
                 d = combineUp(d);
         }
+        if (y >= 2 && y <= 14)
+            printf("Error: x moved %i\n",x);
         return d;
     }
-    Direction calculateTileDirection(int oldMapTL)
+    Direction calculateTileDirection()
     {
-        SInt16 delta = _mapTL - oldMapTL;
+        SInt16 delta = _mapTL - _oldMapTL;
         if (delta < 0) {
             if (delta < -_mapStride)
                 return directionUpLeft;
@@ -659,36 +667,30 @@ private:
         }
         return directionStopped;
     }
-    Direction normalize()
+    void normalize()
     {
-        Direction tileDirection = directionStopped;
         if ((_xSubTile >> 8) >= _tileColumns) {
-            tileDirection = directionRight;
             _xSubTile -= _tileColumns << 8;
             ++_mapTL;
         }
         else {
             if ((_xSubTile >> 8) < 0) {
-                tileDirection = directionLeft;
                 _xSubTile += _tileColumns << 8;
                 --_mapTL;
             }
         }
         if ((_ySubTile >> 8) >= _tileRows) {
-            tileDirection = combineDown(tileDirection);
             _ySubTile -= _tileRows << 8;
             _mapTL += _mapStride;
         }
         else {
             if ((_ySubTile >> 8) < 0) {
-                tileDirection = combineUp(tileDirection);
                 _ySubTile += _tileRows << 8;
                 _mapTL -= _mapStride;
             }
         }
-        return tileDirection;
     }
-    void checkPlayerTileCollision(int x, int y)
+    bool checkPlayerTileCollision(int x, int y)
     {
         int m = _mapTL + ((_yPlayer + (_ySubTile >> 8))/_tileRows + y + 1)*_mapStride + (_xPlayer + (_xSubTile >> 8))/_tileColumns + x + 1;
         Byte f = _foreground[m];
@@ -706,7 +708,7 @@ private:
         else {
             int yy = 0;
             for (int yp = _tileRows - (_yPlayer + (_ySubTile >> 8))%_tileRows; yp < _tileRows; ++yp) {
-                c |= (playerMask[yp] & tileMask[yy]);
+                c |= (playerMask[yp] & tileMask[yy]);                
                 ++yy;
             }
         }
@@ -715,7 +717,7 @@ private:
         else
             c &= _rightCollisionTable[_xSubTile >> 8];
         if (c == 0)
-            return;
+            return false;
 
         switch (collisionHandlers[f]) {
             case collisionHandlerCoin:
@@ -723,27 +725,67 @@ private:
                 addTileModification(m, f);
                 _redrawPlayer = true;
                 break;
+            case collisionHandlerPlatform:
+                {
+                    if (_yVelocity <= 0 || y == 0)
+                        break;
+                    int yy = (_yPlayer + (_ySubTile >> 8))%_tileRows;
+                    if (yy > 3)
+                        break;  // Already below top of tile
+                    _yVelocity = 0;
+                    _landed = true;
+                    printf("Landed ");
+                    printf("yv = %04x\n",_yVelocity);
+                    _ySubTile = (_ySubTile - 0x100) & 0xff00;
+                    return true;
+                }
+                break;
         }
+        return false;
     }
     void move()
     {
-        int xSubTileHighOld = _xSubTile >> 8;
-        int ySubTileHighOld = _ySubTile >> 8;
-        Word oldMapTL = _mapTL;
+        _yVelocity = max(_yVelocity + 0x1, 0x100);
+        printf("yv = %04x\n",_yVelocity);
+        if (_landed && _spacePressed) {
+            _yVelocity = -0x100;
+            printf("Jumping ");
+            printf("yv = %04x\n",_yVelocity);
+        }
+
+
+        Word oldTL = _mapTL;
+        int xSubTile = _xSubTile;
+        int ySubTile = _ySubTile;
+
+        _xSubTileHighOld = _xSubTile >> 8;
+        _ySubTileHighOld = _ySubTile >> 8;
+        _oldMapTL = _mapTL;
         _xSubTile += _xVelocity;
         _ySubTile += _yVelocity;
 
-        Direction d = calculateDirection(xSubTileHighOld, ySubTileHighOld);
-        normalize();
+        _landed = false;
+        do {
+            normalize();
+            _direction = calculateDirection();
 
-        checkPlayerTileCollision(0, 0);
-        checkPlayerTileCollision(1, 0);
-        checkPlayerTileCollision(0, 1);
-        checkPlayerTileCollision(1, 1);
+            if (checkPlayerTileCollision(0, 0))
+                continue;
+            if (checkPlayerTileCollision(1, 0))
+                continue;
+            if (checkPlayerTileCollision(0, 1))
+                continue;
+            if (checkPlayerTileCollision(1, 1))
+                continue;
+            break;
+        } while (true);
 
-        Direction tileDirection = calculateTileDirection(oldMapTL);
+        _tileDirection = calculateTileDirection();
+        //printf("%04x\n",(_oldMapTL - _mapTL) & 0xffff);
 
-        if (isRight(tileDirection)) {
+        //printf("%04x %04x %04x  %04x %04x %04x  %i %i\n",xSubTile,ySubTile,oldTL,_xSubTile,_ySubTile,_mapTL,_direction,_tileDirection);
+
+        if (isRight(_tileDirection)) {
             _bufferTL += _tileWidthBytes;
             _leftStart = 0;
             _leftEnd = _tilesPerScreenVertically;
@@ -767,7 +809,7 @@ private:
             }
         }
         else {
-            if (isLeft(tileDirection)) {
+            if (isLeft(_tileDirection)) {
                 _bufferTL -= _tileWidthBytes;
                 _leftStart = _midTileVertically;
                 _leftEnd = _midTileVertically;
@@ -791,7 +833,7 @@ private:
                 }
             }
         }
-        if (isDown(tileDirection)) {
+        if (isDown(_tileDirection)) {
             _bufferTL += _bufferTileStride;
             _topStart = 0;
             _topEnd = _tilesPerScreenHorizontally;
@@ -815,7 +857,7 @@ private:
             }
         }
         else {
-            if (isUp(tileDirection)) {
+            if (isUp(_tileDirection)) {
                 _bufferTL -= _bufferTileStride;
                 _topStart = _midTileHorizontally;
                 _topEnd = _midTileHorizontally;
@@ -843,28 +885,33 @@ private:
         // When diagonally scrolling across both horizontal and vertical tile
         // boundaries, we bring an undrawn tile into the drawn area, so need
         // to draw it.
-        switch (tileDirection) {
+        int tilesDrawn = 0;
+        switch (_tileDirection) {
             case directionUpLeft:
                 drawTile(_topLeftBuffer, _topLeftMap);
+                ++tilesDrawn;
                 break;
             case directionUpRight:
                 drawTile(_topRightBuffer, _topRightMap);
+                ++tilesDrawn;
                 break;
             case directionDownLeft:
                 drawTile(_bottomLeftBuffer, _bottomLeftMap);
+                ++tilesDrawn;
                 break;
             case directionDownRight:
                 drawTile(_bottomRightBuffer, _bottomRightMap);
+                ++tilesDrawn;
                 break;
         }
-        if (d != directionStopped)
+        if (_direction != directionStopped)
             _redrawPlayer = true;
 
         if (_redrawPlayer)
             restoreTile(_playerTopLeft, &_underPlayer[0]);
 
         // Do the actual scrolling
-        switch (d) {
+        switch (_direction) {
             case directionUpLeft:
                 _startAddress -= _screenColumns + 1;
                 _vramTopLeft -= _screenWidthBytes + 2;
@@ -920,10 +967,10 @@ private:
                 addUpdateBlock(_xPlayer - 1, _yPlayer - 1, _tileColumns + 1, _tileRows + 1);
                 break;
         }
-        if (isUp(d))
+        if (isUp(_direction))
             addUpdateBlock(0, 0, _screenColumns, 1);
         else {
-            if (isDown(d))
+            if (isDown(_direction))
                 addUpdateBlock(0, _screenRows - 1, _screenColumns, 1);
         }
 
@@ -944,8 +991,8 @@ private:
 
         // Restore tile invariants
 
-        if (!isRight(d)) {
-            while (_leftEnd - _leftStart < _transitionCountLeft[_xSubTile >> 8]) {
+        if (!isRight(_direction)) {
+            while (_leftEnd - _leftStart < _transitionCountLeft[_xSubTile >> 8] /*&& tilesDrawn < 3*/) {
                 int y;
                 if (_yVelocity > 0) {
                     if (_leftEnd < _tilesPerScreenVertically) {
@@ -968,11 +1015,12 @@ private:
                     }
                 }
                 drawTile(_bufferLeft[y], _mapLeft[y]);
+                ++tilesDrawn;
             }
         }
-        if (!isLeft(d)) {
+        if (!isLeft(_direction)) {
             while (_rightEnd - _rightStart <
-                _transitionCountRight[_xSubTile >> 8]) {
+                _transitionCountRight[_xSubTile >> 8] /*&& tilesDrawn < 3*/) {
                 int y;
                 if (_yVelocity > 0) {
                     if (_rightEnd < _tilesPerScreenVertically) {
@@ -995,10 +1043,11 @@ private:
                     }
                 }
                 drawTile(_bufferRight[y], _mapRight[y]);
+                ++tilesDrawn;
             }
         }
-        if (!isDown(d)) {
-            while (_topEnd - _topStart < _transitionCountTop[_ySubTile >> 8]) {
+        if (!isDown(_direction)) {
+            while (_topEnd - _topStart < _transitionCountTop[_ySubTile >> 8] /*&& tilesDrawn < 3*/) {
                 int x;
                 if (_xVelocity > 0) {
                     if (_topEnd < _tilesPerScreenHorizontally) {
@@ -1021,11 +1070,12 @@ private:
                     }
                 }
                 drawTile(_bufferTop[x], x + 1);
+                ++tilesDrawn;
             }
         }
-        if (!isUp(d)) {
+        if (!isUp(_direction)) {
             while (_bottomEnd - _bottomStart <
-                _transitionCountBottom[_ySubTile >> 8]) {
+                _transitionCountBottom[_ySubTile >> 8] /*&& tilesDrawn < 3*/) {
                 int x;
                 if (_xVelocity > 0) {
                     if (_bottomEnd < _tilesPerScreenHorizontally) {
@@ -1048,6 +1098,7 @@ private:
                     }
                 }
                 drawTile(_bufferBottom[x], _mapBottom + x);
+                ++tilesDrawn;
             }
         }
     }
@@ -1112,6 +1163,13 @@ private:
     int _yPlayer;
     int _playerTopLeft;
     bool _redrawPlayer;
+    Word _oldMapTL;
+    int _xSubTileHighOld;
+    int _ySubTileHighOld;
+    bool _landed;
+
+    Direction _direction;
+    Direction _tileDirection;
 
     bool _upPressed;
     bool _downPressed;
