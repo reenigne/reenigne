@@ -513,6 +513,8 @@ direction: dw 0
 tileDirection: dw 0
 redrawPlayer: db 0
 tileModificationPointer: dw 0
+xSubTileHighOld: db 0
+ySubTileHighOld: db 0
 
 %macro linear 4
   %1:
@@ -754,45 +756,126 @@ noHorizontalAcceleration:
   add dx,ax
   mov [xSubTile],dx
 
+;  mov ax,[yVelocity]
+;  test byte[keyboardFlags+9],1
+;  jz upNotPressed
+;  test byte[keyboardFlags+10],1
+;  jnz noVerticalAcceleration
+;  ; Speed up upwards
+;  sub ax,yAcceleration
+;  cmp ax,-yMaxVelocity
+;  jge doneVerticalAcceleration
+;  mov ax,-yMaxVelocity
+;  jmp doneVerticalAcceleration
+;upNotPressed:
+;  test byte[keyboardFlags+10],1
+;  jz downNotPressed
+;  ; Speed up downwards
+;  add ax,yAcceleration
+;  cmp ax,yMaxVelocity
+;  jle doneVerticalAcceleration
+;  mov ax,yMaxVelocity
+;  jmp doneVerticalAcceleration
+;downNotPressed:
+;  ; Slow down
+;  cmp ax,0
+;  jl slowDownUpwards
+;  sub ax,yAcceleration
+;  jge doneVerticalAcceleration
+;stopVertical:
+;  xor ax,ax
+;  jmp noVerticalAcceleration
+;slowDownUpwards:
+;  add ax,yAcceleration
+;  jg stopVertical
+;doneVerticalAcceleration:
+;  mov [yVelocity],ax
+;noVerticalAcceleration:
+
   mov ax,[yVelocity]
-  test byte[keyboardFlags+9],1
-  jz upNotPressed
-  test byte[keyboardFlags+10],1
-  jnz noVerticalAcceleration
-  ; Speed up upwards
-  sub ax,yAcceleration
-  cmp ax,-yMaxVelocity
-  jge doneVerticalAcceleration
-  mov ax,-yMaxVelocity
-  jmp doneVerticalAcceleration
-upNotPressed:
-  test byte[keyboardFlags+10],1
-  jz downNotPressed
-  ; Speed up downwards
-  add ax,yAcceleration
-  cmp ax,yMaxVelocity
-  jle doneVerticalAcceleration
-  mov ax,yMaxVelocity
-  jmp doneVerticalAcceleration
-downNotPressed:
-  ; Slow down
-  cmp ax,0
-  jl slowDownUpwards
-  sub ax,yAcceleration
-  jge doneVerticalAcceleration
-stopVertical:
-  xor ax,ax
-  jmp noVerticalAcceleration
-slowDownUpwards:
-  add ax,yAcceleration
-  jg stopVertical
-doneVerticalAcceleration:
+  sub ax,4
+  cmp ax,0x100
+  jle notTerminalVelocity
+  mov ax,0x100
+notTerminalVelocity:
+  cmp byte[landed],0
+  je noJump
+  test byte[keyboardFlags+7],2
+  jz noJump
+  mov ax,-0x100
+noJump:
   mov [yVelocity],ax
-noVerticalAcceleration:
+
   mov bx,[ySubTile]
   mov ch,bh
   add bx,ax
   mov [ySubTile],bx
+
+  cmp bh,ch
+  je noResetLanded
+  mov byte[landed],0
+noResetLanded:
+
+  mov [xSubTileHighOld],cx
+
+  ; The collision loop may run more than once as a position correction from
+  ; hitting a hard object may push the player into another object. However,
+  ; we should design our levels and collision routines such that the loop
+  ; does not run more than twice.
+normalize:
+
+  cmp dh,tileSize_x
+  jge .right
+  cmp dh,0
+  jnl .notLeft
+  mov dh,tileSize_x - 1
+  cmp bh,tileSize_y
+  jge .leftDown
+  cmp bh,0
+  jnl .leftNotUp
+  mov bh,tileSize_y - 1
+  sub word[mapTL],mapStride + 1
+  jmp .done
+.leftNotUp:
+  dec word[mapTL]
+  jmp .done
+.leftDown:
+  mov bh,0
+  add word[mapTL],mapStride - 1
+  jmp .done
+.notLeft:
+  cmp bh,tileSize_y
+  jge .down
+  cmp bh,0
+  jnl .notUp
+  mov bh,tileSize_y - 1
+  sub word[mapTL],mapStride
+  jmp .done
+.notUp:
+  jmp .done
+.down:
+  mov bh,0
+  add word[mapTL],mapStride
+  jmp .done
+.right:
+  mov dh,0
+  cmp bh,tileSize_y
+  jge .rightDown
+  cmp bh,0
+  jnl .rightNotUp
+  mov bh,tileSize_y - 1
+  sub word[mapTL],mapStride - 1
+  jmp .done
+.rightNotUp:
+  inc word[mapTL]
+  jmp .done
+.rightDown:
+  mov bh,0
+  add word[mapTL],mapStride + 1
+.done:
+
+  mov [xSubTile+1],dh
+  mov [ySubTile+1],bh
 
 %macro calculateDirection 5  ; xSubTileHighOld, ySubTileHighOld, xSubTileHigh, ySubTileHigh, output
   cmp %3,%1
@@ -845,58 +928,6 @@ noVerticalAcceleration:
 
   calculateDirection cl, ch, dh, bh, byte[direction]
 
-%macro normalize 2  ; xSubTileHigh, ySubTileHigh
-  cmp %1,tileSize_x
-  jge %%right
-  cmp %1,0
-  jnl %%notLeft
-  mov byte[xSubTile+1],tileSize_x - 1
-  cmp %2,tileSize_y
-  jge %%leftDown
-  cmp %2,0
-  jnl %%leftNotUp
-  mov byte[ySubTile+1],tileSize_y - 1
-  sub word[mapTL],mapStride + 1
-  jmp %%done
-%%leftNotUp:
-  dec word[mapTL]
-  jmp %%done
-%%leftDown:
-  mov byte[ySubTile+1],0
-  add word[mapTL],mapStride - 1
-  jmp %%done
-%%notLeft:
-  cmp %2,tileSize_y
-  jge %%down
-  cmp %2,0
-  jnl %%notUp
-  mov byte[ySubTile+1],tileSize_y - 1
-  sub word[mapTL],mapStride
-  jmp %%done
-%%notUp:
-  jmp %%done
-%%down:
-  mov byte[ySubTile+1],0
-  add word[mapTL],mapStride
-  jmp %%done
-%%right:
-  mov byte[xSubTile+1],0
-  cmp %2,tileSize_y
-  jge %%rightDown
-  cmp %2,0
-  jnl %%rightNotUp
-  mov byte[ySubTile+1],tileSize_y - 1
-  sub word[mapTL],mapStride - 1
-  jmp %%done
-%%rightNotUp:
-  inc word[mapTL]
-  jmp %%done
-%%rightDown:
-  mov byte[ySubTile+1],0
-  add word[mapTL],mapStride + 1
-%%done:
-%endmacro
-
 %if visual_profiler!=0
     push dx
     mov al,4
@@ -907,7 +938,6 @@ noVerticalAcceleration:
 
   mov ax,[mapTL]
   mov [oldMapTL],ax
-  normalize dh, bh
 
   mov word[tileModificationPointer],tileModificationBufferStart
 
