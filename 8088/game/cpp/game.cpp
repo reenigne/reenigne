@@ -1079,7 +1079,7 @@ private:
                         break;  // Already below top of tile
                     _yVelocity = 0;
                     _landed = true;
-                    _ySubTile = (_ySubTile - 0x100) & 0xff00;
+                    _ySubTile = _ySubTile - 0x100;
                     return true;
                 }
                 break;

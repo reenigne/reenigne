@@ -91,52 +91,7 @@ noneBufferScrollIncrement   equ 0
   jnz %%yLoop
 %endmacro
 
-;%macro saveTile 2
-;  mov si,%1
-;  add si,[bufferTopLeft]
-;  mov di,%2
-;  mov ds,[bufferSegment]
-;  mov ax,cs
-;  mov es,ax
-;  mov bx,tileSize_x
-;  mov dx,bufferStride-tileWidthBytes
-;  %rep tileSize_y
-;  mov cx,bx
-;  rep movsw
-;  add si,dx
-;  %endrep
-;%endmacro
-
-;%macro drawTransparentTile 2
-;  mov si,%2*tileWidthBytes*tileSize_y
-;  mov di,%1
-;  add di,[bufferTopLeft]
-;  mov es,[bufferSegment]
-;  mov ds,[tilesSegment]
-;  mov bx,tileSize_y
-;  mov dx,bufferStride-tileWidthBytes
-;  mov bp,tileSize_x
-;  %%yLoop:
-;  mov cx,bp
-;  %%xLoop:
-;  lodsw
-;  cmp ax,0xffff
-;  je %%transparent
-;  stosw
-;  jmp %%doneWord
-;  %%transparent:
-;  inc di
-;  inc di
-;  %%doneWord:
-;  loop %%xLoop
-;  add di,dx
-;  dec bx
-;  jnz %%yLoop
-;%endmacro
-
 %macro drawPlayer 0
-;  saveTile playerTopLeft, underPlayer
-
   mov ax,cs
   mov es,ax
   mov si,playerTopLeft + playerDrawInitialOffset
@@ -153,10 +108,7 @@ noneBufferScrollIncrement   equ 0
   mov si,playerSprite
   playerDraw di
 
-;  mov ax,cs
-;  mov ds,ax
   mov byte[redrawPlayer],0
-;  drawTransparentTile playerTopLeft, 0
 %endmacro
 
 setUpMemory:
@@ -507,6 +459,11 @@ backgroundSegment: dw 0
 tilesSegment: dw 0
 imr: db 0
 shifts: db 1,2,4,8,0x10,0x20,0x40,0x80
+directionTable:
+  db             0,                 rightDirection, -1,                 leftDirection
+  db downDirection, downDirection | rightDirection, -1, downDirection | leftDirection
+  db            -1,                             -1, -1,                            -1
+  db   upDirection,   upDirection | rightDirection, -1,   upDirection | leftDirection
 keyboardFlags: times 16 db 0
 updatePointer: dw updateBufferStart
 direction: dw 0
@@ -515,6 +472,7 @@ redrawPlayer: db 0
 tileModificationPointer: dw 0
 xSubTileHighOld: db 0
 ySubTileHighOld: db 0
+landed: db 0
 
 %macro linear 4
   %1:
@@ -793,7 +751,7 @@ noHorizontalAcceleration:
 ;noVerticalAcceleration:
 
   mov ax,[yVelocity]
-  sub ax,4
+  add ax,4
   cmp ax,0x100
   jle notTerminalVelocity
   mov ax,0x100
@@ -816,24 +774,35 @@ noJump:
   mov byte[landed],0
 noResetLanded:
 
+  mov ax,[mapTL]
+  mov [oldMapTL],ax
   mov [xSubTileHighOld],cx
+  mov word[tileModificationPointer],tileModificationBufferStart
+
+%macro restartCollisionLoop 0
+  mov dh,[xSubTile+1]
+  mov bh,[ySubTile+1]
+  mov cx,[xSubTileHighOld]
+  jmp normalize
+%endmacro
 
   ; The collision loop may run more than once as a position correction from
   ; hitting a hard object may push the player into another object. However,
   ; we should design our levels and collision routines such that the loop
   ; does not run more than twice.
 normalize:
-
   cmp dh,tileSize_x
   jge .right
   cmp dh,0
   jnl .notLeft
   mov dh,tileSize_x - 1
+  mov [xSubTile+1],dh
   cmp bh,tileSize_y
   jge .leftDown
   cmp bh,0
   jnl .leftNotUp
   mov bh,tileSize_y - 1
+  mov [ySubTile+1],bh
   sub word[mapTL],mapStride + 1
   jmp .done
 .leftNotUp:
@@ -841,6 +810,7 @@ normalize:
   jmp .done
 .leftDown:
   mov bh,0
+  mov [ySubTile+1],bh
   add word[mapTL],mapStride - 1
   jmp .done
 .notLeft:
@@ -849,21 +819,25 @@ normalize:
   cmp bh,0
   jnl .notUp
   mov bh,tileSize_y - 1
+  mov [ySubTile+1],bh
   sub word[mapTL],mapStride
   jmp .done
 .notUp:
   jmp .done
 .down:
   mov bh,0
+  mov [ySubTile+1],bh
   add word[mapTL],mapStride
   jmp .done
 .right:
   mov dh,0
+  mov [xSubTile+1],dh
   cmp bh,tileSize_y
   jge .rightDown
   cmp bh,0
   jnl .rightNotUp
   mov bh,tileSize_y - 1
+  mov [ySubTile+1],bh
   sub word[mapTL],mapStride - 1
   jmp .done
 .rightNotUp:
@@ -871,52 +845,9 @@ normalize:
   jmp .done
 .rightDown:
   mov bh,0
+  mov [ySubTile+1],bh
   add word[mapTL],mapStride + 1
 .done:
-
-  mov [xSubTile+1],dh
-  mov [ySubTile+1],bh
-
-%macro calculateDirection 5  ; xSubTileHighOld, ySubTileHighOld, xSubTileHigh, ySubTileHigh, output
-  cmp %3,%1
-  jg %%right
-  jnl %%notLeft
-  cmp %4,%2
-  jg %%leftDown
-  jnl %%leftNotUp
-  mov %5,leftDirection | upDirection
-  jmp %%done
-%%leftNotUp:
-  mov %5,leftDirection
-  jmp %%done
-%%leftDown:
-  mov %5,leftDirection | downDirection
-  jmp %%done
-%%notLeft:
-  cmp %4,%2
-  jg %%down
-  jnl %%notUp
-  mov %5,upDirection
-  jmp %%done
-%%notUp:
-  mov %5,0
-  jmp %%done
-%%down:
-  mov %5,downDirection
-  jmp %%done
-%%right:
-  cmp %4,%2
-  jg %%rightDown
-  jnl %%rightNotUp
-  mov %5,rightDirection | upDirection
-  jmp %%done
-%%rightNotUp:
-  mov %5,rightDirection
-  jmp %%done
-%%rightDown:
-  mov %5,rightDirection | downDirection
-%%done:
-%endmacro
 
 %if visual_profiler!=0
     push dx
@@ -926,7 +857,18 @@ normalize:
     pop dx
 %endif
 
-  calculateDirection cl, ch, dh, bh, byte[direction]
+  mov al,dh
+  sub al,cl
+  and al,3
+  mov bl,bh
+  sub bl,ch
+  and bl,3
+  mov bh,0
+  add bx,bx
+  add bx,bx
+  add bx,directionTable
+  xlatb
+  mov [direction],al
 
 %if visual_profiler!=0
     push dx
@@ -935,11 +877,6 @@ normalize:
     out dx,al
     pop dx
 %endif
-
-  mov ax,[mapTL]
-  mov [oldMapTL],ax
-
-  mov word[tileModificationPointer],tileModificationBufferStart
 
 %macro checkPlayerTileCollision 2  ; x, y  (tileNumber to collide with in bl)
   mov bh,0
@@ -1004,6 +941,7 @@ normalize:
   mov bl,[es:di]
   checkPlayerTileCollision 1, 0
   add di,mapStride - 1
+collisionLower:
   mov bl,[es:di]
   checkPlayerTileCollision 0, 1
   inc di
@@ -1016,51 +954,49 @@ normalize:
     out dx,al
 %endif
 
-%macro calculateTileDirection 2  ; oldMapTL, output
+calculateTileDirection:
   mov ax,[mapTL]
-  sub ax,%1
+  sub ax,[oldMapTL]
   cmp ax,0
-  jl %%negative
-  jg %%positive
-  mov %2,0
-  jmp %%done
-%%negative:
+  jl .negative
+  jg .positive
+  mov byte [tileDirection],0
+  jmp .done
+.negative:
   cmp ax,-mapStride
-  jl %%upLeft
-  jg %%upRightOrLeft
-  mov %2,upDirection
-  jmp %%done
-%%upLeft:
-  mov %2,upDirection | leftDirection
-  jmp %%done
-%%upRightOrLeft:
+  jl .upLeft
+  jg .upRightOrLeft
+  mov byte[tileDirection],upDirection
+  jmp .done
+.upLeft:
+  mov byte[tileDirection],upDirection | leftDirection
+  jmp .done
+.upRightOrLeft:
   cmp ax,-1
-  jl %%upRight
-  mov %2,leftDirection
-  jmp %%done
-%%upRight:
-  mov %2,upDirection | rightDirection
-  jmp %%done
-%%positive:
+  jl .upRight
+  mov byte[tileDirection],leftDirection
+  jmp .done
+.upRight:
+  mov byte[tileDirection],upDirection | rightDirection
+  jmp .done
+.positive:
   cmp ax,mapStride
-  jl %%downLeftOrRight
-  jg %%downRight
-  mov %2,downDirection
-  jmp %%done
-%%downLeftOrRight:
+  jl .downLeftOrRight
+  jg .downRight
+  mov byte[tileDirection],downDirection
+  jmp .done
+.downLeftOrRight:
   cmp ax,1
-  jg %%downLeft
-  mov %2,rightDirection
-  jmp %%done
-%%downLeft:
-  mov %2,downDirection | leftDirection
-  jmp %%done
-%%downRight:
-  mov %2,downDirection | rightDirection
-%%done:
-%endmacro
+  jg .downLeft
+  mov byte[tileDirection],rightDirection
+  jmp .done
+.downLeft:
+  mov byte[tileDirection],downDirection | leftDirection
+  jmp .done
+.downRight:
+  mov byte[tileDirection],downDirection | rightDirection
+.done:
 
-  calculateTileDirection [oldMapTL], byte[tileDirection]
 
 %macro twice 1.nolist
   %1
@@ -1249,20 +1185,6 @@ noTileDiagonal:
     out dx,al
 %endif
 
-;%macro restoreTile 2
-;  mov si,%2
-;  mov di,%1
-;  add di,[bufferTopLeft]
-;  mov es,[bufferSegment]
-;  mov bx,tileSize_x
-;  mov dx,bufferStride-tileWidthBytes
-;  %rep tileSize_y
-;  mov cx,bx
-;  rep movsw
-;  add di,dx
-;  %endrep
-;%endmacro
-
   cmp byte[direction],0
   je stopped
   mov byte[redrawPlayer],1
@@ -1275,8 +1197,6 @@ stopped:
   add di,[bufferTopLeft]
   mov si,underPlayer
   playerDraw di
-
-;  restoreTile playerTopLeft, underPlayer
 noPlayerRestore:
 
 %macro addUpdateBlock 4  ; left top width height
@@ -1765,6 +1685,14 @@ mapToBufferY:
   %assign i i+bufferTileStride/0x100
 %endrep
 
+yFromSubTileY:
+%assign i 0
+%rep tileSize_y
+  db (yPlayer + i)%tileSize_y
+  %assign i i+1
+%endrep
+
+
 
 %macro addTileModification 1       ; map location in di, tile number in %1
   mov si,[tileModificationPointer]
@@ -1786,8 +1714,17 @@ collisionHandlerCoin:
 collisionHandlerPlatform:
   cmp word[yVelocity],0
   jle .done
-  cmp byte[ySubTile+1],
-
+  pop ax                ; Look at the return address to figure out which of the tile positions we're colliding with
+  push ax
+  cmp ax,collisionLower
+  jb .done
+  mov bx,[ySubTile+1]
+  cmp byte[bx+yFromSubTileY],3
+  jg .done
+  mov word[yVelocity],0
+  mov byte[landed],1
+  dec byte[ySubTile+1]
+  restartCollisionLoop
 .done:
   ret
 
