@@ -116,6 +116,7 @@ idle:
 
 oldInterrupt8: dw 0, 0
 frameCount: dw 0, 0
+updateBufferPointer: dw updateBuffer
 
 
 offScreenHandler:
@@ -128,31 +129,17 @@ offScreenHandler:
 
   setPIT0Count onScreenPitCycles
 
-  mov ax,cs
-  mov ss,ax
-  mov ds,ax
-  mov sp,updateBufferStart
   mov ax,0xb800
   mov es,ax
-  mov ds,[bufferSegment]
-  mov ch,0
-  pop si
-  pop di
-  pop bx
-  pop dx
-  ret
+  mov bx,[cs:updateBufferPointer]
+  mov [cs:bx],0xc3  ; ret
+  call updateBuffer
 
-offScreenHandlerEnd:
-  mov sp,stackHigh
   sti
   jmp idle
 
 
 onScreenHandler:
-  push cx
-  push bx
-  push di
-  push si
   mov al,0x20
   out 0x20,al
 
@@ -162,16 +149,8 @@ onScreenHandler:
 
   setPIT0Count offScreenPitCycles
 
-  lds si,[cs:soundPointer]
-  lodsw
-  out 0x42,al
-  mov al,ah
-  out 0x42,al
-  cmp si,[soundEnd]
-  jne noRestartSound
-  mov si,[soundStart]
-noRestartSound:
-  mov [soundPointer],si
+  mov ax,cs
+  mov ds,ax
 
   inc word[frameCount]
   jnz noFrameCountCarry
@@ -185,3 +164,5 @@ stackLow:
   resb 4096
 stackHigh:
 
+updateBuffer:
+  resb 368*6 + 1
