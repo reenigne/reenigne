@@ -322,10 +322,15 @@ template<class T> class DirectoryT : public FileSystemObject
 {
 public:
     DirectoryT() { }
+    DirectoryT(const ConstHandle& other) : FileSystemObject(other) { }
+
     DirectoryT(const String& path,
         const Directory& relativeTo = CurrentDirectory(),
         bool windowsParsing = false)
       : FileSystemObject(path, relativeTo, windowsParsing) { }
+    DirectoryT(const String& path, bool windowsParsing)
+      : FileSystemObject(path, CurrentDirectory(), windowsParsing) { }
+
     FileSystemObject child(const String& name) const
     {
         return FileSystemObject(*this, name);
@@ -355,8 +360,6 @@ public:
             handle.next();
         }
     }
-protected:
-    DirectoryT(FileSystemObject object) : FileSystemObject(object) { }
 };
 
 // This is the current directory at the time of first instantiation - avoid
@@ -793,7 +796,7 @@ private:
     friend class Console;
 };
 
-template<class T> void applyToWildcard(T functor, CharacterSourceT<T> s,
+template<class T> void applyToWildcard(T functor, CharacterSource s,
     int recurseIntoDirectories, Directory directory)
 {
     int subDirectoryStart = s.offset();
