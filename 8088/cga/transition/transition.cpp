@@ -103,7 +103,7 @@ public:
         for (int i = 0; i < 16000; ++i)
             _vram[i] = 0;
 
-        _wipes = 2;
+        _wipes = 3;
         _gradientWipe.allocate(8000 * _wipes);
         for (int i = 0; i < 8000; ++i)
             _gradientWipe[i] = (i*256)/8000;
@@ -114,6 +114,18 @@ public:
             Byte t = _gradientWipe[i + 8000];
             _gradientWipe[i + 8000] = _gradientWipe[j + 8000];
             _gradientWipe[j + 8000] = t;
+        }
+        for (int i = 0; i < 8000; ++i)
+            _gradientWipe[i + 16000] = _gradientWipe[i + 8000];
+        for (int i = 0; i < 40000000; ++i) {
+            int p1 = rand() % 8000;
+            int p2 = rand() % 8000;
+            int metricUnswapped = metric(p1, p2);
+            swap(p1, p2);
+            int metricSwapped = metric(p1, p2);
+            if (metricSwapped > metricUnswapped)
+                swap(p1, p2);
+
         }
 
         _transitionFrames = 256;
@@ -146,10 +158,39 @@ public:
 private:
     void initTransition()
     {
-        _newImage = _images[rand() % _images.count()];
+        int lastImage = _imageIndex;
+        _imageIndex = rand() % (_images.count() - 1);
+        if (_imageIndex >= lastImage)
+            ++_imageIndex;
+        _newImage = _images[_imageIndex];
         _transitionFrame = 0;
-        _wipeNumber = rand() % _wipes;
+        _wipeNumber = 2; // rand() % _wipes;
     }
+
+    void swap(int i, int j)
+    {
+        Byte t = _gradientWipe[i + 16000];
+        _gradientWipe[i + 16000] = _gradientWipe[j + 16000];
+        _gradientWipe[j + 16000] = t;
+    }
+    int metric(int i, int j)
+    {
+        return metricForPoint(i) + metricForPoint(j);
+    }
+    int metricForPoint(int i)
+    {
+        int x = i % 80;
+        int y = i / 80;
+        int h = secondDerivative(x, y, (x + 1)%80, y, (x + 79)%80, y)*3;
+        int v = secondDerivative(x, y, x, (y + 1)%100, x, (y + 99)%100)*5;
+        return h*h + v*v;
+    }
+    int secondDerivative(int x1, int y1, int x0, int y0, int x2, int y2)
+    {
+        return getByte(x2, y2) + getByte(x0, y0) - 2*getByte(x1, y1);
+    }
+    int getByte(int x, int y) { return _gradientWipe[y*80 + x + 16000]; }
+
 
     FFTWWisdom<float> _wisdom;
     CGAData _data;
@@ -164,6 +205,7 @@ private:
 
     Array<String> _images;
     String _newImage;
+    int _imageIndex;
 
     int _transitionFrames;
     int _transitionFrame;
