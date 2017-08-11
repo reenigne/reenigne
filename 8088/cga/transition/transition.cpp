@@ -125,10 +125,41 @@ public:
             int metricSwapped = metric(p1, p2);
             if (metricSwapped > metricUnswapped)
                 swap(p1, p2);
-
         }
 
-        _transitionFrames = 256;
+        _fadeSteps = 15;
+        _fadeRGBI.allocate(16*_fadeSteps);
+        for (int i = 0; i < 16; ++i) {
+            SRGB srgb = rgbiPalette[i];
+            Colour c = _linearizer.linear(srgb);
+            for (int j = 0; j < _fadeSteps; ++j) {
+                Colour c1 = c * static_cast<float>(j)/(_fadeSteps - 1);
+                SRGB srgbTarget = _linearizer.srgb(c1);
+                int bestColour = 0;
+                float bestMetric = 1e99;
+                for (int k = 0; k < 16; ++k) {
+                    SRGB srgbTrial = rgbiPalette[k];
+                    float dr = static_cast<float>(srgbTrial.x - srgbTarget.x);
+                    float dg = static_cast<float>(srgbTrial.y - srgbTarget.y);
+                    float db = static_cast<float>(srgbTrial.z - srgbTarget.z);
+                    // Fast colour distance metric from
+                    // http://www.compuphase.com/cmetric.htm .
+                    float mr = (srgbTrial.x + srgbTarget.x)/512.0f;
+                    float metric = 4.0f*dg*dg + (2.0f + mr)*dr*dr +
+                        (3.0f - mr)*db*db;
+                    if (metric < bestMetric) {
+                        bestMetric = metric;
+                        bestColour = k;
+                    }
+                }
+                _fadeRGBI[j*16 + i] = bestColour;
+            }
+        }
+
+        _newImage = _images[0];
+        _transitionFrames = 653;
+        _wipeSteps = 30;
+        _wipeFrames = 120;
         initTransition();
     }
     ~TransitionWindow() { _output.join(); }
@@ -147,24 +178,38 @@ public:
         _output.restart();
         _animated.restart();
         ++_transitionFrame;
-        for (int i = 0; i < 8000; ++i)
-            if (_transitionFrame > _gradientWipe[i + _wipeNumber*8000]) {
-                _vram[i*2] = _newImage[i*2];
-                _vram[i*2 + 1] = _newImage[i*2 + 1];
+        for (int i = 0; i < 8000; ++i) {
+            int tn = (_transitionFrame*256)/_transitionFrames - _gradientWipe[i + _wipeNumber*8000];
+            tn = (tn*_wipeSteps)/_wipeFrames;
+            Word r;
+            Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
+            Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
+            if (tn > 0) {
+                if (tn < _wipeSteps)
+                    r = fade(o, n, tn);
+                else
+                    r = n;
             }
-        if (_transitionFrame == _transitionFrames)
+            else
+                r = o;
+            _vram[i*2] = r & 0xff;
+            _vram[i*2 + 1] = r >> 8;
+        }
+        if (_transitionFrame == _transitionFrames + _wipeFrames)
             initTransition();
     }
 private:
     void initTransition()
     {
         int lastImage = _imageIndex;
+        _oldImage = _newImage;
         _imageIndex = rand() % (_images.count() - 1);
         if (_imageIndex >= lastImage)
             ++_imageIndex;
         _newImage = _images[_imageIndex];
         _transitionFrame = 0;
         _wipeNumber = 2; // rand() % _wipes;
+        _fadeNumber = 0;
     }
 
     void swap(int i, int j)
@@ -191,7 +236,35 @@ private:
     }
     int getByte(int x, int y) { return _gradientWipe[y*80 + x + 16000]; }
 
+    Word fade(Word start, Word end, int transition)
+    {
+        switch (_fadeNumber) {
+            case 0:
+                {
+                    Byte ch;
+                    Byte at;
+                    int tn;
+                    if (transition > _fadeSteps) {
+                        ch = end & 0xff;
+                        at = end >> 8;
+                        tn = transition - _fadeSteps;
+                    }
+                    else {
+                        ch = start & 0xff;
+                        at = start >> 8;
+                        tn = _fadeSteps - transition;
+                    }
+                    Byte fg = at & 0xf;
+                    Byte bg = at >> 4;
+                    fg = _fadeRGBI[tn*16 + fg];
+                    bg = _fadeRGBI[tn*16 + bg];
+                    at = fg + (bg << 4);
+                    return ch + (at << 8);
+                }
+        }
+    }
 
+    Linearizer _linearizer;
     FFTWWisdom<float> _wisdom;
     CGAData _data;
     CGASequencer _sequencer;
@@ -204,15 +277,22 @@ private:
     int _regs;
 
     Array<String> _images;
+    String _oldImage;
     String _newImage;
     int _imageIndex;
 
+    int _wipeSteps;
+    int _wipeFrames;
     int _transitionFrames;
     int _transitionFrame;
     int _wipeNumber;
+    int _fadeNumber;
 
     int _wipes;
     Array<Byte> _gradientWipe;
+
+    int _fadeSteps;
+    Array<Byte> _fadeRGBI;
 };
 
 class Program : public WindowProgram<TransitionWindow>

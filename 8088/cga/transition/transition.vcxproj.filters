@@ -26,5 +26,8 @@
     <ClInclude Include="..\..\..\include\alfe\find_handle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\alfe\cga.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
