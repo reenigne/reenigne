@@ -157,9 +157,9 @@ public:
         }
 
         _newImage = _images[0];
-        _transitionFrames = 653;
-        _wipeSteps = 30;
-        _wipeFrames = 120;
+        _wipeFrames = 653;
+        _fadeSteps = 30;
+        _fadeFrames = 120;
         initTransition();
     }
     ~TransitionWindow() { _output.join(); }
@@ -178,14 +178,24 @@ public:
         _output.restart();
         _animated.restart();
         ++_transitionFrame;
+        if (_fadeFrames > _fadeSteps) {
+            // Gaps in the wipe sequence
+            for (int i = 0; i < _fadeSteps; ++i) {
+
+            }
+        }
+        else {
+            // Gaps in the fade sequence
+        }
+
         for (int i = 0; i < 8000; ++i) {
-            int tn = (_transitionFrame*256)/_transitionFrames - _gradientWipe[i + _wipeNumber*8000];
-            tn = (tn*_wipeSteps)/_wipeFrames;
+            int tn = (_transitionFrame*256)/_wipeFrames - _gradientWipe[i + _wipeNumber*8000];
+            tn = (tn*_fadeSteps)/_fadeFrames;
             Word r;
             Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
             Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
             if (tn > 0) {
-                if (tn < _wipeSteps)
+                if (tn < _fadeSteps)
                     r = fade(o, n, tn);
                 else
                     r = n;
@@ -195,7 +205,7 @@ public:
             _vram[i*2] = r & 0xff;
             _vram[i*2 + 1] = r >> 8;
         }
-        if (_transitionFrame == _transitionFrames + _wipeFrames)
+        if (_transitionFrame == _wipeFrames + _fadeFrames)
             initTransition();
     }
 private:
@@ -281,9 +291,9 @@ private:
     String _newImage;
     int _imageIndex;
 
-    int _wipeSteps;
+    int _fadeSteps;
+    int _fadeFrames;
     int _wipeFrames;
-    int _transitionFrames;
     int _transitionFrame;
     int _wipeNumber;
     int _fadeNumber;
