@@ -105,18 +105,28 @@ public:
 
         _wipes = 3;
         _gradientWipe.allocate(8000 * _wipes);
-        for (int i = 0; i < 8000; ++i)
+        _wipeSequence.allocate(8000 * _wipes);
+        for (int i = 0; i < 8000; ++i) {
             _gradientWipe[i] = (i*256)/8000;
-        for (int i = 0; i < 8000; ++i)
+            _wipeSequence[i] = i;
+        }
+        for (int i = 0; i < 8000; ++i) {
             _gradientWipe[i + 8000] = _gradientWipe[i];
+            _wipeSequence[i + 8000] = _wipeSequence[i];
+        }
         for (int i = 0; i < 8000 - 3; ++i) {
             int j = (rand() % (8000 - i)) + i;
             Byte t = _gradientWipe[i + 8000];
             _gradientWipe[i + 8000] = _gradientWipe[j + 8000];
             _gradientWipe[j + 8000] = t;
+            Word w = _wipeSequence[i + 8000];
+            _wipeSequence[i + 8000] = _wipeSequence[j + 8000];
+            _wipeSequence[j + 8000] = w;
         }
-        for (int i = 0; i < 8000; ++i)
+        for (int i = 0; i < 8000; ++i) {
             _gradientWipe[i + 16000] = _gradientWipe[i + 8000];
+            _wipeSequence[i + 16000] = _wipeSequence[i + 8000];
+        }
         for (int i = 0; i < 40000000; ++i) {
             int p1 = rand() % 8000;
             int p2 = rand() % 8000;
@@ -125,15 +135,22 @@ public:
             int metricSwapped = metric(p1, p2);
             if (metricSwapped > metricUnswapped)
                 swap(p1, p2);
+            else {
+                Word t = _wipeSequence[p1 + 16000];
+                _wipeSequence[p1 + 16000] = _wipeSequence[p2 + 16000];
+                _wipeSequence[p2 + 16000] = t;
+            }
         }
+        for (int i = 0; i < _wipes; ++i)
+            invertWipeSequence(i*8000);
 
-        _fadeSteps = 15;
-        _fadeRGBI.allocate(16*_fadeSteps);
+        _fadeHalfSteps = 4;
+        _fadeRGBI.allocate(16*_fadeHalfSteps);
         for (int i = 0; i < 16; ++i) {
             SRGB srgb = rgbiPalette[i];
             Colour c = _linearizer.linear(srgb);
-            for (int j = 0; j < _fadeSteps; ++j) {
-                Colour c1 = c * static_cast<float>(j)/(_fadeSteps - 1);
+            for (int j = 0; j < _fadeHalfSteps; ++j) {
+                Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1);
                 SRGB srgbTarget = _linearizer.srgb(c1);
                 int bestColour = 0;
                 float bestMetric = 1e99;
@@ -157,8 +174,8 @@ public:
         }
 
         _newImage = _images[0];
-        _wipeFrames = 653;
-        _fadeSteps = 30;
+        _wipeFrames = 174;
+        _fadeSteps = 8;
         _fadeFrames = 120;
         initTransition();
     }
@@ -178,18 +195,19 @@ public:
         _output.restart();
         _animated.restart();
         ++_transitionFrame;
-        if (_fadeFrames > _fadeSteps) {
-            // Gaps in the wipe sequence
-            for (int i = 0; i < _fadeSteps; ++i) {
+        int wipePosition = (_transitionFrame*8000)/_wipeFrames;
+        //if (_fadeFrames > _fadeSteps) {
+        //    // Gaps in the wipe sequence
+        //    for (int i = 0; i < _fadeSteps; ++i) {
 
-            }
-        }
-        else {
-            // Gaps in the fade sequence
-        }
+        //    }
+        //}
+        //else {
+        //    // Gaps in the fade sequence
+        //}
 
         for (int i = 0; i < 8000; ++i) {
-            int tn = (_transitionFrame*256)/_wipeFrames - _gradientWipe[i + _wipeNumber*8000];
+            int tn = _transitionFrame - (_wipeSequence[i + _wipeNumber*8000]*_wipeFrames)/8000;
             tn = (tn*_fadeSteps)/_fadeFrames;
             Word r;
             Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
@@ -254,15 +272,15 @@ private:
                     Byte ch;
                     Byte at;
                     int tn;
-                    if (transition > _fadeSteps) {
+                    if (transition > _fadeHalfSteps) {
                         ch = end & 0xff;
                         at = end >> 8;
-                        tn = transition - _fadeSteps;
+                        tn = transition - _fadeHalfSteps;
                     }
                     else {
                         ch = start & 0xff;
                         at = start >> 8;
-                        tn = _fadeSteps - transition;
+                        tn = _fadeHalfSteps - transition;
                     }
                     Byte fg = at & 0xf;
                     Byte bg = at >> 4;
@@ -271,6 +289,20 @@ private:
                     at = fg + (bg << 4);
                     return ch + (at << 8);
                 }
+        }
+    }
+
+    void invertWipeSequence(int offset)
+    {
+        Array<Word> temp(8000);
+        for (int i = 0; i < 8000; ++i)
+            temp[i] = _wipeSequence[i + offset];
+        for (int i = 0; i < 8000; ++i) {
+            int j;
+            for (j = 0; j < 8000; ++j)
+                if (temp[j] == i)
+                    break;
+            _wipeSequence[i + offset] = j;
         }
     }
 
@@ -300,8 +332,9 @@ private:
 
     int _wipes;
     Array<Byte> _gradientWipe;
+    Array<Word> _wipeSequence;
 
-    int _fadeSteps;
+    int _fadeHalfSteps;
     Array<Byte> _fadeRGBI;
 };
 
