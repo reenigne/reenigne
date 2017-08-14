@@ -175,7 +175,7 @@ public:
 
         _newImage = _images[0];
         _wipeFrames = 174;
-        _fadeSteps = 8;
+        _fadeSteps = _fadeHalfSteps*2;
         _fadeFrames = 120;
         initTransition();
     }
@@ -195,34 +195,62 @@ public:
         _output.restart();
         _animated.restart();
         ++_transitionFrame;
-        int wipePosition = (_transitionFrame*8000)/_wipeFrames;
-        //if (_fadeFrames > _fadeSteps) {
-        //    // Gaps in the wipe sequence
-        //    for (int i = 0; i < _fadeSteps; ++i) {
+        int wipePosition = (_transitionFrame*8000)/_wipeFrames;   // Precalculate this?
 
-        //    }
-        //}
-        //else {
-        //    // Gaps in the fade sequence
-        //}
-
-        for (int i = 0; i < 8000; ++i) {
-            int tn = _transitionFrame - (_wipeSequence[i + _wipeNumber*8000]*_wipeFrames)/8000;
-            tn = (tn*_fadeSteps)/_fadeFrames;
-            Word r;
-            Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
-            Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
-            if (tn > 0) {
-                if (tn < _fadeSteps)
-                    r = fade(o, n, tn);
-                else
-                    r = n;
+        if (_fadeFrames > _fadeSteps) {
+            // Gaps in the wipe sequence
+            for (int i = 1; i < _fadeSteps; ++i) {
+                int spaceStart = (((_transitionFrame - 1)*_fadeSteps - (i - 1)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
+                int spaceEnd = ((_transitionFrame*_fadeSteps - (i - 1)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
+                if (spaceStart < 0)
+                    spaceStart = 0;
+                if (spaceEnd > 8000)
+                    spaceEnd = 8000;
+                for (int s = spaceStart; s < spaceEnd; ++s) {
+                    int p = _wipeSequence[s + 16000];
+                    Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
+                    Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
+                    Word r = fade(o, n, i);
+                    _vram[p*2] = r & 0xff;
+                    _vram[p*2 + 1] = r >> 8;
+                }
             }
-            else
-                r = o;
-            _vram[i*2] = r & 0xff;
-            _vram[i*2 + 1] = r >> 8;
         }
+        else {
+            // Gaps in the fade sequence
+            int spaceStart = (_transitionFrame*8000)/_wipeFrames;
+            int spaceEnd = ((_transitionFrame - _fadeFrames)*8000)/_wipeFrames;
+            if (spaceStart < 0)
+                spaceStart = 0;
+            if (spaceEnd > 8000)
+                spaceEnd = 8000;
+            for (int s = spaceStart; s < spaceEnd; ++s) {
+                int p = _wipeSequence[s + 16000];
+                Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
+                Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
+                Word r = fade(o, n, ((_transitionFrame*8000 - s*_wipeFrames)*_fadeSteps)/(_fadeFrames*8000));
+                _vram[p*2] = r & 0xff;
+                _vram[p*2 + 1] = r >> 8;
+            }
+        }
+
+        //for (int i = 0; i < 8000; ++i) {
+        //    int tn = _transitionFrame - (_gradientWipe[i + _wipeNumber*8000]*_wipeFrames)/255;
+        //    tn = (tn*_fadeSteps)/_fadeFrames;
+        //    Word r;
+        //    Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
+        //    Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
+        //    if (tn > 0) {
+        //        if (tn < _fadeSteps)
+        //            r = fade(o, n, tn);
+        //        else
+        //            r = n;
+        //    }
+        //    else
+        //        r = o;
+        //    _vram[i*2] = r & 0xff;
+        //    _vram[i*2 + 1] = r >> 8;
+        //}
         if (_transitionFrame == _wipeFrames + _fadeFrames)
             initTransition();
     }
