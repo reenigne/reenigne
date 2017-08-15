@@ -144,7 +144,7 @@ public:
         for (int i = 0; i < _wipes; ++i)
             invertWipeSequence(i*8000);
 
-        _fadeHalfSteps = 4;
+        _fadeHalfSteps = 550; //4;
         _fadeRGBI.allocate(16*_fadeHalfSteps);
         for (int i = 0; i < 16; ++i) {
             SRGB srgb = rgbiPalette[i];
@@ -177,6 +177,31 @@ public:
         _wipeFrames = 174;
         _fadeSteps = _fadeHalfSteps*2;
         _fadeFrames = 120;
+
+        _denominator = _wipeFrames*_fadeSteps;
+        if (_fadeFrames > _fadeSteps) {
+            _spaceStartInitial = ((_fadeFrames - _fadeSteps)*8000)/_denominator;
+            _spaceStartFracInitial = ((_fadeFrames - _fadeSteps)*8000)%_denominator;
+            _spaceEndInitial = (_fadeFrames*8000)/_denominator;
+            _spaceEndFracInitial = (_fadeFrames*8000)%_denominator;
+        }
+        else {
+            _spaceStartInitial = -(((_fadeSteps + (_fadeSteps - 2)*_fadeFrames)*8000)/_denominator);
+            _spaceStartFracInitial = -(((_fadeSteps + (_fadeSteps - 2)*_fadeFrames)*8000)%_denominator);
+            if (_spaceStartFracInitial < 0) {
+                --_spaceStartInitial;
+                _spaceStartFracInitial += _denominator;
+            }
+            _spaceEndInitial = 0;
+            _spaceEndFracInitial = 0;
+        }
+        // To compute the following in asm, we can negate the dividend instead
+        // of the quotient and remainder.
+        _spaceStepIncrement = -((_fadeFrames*8000)/_denominator);
+        _spaceStepFracIncrement = -((_fadeFrames*8000)%_denominator);
+        _frameIncrement = (_fadeSteps*8000)/_denominator;
+        _frameFracIncrement = (_fadeSteps*8000)%_denominator;
+
         initTransition();
     }
     ~TransitionWindow() { _output.join(); }
@@ -195,18 +220,51 @@ public:
         _output.restart();
         _animated.restart();
         ++_transitionFrame;
-        int wipePosition = (_transitionFrame*8000)/_wipeFrames;   // Precalculate this?
+        _spaceStartFrame += _frameIncrement;
+        _spaceStartFracFrame += _frameFracIncrement;
+        if (_spaceStartFracFrame >= _denominator) {
+            _spaceStartFracFrame -= _denominator;
+            ++_spaceStartFrame;
+        }
+        _spaceEndFrame += _frameIncrement;
+        _spaceEndFracFrame += _frameFracIncrement;
+        if (_spaceEndFracFrame >= _denominator) {
+            _spaceEndFracFrame -= _denominator;
+            ++_spaceEndFrame;
+        }
 
         if (_fadeFrames > _fadeSteps) {
             // Gaps in the wipe sequence
+            int spaceStart = _spaceStartFrame;
+            int spaceEnd = _spaceEndFrame;
+            int spaceStartFrac = _spaceStartFracFrame;
+            int spaceEndFrac = _spaceEndFracFrame;
             for (int i = 1; i < _fadeSteps; ++i) {
-                int spaceStart = (((_transitionFrame - 1)*_fadeSteps - (i - 1)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
-                int spaceEnd = ((_transitionFrame*_fadeSteps - (i - 1)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
-                if (spaceStart < 0)
-                    spaceStart = 0;
-                if (spaceEnd > 8000)
-                    spaceEnd = 8000;
-                for (int s = spaceStart; s < spaceEnd; ++s) {
+                spaceStart += _spaceStepIncrement;
+                spaceStartFrac += _spaceStepFracIncrement;
+                if (spaceStartFrac < 0) {
+                    spaceStartFrac += _denominator;
+                    --spaceStart;
+                }
+                spaceEnd += _spaceStepIncrement;
+                spaceEndFrac += _spaceStepFracIncrement;
+                if (spaceEndFrac < 0) {
+                    spaceEndFrac += _denominator;
+                    --spaceEnd;
+                }
+
+                //int spaceStart2 = (((_transitionFrame - 1)*_fadeSteps - (i - 1)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
+                //int spaceEnd2 = ((_transitionFrame*_fadeSteps - (i - 1)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
+                //if (spaceStart != spaceStart2 || spaceEnd != spaceEnd2)
+                //    printf("Error\n");
+
+                int start = spaceStart;
+                int end = spaceEnd;
+                if (start < 0)
+                    start = 0;
+                if (end > 8000)
+                    end = 8000;
+                for (int s = start; s < end; ++s) {
                     int p = _wipeSequence[s + 16000];
                     Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
                     Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
@@ -218,8 +276,19 @@ public:
         }
         else {
             // Gaps in the fade sequence
-            int spaceStart = (_transitionFrame*8000)/_wipeFrames;
-            int spaceEnd = ((_transitionFrame - _fadeFrames)*8000)/_wipeFrames;
+
+            int spaceStart = _spaceStartFrame;
+            int spaceEnd = _spaceEndFrame;
+
+            //int spaceStart2 = (((_transitionFrame - 1)*_fadeSteps - (_fadeSteps - 2)*_fadeFrames)*8000)/(_wipeFrames*_fadeSteps);
+            //int spaceEnd2 = (_transitionFrame*8000)/_wipeFrames;
+            //if (_spaceStartFracFrame != 0 && _spaceStartFrame < 0)
+            //    --spaceStart2;
+            //if (_spaceEndFracFrame != 0 && _spaceEndFrame < 0)
+            //    --spaceEnd2;
+            //if (spaceStart != spaceStart2 || spaceEnd != spaceEnd2)
+            //    printf("Error\n");
+
             if (spaceStart < 0)
                 spaceStart = 0;
             if (spaceEnd > 8000)
@@ -228,29 +297,19 @@ public:
                 int p = _wipeSequence[s + 16000];
                 Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
                 Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
-                Word r = fade(o, n, ((_transitionFrame*8000 - s*_wipeFrames)*_fadeSteps)/(_fadeFrames*8000));
+
+                int step = ((_transitionFrame*8000 - s*_wipeFrames)*_fadeSteps)/(_fadeFrames*8000);
+                if (step <= 0)
+                    step = 1;
+                if (step >= _fadeSteps)
+                    step = _fadeSteps - 1;
+
+                Word r = fade(o, n, step);
                 _vram[p*2] = r & 0xff;
                 _vram[p*2 + 1] = r >> 8;
             }
         }
 
-        //for (int i = 0; i < 8000; ++i) {
-        //    int tn = _transitionFrame - (_gradientWipe[i + _wipeNumber*8000]*_wipeFrames)/255;
-        //    tn = (tn*_fadeSteps)/_fadeFrames;
-        //    Word r;
-        //    Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
-        //    Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
-        //    if (tn > 0) {
-        //        if (tn < _fadeSteps)
-        //            r = fade(o, n, tn);
-        //        else
-        //            r = n;
-        //    }
-        //    else
-        //        r = o;
-        //    _vram[i*2] = r & 0xff;
-        //    _vram[i*2 + 1] = r >> 8;
-        //}
         if (_transitionFrame == _wipeFrames + _fadeFrames)
             initTransition();
     }
@@ -266,6 +325,11 @@ private:
         _transitionFrame = 0;
         _wipeNumber = 2; // rand() % _wipes;
         _fadeNumber = 0;
+
+        _spaceStartFrame = _spaceStartInitial;
+        _spaceEndFrame = _spaceEndInitial;
+        _spaceStartFracFrame = _spaceStartFracInitial;
+        _spaceEndFracFrame = _spaceEndFracInitial;
     }
 
     void swap(int i, int j)
@@ -357,6 +421,20 @@ private:
     int _transitionFrame;
     int _wipeNumber;
     int _fadeNumber;
+
+    int _denominator;
+    int _spaceStartFrame;
+    int _spaceEndFrame;
+    int _spaceStartFracFrame;
+    int _spaceEndFracFrame;
+    int _spaceStepIncrement;
+    int _spaceStepFracIncrement;
+    int _frameIncrement;
+    int _frameFracIncrement;
+    int _spaceStartInitial;
+    int _spaceEndInitial;
+    int _spaceStartFracInitial;
+    int _spaceEndFracInitial;
 
     int _wipes;
     Array<Byte> _gradientWipe;
