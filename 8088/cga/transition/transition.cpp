@@ -144,13 +144,13 @@ public:
         for (int i = 0; i < _wipes; ++i)
             invertWipeSequence(i*8000);
 
-        _fadeHalfSteps = 550; //4;
+        _fadeHalfSteps = 5;
         _fadeRGBI.allocate(16*_fadeHalfSteps);
         for (int i = 0; i < 16; ++i) {
             SRGB srgb = rgbiPalette[i];
             Colour c = _linearizer.linear(srgb);
             for (int j = 0; j < _fadeHalfSteps; ++j) {
-                Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1);
+                Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1) /*+ Colour(1, 1, 1)*static_cast<float>(_fadeHalfSteps - (j + 1))/(_fadeHalfSteps - 1)*/;
                 SRGB srgbTarget = _linearizer.srgb(c1);
                 int bestColour = 0;
                 float bestMetric = 1e99;
@@ -172,6 +172,9 @@ public:
                 _fadeRGBI[j*16 + i] = bestColour;
             }
         }
+        String asmOutput;
+        asmOutput += "fadeRGBI:\n";
+        //for (int i = 0; i < 16*_fade)
 
         _newImage = _images[0];
         _wipeFrames = 174;
@@ -293,20 +296,43 @@ public:
                 spaceStart = 0;
             if (spaceEnd > 8000)
                 spaceEnd = 8000;
+
+            int denominator = _fadeFrames*8000;
+            int step = ((_transitionFrame*8000 - spaceStart*_wipeFrames)*_fadeSteps)/denominator;
+            int stepFrac = ((_transitionFrame*8000 - spaceStart*_wipeFrames)*_fadeSteps)%denominator;
+            if (stepFrac < 0) {
+                printf("Correcting\n");
+                --step;
+                stepFrac += denominator;
+            }
+            int increment = -((_wipeFrames*_fadeSteps)/denominator);
+            int incrementFrac = -((_wipeFrames*_fadeSteps)%denominator);
+
             for (int s = spaceStart; s < spaceEnd; ++s) {
                 int p = _wipeSequence[s + 16000];
                 Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
                 Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
 
-                int step = ((_transitionFrame*8000 - s*_wipeFrames)*_fadeSteps)/(_fadeFrames*8000);
-                if (step <= 0)
-                    step = 1;
-                if (step >= _fadeSteps)
-                    step = _fadeSteps - 1;
+                int step2 = ((_transitionFrame*8000 - s*_wipeFrames)*_fadeSteps)/denominator;
+                if (step2 != step)
+                    printf("Error\n");
 
-                Word r = fade(o, n, step);
+                int clippedStep = step;
+                if (clippedStep <= 0)
+                    clippedStep = 1;
+                if (clippedStep >= _fadeSteps)
+                    clippedStep = _fadeSteps - 1;
+
+                Word r = fade(o, n, clippedStep);
                 _vram[p*2] = r & 0xff;
                 _vram[p*2 + 1] = r >> 8;
+
+                step += increment;
+                stepFrac += incrementFrac;
+                if (stepFrac < 0) {
+                    stepFrac += denominator;
+                    --step;
+                }
             }
         }
 
