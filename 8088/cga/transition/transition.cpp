@@ -1,5 +1,6 @@
 #include "alfe/main.h"
 #include "alfe/cga.h"
+#include "alfe/config_file.h"
 
 class Collect
 {
@@ -22,6 +23,24 @@ public:
     TransitionWindow()
         : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap)
     {
+        ConfigFile configFile;
+        configFile.addDefaultOption("fadeHalfSteps", 5);
+        configFile.addDefaultOption("smoothness", 40000000);
+        configFile.addDefaultOption("fadeNumber", 6);
+        configFile.addDefaultOption("wipeFrames", 203);
+        configFile.addDefaultOption("fadeFrames", 120);
+        configFile.addDefaultOption("wipeNumber", 2);
+
+        configFile.load(File("default.config", true));
+
+        _fadeHalfSteps = configFile.get<int>("fadeHalfSteps");
+        int smoothness = configFile.get<int>("smoothness");
+        _fadeNumber = configFile.get<int>("fadeNumber");
+        _wipeFrames = configFile.get<int>("wipeFrames");
+        _fadeFrames = configFile.get<int>("fadeFrames");
+        _wipeNumber = configFile.get<int>("wipeNumber");
+
+
         _sequencer.setROM(File("5788005.u33"));
 
         _output.setConnector(0);          // RGBI
@@ -95,13 +114,15 @@ public:
 
         AppendableArray<File> imageFiles;
         applyToWildcard(Collect(&imageFiles), "*.dat", true,
-            Directory("q:\\external\\afh", true));
+            CurrentDirectory());
         _images.allocate(imageFiles.count());
         for (int i = 0; i < imageFiles.count(); ++i)
             _images[i] = imageFiles[i].contents();
 
         for (int i = 0; i < 16000; ++i)
             _vram[i] = 0;
+
+        srand(time(NULL));
 
         _wipes = 3;
         _gradientWipe.allocate(8000 * _wipes);
@@ -127,7 +148,8 @@ public:
             _gradientWipe[i + 16000] = _gradientWipe[i + 8000];
             _wipeSequence[i + 16000] = _wipeSequence[i + 8000];
         }
-        for (int i = 0; i < 40000000; ++i) {
+#ifndef _DEBUG
+        for (int i = 0; i < smoothness; ++i) {
             int p1 = rand() % 8000;
             int p2 = rand() % 8000;
             int metricUnswapped = metric(p1, p2);
@@ -141,69 +163,112 @@ public:
                 _wipeSequence[p2 + 16000] = t;
             }
         }
+#endif
         for (int i = 0; i < _wipes; ++i)
             invertWipeSequence(i*8000);
 
         _fadeHalfSteps = 5;
-        _fadeRGBI.allocate(16*_fadeHalfSteps);
-        for (int i = 0; i < 16; ++i) {
-            SRGB srgb = rgbiPalette[i];
-            Colour c = _linearizer.linear(srgb);
-            for (int j = 0; j < _fadeHalfSteps; ++j) {
-                Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1) /*+ Colour(1, 1, 1)*static_cast<float>(_fadeHalfSteps - (j + 1))/(_fadeHalfSteps - 1)*/;
-                SRGB srgbTarget = _linearizer.srgb(c1);
-                int bestColour = 0;
-                float bestMetric = 1e99;
-                for (int k = 0; k < 16; ++k) {
-                    SRGB srgbTrial = rgbiPalette[k];
-                    float dr = static_cast<float>(srgbTrial.x - srgbTarget.x);
-                    float dg = static_cast<float>(srgbTrial.y - srgbTarget.y);
-                    float db = static_cast<float>(srgbTrial.z - srgbTarget.z);
-                    // Fast colour distance metric from
-                    // http://www.compuphase.com/cmetric.htm .
-                    float mr = (srgbTrial.x + srgbTarget.x)/512.0f;
-                    float metric = 4.0f*dg*dg + (2.0f + mr)*dr*dr +
-                        (3.0f - mr)*db*db;
-                    if (metric < bestMetric) {
-                        bestMetric = metric;
-                        bestColour = k;
-                    }
+        _fadeRGBI.allocate(16*_fadeHalfSteps*16);
+        for (int midPoint = 0; midPoint < 16; ++midPoint) {
+            SRGB srgbMid = rgbiPalette[midPoint];
+            Colour mid = _linearizer.linear(srgbMid);
+            for (int i = 0; i < 16; ++i) {
+                SRGB srgb = rgbiPalette[i];
+                Colour c = _linearizer.linear(srgb);
+                for (int j = 0; j < _fadeHalfSteps; ++j) {
+                    Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1) + mid*static_cast<float>(_fadeHalfSteps - (j + 1))/(_fadeHalfSteps - 1);
+                    _fadeRGBI[j*16 + i + midPoint*16*_fadeHalfSteps] = closestRGBI(_linearizer.srgb(c1));
                 }
-                _fadeRGBI[j*16 + i] = bestColour;
             }
         }
+        _fadeRGBILuminance.allocate(16*_fadeHalfSteps*16);
+        for (int midPoint = 0; midPoint < 16; ++midPoint) {
+            SRGB srgbMid = rgbiPalette[midPoint];
+            Colour mid = _linearizer.linear(srgbMid);
+            for (int i = 0; i < 16; ++i) {
+                SRGB srgb = rgbiPalette[i];
+                Colour c = _linearizer.linear(srgb);
+                for (int j = 0; j < _fadeHalfSteps; ++j) {
+                    Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1) + mid*static_cast<float>(_fadeHalfSteps - (j + 1))/(_fadeHalfSteps - 1);
+                    SRGB srgbTarget = _linearizer.srgb(c1);
+                    float lumTarget = 0.299f*srgbTarget.x + 0.587f*srgbTarget.y + 0.114f*srgbTarget.z;
+                    int bestColour = 0;
+                    float bestMetric = 1e30;
+                    for (int k = 0; k < 16; ++k) {
+                        SRGB srgbTrial = rgbiPalette[k];
+                        float lumTrial = 0.299f*srgbTrial.x + 0.587f*srgbTrial.y + 0.114f*srgbTrial.z;
+                        float metric = lumTrial - lumTarget;
+                        metric *= metric;
+                        if (metric < bestMetric) {
+                            bestMetric = metric;
+                            bestColour = k;
+                        }
+                    }
+                    _fadeRGBILuminance[j*16 + i + midPoint*16*_fadeHalfSteps] = bestColour;
+                }
+            }
+        }
+        _fadeRGBINoRepeat.allocate(16*_fadeHalfSteps*16);
+        for (int midPoint = 0; midPoint < 16; ++midPoint) {
+            SRGB srgbMid = rgbiPalette[midPoint];
+            Colour mid = _linearizer.linear(srgbMid);
+            int lumMid = 299*srgbMid.x + 587*srgbMid.y + 114*srgbMid.z;
+            for (int i = 0; i < 16; ++i) {
+                SRGB srgb = rgbiPalette[i];
+                Colour c = _linearizer.linear(srgb);
+                int lumStart = 299*srgb.x + 587*srgb.y + 114*srgb.z;
+                for (int j = _fadeHalfSteps - 1; j >= 0; --j) {
+                    Colour c1 = c * static_cast<float>(j)/(_fadeHalfSteps - 1) + mid*static_cast<float>(_fadeHalfSteps - (j + 1))/(_fadeHalfSteps - 1);
+                    SRGB srgbTarget = _linearizer.srgb(c1);
+                    int lumTarget = 299*srgbTarget.x + 587*srgbTarget.y + 114*srgbTarget.z;
+                    int bestColour = 0;
+                    float bestMetric = 1e30;
+                    for (int k = 0; k < 16; ++k) {
+                        bool repeat = false;
+                        if (k != 0) {
+                            int l = j + 1;
+                            for (; l < _fadeHalfSteps; ++l)
+                                if (_fadeRGBINoRepeat[l*16 + i] == k)
+                                    break;
+                            if (l < _fadeHalfSteps)
+                                repeat = true;
+                        }
+
+                        SRGB srgbTrial = rgbiPalette[k];
+                        float metric = delta2(srgbTrial, srgbTarget);
+                        int lumTrial = 299*srgbTrial.x + 587*srgbTrial.y + 114*srgbTrial.z;
+                        if (lumMid < lumStart) {
+                            if (lumTrial > lumTarget)
+                                continue;
+                        }
+                        if (lumMid > lumStart) {
+                            if (lumTrial < lumTarget)
+                                continue;
+                        }
+                        if (midPoint == i && k != i)
+                            continue;
+                        if (repeat)
+                            metric += 1e6;
+                        if (metric < bestMetric) {
+                            bestMetric = metric;
+                            bestColour = k;
+                        }
+                    }
+                    _fadeRGBINoRepeat[j*16 + i + midPoint*16*_fadeHalfSteps] = bestColour;
+                }
+            }
+        }
+        fillCube(&_rgbCube, &_linearizer);
+        _noGamma.setGamma(1.0f);
+        fillCube(&_srgbCube, &_noGamma);
+
         String asmOutput;
         asmOutput += "fadeRGBI:\n";
         //for (int i = 0; i < 16*_fade)
 
         _newImage = _images[0];
-        _wipeFrames = 174;
-        _fadeSteps = _fadeHalfSteps*2;
-        _fadeFrames = 120;
-
-        _denominator = _wipeFrames*_fadeSteps;
-        if (_fadeFrames > _fadeSteps) {
-            _spaceStartInitial = ((_fadeFrames - _fadeSteps)*8000)/_denominator;
-            _spaceStartFracInitial = ((_fadeFrames - _fadeSteps)*8000)%_denominator;
-            _spaceEndInitial = (_fadeFrames*8000)/_denominator;
-            _spaceEndFracInitial = (_fadeFrames*8000)%_denominator;
-        }
-        else {
-            _spaceStartInitial = -(((_fadeSteps + (_fadeSteps - 2)*_fadeFrames)*8000)/_denominator);
-            _spaceStartFracInitial = -(((_fadeSteps + (_fadeSteps - 2)*_fadeFrames)*8000)%_denominator);
-            if (_spaceStartFracInitial < 0) {
-                --_spaceStartInitial;
-                _spaceStartFracInitial += _denominator;
-            }
-            _spaceEndInitial = 0;
-            _spaceEndFracInitial = 0;
-        }
-        // To compute the following in asm, we can negate the dividend instead
-        // of the quotient and remainder.
-        _spaceStepIncrement = -((_fadeFrames*8000)/_denominator);
-        _spaceStepFracIncrement = -((_fadeFrames*8000)%_denominator);
-        _frameIncrement = (_fadeSteps*8000)/_denominator;
-        _frameFracIncrement = (_fadeSteps*8000)%_denominator;
+        for (int i = 0; i < 16000; ++i)
+            _vram[i] = _newImage[i];
 
         initTransition();
     }
@@ -268,10 +333,10 @@ public:
                 if (end > 8000)
                     end = 8000;
                 for (int s = start; s < end; ++s) {
-                    int p = _wipeSequence[s + 16000];
+                    int p = _wipeSequence[s + 8000*_wipeNumber];
                     Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
                     Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
-                    Word r = fade(o, n, i);
+                    Word r = fade(o, n, i, p);
                     _vram[p*2] = r & 0xff;
                     _vram[p*2 + 1] = r >> 8;
                 }
@@ -309,7 +374,7 @@ public:
             int incrementFrac = -((_wipeFrames*_fadeSteps)%denominator);
 
             for (int s = spaceStart; s < spaceEnd; ++s) {
-                int p = _wipeSequence[s + 16000];
+                int p = _wipeSequence[s + 8000*_wipeNumber];
                 Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
                 Word n = _newImage[p*2] + (_newImage[p*2 + 1] << 8);
 
@@ -323,7 +388,7 @@ public:
                 if (clippedStep >= _fadeSteps)
                     clippedStep = _fadeSteps - 1;
 
-                Word r = fade(o, n, clippedStep);
+                Word r = fade(o, n, clippedStep, p);
                 _vram[p*2] = r & 0xff;
                 _vram[p*2 + 1] = r >> 8;
 
@@ -342,6 +407,35 @@ public:
 private:
     void initTransition()
     {
+        _fadeSteps = _fadeHalfSteps*2;
+        if (_fadeNumber >= 6)
+            _fadeSteps = 10;
+
+        _denominator = _wipeFrames*_fadeSteps;
+        if (_fadeFrames > _fadeSteps) {
+            _spaceStartInitial = ((_fadeFrames - _fadeSteps)*8000)/_denominator;
+            _spaceStartFracInitial = ((_fadeFrames - _fadeSteps)*8000)%_denominator;
+            _spaceEndInitial = (_fadeFrames*8000)/_denominator;
+            _spaceEndFracInitial = (_fadeFrames*8000)%_denominator;
+        }
+        else {
+            _spaceStartInitial = -(((_fadeSteps + (_fadeSteps - 2)*_fadeFrames)*8000)/_denominator);
+            _spaceStartFracInitial = -(((_fadeSteps + (_fadeSteps - 2)*_fadeFrames)*8000)%_denominator);
+            if (_spaceStartFracInitial < 0) {
+                --_spaceStartInitial;
+                _spaceStartFracInitial += _denominator;
+            }
+            _spaceEndInitial = 0;
+            _spaceEndFracInitial = 0;
+        }
+        // To compute the following in asm, we can negate the dividend instead
+        // of the quotient and remainder.
+        _spaceStepIncrement = -((_fadeFrames*8000)/_denominator);
+        _spaceStepFracIncrement = -((_fadeFrames*8000)%_denominator);
+        _frameIncrement = (_fadeSteps*8000)/_denominator;
+        _frameFracIncrement = (_fadeSteps*8000)%_denominator;
+
+
         int lastImage = _imageIndex;
         _oldImage = _newImage;
         _imageIndex = rand() % (_images.count() - 1);
@@ -349,13 +443,19 @@ private:
             ++_imageIndex;
         _newImage = _images[_imageIndex];
         _transitionFrame = 0;
-        _wipeNumber = 2; // rand() % _wipes;
-        _fadeNumber = 0;
 
         _spaceStartFrame = _spaceStartInitial;
         _spaceEndFrame = _spaceEndInitial;
         _spaceStartFracFrame = _spaceStartFracInitial;
         _spaceEndFracFrame = _spaceEndFracInitial;
+
+        _midPoints.ensure(8000);
+        for (int i = 0; i < 8000; ++i) {
+            Word o = _oldImage[i*2] + (_oldImage[i*2 + 1] << 8);
+            Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
+            Colour c = (averageColour(o) + averageColour(n))/2;
+            _midPoints[i] = closestRGBI(_linearizer.srgb(c));
+        }
     }
 
     void swap(int i, int j)
@@ -382,32 +482,66 @@ private:
     }
     int getByte(int x, int y) { return _gradientWipe[y*80 + x + 16000]; }
 
-    Word fade(Word start, Word end, int transition)
+    Word fade(Word start, Word end, int transition, int p)
     {
-        switch (_fadeNumber) {
-            case 0:
-                {
-                    Byte ch;
-                    Byte at;
-                    int tn;
-                    if (transition > _fadeHalfSteps) {
-                        ch = end & 0xff;
-                        at = end >> 8;
-                        tn = transition - _fadeHalfSteps;
-                    }
-                    else {
-                        ch = start & 0xff;
-                        at = start >> 8;
-                        tn = _fadeHalfSteps - transition;
-                    }
-                    Byte fg = at & 0xf;
-                    Byte bg = at >> 4;
-                    fg = _fadeRGBI[tn*16 + fg];
-                    bg = _fadeRGBI[tn*16 + bg];
-                    at = fg + (bg << 4);
-                    return ch + (at << 8);
-                }
+        int fadeNumber = _fadeNumber;
+        int midPoint = 0;
+        if (_fadeNumber >= 3 && _fadeNumber < 6) {
+            fadeNumber -= 3;
+            midPoint = _midPoints[p];
         }
+        Array<Byte>* fade;
+        switch (fadeNumber) {
+            case 0:
+                fade = &_fadeRGBI;
+                break;
+            case 1:
+                fade = &_fadeRGBILuminance;
+                break;
+            case 2:
+                fade = &_fadeRGBINoRepeat;
+                break;
+        }
+        if (fadeNumber < 6) {
+            Byte ch;
+            Byte at;
+            int tn;
+            if (transition > _fadeHalfSteps) {
+                ch = end & 0xff;
+                at = end >> 8;
+                tn = transition - _fadeHalfSteps;
+            }
+            else {
+                ch = start & 0xff;
+                at = start >> 8;
+                tn = _fadeHalfSteps - transition;
+            }
+            Byte fg = at & 0xf;
+            Byte bg = at >> 4;
+            fg = (*fade)[tn*16 + fg + midPoint*16*_fadeHalfSteps];
+            bg = (*fade)[tn*16 + bg + midPoint*16*_fadeHalfSteps];
+            at = fg + (bg << 4);
+            return ch + (at << 8);
+        }
+        if (transition == 9)
+            return end;
+        Array<Word>* cube = &_rgbCube;
+        Linearizer* linearizer = &_linearizer;
+        if (fadeNumber == 7) {
+            cube = &_srgbCube;
+            linearizer = &_noGamma;
+        }
+        SRGB srgbOld = _linearizer.srgb(averageColour(start));
+        SRGB srgbNew = _linearizer.srgb(averageColour(end));
+        Colour co = linearizer->linear(srgbOld);
+        Colour cn = linearizer->linear(srgbNew);
+        Colour c = co * (static_cast<float>(8 - transition)/7.0f) +
+            cn * static_cast<float>((transition - 1)/7.0f);
+        c *= 7.0f;
+        int r = clamp(0, static_cast<int>(c.x + 0.5), 7);
+        int g = clamp(0, static_cast<int>(c.y + 0.5), 7);
+        int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
+        return (*cube)[r + g*8 + b*64];
     }
 
     void invertWipeSequence(int offset)
@@ -424,7 +558,67 @@ private:
         }
     }
 
+    float delta2(SRGB c1, SRGB c2)
+    {
+        float dr = static_cast<float>(c1.x - c2.x);
+        float dg = static_cast<float>(c1.y - c2.y);
+        float db = static_cast<float>(c1.z - c2.z);
+        // Fast colour distance metric from
+        // http://www.compuphase.com/cmetric.htm .
+        float mr = (c1.x + c2.x)/512.0f;
+        return 4.0f*dg*dg + (2.0f + mr)*dr*dr + (3.0f - mr)*db*db;
+    }
+    int closestRGBI(SRGB srgbTarget)
+    {
+        int bestColour = 0;
+        float bestMetric = 1e30;
+        for (int k = 0; k < 16; ++k) {
+            float metric = delta2(rgbiPalette[k], srgbTarget);
+            if (metric < bestMetric) {
+                bestMetric = metric;
+                bestColour = k;
+            }
+        }
+        return bestColour;
+    }
+    Colour averageColour(Word w)
+    {
+        Colour c(0, 0, 0);
+        for (int y = 0; y < 2; ++y) {
+            UInt64 pixels = _sequencer.process(w, 9, 0, y, false, 0);
+            for (int x = 0; x < 8; ++x)
+                c += _linearizer.linear(rgbiPalette[(pixels >> (x*4)) & 0x0f]);
+        }
+        return c/16;
+    }
+    void fillCube(Array<Word>* cube, Linearizer* linearizer)
+    {
+        cube->allocate(8*8*8);
+        for (int slot = 0; slot < 8*8*8; ++slot) {
+            Word bestWord = 0;
+            float bestMetric = 1e30;
+            int r = slot & 7;
+            int g = (slot >> 3) & 7;
+            int b = (slot >> 6) & 7;
+            Colour target(r, g, b);
+            target /= 7;
+            SRGB srgbTarget = linearizer->srgb(target);
+            for (int w = 0; w < 0x10000; ++w) {
+                int ch = w & 0xff;
+                if (ch != 0xb1 && ch != 0xb0 && ch != 0x1d && ch != 0x7e && ch != 0x7f)
+                    continue;
+                float metric = delta2(_linearizer.srgb(averageColour(w)), srgbTarget);
+                if (metric < bestMetric) {
+                    bestWord = w;
+                    bestMetric = metric;
+                }
+            }
+            (*cube)[slot] = bestWord;
+        }
+    }
+
     Linearizer _linearizer;
+    Linearizer _noGamma;
     FFTWWisdom<float> _wisdom;
     CGAData _data;
     CGASequencer _sequencer;
@@ -468,6 +662,11 @@ private:
 
     int _fadeHalfSteps;
     Array<Byte> _fadeRGBI;
+    Array<Byte> _fadeRGBILuminance;
+    Array<Byte> _fadeRGBINoRepeat;
+    Array<Byte> _midPoints;
+    Array<Word> _rgbCube;
+    Array<Word> _srgbCube;
 };
 
 class Program : public WindowProgram<TransitionWindow>
