@@ -30,4 +30,7 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\..\..\include\alfe.natvis" />
+  </ItemGroup>
 </Project>

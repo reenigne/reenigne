@@ -1,6 +1,7 @@
 #include "alfe/main.h"
 #include "alfe/cga.h"
 #include "alfe/config_file.h"
+#include "alfe/bitmap_png.h"
 
 class Collect
 {
@@ -20,57 +21,70 @@ private:
 class TransitionWindow : public RootWindow
 {
 public:
-    TransitionWindow()
-        : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap)
+    void setOutput(CGAOutput* output) { _output = output; }
+    void setConfig(ConfigFile* configFile, File configPath)
     {
-        ConfigFile configFile;
-        configFile.addDefaultOption("fadeHalfSteps", 5);
-        configFile.addDefaultOption("smoothness", 40000000);
-        configFile.addDefaultOption("fadeNumber", 6);
-        configFile.addDefaultOption("wipeFrames", 203);
-        configFile.addDefaultOption("fadeFrames", 120);
-        configFile.addDefaultOption("wipeNumber", 2);
+        _configFile = configFile;
+        _fadeHalfSteps = configFile->get<int>("fadeHalfSteps");
+        int smoothness = configFile->get<int>("smoothness");
+        _fadeNumber = configFile->get<int>("fadeNumber");
+        _wipeFrames = configFile->get<int>("wipeFrames");
+        _fadeFrames = configFile->get<int>("fadeFrames");
+        _wipeNumber = configFile->get<int>("wipeNumber");
+        _sequencer.setROM(
+            File(configFile->get<String>("cgaROM"), configPath.parent()));
+        String characterSet = configFile->get<String>("characterSet");
+        String gradientMap = configFile->get<String>("gradientMap");
 
-        configFile.load(File("default.config", true));
+        CharacterSource s(characterSet);
+        int ch = 0;
+        _charactersActive.allocate(256);
+        for (int i = 0; i < 256; ++i)
+            _charactersActive[i] = 0;
+        do {
+            int c = s.get();
+            if (c >= '0' && c <= '9')
+                ch = (ch * 16) + c - '0';
+            if (c >= 'a' && c <= 'f')
+                ch = (ch * 16) + c + 10 - 'a';
+            if (c >= 'A' && c <= 'F')
+                ch = (ch * 16) + c + 10 - 'A';
+            if (c == -1 || c == '/') {
+                _charactersActive[ch] = 1;
+                ch = 0;
+            }
+            if (c == -1)
+                break;
+        } while (true);
 
-        _fadeHalfSteps = configFile.get<int>("fadeHalfSteps");
-        int smoothness = configFile.get<int>("smoothness");
-        _fadeNumber = configFile.get<int>("fadeNumber");
-        _wipeFrames = configFile.get<int>("wipeFrames");
-        _fadeFrames = configFile.get<int>("fadeFrames");
-        _wipeNumber = configFile.get<int>("wipeNumber");
-
-
-        _sequencer.setROM(File("5788005.u33"));
-
-        _output.setConnector(0);          // RGBI
-        _output.setScanlineProfile(0);    // rectangle
-        _output.setHorizontalProfile(0);  // rectangle
-        _output.setScanlineWidth(1);
-        _output.setScanlineBleeding(2);   // symmetrical
-        _output.setHorizontalBleeding(2); // symmetrical
-        _output.setZoom(2);
-        _output.setHorizontalRollOff(0);
-        _output.setHorizontalLobes(4);
-        _output.setVerticalRollOff(0);
-        _output.setVerticalLobes(4);
-        _output.setSubPixelSeparation(1);
-        _output.setPhosphor(0);           // colour
-        _output.setMask(0);
-        _output.setMaskSize(0);
-        _output.setAspectRatio(5.0/6.0);
-        _output.setOverscan(0);
-        _output.setCombFilter(0);         // no filter
-        _output.setHue(0);
-        _output.setSaturation(100);
-        _output.setContrast(100);
-        _output.setBrightness(0);
-        _output.setShowClipping(false);
-        _output.setChromaBandwidth(1);
-        _output.setLumaBandwidth(1);
-        _output.setRollOff(0);
-        _output.setLobes(1.5);
-        _output.setPhase(1);
+        _output->setConnector(0);          // RGBI
+        _output->setScanlineProfile(0);    // rectangle
+        _output->setHorizontalProfile(0);  // rectangle
+        _output->setScanlineWidth(1);
+        _output->setScanlineBleeding(2);   // symmetrical
+        _output->setHorizontalBleeding(2); // symmetrical
+        _output->setZoom(2);
+        _output->setHorizontalRollOff(0);
+        _output->setHorizontalLobes(4);
+        _output->setVerticalRollOff(0);
+        _output->setVerticalLobes(4);
+        _output->setSubPixelSeparation(1);
+        _output->setPhosphor(0);           // colour
+        _output->setMask(0);
+        _output->setMaskSize(0);
+        _output->setAspectRatio(5.0/6.0);
+        _output->setOverscan(0);
+        _output->setCombFilter(0);         // no filter
+        _output->setHue(0);
+        _output->setSaturation(100);
+        _output->setContrast(100);
+        _output->setBrightness(0);
+        _output->setShowClipping(false);
+        _output->setChromaBandwidth(1);
+        _output->setLumaBandwidth(1);
+        _output->setRollOff(0);
+        _output->setLobes(1.5);
+        _output->setPhase(1);
 
         _regs = -CGAData::registerLogCharactersPerBank;
         _cgaBytes.allocate(0x4000 + _regs);
@@ -104,7 +118,7 @@ public:
         _data.setTotals(238944, 910, 238875);
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
 
-        _outputSize = _output.requiredSize();
+        _outputSize = _output->requiredSize();
 
         add(&_bitmap);
         add(&_animated);
@@ -115,16 +129,48 @@ public:
         AppendableArray<File> imageFiles;
         applyToWildcard(Collect(&imageFiles), "*.dat", true,
             CurrentDirectory());
-        _images.allocate(imageFiles.count());
-        for (int i = 0; i < imageFiles.count(); ++i)
+        int nImages = imageFiles.count();
+        _images.allocate(nImages);
+        _rgbImages.allocate(nImages);
+        for (int i = 0; i < nImages; ++i) {
             _images[i] = imageFiles[i].contents();
+            _rgbImages[i].allocate(9000);
+            Byte extra = 0;
+            int bits = 0;
+            int p = 0;
+            for (int j = 0; j < 8000; ++j) {
+                Word w = _images[i][j*2] + (_images[i][j*2 + 1] << 8);
+                Linearizer* linearizer = &_linearizer;
+                if (_fadeNumber == 7)
+                    linearizer = &_noGamma;
+                SRGB srgb = _linearizer.srgb(averageColour(w));
+                Colour c = linearizer->linear(srgb);
+                c *= 7.0f;
+                int r = clamp(0, static_cast<int>(c.x + 0.5), 7);
+                int g = clamp(0, static_cast<int>(c.y + 0.5), 7);
+                int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
+                Word v = (r << 6) + (g << 3) + b;
+                _rgbImages[i][p] = extra + (v << bits);
+                ++p;
+                ++bits;
+                extra = (v >> (8 - bits)) & ((1 << bits) - 1);
+                if (bits == 8) {
+                    _rgbImages[i][p] = extra;
+                    extra = 0;
+                    ++p;
+                    bits = 0;
+                }
+            }
+            File(imageFiles[i].path() + ".rgb", true).openWrite().
+                write(_rgbImages[i]);
+        }
 
         for (int i = 0; i < 16000; ++i)
             _vram[i] = 0;
 
         srand(time(NULL));
 
-        _wipes = 3;
+        _wipes = 4;
         _gradientWipe.allocate(8000 * _wipes);
         _wipeSequence.allocate(8000 * _wipes);
         for (int i = 0; i < 8000; ++i) {
@@ -164,7 +210,21 @@ public:
             }
         }
 #endif
-        for (int i = 0; i < _wipes; ++i)
+        if (_wipeNumber == 3) {
+            Bitmap<SRGB> gradientMap = PNGFileFormat<SRGB>().load(File(configFile->get<String>("gradientMap"), configPath.parent()));
+            for (int i = 0; i < 8000; ++i)
+                _gradientWipe[i + 24000] = gradientMap[Vector(i%80, i/80)].y;
+            int p = 24000;
+            for (int i = 0; i < 256; ++i) {
+                for (int j = 0; j < 8000; ++j) {
+                    if (_gradientWipe[j + 24000] == i) {
+                        _wipeSequence[p] = j;
+                        ++p;
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < 3; ++i)
             invertWipeSequence(i*8000);
 
         _fadeHalfSteps = 5;
@@ -263,8 +323,93 @@ public:
         fillCube(&_srgbCube, &_noGamma);
 
         String asmOutput;
-        asmOutput += "fadeRGBI:\n";
-        //for (int i = 0; i < 16*_fade)
+        asmOutput += "wipeSequence:\n";
+        for (int i = 0; i < 8000; ++i) {
+            if ((i & 15) == 0)
+                asmOutput += "  dw ";
+            asmOutput += hex(_wipeSequence[i + 8000*_wipeNumber], 4);
+            if ((i & 15) != 15)
+                asmOutput += ", ";
+            else
+                asmOutput += "\n";
+        }
+        asmOutput += "\n";
+
+        if (_fadeNumber >= 6) {
+            String channelTables[8*3];
+            String channels[3];
+            channels[0] = "red";
+            channels[1] = "green";
+            channels[2] = "blue";
+            for (int channel = 0; channel < 3; ++channel) {
+                for (int step = 0; step < 8; ++step) {
+                    String channelTable = channels[channel] + "Table" + decimal(step) + ":\n";
+                    for (int i = 0; i < 64; ++i) {
+                        int o = (i & 7);
+                        int n = (i >> 3) & 7;
+                        int c = static_cast<int>((o*step + n*(7-step) + 3.5)/7);
+                        if (o == 0)
+                            channelTable += "    db ";
+                        if (channel == 0)
+                            channelTable += "(rgbCube >> 8) + " + hex(c, 2);
+                        else
+                            if (channel == 1)
+                                channelTable += hex(c*16, 2);
+                            else
+                                channelTable += hex(c*2, 2);
+                        if (o != 7)
+                            channelTable += ", ";
+                        else
+                            channelTable += "\n";
+                    }
+                    channelTables[channel*9 + step] = channelTable;
+                }
+            }
+            int cTable = 0;
+
+            asmOutput += "align 256,db 0\n";
+            asmOutput += "rgbCube:\n";
+            for (int i = 0; i < 8*8*8; ++i) {
+                if ((i & 7) == 0)
+                    asmOutput += "  dw ";
+                if (_fadeNumber == 6)
+                    asmOutput += hex(_rgbCube[i], 4);
+                else
+                    asmOutput += hex(_srgbCube[i], 4);
+                if ((i & 7) != 7)
+                    asmOutput += ", ";
+                else
+                    asmOutput += "\n";
+                if ((i & 63) == 63) {
+                    asmOutput += channelTables[cTable];
+                    asmOutput += channelTables[cTable + 1];
+                    cTable += 2;
+                }
+            }
+            while (cTable < 8*3) {
+                asmOutput += channelTables[cTable];
+                ++cTable;
+            }
+        }
+        else {
+            asmOutput += "fadeAttribute:\n";
+            for (int i = 0; i < _fadeHalfSteps*256; ++i) {
+                if ((i & 15) == 0)
+                    asmOutput += "  dw ";
+                int step = i / 256;
+                int fg = i & 15;
+                int bg = (i >> 4) & 15;
+                asmOutput += hex(_fadeRGBI[step*16 + fg] + 16*_fadeRGBI[step*16 + bg]);
+                if ((i & 15) != 15)
+                    asmOutput += ", ";
+                else
+                    asmOutput += "\n";
+                if ((i & 255) == 25)
+                    asmOutput += "\n";
+            }
+        }
+
+        File("transitionTables.inc").openWrite().write(asmOutput);
 
         _newImage = _images[0];
         for (int i = 0; i < 16000; ++i)
@@ -272,7 +417,8 @@ public:
 
         initTransition();
     }
-    ~TransitionWindow() { _output.join(); }
+    ~TransitionWindow() { join(); }
+    void join() { _output->join(); }
     void create()
     {
         setText("CGA transitions");
@@ -285,7 +431,7 @@ public:
     virtual void draw()
     {
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
-        _output.restart();
+        _output->restart();
         _animated.restart();
         ++_transitionFrame;
         _spaceStartFrame += _frameIncrement;
@@ -404,6 +550,9 @@ public:
         if (_transitionFrame == _wipeFrames + _fadeFrames)
             initTransition();
     }
+    BitmapWindow* outputWindow() { return &_bitmap; }
+    CGAData* getData() { return &_data; }
+    CGASequencer* getSequencer() { return &_sequencer; }
 private:
     void initTransition()
     {
@@ -541,7 +690,7 @@ private:
         int r = clamp(0, static_cast<int>(c.x + 0.5), 7);
         int g = clamp(0, static_cast<int>(c.y + 0.5), 7);
         int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
-        return (*cube)[r + g*8 + b*64];
+        return (*cube)[b + g*8 + r*64];
     }
 
     void invertWipeSequence(int offset)
@@ -597,15 +746,15 @@ private:
         for (int slot = 0; slot < 8*8*8; ++slot) {
             Word bestWord = 0;
             float bestMetric = 1e30;
-            int r = slot & 7;
+            int r = (slot >> 6) & 7;
             int g = (slot >> 3) & 7;
-            int b = (slot >> 6) & 7;
+            int b = slot & 7;
             Colour target(r, g, b);
             target /= 7;
             SRGB srgbTarget = linearizer->srgb(target);
             for (int w = 0; w < 0x10000; ++w) {
                 int ch = w & 0xff;
-                if (ch != 0xb1 && ch != 0xb0 && ch != 0x1d && ch != 0x7e && ch != 0x7f)
+                if (_charactersActive[ch] == 0)
                     continue;
                 float metric = delta2(_linearizer.srgb(averageColour(w)), srgbTarget);
                 if (metric < bestMetric) {
@@ -617,12 +766,12 @@ private:
         }
     }
 
-    Linearizer _linearizer;
-    Linearizer _noGamma;
-    FFTWWisdom<float> _wisdom;
     CGAData _data;
     CGASequencer _sequencer;
-    CGAOutput _output;
+    CGAOutput* _output;
+    ConfigFile* _configFile;
+    Linearizer _linearizer;
+    Linearizer _noGamma;
     AnimatedWindow _animated;
     BitmapWindow _bitmap;
     Vector _outputSize;
@@ -631,6 +780,7 @@ private:
     int _regs;
 
     Array<String> _images;
+    Array<Array<Byte>> _rgbImages;
     String _oldImage;
     String _newImage;
     int _imageIndex;
@@ -667,8 +817,41 @@ private:
     Array<Byte> _midPoints;
     Array<Word> _rgbCube;
     Array<Word> _srgbCube;
+    Array<Byte> _charactersActive;
 };
 
 class Program : public WindowProgram<TransitionWindow>
 {
+public:
+    void run()
+    {
+        ConfigFile configFile;
+        configFile.addDefaultOption("fadeHalfSteps", 5);
+        configFile.addDefaultOption("smoothness", 40000000);
+        configFile.addDefaultOption("fadeNumber", 6);
+        configFile.addDefaultOption("wipeFrames", 203);
+        configFile.addDefaultOption("fadeFrames", 120);
+        configFile.addDefaultOption("wipeNumber", 2);
+        configFile.addDefaultOption("cgaROM", String("5788005.u33"));
+        configFile.addDefaultOption("fftWisdom", String("wisdom"));
+        configFile.addDefaultOption("characterSet", String("b1/b0/1d/7e/7f"));
+        configFile.addDefaultOption("gradientMap", String("gradientMap.png"));
+
+        String configName = "default.config";
+        if (_arguments.count() >= 2)
+            configName = _arguments[1];
+        File configPath(configName, true);
+        configFile.load(configPath);
+        FFTWWisdom<float> wisdom(File(configFile.get<String>("fftWisdom"),
+            configPath.parent()));
+
+        CGAOutput output(_window.getData(), _window.getSequencer(),
+            _window.outputWindow());
+        _window.setOutput(&output);
+
+        _window.setConfig(&configFile, configPath);
+
+        WindowProgram::run();
+        _window.join();
+    }
 };

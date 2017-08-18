@@ -30,18 +30,18 @@
 ; es:di = pointer into updateBuffer
 ; ds:0 (or 0x4000) = redGreen (red even bytes, green odd bytes) combined RGB values from both images, 2 bytes per character = 16000 bytes
 ; es:0 (or 0x4000) = blue = (even bytes, 0 odd bytes) combined RGB values from both images, 2 bytes per character = 16000 bytes
-; ds:redTable, greenTable, blueTable = 8*64*2*3 = 3072 bytes
-; ds:rgb (at 00000000 000TABLE) = 2048 bytes, 2kB aligned
+; ds:redTable, greenTable, blueTable = 8*64*3 = 1536 bytes
+; ds:rgb (at 00000000 000TABLE) = 2048 bytes, 256 byte aligned
   lodsw                                                        ; 3
   stosw                                                        ; 3
   xchg bx,ax                                                   ; 1
-  mov dx,[bx]     ; dx =  0rrrRRR0 0gggGGG0                    ; 4
-  mov bx,[es:bx]  ; bx =  0bbbBBB0 00000000                    ; 5
-  mov al,[bx+blueTable + step*128]  ; al = 0bbb0000            ; 5
+  mov dx,[bx]     ; dx =  rrrRRR00 gggGGG00                    ; 4
+  mov bx,[es:bx]  ; bx =  bbbBBB00 00000000                    ; 5
+  mov al,[bx+blueTable + step*64]   ; al = 0bbb0000            ; 5
   mov bl,dh                                                    ; 2
-  add al,[bx+greenTable + step*128] ; al = 0bbbggg0            ; 5
+  add al,[bx+greenTable + step*64]  ; al = 0bbbggg0            ; 5
   mov bl,dl                                                    ; 2
-  mov ah,[bx+redTable + step*128]   ; ax = 0bbbggg0 rrrTABLE   ; 5
+  mov ah,[bx+redTable + step*64]    ; ax = 0bbbggg0 rrrTABLE   ; 5
   xchg ax,si                                                   ; 1
   movsw                                                        ; 5
   xchg ax,si                                                   ; 1
