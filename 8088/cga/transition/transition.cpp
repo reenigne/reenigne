@@ -35,6 +35,7 @@ public:
             File(configFile->get<String>("cgaROM"), configPath.parent()));
         String characterSet = configFile->get<String>("characterSet");
         String gradientMap = configFile->get<String>("gradientMap");
+        String fadeRGBIUser = configFile->get<String>("fadeRGBI");
 
         CharacterSource s(characterSet);
         int ch = 0;
@@ -43,12 +44,9 @@ public:
             _charactersActive[i] = 0;
         do {
             int c = s.get();
-            if (c >= '0' && c <= '9')
-                ch = (ch * 16) + c - '0';
-            if (c >= 'a' && c <= 'f')
-                ch = (ch * 16) + c + 10 - 'a';
-            if (c >= 'A' && c <= 'F')
-                ch = (ch * 16) + c + 10 - 'A';
+            int d = parseHex(c);
+            if (d != -1)
+                ch = ch*16 + d;
             if (c == -1 || c == '/') {
                 _charactersActive[ch] = 1;
                 ch = 0;
@@ -56,6 +54,13 @@ public:
             if (c == -1)
                 break;
         } while (true);
+
+        _fadeRGBIUser.allocate(16*_fadeHalfSteps);
+        for (int i = 0; i < 16*_fadeHalfSteps; ++i) {
+            int c = fadeRGBIUser[i];
+            int d = parseHex(c);
+            _fadeRGBIUser[i] = d;
+        }
 
         _output->setConnector(0);          // RGBI
         _output->setScanlineProfile(0);    // rectangle
@@ -362,7 +367,7 @@ public:
                         else
                             channelTable += "\n";
                     }
-                    channelTables[channel*9 + step] = channelTable;
+                    channelTables[channel*8 + step] = channelTable;
                 }
             }
             int cTable = 0;
@@ -641,6 +646,9 @@ private:
         }
         Array<Byte>* fade;
         switch (fadeNumber) {
+            case -1:
+                fade = &_fadeRGBIUser;
+                break;
             case 0:
                 fade = &_fadeRGBI;
                 break;
@@ -765,6 +773,16 @@ private:
             (*cube)[slot] = bestWord;
         }
     }
+    int parseHex(int c)
+    {
+        if (c >= '0' && c <= '9')
+            return c - '0';
+        if (c >= 'A' && c <= 'F')
+            return c + 10 - 'A';
+        if (c >= 'a' && c <= 'f')
+            return c + 10 - 'a';
+        return -1;
+    }
 
     CGAData _data;
     CGASequencer _sequencer;
@@ -811,6 +829,7 @@ private:
     Array<Word> _wipeSequence;
 
     int _fadeHalfSteps;
+    Array<Byte> _fadeRGBIUser;
     Array<Byte> _fadeRGBI;
     Array<Byte> _fadeRGBILuminance;
     Array<Byte> _fadeRGBINoRepeat;
@@ -836,6 +855,12 @@ public:
         configFile.addDefaultOption("fftWisdom", String("wisdom"));
         configFile.addDefaultOption("characterSet", String("b1/b0/1d/7e/7f"));
         configFile.addDefaultOption("gradientMap", String("gradientMap.png"));
+        configFile.addDefaultOption("fadeRGBI", String(
+            "0123456789abcdef"
+            "0022446688aaccee"
+            "0022446600224466"
+            "0000444400004444"
+            "0000000000000000"));
 
         String configName = "default.config";
         if (_arguments.count() >= 2)
