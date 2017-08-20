@@ -137,9 +137,13 @@ public:
         int nImages = imageFiles.count();
         _images.allocate(nImages);
         _rgbImages.allocate(nImages);
+
+        auto picturesDat = File("pictures.dat").openWrite();
+
         for (int i = 0; i < nImages; ++i) {
             _images[i] = imageFiles[i].contents();
             _rgbImages[i].allocate(9000);
+            Array<Word> rgb16Image(8000);
             Byte extra = 0;
             int bits = 0;
             int p = 0;
@@ -156,6 +160,7 @@ public:
                 int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
                 Word v = (r << 6) + (g << 3) + b;
                 _rgbImages[i][p] = extra + (v << bits);
+                rgb16Image[j] = v;
                 ++p;
                 ++bits;
                 extra = (v >> (8 - bits)) & ((1 << bits) - 1);
@@ -168,6 +173,10 @@ public:
             }
             File(imageFiles[i].path() + ".rgb", true).openWrite().
                 write(_rgbImages[i]);
+            File(imageFiles[i].path() + ".rgb16", true).openWrite().
+                write(rgb16Image);
+            picturesDat.write(_images[i]);
+            picturesDat.write(rgb16Image);
         }
 
         for (int i = 0; i < 16000; ++i)
