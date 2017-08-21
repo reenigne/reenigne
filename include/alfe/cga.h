@@ -1417,7 +1417,7 @@ public:
         activeSize -= Vector2<float>(272, 62);
 
         if (outputSize.zeroArea()) {
-            inputTL = Vector2<float>(160.5f, 38) - overscan*activeSize;
+            inputTL = Vector2<float>(157.5f, 35.5f) - overscan*activeSize;
             double o = 1 + 2*overscan;
             double y = zoom*activeSize.y*o;
             double x = zoom*activeSize.x*o*aspectRatio/2;

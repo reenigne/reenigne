@@ -138,10 +138,10 @@ public:
         _images.allocate(nImages);
         _rgbImages.allocate(nImages);
 
-        auto picturesDat = File("pictures.dat").openWrite();
+        auto picturesBin = File("pictures.bin").openWrite();
 
         for (int i = 0; i < nImages; ++i) {
-            _images[i] = imageFiles[i].contents();
+            _images[i] = imageFiles[i].contents().subString(0, 16000);
             _rgbImages[i].allocate(9000);
             Array<Word> rgb16Image(8000);
             Byte extra = 0;
@@ -175,8 +175,8 @@ public:
                 write(_rgbImages[i]);
             File(imageFiles[i].path() + ".rgb16", true).openWrite().
                 write(rgb16Image);
-            picturesDat.write(_images[i]);
-            picturesDat.write(rgb16Image);
+            picturesBin.write(_images[i]);
+            picturesBin.write(rgb16Image);
         }
 
         for (int i = 0; i < 16000; ++i)
@@ -337,6 +337,9 @@ public:
         fillCube(&_srgbCube, &_noGamma);
 
         String asmOutput;
+        asmOutput += String("imageCount equ ") + decimal(nImages) + "\n";
+        asmOutput += String("fadeType equ ") +
+            decimal(_fadeNumber >= 6 ? 1 : 0) + "\n";
         asmOutput += "wipeSequence:\n";
         for (int i = 0; i < 8000; ++i) {
             if ((i & 15) == 0)

@@ -50,6 +50,6 @@
 
 ; Update is a string of:
 ; es = 0xb800
-  mov byte[1234],5678  ; c6 06 1234 5678               ; 6+2 IOs  51.43 cycles   366 word writes possible in inactive                 6 bytes   (29+6)*314 = 10990 bytes unrolled code
+  mov word[1234],5678  ; c7 06 1234 5678               ; 6+2 IOs  51.43 cycles   366 word writes possible in inactive                 6 bytes   (29+6)*314 = 10990 bytes unrolled code
 
 ;253.04 cycles total for both, 314 iterations maximum. With 8 steps per iteration, wipe takes 203 frames = 3.4s
