@@ -340,6 +340,7 @@ public:
         asmOutput += String("imageCount equ ") + decimal(nImages) + "\n";
         asmOutput += String("fadeType equ ") +
             decimal(_fadeNumber >= 6 ? 1 : 0) + "\n";
+        asmOutput += String("fadeSteps equ ") + decimal(_fadeSteps) + "\n";
         asmOutput += "wipeSequence:\n";
         for (int i = 0; i < 8000; ++i) {
             if ((i & 15) == 0)
@@ -849,6 +850,9 @@ private:
     Array<Word> _rgbCube;
     Array<Word> _srgbCube;
     Array<Byte> _charactersActive;
+
+    bool _doneAsm;
+    FileStream _asmOutput;
 };
 
 class Program : public WindowProgram<TransitionWindow>

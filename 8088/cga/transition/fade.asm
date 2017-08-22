@@ -81,8 +81,8 @@ noMotorShutoff:
 %endif
 
 initUpdateBuffer:
+  mov cx,maximumUpdates
 %if fadeType==1
-  mov cx,368
   mov ax,0x06c7
   mov bx,4
 %else
@@ -95,9 +95,6 @@ initUpdateBuffer:
   stosw
   add di,bx
   loop .loopTop
-
-
-
 
   in al,0x21
   mov [imr],al
@@ -170,8 +167,11 @@ waitForDisplayEnable:
   mov word[0x20],transitionHandler
   mov [0x22],cs
 
+idle:
   sti
-  jmp idle
+.loop:
+  hlt
+  jmp .loop
 
 transitionHandler:
   mov al,0x20
@@ -186,12 +186,82 @@ transitionHandler:
   mov word[0x20],offScreenHandler
   mov [0x22],cs
 
-
+  mov ax,cs
+  mov ds,ax
+  mov ax,[picturesBinSegment]
+  add ax,1000
+  mov [oldImageSegment],ax
+  add ax,2000
+  mov [newImageSegment],ax
   sti
+foregroundTask:
+  cmp byte[transitionActive],0
+  jne foregroundTask
+  ; Transition not active - init a new one
 
-idle:
-  hlt
-  jmp idle
+
+; Process RGB tables from images (bbbgggrr r0000000, BBBGGGRR R0000000) to blueImages/redGreenImages (rrrRRR00 gggGGG00, bbbBBB00 00000000)
+processRGB:
+  mov cx,8000
+  mov si,[oldImageSegment]
+  add si,2000
+  mov ax,[picturesBinSegment]
+  add ax,imageCount*2000
+  cmp si,ax
+  jb .noWrapOld
+  sub si,imageCount*2000
+.noWrapOld:
+  mov [oldImageSegment],si
+  mov bp,[newImageSegment]
+  add bp,2000
+  cmp bp,ax
+  jb .noWrapNew
+  sub bp,imageCount*2000
+.noWRapNew:
+
+  xor di,di
+  mov ax,cs
+  mov es,ax
+
+.loopTop:
+  mov ds,si                                    ; 2
+  mov dx,[di]   ; dx = bbbgggrr r0000000       ; 4
+  mov ds,bp                                    ; 2
+  mov bx,[di]   ; bx = BBBGGGRR R0000000       ; 4
+  mov ah,bl     ; ah = BBBGGGRR                ; 2
+
+  shl bx,1                                     ; 2
+  shl bx,1                                     ; 2
+  shl bx,1      ; bx = 000BBBGG GRRR0000       ; 2
+  mov al,dl     ; al = bbbgggrr                ; 2
+  and al,7      ; al = bbb00000                ; 2
+  or al,bl      ; al = bbbBBBGG                ; 2
+  and al,0x3f   ; al = bbbBBB00                ; 2
+  mov [es:di + blueImages - redGreenImages],al ; 6
+
+  shl dx,1                                     ; 2
+  shl dx,1      ; dx = 00bbbggg rrr00000       ; 2
+  shl bx,1                                     ; 2
+  shl bx,1      ; bx = 00000BBB GGGRRR00       ; 2
+  mov al,bh     ; al = GGGRRR00                ; 2
+  and al,0x38   ; al = 000RRR00                ; 2
+  or al,dh      ; al = rrrRRR00                ; 2
+  shl dx,1                                     ; 2
+  shl dx,1                                     ; 2
+  shl dx,1      ; dx = 00000bbb gggrrr00       ; 2
+  and ah,0x38   ; ah = 000GGG00                ; 3
+  and dh,7      ; dh = ggg00000                ; 3
+  or ah,dh      ; ah = gggGGG00                ; 2
+  stosw                                        ; 3
+
+  loop .loopTop                                ; 2    total 67 IOs = ~27 frames
+
+  mov ax,cs
+  mov ds,ax
+  mov byte[transitionActive],1
+
+  jmp foregroundTask
+
 
 
 align 16, db 0
@@ -207,6 +277,13 @@ picturesBin: db 'pictures.bin',0
 picturesBinError: db 'Error reading pictures.bin file.$'
 memoryError: db 'Not enough memory.$'
 imr: db 0
+transitionActive: db 0
+oldImageSegment: dw 0
+newImageSegment: dw 0
+spaceStartFrame: dw 0
+spaceEndFrame: dw 0
+spaceStartFracFrame: dw 0
+spaceEndFracFrame: dw 0
 
 
 offScreenHandler:
@@ -241,6 +318,15 @@ offScreenHandler:
 
 
 onScreenHandler:
+  push ax
+  push bx
+  push cx
+  push dx
+  push si
+  push di
+  push bp
+  push es
+  push ds
   mov al,0x20
   out 0x20,al
 
@@ -275,9 +361,28 @@ port61low:
   cmp bl,1
   je teardown
 
+  cmp byte[transitionActive],0
+  je doneOnScreenHandler
 
 
 
+%assign step 1
+%rep fadeSteps-1
+
+
+%endrep
+
+doneOnScreenHandler:
+  pop ds
+  pop es
+  pop bp
+  pop di
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
 
 teardown:
   xor ax,ax
