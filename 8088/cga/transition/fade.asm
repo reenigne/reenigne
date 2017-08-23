@@ -284,6 +284,8 @@ spaceStartFrame: dw 0
 spaceEndFrame: dw 0
 spaceStartFracFrame: dw 0
 spaceEndFracFrame: dw 0
+spaceStart: dw 0
+spaceEnd: dw 0
 
 
 offScreenHandler:
@@ -364,12 +366,31 @@ port61low:
   cmp byte[transitionActive],0
   je doneOnScreenHandler
 
+  mov ax,[spaceStartFrame]
+  mov [spaceStart],ax
+  mov ax,[spaceEndFrame]
+  mov [spaceEnd],ax
+  mov ax,[spaceStartFracFrame]
+  mov [spaceStartFrac],ax
+  mov ax,[spaceEndFracFrame]
+  mov [spaceEndFrac],ax
 
+%macro doStep 1
+    mov ax,[spaceStart]
+    add ax,spaceStepIncrement
+    mov bx,[spaceStartFrac]
+    add bx,spaceStepFracIncrement
+    cmp bx,0
+    jge %%noStartWrap
+    add bx,denominator
+    inc
+
+    mov [spaceStart],ax
+%endmacro
 
 %assign step 1
 %rep fadeSteps-1
-
-
+  doStep step
 %endrep
 
 doneOnScreenHandler:
