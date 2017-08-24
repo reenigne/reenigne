@@ -8,8 +8,14 @@ setupMemory:
   mov ss,ax
   mov sp,stackHigh
   sti
+  mov bx,ax
   add ax,picturesData >> 4
   mov [picturesBinSegment],ax
+  mov ax,bx
+  add ax,redGreenImages >> 4
+  mov [innerLoopDS],ax
+  add bx,blueImages >> 4
+  mov [innerLoopES],ax
 
   push ds
   mov bx,0x40
@@ -199,6 +205,11 @@ foregroundTask:
   jne foregroundTask
   ; Transition not active - init a new one
 
+  mov word[spaceStartFrame],spaceStartInitial
+  mov word[spaceEndFrame],spaceEndInitial
+  mov word[spaceStartFracFrame],spaceStartFracInitial
+  mov word[spaceEndFracFrame],spaceEndFracInitial
+  mov word[transitionFrame],0
 
 ; Process RGB tables from images (bbbgggrr r0000000, BBBGGGRR R0000000) to blueImages/redGreenImages (rrrRRR00 gggGGG00, bbbBBB00 00000000)
 processRGB:
@@ -271,7 +282,7 @@ redGreenImages:
 
 oldInterrupt8: dw 0, 0
 frameCount: dw 0, 0
-updateBufferPointer: dw updateBuffer
+updatePointer: dw updateBuffer
 picturesBinSegment: dw 0
 picturesBin: db 'pictures.bin',0
 picturesBinError: db 'Error reading pictures.bin file.$'
@@ -286,6 +297,9 @@ spaceStartFracFrame: dw 0
 spaceEndFracFrame: dw 0
 spaceStart: dw 0
 spaceEnd: dw 0
+transitionFrame: dw 0
+innerLoopDS: dw 0
+innerLoopES: dw 0
 
 
 offScreenHandler:
@@ -346,8 +360,6 @@ onScreenHandler:
   inc word[frameCount+2]
 noFrameCountCarry:
 
-  mov word[updatePointer],updateBufferStart
-
 checkKey:
   ; Read the keyboard byte and store it
   in al,0x60
@@ -374,24 +386,98 @@ port61low:
   mov [spaceStartFrac],ax
   mov ax,[spaceEndFracFrame]
   mov [spaceEndFrac],ax
+  mov di,updateBufferStart + 2
 
 %macro doStep 1
-    mov ax,[spaceStart]
-    add ax,spaceStepIncrement
-    mov bx,[spaceStartFrac]
-    add bx,spaceStepFracIncrement
-    cmp bx,0
-    jge %%noStartWrap
-    add bx,denominator
-    inc
+    mov si,[spaceStart]
+    add si,spaceStepIncrement
+    mov ax,[spaceStartFrac]
+    add ax,spaceStepFracIncrement
+    cmp ax,0
+    jge %%noStartCarry
+    add ax,denominator
+    dec si
+%%noStartCarry:
+    mov [spaceStart],si
+    mov [spaceStartFrac],ax
 
-    mov [spaceStart],ax
+    mov bx,[spaceEnd]
+    add bx,spaceEndIncrement
+    mov ax,[spaceEndFrac]
+    add ax,spaceEndFracIncrement
+    cmp ax,0
+    jge %%noStartCarry
+    add ax,denominator
+    dec bx
+%%noStartCarry:
+    mov [spaceEnd],bx
+    mov [spaceEndFrac],ax
+
+    cmp si,0
+    jge %%noSaturateStart
+    xor si,si
+%%noSaturateStart:
+    cmp bx,8000
+    jl %%noSaturateEnd
+    mov bx,8000
+%%noSaturateEnd:
+
+    sub bx,si
+    add bx,bx
+    add si,si
+    add si,movedWipeSequence - redGreenImages
+    mov es,[innerLoopES]
+    mov ds,[innerLoopDS]
+    jmp [cs:%%rgbIterationsTable + bx]
+
+%%rgbIterationsTable:
+%assign iteration 0
+%rep maximumIterations
+    dw %%rgbIteration%[iteration]
+    %assign iteration iteration+1
+%endrep
+
+%assign iteration maximumIterations
+%rep maximumIterations
+%%rgbIteration%[iteration]:
+    ; RGB cube:
+    ; ds:si = pointer into wipeSequence (*2)
+    ; es:di = pointer into updateBuffer
+    ; ds:0 (or 0x4000) = redGreen (red even bytes, green odd bytes) combined RGB values from both images, 2 bytes per character = 16000 bytes
+    ; es:0 (or 0x4000) = blue = (even bytes, 0 odd bytes) combined RGB values from both images, 2 bytes per character = 16000 bytes
+    ; ds:redTable, greenTable, blueTable = 8*64*3 = 1536 bytes
+    ; ds:rgb (at 00000000 000TABLE) = 2048 bytes, 256 byte aligned
+    lodsw                                                        ; 3
+    stosw                                                        ; 3
+    xchg bx,ax                                                   ; 1
+    mov dx,[bx]     ; dx =  rrrRRR00 gggGGG00                    ; 4
+    mov bx,[es:bx]  ; bx =  bbbBBB00 00000000                    ; 5
+    mov al,[bx+blueTable + step*64 - redGreenImages]   ; al = 0bbb0000            ; 5
+    mov bl,dh                                                    ; 2
+    add al,[bx+greenTable + step*64 - redGreenImages]  ; al = 0bbbggg0            ; 5
+    mov bl,dl                                                    ; 2
+    mov ah,[bx+redTable + step*64 - redGreenImages]    ; ax = 0bbbggg0 rrrTABLE   ; 5
+    xchg ax,si                                                   ; 1
+    movsw                                                        ; 5
+    xchg ax,si                                                   ; 1
+    inc di                                                       ; 1
+    inc di                                                       ; 1  ; 201.61 cycles    301 iterations possible in active             29 bytes
+    %assign iteration iteration-1
+%endrep
+%%rgbIteration0:
+    mov ax,cs
+    mov ds,ax
 %endmacro
 
 %assign step 1
 %rep fadeSteps-1
   doStep step
+  %assign step step+1
 %endrep
+
+  dec di
+  dec di
+  mov [updatePointer],di
 
 doneOnScreenHandler:
   pop ds
@@ -464,6 +550,7 @@ stackHigh:
 movedWipeSequence:
   resb 16000
 
+align 16
 blueImages:
   resb 16000
 

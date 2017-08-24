@@ -336,22 +336,21 @@ public:
         _noGamma.setGamma(1.0f);
         fillCube(&_srgbCube, &_noGamma);
 
-        String asmOutput;
-        asmOutput += String("imageCount equ ") + decimal(nImages) + "\n";
-        asmOutput += String("fadeType equ ") +
+        _doneAsm = false;
+        _asmOutput += String("imageCount equ ") + decimal(nImages) + "\n";
+        _asmOutput += String("fadeType equ ") +
             decimal(_fadeNumber >= 6 ? 1 : 0) + "\n";
-        asmOutput += String("fadeSteps equ ") + decimal(_fadeSteps) + "\n";
-        asmOutput += "wipeSequence:\n";
+        _asmOutput += "wipeSequence:\n";
         for (int i = 0; i < 8000; ++i) {
             if ((i & 15) == 0)
-                asmOutput += "  dw ";
-            asmOutput += hex(_wipeSequence[i + 8000*_wipeNumber], 4);
+                _asmOutput += "  dw ";
+            _asmOutput += hex(_wipeSequence[i + 8000*_wipeNumber], 4);
             if ((i & 15) != 15)
-                asmOutput += ", ";
+                _asmOutput += ", ";
             else
-                asmOutput += "\n";
+                _asmOutput += "\n";
         }
-        asmOutput += "\n";
+        _asmOutput += "\n";
 
         if (_fadeNumber >= 6) {
             String channelTables[8*3];
@@ -369,7 +368,7 @@ public:
                         if (o == 0)
                             channelTable += "    db ";
                         if (channel == 0)
-                            channelTable += "(rgbCube >> 8) + " + hex(c, 2);
+                            channelTable += "((rgbCube - redGreenImages) >> 8) + " + hex(c, 2);
                         else
                             if (channel == 1)
                                 channelTable += hex(c*16, 2);
@@ -385,49 +384,47 @@ public:
             }
             int cTable = 0;
 
-            asmOutput += "align 256,db 0\n";
-            asmOutput += "rgbCube:\n";
+            _asmOutput += "align 256,db 0\n";
+            _asmOutput += "rgbCube:\n";
             for (int i = 0; i < 8*8*8; ++i) {
                 if ((i & 7) == 0)
-                    asmOutput += "  dw ";
+                    _asmOutput += "  dw ";
                 if (_fadeNumber == 6)
-                    asmOutput += hex(_rgbCube[i], 4);
+                    _asmOutput += hex(_rgbCube[i], 4);
                 else
-                    asmOutput += hex(_srgbCube[i], 4);
+                    _asmOutput += hex(_srgbCube[i], 4);
                 if ((i & 7) != 7)
-                    asmOutput += ", ";
+                    _asmOutput += ", ";
                 else
-                    asmOutput += "\n";
+                    _asmOutput += "\n";
                 if ((i & 63) == 63) {
-                    asmOutput += channelTables[cTable];
-                    asmOutput += channelTables[cTable + 1];
+                    _asmOutput += channelTables[cTable];
+                    _asmOutput += channelTables[cTable + 1];
                     cTable += 2;
                 }
             }
             while (cTable < 8*3) {
-                asmOutput += channelTables[cTable];
+                _asmOutput += channelTables[cTable];
                 ++cTable;
             }
         }
         else {
-            asmOutput += "fadeAttribute:\n";
+            _asmOutput += "fadeAttribute:\n";
             for (int i = 0; i < _fadeHalfSteps*256; ++i) {
                 if ((i & 15) == 0)
-                    asmOutput += "  dw ";
+                    _asmOutput += "  dw ";
                 int step = i / 256;
                 int fg = i & 15;
                 int bg = (i >> 4) & 15;
-                asmOutput += hex(_fadeRGBI[step*16 + fg] + 16*_fadeRGBI[step*16 + bg]);
+                _asmOutput += hex(_fadeRGBI[step*16 + fg] + 16*_fadeRGBI[step*16 + bg]);
                 if ((i & 15) != 15)
-                    asmOutput += ", ";
+                    _asmOutput += ", ";
                 else
-                    asmOutput += "\n";
+                    _asmOutput += "\n";
                 if ((i & 255) == 25)
-                    asmOutput += "\n";
+                    _asmOutput += "\n";
             }
         }
-
-        File("transitionTables.inc").openWrite().write(asmOutput);
 
         _newImage = _images[0];
         for (int i = 0; i < 16000; ++i)
@@ -496,6 +493,8 @@ public:
                     start = 0;
                 if (end > 8000)
                     end = 8000;
+                if (end - start > 8000/_wipeFrames + 1)
+                    printf("Error!\n");
                 for (int s = start; s < end; ++s) {
                     int p = _wipeSequence[s + 8000*_wipeNumber];
                     Word o = _oldImage[p*2] + (_oldImage[p*2 + 1] << 8);
@@ -622,6 +621,33 @@ private:
             Word n = _newImage[i*2] + (_newImage[i*2 + 1] << 8);
             Colour c = (averageColour(o) + averageColour(n))/2;
             _midPoints[i] = closestRGBI(_linearizer.srgb(c));
+        }
+
+        if (!_doneAsm) {
+            _doneAsm = true;
+            _asmOutput += String("denominator equ ") + decimal(_denominator) +
+                "\n";
+            _asmOutput += String("fadeSteps equ ") + decimal(_fadeSteps) +
+                "\n";
+            _asmOutput += String("spaceStartInitial equ ") +
+                decimal(_spaceStartInitial) + "\n";
+            _asmOutput += String("spaceStartFracInitial equ ") +
+                decimal(_spaceStartFracInitial) + "\n";
+            _asmOutput += String("spaceEndInitial equ ") +
+                decimal(_spaceEndInitial) + "\n";
+            _asmOutput += String("spaceEndFracInitial equ ") +
+                decimal(_spaceEndFracInitial) + "\n";
+            _asmOutput += String("spaceStepIncrement equ ") +
+                decimal(_spaceStepIncrement) + "\n";
+            _asmOutput += String("spaceStepFracIncrement equ ") +
+                decimal(_spaceStepFracIncrement) + "\n";
+            _asmOutput += String("frameIncrement equ ") +
+                decimal(_frameIncrement) + "\n";
+            _asmOutput += String("frameFracIncrement equ ") +
+                decimal(_frameFracIncrement) + "\n";
+            _asmOutput += String("maximumIterations equ ") +
+                decimal(8000/_wipeFrames + 1) + "\n";
+            File("transitionTables.inc").openWrite().write(_asmOutput);
         }
     }
 
@@ -852,7 +878,7 @@ private:
     Array<Byte> _charactersActive;
 
     bool _doneAsm;
-    FileStream _asmOutput;
+    String _asmOutput;
 };
 
 class Program : public WindowProgram<TransitionWindow>
