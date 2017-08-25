@@ -142,41 +142,29 @@ public:
 
         for (int i = 0; i < nImages; ++i) {
             _images[i] = imageFiles[i].contents().subString(0, 16000);
-            _rgbImages[i].allocate(9000);
-            Array<Word> rgb16Image(8000);
-            Byte extra = 0;
-            int bits = 0;
-            int p = 0;
+            _rgbImages[i].allocate(8000);
             for (int j = 0; j < 8000; ++j) {
                 Word w = _images[i][j*2] + (_images[i][j*2 + 1] << 8);
+                //if ((i & 1) != 0)
+                //    w = 0xffff;
+                //else
+                //    w = 0;
                 Linearizer* linearizer = &_linearizer;
                 if (_fadeNumber == 7)
                     linearizer = &_noGamma;
                 SRGB srgb = _linearizer.srgb(averageColour(w));
                 Colour c = linearizer->linear(srgb);
-                c *= 7.0f;
-                int r = clamp(0, static_cast<int>(c.x + 0.5), 7);
-                int g = clamp(0, static_cast<int>(c.y + 0.5), 7);
-                int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
+                c *= 8.0f;
+                int r = clamp(0, static_cast<int>(c.x), 7);
+                int g = clamp(0, static_cast<int>(c.y), 7);
+                int b = clamp(0, static_cast<int>(c.z), 7);
                 Word v = (r << 6) + (g << 3) + b;
-                _rgbImages[i][p] = extra + (v << bits);
-                rgb16Image[j] = v;
-                ++p;
-                ++bits;
-                extra = (v >> (8 - bits)) & ((1 << bits) - 1);
-                if (bits == 8) {
-                    _rgbImages[i][p] = extra;
-                    extra = 0;
-                    ++p;
-                    bits = 0;
-                }
+                _rgbImages[i][j] = v;
             }
             File(imageFiles[i].path() + ".rgb", true).openWrite().
                 write(_rgbImages[i]);
-            File(imageFiles[i].path() + ".rgb16", true).openWrite().
-                write(rgb16Image);
             picturesBin.write(_images[i]);
-            picturesBin.write(rgb16Image);
+            picturesBin.write(_rgbImages[i]);
         }
 
         for (int i = 0; i < 16000; ++i)
@@ -337,96 +325,9 @@ public:
         fillCube(&_srgbCube, &_noGamma);
 
         _doneAsm = false;
-        _asmOutput += String("imageCount equ ") + decimal(nImages) + "\n";
-        _asmOutput += String("fadeType equ ") +
-            decimal(_fadeNumber >= 6 ? 1 : 0) + "\n";
-        _asmOutput += "wipeSequence:\n";
-        for (int i = 0; i < 8000; ++i) {
-            if ((i & 15) == 0)
-                _asmOutput += "  dw ";
-            _asmOutput += hex(_wipeSequence[i + 8000*_wipeNumber], 4);
-            if ((i & 15) != 15)
-                _asmOutput += ", ";
-            else
-                _asmOutput += "\n";
-        }
-        _asmOutput += "\n";
-
-        if (_fadeNumber >= 6) {
-            String channelTables[8*3];
-            String channels[3];
-            channels[0] = "red";
-            channels[1] = "green";
-            channels[2] = "blue";
-            for (int channel = 0; channel < 3; ++channel) {
-                for (int step = 0; step < 8; ++step) {
-                    String channelTable = channels[channel] + "Table" + decimal(step) + ":\n";
-                    for (int i = 0; i < 64; ++i) {
-                        int o = (i & 7);
-                        int n = (i >> 3) & 7;
-                        int c = static_cast<int>((o*step + n*(7-step) + 3.5)/7);
-                        if (o == 0)
-                            channelTable += "    db ";
-                        if (channel == 0)
-                            channelTable += "((rgbCube - redGreenImages) >> 8) + " + hex(c, 2);
-                        else
-                            if (channel == 1)
-                                channelTable += hex(c*16, 2);
-                            else
-                                channelTable += hex(c*2, 2);
-                        if (o != 7)
-                            channelTable += ", ";
-                        else
-                            channelTable += "\n";
-                    }
-                    channelTables[channel*8 + step] = channelTable;
-                }
-            }
-            int cTable = 0;
-
-            _asmOutput += "align 256,db 0\n";
-            _asmOutput += "rgbCube:\n";
-            for (int i = 0; i < 8*8*8; ++i) {
-                if ((i & 7) == 0)
-                    _asmOutput += "  dw ";
-                if (_fadeNumber == 6)
-                    _asmOutput += hex(_rgbCube[i], 4);
-                else
-                    _asmOutput += hex(_srgbCube[i], 4);
-                if ((i & 7) != 7)
-                    _asmOutput += ", ";
-                else
-                    _asmOutput += "\n";
-                if ((i & 63) == 63) {
-                    _asmOutput += channelTables[cTable];
-                    _asmOutput += channelTables[cTable + 1];
-                    cTable += 2;
-                }
-            }
-            while (cTable < 8*3) {
-                _asmOutput += channelTables[cTable];
-                ++cTable;
-            }
-        }
-        else {
-            _asmOutput += "fadeAttribute:\n";
-            for (int i = 0; i < _fadeHalfSteps*256; ++i) {
-                if ((i & 15) == 0)
-                    _asmOutput += "  dw ";
-                int step = i / 256;
-                int fg = i & 15;
-                int bg = (i >> 4) & 15;
-                _asmOutput += hex(_fadeRGBI[step*16 + fg] + 16*_fadeRGBI[step*16 + bg]);
-                if ((i & 15) != 15)
-                    _asmOutput += ", ";
-                else
-                    _asmOutput += "\n";
-                if ((i & 255) == 25)
-                    _asmOutput += "\n";
-            }
-        }
 
         _newImage = _images[0];
+        _imageIndex = 0;
         for (int i = 0; i < 16000; ++i)
             _vram[i] = _newImage[i];
 
@@ -602,10 +503,10 @@ private:
         _frameFracIncrement = (_fadeSteps*8000)%_denominator;
 
 
-        int lastImage = _imageIndex;
+        _lastImageIndex = _imageIndex;
         _oldImage = _newImage;
         _imageIndex = rand() % (_images.count() - 1);
-        if (_imageIndex >= lastImage)
+        if (_imageIndex >= _lastImageIndex)
             ++_imageIndex;
         _newImage = _images[_imageIndex];
         _transitionFrame = 0;
@@ -627,7 +528,7 @@ private:
             _doneAsm = true;
             _asmOutput += String("denominator equ ") + decimal(_denominator) +
                 "\n";
-            _asmOutput += String("fadeSteps equ ") + decimal(_fadeSteps) +
+            _asmOutput += String("fadeSteps equ ") + decimal(_fadeSteps - 1) +
                 "\n";
             _asmOutput += String("spaceStartInitial equ ") +
                 decimal(_spaceStartInitial) + "\n";
@@ -646,7 +547,101 @@ private:
             _asmOutput += String("frameFracIncrement equ ") +
                 decimal(_frameFracIncrement) + "\n";
             _asmOutput += String("maximumIterations equ ") +
-                decimal(8000/_wipeFrames + 1) + "\n";
+                decimal(8000/_wipeFrames + 2) + "\n";
+            _asmOutput += String("totalFrames equ ") +
+                decimal(_wipeFrames + _fadeFrames) + "\n";
+            _asmOutput += String("imageCount equ ") +
+                decimal(_images.count()) + "\n";
+            _asmOutput += String("fadeType equ ") +
+                decimal(_fadeNumber >= 6 ? 1 : 0) + "\n";
+            _asmOutput += "%macro dataTables 0\n";
+            _asmOutput += "wipeSequence:\n";
+            for (int i = 0; i < 8000; ++i) {
+                if ((i & 15) == 0)
+                    _asmOutput += "  dw ";
+                _asmOutput += hex(_wipeSequence[i + 8000*_wipeNumber]*2, 4);
+                if ((i & 15) != 15)
+                    _asmOutput += ", ";
+                else
+                    _asmOutput += "\n";
+            }
+            _asmOutput += "\n";
+
+            if (_fadeNumber >= 6) {
+                Array<String> channelTables((_fadeSteps - 2)*3);
+                String channels[3];
+                channels[0] = "red";
+                channels[1] = "green";
+                channels[2] = "blue";
+                for (int channel = 0; channel < 3; ++channel) {
+                    for (int step = 0; step < _fadeSteps - 2; ++step) {
+                        String channelTable = channels[channel] + "Table" + decimal(step) + ":\n";
+                        for (int i = 0; i < 64; ++i) {
+                            int o = (i & 7);
+                            int n = (i >> 3) & 7;
+                            int c = static_cast<int>((o*step + n*(7-step) + 3.5)/7);
+                            if (o == 0)
+                                channelTable += "    db ";
+                            if (channel == 0)
+                                channelTable += "((rgbCube - redGreenImages) >> 8) + " + hex(c, 2);
+                            else
+                                if (channel == 1)
+                                    channelTable += hex(c*16, 2);
+                                else
+                                    channelTable += hex(c*2, 2);
+                            if (o != 7)
+                                channelTable += ", ";
+                            else
+                                channelTable += "\n";
+                        }
+                        channelTables[channel*(_fadeSteps - 2) + step] = channelTable;
+                    }
+                }
+                int cTable = 0;
+
+                _asmOutput += "align 256,db 0\n";
+                _asmOutput += "rgbCube:\n";
+                for (int i = 0; i < 8*8*8; ++i) {
+                    if ((i & 7) == 0)
+                        _asmOutput += "  dw ";
+                    if (_fadeNumber == 6)
+                        _asmOutput += hex(_rgbCube[i], 4);
+                    else
+                        _asmOutput += hex(_srgbCube[i], 4);
+                    if ((i & 7) != 7)
+                        _asmOutput += ", ";
+                    else
+                        _asmOutput += "\n";
+                    if ((i & 63) == 63) {
+                        _asmOutput += channelTables[cTable];
+                        _asmOutput += channelTables[cTable + 1];
+                        cTable += 2;
+                    }
+                }
+                while (cTable < (_fadeSteps - 2)*3) {
+                    _asmOutput += channelTables[cTable];
+                    ++cTable;
+                }
+            }
+            else {
+                _asmOutput += "fadeAttribute:\n";
+                for (int i = 0; i < _fadeHalfSteps*256; ++i) {
+                    if ((i & 15) == 0)
+                        _asmOutput += "  dw ";
+                    int step = i / 256;
+                    int fg = i & 15;
+                    int bg = (i >> 4) & 15;
+                    _asmOutput += hex(_fadeRGBI[step*16 + fg] + 16*_fadeRGBI[step*16 + bg]);
+                    if ((i & 15) != 15)
+                        _asmOutput += ", ";
+                    else
+                        _asmOutput += "\n";
+                    if ((i & 255) == 25)
+                        _asmOutput += "\n";
+                }
+            }
+            _asmOutput += "%endmacro\n";
+
             File("transitionTables.inc").openWrite().write(_asmOutput);
         }
     }
@@ -719,7 +714,7 @@ private:
             at = fg + (bg << 4);
             return ch + (at << 8);
         }
-        if (transition == 9)
+        if (transition == _fadeSteps - 1)
             return end;
         Array<Word>* cube = &_rgbCube;
         Linearizer* linearizer = &_linearizer;
@@ -727,16 +722,30 @@ private:
             cube = &_srgbCube;
             linearizer = &_noGamma;
         }
-        SRGB srgbOld = _linearizer.srgb(averageColour(start));
-        SRGB srgbNew = _linearizer.srgb(averageColour(end));
-        Colour co = linearizer->linear(srgbOld);
-        Colour cn = linearizer->linear(srgbNew);
-        Colour c = co * (static_cast<float>(8 - transition)/7.0f) +
-            cn * static_cast<float>((transition - 1)/7.0f);
-        c *= 7.0f;
-        int r = clamp(0, static_cast<int>(c.x + 0.5), 7);
-        int g = clamp(0, static_cast<int>(c.y + 0.5), 7);
-        int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
+        Word wordOld = _rgbImages[_lastImageIndex][p];
+        Word wordNew = _rgbImages[_imageIndex][p];
+        int rOld = (wordOld >> 6) & 7;
+        int gOld = (wordOld >> 3) & 7;
+        int bOld = wordOld & 7;
+        int rNew = (wordNew >> 6) & 7;
+        int gNew = (wordNew >> 3) & 7;
+        int bNew = wordNew & 7;
+        --transition;
+        int r = static_cast<int>((rNew*transition + rOld*(7-transition) + 3.5)/7);
+        int g = static_cast<int>((gNew*transition + gOld*(7-transition) + 3.5)/7);
+        int b = static_cast<int>((bNew*transition + bOld*(7-transition) + 3.5)/7);
+
+
+        //SRGB srgbOld = _linearizer.srgb(averageColour(start));
+        //SRGB srgbNew = _linearizer.srgb(averageColour(end));
+        //Colour co = linearizer->linear(srgbOld);
+        //Colour cn = linearizer->linear(srgbNew);
+        //Colour c = co * (static_cast<float>(8 - transition)/7.0f) +
+        //    cn * static_cast<float>((transition - 1)/7.0f);
+        //c *= 7.0f;
+        //int r = clamp(0, static_cast<int>(c.x + 0.5), 7);
+        //int g = clamp(0, static_cast<int>(c.y + 0.5), 7);
+        //int b = clamp(0, static_cast<int>(c.z + 0.5), 7);
         return (*cube)[b + g*8 + r*64];
     }
 
@@ -837,9 +846,10 @@ private:
     int _regs;
 
     Array<String> _images;
-    Array<Array<Byte>> _rgbImages;
+    Array<Array<Word>> _rgbImages;
     String _oldImage;
     String _newImage;
+    int _lastImageIndex;
     int _imageIndex;
 
     int _fadeSteps;

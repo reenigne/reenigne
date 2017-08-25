@@ -1,5 +1,17 @@
 org 0x100
 cpu 8086
+programBase:
+
+pitCyclesPerScanline equ 76     ; Fixed by CGA hardware
+scanlinesPerFrame    equ 262    ; Fixed by NTSC standard
+activeScanlines      equ 200    ; Standard CGA full-screen
+visual_profiler      equ 0
+onScreenPitCycles    equ pitCyclesPerScanline*activeScanlines - 22
+offScreenPitCycles   equ pitCyclesPerScanline*scanlinesPerFrame - (onScreenPitCycles)
+
+%include "transitionTables.inc"
+
+bssOffset equ (((programEnd - programBase) + 15) & -16) + 0x100
 
 setupMemory:
   mov ax,cs
@@ -9,13 +21,13 @@ setupMemory:
   mov sp,stackHigh
   sti
   mov bx,ax
-  add ax,picturesData >> 4
+  add ax,((picturesData - bssBase) + bssOffset) >> 4
   mov [picturesBinSegment],ax
   mov ax,bx
-  add ax,redGreenImages >> 4
+  add ax,((redGreenImages - programBase) + 0x100) >> 4
   mov [innerLoopDS],ax
-  add bx,blueImages >> 4
-  mov [innerLoopES],ax
+  add bx,((blueImages - bssBase) + bssOffset) >> 4
+  mov [innerLoopES],bx
 
   push ds
   mov bx,0x40
@@ -46,6 +58,9 @@ loadPicturesBin:
 .noError:
   mov bx,ax
   mov bp,[picturesBinSegment]
+  mov ax,bp
+  add ax,imageCount*2000
+  mov [picturesEndSegment],ax
 
 %rep imageCount
   mov ds,bp
@@ -123,6 +138,10 @@ initUpdateBuffer:
   out dx,ax
   mov ax,0x0109
   out dx,ax
+  mov dl,0xda
+  cli
+  xor ax,ax
+  mov ds,ax
 
   mov al,0x34
   out 0x43,al
@@ -195,7 +214,6 @@ transitionHandler:
   mov ax,cs
   mov ds,ax
   mov ax,[picturesBinSegment]
-  add ax,1000
   mov [oldImageSegment],ax
   add ax,2000
   mov [newImageSegment],ax
@@ -216,8 +234,7 @@ processRGB:
   mov cx,8000
   mov si,[oldImageSegment]
   add si,2000
-  mov ax,[picturesBinSegment]
-  add ax,imageCount*2000
+  mov ax,[picturesEndSegment]
   cmp si,ax
   jb .noWrapOld
   sub si,imageCount*2000
@@ -228,16 +245,18 @@ processRGB:
   cmp bp,ax
   jb .noWrapNew
   sub bp,imageCount*2000
-.noWRapNew:
+.noWrapNew:
+  mov [newImageSegment],bp
 
   xor di,di
-  mov ax,cs
-  mov es,ax
+  mov es,[innerLoopDS]
+  add si,1000
+  add bp,1000
 
 .loopTop:
-  mov ds,si                                    ; 2
-  mov dx,[di]   ; dx = bbbgggrr r0000000       ; 4
   mov ds,bp                                    ; 2
+  mov dx,[di]   ; dx = bbbgggrr r0000000       ; 4
+  mov ds,si                                    ; 2
   mov bx,[di]   ; bx = BBBGGGRR R0000000       ; 4
   mov ah,bl     ; ah = BBBGGGRR                ; 2
 
@@ -275,15 +294,15 @@ processRGB:
 
 
 
-align 16, db 0
+align 256, db 0
 redGreenImages:
-
-%include "transitionTables.inc"
+dataTables
 
 oldInterrupt8: dw 0, 0
 frameCount: dw 0, 0
 updatePointer: dw updateBuffer
 picturesBinSegment: dw 0
+picturesEndSegment: dw 0
 picturesBin: db 'pictures.bin',0
 picturesBinError: db 'Error reading pictures.bin file.$'
 memoryError: db 'Not enough memory.$'
@@ -297,6 +316,8 @@ spaceStartFracFrame: dw 0
 spaceEndFracFrame: dw 0
 spaceStart: dw 0
 spaceEnd: dw 0
+spaceStartFrac: dw 0
+spaceEndFrac: dw 0
 transitionFrame: dw 0
 innerLoopDS: dw 0
 innerLoopES: dw 0
@@ -317,9 +338,9 @@ offScreenHandler:
   setPIT0Count onScreenPitCycles
 
   mov ax,0xb800
-  mov es,ax
-  mov bx,[cs:updateBufferPointer]
-  mov [cs:bx],0xc3  ; ret
+  mov ds,ax
+  mov bx,[cs:updatePointer]
+  mov byte[cs:bx],0xc3  ; ret
   call updateBuffer
 %if fadeType==1
   mov byte[cs:bx],0xc7
@@ -378,15 +399,37 @@ port61low:
   cmp byte[transitionActive],0
   je doneOnScreenHandler
 
-  mov ax,[spaceStartFrame]
-  mov [spaceStart],ax
-  mov ax,[spaceEndFrame]
-  mov [spaceEnd],ax
+newFrame:
+  mov bx,[spaceStartFrame]
+  add bx,frameIncrement
   mov ax,[spaceStartFracFrame]
+  add ax,frameFracIncrement
+  cmp ax,denominator
+  jl .noStartCarry
+  sub ax,denominator
+  inc bx
+.noStartCarry:
+  mov [spaceStartFrame],bx
+  mov [spaceStart],bx
+  mov [spaceStartFracFrame],ax
   mov [spaceStartFrac],ax
+
+  mov bx,[spaceEndFrame]
+  add bx,frameIncrement
   mov ax,[spaceEndFracFrame]
+  add ax,frameFracIncrement
+  cmp ax,denominator
+  jl .noEndCarry
+  sub ax,denominator
+  inc bx
+.noEndCarry:
+  mov [spaceEndFrame],bx
+  mov [spaceEnd],bx
+  mov [spaceEndFracFrame],ax
   mov [spaceEndFrac],ax
-  mov di,updateBufferStart + 2
+
+  mov di,updateBuffer + 2 - blueImages
+  mov es,[innerLoopES]
 
 %macro doStep 1
     mov si,[spaceStart]
@@ -402,14 +445,14 @@ port61low:
     mov [spaceStartFrac],ax
 
     mov bx,[spaceEnd]
-    add bx,spaceEndIncrement
+    add bx,spaceStepIncrement
     mov ax,[spaceEndFrac]
-    add ax,spaceEndFracIncrement
+    add ax,spaceStepFracIncrement
     cmp ax,0
-    jge %%noStartCarry
+    jge %%noEndCarry
     add ax,denominator
     dec bx
-%%noStartCarry:
+%%noEndCarry:
     mov [spaceEnd],bx
     mov [spaceEndFrac],ax
 
@@ -422,11 +465,14 @@ port61low:
     mov bx,8000
 %%noSaturateEnd:
 
+%if %1 < fadeSteps-1
+
     sub bx,si
+    jle %%rgbIteration0
     add bx,bx
     add si,si
+
     add si,movedWipeSequence - redGreenImages
-    mov es,[innerLoopES]
     mov ds,[innerLoopDS]
     jmp [cs:%%rgbIterationsTable + bx]
 
@@ -445,18 +491,18 @@ port61low:
     ; es:di = pointer into updateBuffer
     ; ds:0 (or 0x4000) = redGreen (red even bytes, green odd bytes) combined RGB values from both images, 2 bytes per character = 16000 bytes
     ; es:0 (or 0x4000) = blue = (even bytes, 0 odd bytes) combined RGB values from both images, 2 bytes per character = 16000 bytes
-    ; ds:redTable, greenTable, blueTable = 8*64*3 = 1536 bytes
+    ; ds:redTable, greenTable, blueTable (all -redGreenImages) = 8*64*3 = 1536 bytes
     ; ds:rgb (at 00000000 000TABLE) = 2048 bytes, 256 byte aligned
     lodsw                                                        ; 3
     stosw                                                        ; 3
     xchg bx,ax                                                   ; 1
     mov dx,[bx]     ; dx =  rrrRRR00 gggGGG00                    ; 4
     mov bx,[es:bx]  ; bx =  bbbBBB00 00000000                    ; 5
-    mov al,[bx+blueTable + step*64 - redGreenImages]   ; al = 0bbb0000            ; 5
+    mov al,[bx+blueTable%[step] - redGreenImages]   ; al = 0bbb0000            ; 5
     mov bl,dh                                                    ; 2
-    add al,[bx+greenTable + step*64 - redGreenImages]  ; al = 0bbbggg0            ; 5
+    add al,[bx+greenTable%[step] - redGreenImages]  ; al = 0bbbggg0            ; 5
     mov bl,dl                                                    ; 2
-    mov ah,[bx+redTable + step*64 - redGreenImages]    ; ax = 0bbbggg0 rrrTABLE   ; 5
+    mov ah,[bx+redTable%[step] - redGreenImages]    ; ax = 0bbbggg0 rrrTABLE   ; 5
     xchg ax,si                                                   ; 1
     movsw                                                        ; 5
     xchg ax,si                                                   ; 1
@@ -467,17 +513,61 @@ port61low:
 %%rgbIteration0:
     mov ax,cs
     mov ds,ax
-%endmacro
+
+%else  ; %1 == fadeSteps-1
+
+    sub bx,si
+    jle %%lastStepIteration0
+    add bx,bx
+    add si,si
+
+    add si,movedWipeSequence
+    mov cx,ds
+    jmp [%%lastStepIterationsTable + bx]
+
+%%lastStepIterationsTable:
+%assign iteration 0
+%rep maximumIterations
+    dw %%lastStepIteration%[iteration]
+    %assign iteration iteration+1
+%endrep
+
+%assign iteration maximumIterations
+%rep maximumIterations
+%%lastStepIteration%[iteration]:
+    lodsw
+    stosw
+    xchg bx,ax
+    mov ds,[newImageSegment]
+    mov ax,[bx]
+    stosw
+    inc di
+    inc di
+    mov ds,cx
+    %assign iteration iteration-1
+%endrep
+%%lastStepIteration0:
+%endif   ; %1 == fadeSteps-1
+
+%endmacro  ;  doStep
 
 %assign step 1
-%rep fadeSteps-1
+%rep fadeSteps
   doStep step
   %assign step step+1
 %endrep
 
-  dec di
-  dec di
+  add di,blueImages - 2
   mov [updatePointer],di
+
+  mov ax,[transitionFrame]
+  inc ax
+  cmp ax,totalFrames
+  jl noEndTransition
+  xor ax,ax
+  mov byte[transitionActive],al
+noEndTransition:
+  mov [transitionFrame],ax
 
 doneOnScreenHandler:
   pop ds
@@ -540,11 +630,14 @@ exit:
   mov ax,0x4c00
   int 0x21
 
+programEnd:
 
 section .bss
 
+bssBase:
+
 stackLow:
-  resb 4096
+  resb 1024
 stackHigh:
 
 movedWipeSequence:
@@ -557,5 +650,5 @@ blueImages:
 updateBuffer:
   resb 368*6 + 1
 
-align 16
+align 16, resb 1
 picturesData:
