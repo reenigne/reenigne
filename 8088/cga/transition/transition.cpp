@@ -18,7 +18,7 @@ private:
     AppendableArray<File>* _collection;
 };
 
-class TransitionWindow : public RootWindow
+class PlasmaWindow : public RootWindow
 {
 public:
     void setOutput(CGAOutput* output) { _output = output; }
@@ -333,7 +333,7 @@ public:
 
         initTransition();
     }
-    ~TransitionWindow() { join(); }
+    ~PlasmaWindow() { join(); }
     void join() { _output->join(); }
     void create()
     {
@@ -891,7 +891,7 @@ private:
     String _asmOutput;
 };
 
-class Program : public WindowProgram<TransitionWindow>
+class Program : public WindowProgram<PlasmaWindow>
 {
 public:
     void run()

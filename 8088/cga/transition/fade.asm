@@ -124,6 +124,17 @@ initUpdateBuffer:
 
   mov ax,3
   int 0x10
+
+  mov ax,[picturesBinSegment]
+  add ax,2000
+  mov ds,ax
+  xor si,si
+  xor di,di
+  mov ax,0xb800
+  mov es,ax
+  mov cx,8000
+  rep movsw
+
   mov dx,0x3d8
   mov al,9
   out dx,al
@@ -511,9 +522,6 @@ newFrame:
     %assign iteration iteration-1
 %endrep
 %%rgbIteration0:
-    mov ax,cs
-    mov ds,ax
-
 %else  ; %1 == fadeSteps-1
 
     sub bx,si
@@ -522,8 +530,8 @@ newFrame:
     add si,si
 
     add si,movedWipeSequence
-    mov cx,ds
-    jmp [%%lastStepIterationsTable + bx]
+    mov ds,[newImageSegment]
+    jmp [cs:%%lastStepIterationsTable + bx]
 
 %%lastStepIterationsTable:
 %assign iteration 0
@@ -535,19 +543,20 @@ newFrame:
 %assign iteration maximumIterations
 %rep maximumIterations
 %%lastStepIteration%[iteration]:
-    lodsw
+    cs lodsw
     stosw
     xchg bx,ax
-    mov ds,[newImageSegment]
     mov ax,[bx]
     stosw
     inc di
     inc di
-    mov ds,cx
     %assign iteration iteration-1
 %endrep
 %%lastStepIteration0:
 %endif   ; %1 == fadeSteps-1
+
+    mov ax,cs
+    mov ds,ax
 
 %endmacro  ;  doStep
 
