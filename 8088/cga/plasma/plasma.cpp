@@ -2,6 +2,29 @@
 #include "alfe/cga.h"
 #include "alfe/config_file.h"
 
+int shadesGeometry[] = {
+    45,   51,   73,   87,
+    41,   57,   71,   91,
+    39,   59,   69,   95,
+    39,   59,   67,   95,
+    37,   61,   67,   97,
+    37,   61,   67,   97,
+    37,   61,   67,   97,
+    37,   61,   67,   99,
+    37,   61,   69,   99,
+    37,   59,   69,   99,
+    37,   59,   69,   99,
+    37,   59,   71,   99,
+    37,   57,   71,   99,
+    37,   57,   71,   99,
+    39,   57,   73,   99,
+    39,   55,   73,   99,
+    39,   55,   75,   97,
+    41,   53,   77,   97,
+    41,   53,   79,   95,
+    43,   51,   81,   95,
+    45,   49,   83,   93};
+
 class PlasmaWindow : public RootWindow
 {
 public:
@@ -103,6 +126,85 @@ public:
         _gradient[13] = 0xeeb1;
         _gradient[14] = 0xefb1;
         _gradient[15] = 0xffb1;
+
+        String image = File("yuiShades.bin", true).contents().
+            subString(0, 16000);
+        for (int i = 0; i < 16000; ++i)
+            _vram[i] = image[i];
+
+        String asmOutput;
+        asmOutput += "%macro updateRoutine 0\n";
+        String asmOutput2;
+        int lastX = (shadesGeometry[0] - 1)/2;
+        for (int i = 0; i < 21; ++i) {
+            int x0 = shadesGeometry[i*4];
+            int x1 = shadesGeometry[i*4 + 1];
+            int x2 = shadesGeometry[i*4 + 2];
+            int x3 = shadesGeometry[i*4 + 3];
+            for (int x = x0; x < x1; x += 2) {
+                _vram[(i + 38)*160 + x - 1] = 0xb1;
+                _vram[(i + 38)*160 + x] = 0;
+                asmOutput += "  movsb\n";
+                if (x != x1 - 2)
+                    asmOutput += "  inc di\n";
+                int nx = (x - 1)/2;
+                if (edgeShade((x-1)/2, i + 38))
+                    asmOutput2 += "  plasmaIteration 1," + decimal(nx - lastX) + "\n";
+                else
+                    asmOutput2 += "  plasmaIteration 0," + decimal(nx - lastX) + "\n";
+                lastX = nx;
+            }
+            asmOutput += "  add di," + decimal(x2 - x1) + "\n";
+            for (int x = x2; x < x3; x += 2) {
+                _vram[(i + 38)*160 + x - 1] = 0xb1;
+                _vram[(i + 38)*160 + x] = 0;
+                asmOutput += "  movsb\n";
+                if (x != x3 - 2)
+                    asmOutput += "  inc di\n";
+                int nx = (x - 1)/2;
+                if (edgeShade((x-1)/2, i + 38))
+                    asmOutput2 += "  plasmaIteration 1," + decimal(nx - lastX) + "\n";
+                else
+                    asmOutput2 += "  plasmaIteration 0," + decimal(nx - lastX) + "\n";
+                lastX = nx;
+            }
+            if (i != 20) {
+                int d = shadesGeometry[i*4 + 4] - x3;
+                asmOutput += "  add di," + decimal(d + 160) + "\n";
+                asmOutput2 += "  plasmaIncrementY\n";
+            }
+        }
+        asmOutput += "%endmacro\n";
+        asmOutput += "%macro plasmaRoutine 0\n";
+        asmOutput += asmOutput2;
+        asmOutput += "%endmacro\n";
+        asmOutput += "%endmacro\n";
+        asmOutput += "%macro dataTables 0\n";
+        asmOutput += "image:\n";
+        for (int i = 0; i < 8000; ++i) {
+            if ((i & 15) == 0)
+                asmOutput += "  dw ";
+            asmOutput += hex(_vram[i*2] + _vram[i*2 + 1]*256, 4);
+            if ((i & 15) != 15)
+                asmOutput += ", ";
+            else
+                asmOutput += "\n";
+        }
+        asmOutput += "sinTable:\n";
+        for (int i = 0; i < 512; ++i) {
+            if ((i & 15) == 0)
+                asmOutput += "  dw ";
+            asmOutput += decimal(_sin[i]);
+            if ((i & 15) != 15)
+                asmOutput += ", ";
+            else
+                asmOutput += "\n";
+        }
+
+        asmOutput += "%endmacro\n";
+        asmOutput += "initlalUpdateOffset equ " +
+            decimal(38*160 + shadesGeometry[0]) + "\n";
+        File("tables.inc").openWrite().write(asmOutput);
     }
     ~PlasmaWindow() { join(); }
     void join() { _output->join(); }
@@ -121,15 +223,20 @@ public:
         _output->restart();
         _animated.restart();
 
-        int p = 0;
+        int c = 0;
         for (int y = 0; y < 100; ++y) {                     
             int vy = _sin[(_frame*16 + y*24) & 0x1ff] + _sin[(-_frame + y*3) & 0x1ff];
             for (int x = 0; x < 80; ++x) {
+                if (!inShade(x, y))
+                    continue;
                 int v = _sin[(_frame*8 + x*40) & 0x1ff] + _sin[(_frame*2 + x*5) & 0x1ff] + vy;
                 Word w = _gradient[clamp(0, 8 + (v >> 8), 15)];
-                _vram[p*2] = w;
-                _vram[p*2 + 1] = (w >> 8);
-                ++p;
+                int p = y*160 + x*2;
+                _vram[p] = w;
+                if (edgeShade(x, y))
+                    w &= 0xf0ff;
+                _vram[p + 1] = (w >> 8);
+                ++c;
             }
         }
         ++_frame;
@@ -138,6 +245,20 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
+    bool edgeShade(int x, int y)
+    {
+        return !inShade(x - 1, y) || !inShade(x + 1, y) || !inShade(x, y - 1) || !inShade(x, y + 1);
+    }
+    bool inShade(int x, int y)
+    {
+        y -= 38;
+        if (y < 0 || y > 20)
+            return false;
+        int* sg = &shadesGeometry[y*4];
+        int xx = x*2 + 1;
+        return (xx >= sg[0] && xx < sg[1]) || (xx >= sg[2] && xx < sg[3]);
+    }
+
     CGAData _data;
     CGASequencer _sequencer;
     CGAOutput* _output;
