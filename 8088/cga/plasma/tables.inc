@@ -892,475 +892,507 @@
   movsb
 %endmacro
 %macro plasmaRoutine 0
-  plasmaIteration 1,0
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,12
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
+  plasmaIteration 1, 0
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 12
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-22
-  plasmaIteration 1,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,8
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -22
+  plasmaIteration 1, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 8
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-25
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,6
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -25
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 6
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-27
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,5
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -27
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 5
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-28
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,4
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -28
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 4
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-29
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,4
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -29
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 4
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-29
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,4
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -29
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 4
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-29
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,4
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -29
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 4
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-30
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,5
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -30
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 5
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-30
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,6
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -30
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 6
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-30
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,6
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -30
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 6
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-30
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,7
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -30
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 7
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-30
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,8
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -30
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 8
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-30
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,8
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -30
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 8
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-29
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,9
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -29
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 9
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-29
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,10
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -29
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 10
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-29
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,11
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -29
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 11
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-27
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,13
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -27
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 13
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-27
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,14
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -27
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 14
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-25
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
-  plasmaIteration 1,16
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 0,1
-  plasmaIteration 1,1
+  plasmaIteration 1, -25
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 16
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 0, 1
+  plasmaIteration 1, 1
   plasmaIncrementY
-  plasmaIteration 1,-24
-  plasmaIteration 1,1
-  plasmaIteration 1,18
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-  plasmaIteration 1,1
-%endmacro
+  plasmaIteration 1, -24
+  plasmaIteration 1, 1
+  plasmaIteration 1, 18
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
+  plasmaIteration 1, 1
 %endmacro
 %macro dataTables 0
+sinTable:
+  db 32, 32, 32, 33, 33, 33, 34, 34, 35, 35, 35, 36, 36, 37, 37, 37
+  db 38, 38, 39, 39, 39, 40, 40, 40, 41, 41, 42, 42, 42, 43, 43, 43
+  db 44, 44, 44, 45, 45, 46, 46, 46, 47, 47, 47, 48, 48, 48, 49, 49
+  db 49, 50, 50, 50, 51, 51, 51, 51, 52, 52, 52, 53, 53, 53, 54, 54
+  db 54, 54, 55, 55, 55, 55, 56, 56, 56, 56, 57, 57, 57, 57, 58, 58
+  db 58, 58, 59, 59, 59, 59, 59, 60, 60, 60, 60, 60, 60, 61, 61, 61
+  db 61, 61, 61, 61, 62, 62, 62, 62, 62, 62, 62, 62, 63, 63, 63, 63
+  db 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63
+  db 64, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63
+  db 63, 63, 63, 63, 63, 62, 62, 62, 62, 62, 62, 62, 62, 61, 61, 61
+  db 61, 61, 61, 61, 60, 60, 60, 60, 60, 60, 59, 59, 59, 59, 59, 58
+  db 58, 58, 58, 57, 57, 57, 57, 56, 56, 56, 56, 55, 55, 55, 55, 54
+  db 54, 54, 54, 53, 53, 53, 52, 52, 52, 51, 51, 51, 51, 50, 50, 50
+  db 49, 49, 49, 48, 48, 48, 47, 47, 47, 46, 46, 46, 45, 45, 44, 44
+  db 44, 43, 43, 43, 42, 42, 42, 41, 41, 40, 40, 40, 39, 39, 39, 38
+  db 38, 37, 37, 37, 36, 36, 35, 35, 35, 34, 34, 33, 33, 33, 32, 32
+  db 32, 31, 31, 30, 30, 30, 29, 29, 28, 28, 28, 27, 27, 26, 26, 26
+  db 25, 25, 24, 24, 24, 23, 23, 23, 22, 22, 21, 21, 21, 20, 20, 20
+  db 19, 19, 19, 18, 18, 17, 17, 17, 16, 16, 16, 15, 15, 15, 14, 14
+  db 14, 13, 13, 13, 12, 12, 12, 12, 11, 11, 11, 10, 10, 10, 9, 9
+  db 9, 9, 8, 8, 8, 8, 7, 7, 7, 7, 6, 6, 6, 6, 5, 5
+  db 5, 5, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 2, 2, 2
+  db 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0
+  db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  db 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2
+  db 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5
+  db 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9
+  db 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 12, 13, 13, 13
+  db 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 18, 18, 19, 19
+  db 19, 20, 20, 20, 21, 21, 21, 22, 22, 23, 23, 23, 24, 24, 24, 25
+  db 25, 26, 26, 26, 27, 27, 28, 28, 28, 29, 29, 30, 30, 30, 31, 31
 image:
   dw 0x268E, 0x62B1, 0x628E, 0x2614, 0x622B, 0x651D, 0x65B0, 0x658E, 0x56B1, 0x65DD, 0x6514, 0xCE8E, 0xEC14, 0xCE1D, 0xCE2B, 0xC61D
   dw 0xC6B0, 0xC68E, 0x6CDE, 0x6C8E, 0xC614, 0x6C05, 0x651D, 0x398E, 0x9314, 0x3811, 0x8820, 0x8820, 0x8820, 0x807B, 0x807B, 0x807B
@@ -1862,38 +1894,5 @@ image:
   dw 0x0020, 0x0020, 0x0020, 0x6C82, 0x606C, 0x807D, 0x6CB1, 0x6CB1, 0x6CB1, 0x6CB1, 0x6CB1, 0x6CB1, 0x6CB1, 0x6CB1, 0x6011, 0x0020
   dw 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020
   dw 0x0120, 0xBEB0, 0xBE8E, 0xEBB1, 0xEB2B, 0xBE14, 0xEB1D, 0xEC1D, 0xEC01, 0xEC8E, 0xCEE8, 0xCE8E, 0x4501, 0x54B0, 0x548E, 0x54B1
-sinTable:
-  dw 0, 12, 25, 37, 50, 62, 75, 87, 100, 112, 125, 137, 150, 162, 175, 187
-  dw 199, 212, 224, 236, 248, 260, 273, 285, 297, 309, 321, 333, 344, 356, 368, 380
-  dw 391, 403, 414, 426, 437, 449, 460, 471, 482, 493, 504, 515, 526, 537, 547, 558
-  dw 568, 579, 589, 599, 609, 620, 629, 639, 649, 659, 668, 678, 687, 696, 706, 715
-  dw 724, 732, 741, 750, 758, 767, 775, 783, 791, 799, 807, 814, 822, 829, 837, 844
-  dw 851, 858, 865, 871, 878, 884, 890, 897, 903, 908, 914, 920, 925, 930, 936, 941
-  dw 946, 950, 955, 959, 964, 968, 972, 976, 979, 983, 986, 990, 993, 996, 999, 1001
-  dw 1004, 1006, 1008, 1010, 1012, 1014, 1016, 1017, 1019, 1020, 1021, 1022, 1022, 1023, 1023, 1023
-  dw 1024, 1023, 1023, 1023, 1022, 1022, 1021, 1020, 1019, 1017, 1016, 1014, 1012, 1010, 1008, 1006
-  dw 1004, 1001, 999, 996, 993, 990, 986, 983, 979, 976, 972, 968, 964, 959, 955, 950
-  dw 946, 941, 936, 930, 925, 920, 914, 908, 903, 897, 890, 884, 878, 871, 865, 858
-  dw 851, 844, 837, 829, 822, 814, 807, 799, 791, 783, 775, 767, 758, 750, 741, 732
-  dw 724, 715, 706, 696, 687, 678, 668, 659, 649, 639, 629, 620, 609, 599, 589, 579
-  dw 568, 558, 547, 537, 526, 515, 504, 493, 482, 471, 460, 449, 437, 426, 414, 403
-  dw 391, 380, 368, 356, 344, 333, 321, 309, 297, 285, 273, 260, 248, 236, 224, 212
-  dw 199, 187, 175, 162, 150, 137, 125, 112, 100, 87, 75, 62, 50, 37, 25, 12
-  dw 0, -12, -25, -37, -50, -62, -75, -87, -100, -112, -125, -137, -150, -162, -175, -187
-  dw -199, -212, -224, -236, -248, -260, -273, -285, -297, -309, -321, -333, -344, -356, -368, -380
-  dw -391, -403, -414, -426, -437, -449, -460, -471, -482, -493, -504, -515, -526, -537, -547, -558
-  dw -568, -579, -589, -599, -609, -620, -629, -639, -649, -659, -668, -678, -687, -696, -706, -715
-  dw -724, -732, -741, -750, -758, -767, -775, -783, -791, -799, -807, -814, -822, -829, -837, -844
-  dw -851, -858, -865, -871, -878, -884, -890, -897, -903, -908, -914, -920, -925, -930, -936, -941
-  dw -946, -950, -955, -959, -964, -968, -972, -976, -979, -983, -986, -990, -993, -996, -999, -1001
-  dw -1004, -1006, -1008, -1010, -1012, -1014, -1016, -1017, -1019, -1020, -1021, -1022, -1022, -1023, -1023, -1023
-  dw -1024, -1023, -1023, -1023, -1022, -1022, -1021, -1020, -1019, -1017, -1016, -1014, -1012, -1010, -1008, -1006
-  dw -1004, -1001, -999, -996, -993, -990, -986, -983, -979, -976, -972, -968, -964, -959, -955, -950
-  dw -946, -941, -936, -930, -925, -920, -914, -908, -903, -897, -890, -884, -878, -871, -865, -858
-  dw -851, -844, -837, -829, -822, -814, -807, -799, -791, -783, -775, -767, -758, -750, -741, -732
-  dw -724, -715, -706, -696, -687, -678, -668, -659, -649, -639, -629, -620, -609, -599, -589, -579
-  dw -568, -558, -547, -537, -526, -515, -504, -493, -482, -471, -460, -449, -437, -426, -414, -403
-  dw -391, -380, -368, -356, -344, -333, -321, -309, -297, -285, -273, -260, -248, -236, -224, -212
-  dw -199, -187, -175, -162, -150, -137, -125, -112, -100, -87, -75, -62, -50, -37, -25, -12
 %endmacro
-initlalUpdateOffset equ 6125
+initialUpdateOffset equ 6125

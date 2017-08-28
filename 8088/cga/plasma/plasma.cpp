@@ -25,6 +25,12 @@ int shadesGeometry[] = {
     43,   51,   81,   95,
     45,   49,   83,   93};
 
+int gradientAttributes[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x08, 0x88, 0x84, 0x44, 0x45, 0x55, 0x59, 0x99,
+    0x93, 0x33, 0x3a, 0xaa, 0xae, 0xee, 0xef, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
 class PlasmaWindow : public RootWindow
 {
 public:
@@ -106,26 +112,8 @@ public:
 
         _sin.allocate(512);
         for (int i = 0; i < 512; ++i)
-            _sin[i] = static_cast<int>(1024*sin(i*tau/512));
+            _sin[i] = static_cast<int>(32*(sin(i*tau/512) + 1));
         _frame = 0;
-
-        _gradient.allocate(16);
-        _gradient[0] = 0x08b1;
-        _gradient[1] = 0x88b1;
-        _gradient[2] = 0x84b1;
-        _gradient[3] = 0x44b1;
-        _gradient[4] = 0x45b1;
-        _gradient[5] = 0x55b1;
-        _gradient[6] = 0x59b1;
-        _gradient[7] = 0x99b1;
-        _gradient[8] = 0x93b1;
-        _gradient[9] = 0x33b1;
-        _gradient[10] = 0x3ab1;
-        _gradient[11] = 0xaab1;
-        _gradient[12] = 0xaeb1;
-        _gradient[13] = 0xeeb1;
-        _gradient[14] = 0xefb1;
-        _gradient[15] = 0xffb1;
 
         String image = File("yuiShades.bin", true).contents().
             subString(0, 16000);
@@ -149,9 +137,9 @@ public:
                     asmOutput += "  inc di\n";
                 int nx = (x - 1)/2;
                 if (edgeShade((x-1)/2, i + 38))
-                    asmOutput2 += "  plasmaIteration 1," + decimal(nx - lastX) + "\n";
+                    asmOutput2 += "  plasmaIteration 1, " + decimal(nx - lastX) + "\n";
                 else
-                    asmOutput2 += "  plasmaIteration 0," + decimal(nx - lastX) + "\n";
+                    asmOutput2 += "  plasmaIteration 0, " + decimal(nx - lastX) + "\n";
                 lastX = nx;
             }
             asmOutput += "  add di," + decimal(x2 - x1) + "\n";
@@ -163,9 +151,9 @@ public:
                     asmOutput += "  inc di\n";
                 int nx = (x - 1)/2;
                 if (edgeShade((x-1)/2, i + 38))
-                    asmOutput2 += "  plasmaIteration 1," + decimal(nx - lastX) + "\n";
+                    asmOutput2 += "  plasmaIteration 1, " + decimal(nx - lastX) + "\n";
                 else
-                    asmOutput2 += "  plasmaIteration 0," + decimal(nx - lastX) + "\n";
+                    asmOutput2 += "  plasmaIteration 0, " + decimal(nx - lastX) + "\n";
                 lastX = nx;
             }
             if (i != 20) {
@@ -178,8 +166,28 @@ public:
         asmOutput += "%macro plasmaRoutine 0\n";
         asmOutput += asmOutput2;
         asmOutput += "%endmacro\n";
-        asmOutput += "%endmacro\n";
         asmOutput += "%macro dataTables 0\n";
+        asmOutput += "sinTable:\n";
+        for (int i = 0; i < 512; ++i) {
+            if ((i & 15) == 0)
+                asmOutput += "  db ";
+            asmOutput += decimal(_sin[i]);
+            if ((i & 15) != 15)
+                asmOutput += ", ";
+            else
+                asmOutput += "\n";
+        }
+        asmOutput += "gradientTable:\n";
+        for (int i = 0; i < 256; ++i) {
+            if ((i & 15) == 0)
+                asmOutput += "  db ";
+            asmOutput += decimal(gradientAttributes[i/8]);
+            if ((i & 15) != 15)
+                asmOutput += ", ";
+            else
+                asmOutput += "\n";
+        }
+
         asmOutput += "image:\n";
         for (int i = 0; i < 8000; ++i) {
             if ((i & 15) == 0)
@@ -190,19 +198,8 @@ public:
             else
                 asmOutput += "\n";
         }
-        asmOutput += "sinTable:\n";
-        for (int i = 0; i < 512; ++i) {
-            if ((i & 15) == 0)
-                asmOutput += "  dw ";
-            asmOutput += decimal(_sin[i]);
-            if ((i & 15) != 15)
-                asmOutput += ", ";
-            else
-                asmOutput += "\n";
-        }
-
         asmOutput += "%endmacro\n";
-        asmOutput += "initlalUpdateOffset equ " +
+        asmOutput += "initialUpdateOffset equ " +
             decimal(38*160 + shadesGeometry[0]) + "\n";
         File("tables.inc").openWrite().write(asmOutput);
     }
@@ -230,12 +227,10 @@ public:
                 if (!inShade(x, y))
                     continue;
                 int v = _sin[(_frame*8 + x*40) & 0x1ff] + _sin[(_frame*2 + x*5) & 0x1ff] + vy;
-                Word w = _gradient[clamp(0, 8 + (v >> 8), 15)];
-                int p = y*160 + x*2;
-                _vram[p] = w;
+                Byte attr = gradientAttributes[v >> 3];
                 if (edgeShade(x, y))
-                    w &= 0xf0ff;
-                _vram[p + 1] = (w >> 8);
+                    attr &= 0xf0;
+                _vram[y*160 + x*2 + 1] = attr;
                 ++c;
             }
         }

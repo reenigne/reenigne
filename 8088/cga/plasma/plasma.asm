@@ -21,6 +21,11 @@ setupMemory:
   mov sp,stackHigh
   sti
 
+  segmentAdjust equ ((sinTable - programBase) - 0x100)
+
+  add ax,segmentAdjust >> 4
+  mov [innerLoopDS],ax
+
   mov ax,0x40
   mov ds,ax
 checkMotorShutoff:
@@ -138,9 +143,18 @@ foregroundTask:
   hlt
   jmp foregroundTask
 
+align 16, db 0
+
+dataTables
+
 oldInterrupt8: dw 0, 0
 frameCount: dw 0, 0
 imr: db 0
+alphaX: dw 0
+alphaY: dw 0
+betaX: dw 0
+betaY: dw 0
+innerLoopDS: dw 0
 
 
 offScreenHandler:
@@ -173,6 +187,11 @@ offScreenHandler:
   pop ax
   iret
 
+gradientTable:
+  db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  db 0x08, 0x88, 0x84, 0x44, 0x45, 0x55, 0x59, 0x99
+  db 0x93, 0x33, 0x3a, 0xaa, 0xae, 0xee, 0xef, 0xff
+  db 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 
 onScreenHandler:
   push ax
@@ -195,6 +214,7 @@ onScreenHandler:
 
   mov ax,cs
   mov ds,ax
+  mov es,ax
 
   inc word[frameCount]
   jnz noFrameCountCarry
@@ -216,19 +236,24 @@ port61low:
   cmp bl,1
   je teardown
 
-%macro plasmaIteration 1
-  add si,5*2-2
-  and si,0x3fe
+%macro plasmaIteration 2
+  %if %2 != 0
+    add si,%2*5*2-2
+    and si,0x3fe
+  %endif
   lodsw
 
-  add bx,40*2
-  and bx,0x3fe
+  %if %2 != 0
+    add bx,%2*40*2
+    and bx,0x3fe
+  %endif
   add ax,[bx]
 
   add ax,dx
 
   xchg ax,bx
-  mov bh,(gradientTable >> 8)
+  mov bl,bh
+  mov bh,((gradientTable - programBase - 0x100) >> 8)
   mov bl,[bx]
   xchg ax,bx
 
@@ -239,11 +264,26 @@ port61low:
   stosb                         ; 144 cycles == 422 iterations during active
 %endmacro
 
-%macro plasmaIncrement 1
+%macro plasmaIncrementY 0
+;  mov dx,
 %endmacro
 
-%macro plasmaIncrementY 0
-%endmacro
+  mov ds,[innerLoopDS]
+
+  mov bx,[alphaY - segmentAdjust]
+  add bx,32
+  mov [alphaY - segmentAdjust],bx
+  mov dx,[
+
+
+  mov di,plasmaData
+  mov si,[alphaX - segmentAdjust]
+  add si,16
+  mov [alphaX - segmentAdjust],si
+  mov bx,[betaX - segmentAdjust]
+  add bx,4
+  mov [betaX - segmentAdjust],bx
+
 
   plasmaRoutine
 
@@ -306,8 +346,6 @@ doneDateLoop:
 exit:
   mov ax,0x4c00
   int 0x21
-
-dataTables
 
 programEnd:
 

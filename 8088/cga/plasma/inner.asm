@@ -1,19 +1,21 @@
-  add si,5*2-2
-  and si,0x3fe
-  lodsw
+  add si,5-1
+  and si,0x1ff
+  lodsb
 
-  add bx,40*2
-  and bx,0x3fe
-  add ax,[bx]
+  add bp,40
+  and bp,0x1ff
+  add al,[bp+0]
 
-  add ax,dx
+  add al,dl
 
-  xchg ax,bx
-  mov bh,(gradientTable >> 8)
-  mov bl,[bx]
-  xchg ax,bx
+;  xchg ax,bx
+;;  mov bh,(gradientTable >> 8)
+;  mov bl,[bx]
+;  xchg ax,bx
+  xlatb
 
-  stosb                         ; 144 cycles == 422 iterations during active
+
+  stosb                         ; 118.265 cycles
 
 
 ; Update:
@@ -22,9 +24,9 @@
   inc di   ; 28.795 cycles  == 654 updates during inactive
 
 
-; Want 452 plasma iterations == 214 scanlines
-; 452 updates == 42.8 scanlines
-; total == 256 scanlines - 6 to spare
+; Want 446 plasma iterations == 173.5 scanlines
+; 446 updates == 42.2 scanlines
+; total == 215.7 scanlines - 46.3 to spare
 
        CLL  CLR  CRL  CRR
 L 39   45   51   73   87
