@@ -142,7 +142,7 @@ public:
                     asmOutput2 += "  plasmaIteration 0, " + decimal(nx - lastX) + "\n";
                 lastX = nx;
             }
-            asmOutput += "  add di," + decimal(x2 - x1) + "\n";
+            asmOutput += "  add di," + decimal(1 + x2 - x1) + "\n";
             for (int x = x2; x < x3; x += 2) {
                 _vram[(i + 38)*160 + x - 1] = 0xb1;
                 _vram[(i + 38)*160 + x] = 0;
@@ -158,7 +158,7 @@ public:
             }
             if (i != 20) {
                 int d = shadesGeometry[i*4 + 4] - x3;
-                asmOutput += "  add di," + decimal(d + 160) + "\n";
+                asmOutput += "  add di," + decimal(d + 161) + "\n";
                 asmOutput2 += "  plasmaIncrementY\n";
             }
         }
@@ -171,7 +171,7 @@ public:
         for (int i = 0; i < 512; ++i) {
             if ((i & 15) == 0)
                 asmOutput += "  db ";
-            asmOutput += decimal(_sin[i]);
+            asmOutput += hex(_sin[i], 2);
             if ((i & 15) != 15)
                 asmOutput += ", ";
             else
@@ -181,7 +181,7 @@ public:
         for (int i = 0; i < 256; ++i) {
             if ((i & 15) == 0)
                 asmOutput += "  db ";
-            asmOutput += decimal(gradientAttributes[i/8]);
+            asmOutput += hex(gradientAttributes[i/8], 2);
             if ((i & 15) != 15)
                 asmOutput += ", ";
             else

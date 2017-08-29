@@ -11,8 +11,6 @@ offScreenPitCycles   equ pitCyclesPerScanline*scanlinesPerFrame - (onScreenPitCy
 
 %include "tables.inc"
 
-bssOffset equ (((programEnd - programBase) + 15) & -16) + 0x100
-
 setupMemory:
   mov ax,cs
   mov ds,ax
@@ -21,7 +19,7 @@ setupMemory:
   mov sp,stackHigh
   sti
 
-  segmentAdjust equ ((sinTable - programBase) - 0x100)
+  segmentAdjust equ ((sinTable - programBase) + 0x100)
 
   add ax,segmentAdjust >> 4
   mov [innerLoopDS],ax
@@ -45,6 +43,7 @@ noMotorShutoff:
 
   mov si,image
   mov ax,0xb800
+  xor di,di
   mov es,ax
   mov cx,8000
   rep movsw
@@ -187,12 +186,6 @@ offScreenHandler:
   pop ax
   iret
 
-gradientTable:
-  db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-  db 0x08, 0x88, 0x84, 0x44, 0x45, 0x55, 0x59, 0x99
-  db 0x93, 0x33, 0x3a, 0xaa, 0xae, 0xee, 0xef, 0xff
-  db 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
-
 onScreenHandler:
   push ax
   push bx
@@ -236,56 +229,83 @@ port61low:
   cmp bl,1
   je teardown
 
+
+  ; Plasma inner loop
+  ;   Registers:
+  ;     SI = pointer into sinTable for alphaX
+  ;     BP = pointer into sinTable for betaX
+  ;     DX = pointer into sinTable for alphaY
+  ;     CX = pointer into sinTable for betaY
+  ;     ES:DI = plasmaData buffer pointer
+  ;     AL = v
+  ;     AH = vy
+  ;     BX = gradientTable
+  ;     DS:0 = sinTable
+  ;     SS:0 = sinTable
+
 %macro plasmaIteration 2
   %if %2 != 0
-    add si,%2*5*2-2
-    and si,0x3fe
+    add si,%2*5-1
+  %else
+    dec si
   %endif
-  lodsw
-
+  and si,0x1ff
+  lodsb
   %if %2 != 0
-    add bx,%2*40*2
-    and bx,0x3fe
+    add bp,%2*40
   %endif
-  add ax,[bx]
-
-  add ax,dx
-
-  xchg ax,bx
-  mov bl,bh
-  mov bh,((gradientTable - programBase - 0x100) >> 8)
-  mov bl,[bx]
-  xchg ax,bx
-
+  and bp,0x1ff
+  add al,[bp]
+  add al,ah
+  xlatb
   %if %1 == 1
     and al,0xf0
   %endif
-
   stosb                         ; 144 cycles == 422 iterations during active
 %endmacro
 
 %macro plasmaIncrementY 0
-;  mov dx,
+  add dx,24
+  and dx,0x1ff
+  mov bx,dx
+  mov ah,[bx]
+  add cx,3
+  and cx,0x1ff
+  mov bx,cx
+  add ah,[bx]
+  mov bx,gradientTable - segmentAdjust
 %endmacro
 
-  mov ds,[innerLoopDS]
+  mov ax,[innerLoopDS]
+  mov ds,ax
+  mov ss,ax
 
-  mov bx,[alphaY - segmentAdjust]
-  add bx,32
-  mov [alphaY - segmentAdjust],bx
-  mov dx,[
-
+  mov dx,[alphaY - segmentAdjust]
+  add dx,16
+  and dx,0x1ff
+  mov [alphaY - segmentAdjust],dx
+  mov bx,dx
+  mov ah,[bx]
+  mov cx,[betaY - segmentAdjust]
+  dec cx
+  and cx,0x1ff
+  mov [betaY - segmentAdjust],cx
+  mov bx,cx
+  add ah,[bx]
+  mov bx,gradientTable - segmentAdjust
 
   mov di,plasmaData
   mov si,[alphaX - segmentAdjust]
-  add si,16
+  add si,8
   mov [alphaX - segmentAdjust],si
-  mov bx,[betaX - segmentAdjust]
-  add bx,4
-  mov [betaX - segmentAdjust],bx
-
+  mov bp,[betaX - segmentAdjust]
+  add bp,2
+  mov [betaX - segmentAdjust],bp
 
   plasmaRoutine
+
+  mov ax,cs
+  mov ss,ax
 
   pop ds
   pop es
