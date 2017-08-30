@@ -10,6 +10,155 @@ typedef Fixed<8, Int16> SFix8p8;
 
 typedef Vector3<SFix8p8> Point3;
 
+Byte characters[] = {
+    0x00,  // ........
+    0x10,  // *.......
+    0x5c,  // **......
+    0x62,  // ***.....
+    0x4c,  // ****....
+    0x44,  // *****...
+    0x35,  // ******..
+    0x45,  // *******.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // .x......
+    0x27,  // .**.....
+    0x6c,  // .***....
+    0x32,  // .****...
+    0x30,  // .*****..
+    0x01,  // .******.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ..x.....
+    0x21,  // ..**....
+    0x05,  // ..***...
+    0x0c,  // ..****..
+    0x15,  // ..*****.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x04,  // ...*....
+    0x0f,  // ...**...
+    0x34,  // ...***..
+    0x4a,  // ...****.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ....x...
+    0x6a,  // ....**..
+    0xf4,  // ....***.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // .....x..
+    0x2f,  // .....**.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x11,  // ......*.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+};
+
+Byte characters2[] = {
+    0x00,  // ........
+    0x10,  // *.......
+    0x5c,  // **......
+    0x62,  // ***.....
+    0x4c,  // ****....
+    0x44,  // *****...
+    0x35,  // ******..
+    0x45,  // *******.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x10,  // *.......
+    0x27,  // .**.....
+    0x6c,  // .***....
+    0x32,  // .****...
+    0x30,  // .*****..
+    0x01,  // .******.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x04,  // ...*....
+    0x21,  // ..**....
+    0x05,  // ..***...
+    0x0c,  // ..****..
+    0x15,  // ..*****.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x04,  // ...*....
+    0x0f,  // ...**...
+    0x34,  // ...***..
+    0x4a,  // ...****.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x04,  // ...*....
+    0x6a,  // ....**..
+    0xf4,  // ....***.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x11,  // ......*.
+    0x2f,  // .....**.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x11,  // ......*.
+
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+    0x00,  // ........
+};
+
+
 struct Face
 {
     Face() { }
@@ -82,17 +231,23 @@ private:
     }
 };
 
-Byte colours[][2] = {
-    {0x00, 0x00},
-    {0x55, 0x55},
-    {0xaa, 0xaa},
-    {0xff, 0xff},
-    {0x66, 0x99},
-    {0x77, 0xdd},
-    {0xbb, 0xee},
-    {0x11, 0x44},
-    {0x22, 0x88},
-    {0x33, 0xcc}};
+Byte colours[] = {
+    0x00,
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06,
+    0x07,
+    0x08,
+    0x09,
+    0x0a,
+    0x0b,
+    0x0c,
+    0x0d,
+    0x0e,
+    0x0f};
 
 static const float phi = (sqrt(5.0f) + 1)/2;
 
@@ -106,12 +261,12 @@ Shape shapes[] {
       {    1,     1,    -1},
       {    1,     1,     1}},
       sqrt(3.0f),
-     {{1, { 0,  4,  6,  2}},
-      {2, { 4,  5,  7,  6}},
-      {1, { 5,  1,  3,  7}},
-      {2, { 1,  0,  2,  3}},
-      {3, { 2,  6,  7,  3}},
-      {3, { 0,  1,  5,  4}}}},
+     {{ 9, { 0,  4,  6,  2}},
+      {10, { 4,  5,  7,  6}},
+      {11, { 5,  1,  3,  7}},
+      {12, { 1,  0,  2,  3}},
+      {13, { 2,  6,  7,  3}},
+      {14, { 0,  1,  5,  4}}}},
 
     {{{    1,     0,     0},  // Octahedron
       {   -1,     0,     0},
@@ -120,24 +275,24 @@ Shape shapes[] {
       {    0,     0,     1},
       {    0,     0,    -1}},
       1,
-     {{3, { 4,  2,  0}},
+     {{1, { 4,  2,  0}},
       {2, { 5,  0,  2}},
-      {2, { 4,  0,  3}},
-      {1, { 5,  3,  0}},
-      {2, { 4,  1,  2}},
-      {1, { 5,  2,  1}},
-      {1, { 4,  3,  1}},
-      {3, { 5,  1,  3}}}},
+      {3, { 4,  0,  3}},
+      {4, { 5,  3,  0}},
+      {5, { 4,  1,  2}},
+      {6, { 5,  2,  1}},
+      {7, { 4,  3,  1}},
+      {8, { 5,  1,  3}}}},
 
     {{{    1,     1,     1},  // Tetrahedron
       {    1,    -1,    -1},
       {   -1,     1,    -1},
       {   -1,    -1,     1}},
       sqrt(3.0f),
-     {{4, { 1,  2,  3}},
-      {1, { 0,  3,  2}},
-      {2, { 3,  0,  1}},
-      {3, { 2,  1,  0}}}},
+     {{1, { 1,  2,  3}},
+      {2, { 0,  3,  2}},
+      {4, { 3,  0,  1}},
+      {8, { 2,  1,  0}}}},
 
     {{{  phi,     1,     0},  // Icosahedron
       { -phi,     1,     0},
@@ -154,23 +309,23 @@ Shape shapes[] {
       sqrt(phi*phi + 1)*1.01f,
      {{1, { 4,  8,  0}},
       {2, {10,  5,  0}},
-      {2, { 9,  4,  2}},
-      {3, { 5, 11,  2}},
-      {2, { 8,  6,  1}},
+      {3, { 9,  4,  2}},
+      {4, { 5, 11,  2}},
+      {5, { 8,  6,  1}},
       {6, { 7, 10,  1}},
-      {5, { 6,  9,  3}},
-      {2, {11,  7,  3}},
-      {3, { 8, 10,  0}},
-      {5, {10,  8,  1}},
-      {1, {11,  9,  2}},
-      {6, { 9, 11,  3}},
-      {5, { 0,  2,  4}},
-      {6, { 2,  0,  5}},
-      {1, { 3,  1,  6}},
-      {3, { 1,  3,  7}},
-      {6, { 4,  6,  8}},
+      {7, { 6,  9,  3}},
+      {6, {11,  7,  3}},
+      {9, { 8, 10,  0}},
+      {10, {10,  8,  1}},
+      {11, {11,  9,  2}},
+      {12, { 9, 11,  3}},
+      {13, { 0,  2,  4}},
+      {14, { 2,  0,  5}},
+      {15, { 3,  1,  6}},
+      {1, { 1,  3,  7}},
+      {2, { 4,  6,  8}},
       {3, { 6,  4,  9}},
-      {1, { 7,  5, 10}},
+      {4, { 7,  5, 10}},
       {5, { 5,  7, 11}}}},
 
     {{{    1,     1,     1},  // Dodecahedron
@@ -194,18 +349,18 @@ Shape shapes[] {
       {    0, phi-1,  -phi},
       {    0, 1-phi,  -phi}},
       sqrt(3.0f),
-     {{1, {13, 12,  0,  8,  1}},
-      {1, {14, 15,  5,  9,  4}},
-      {4, {12, 13,  3, 10,  2}},
-      {2, {15, 14,  6, 11,  7}},
-      {2, {17, 16,  0, 12,  2}},
-      {2, {18, 19,  3, 13,  1}},
-      {4, {16, 17,  6, 14,  4}},
-      {3, {19, 18,  5, 15,  7}},
-      {3, { 9,  8,  0, 16,  4}},
-      {3, {10, 11,  6, 17,  2}},
-      {4, { 8,  9,  5, 18,  1}},
-      {1, {11, 10,  3, 19,  7}}}}};
+     {{ 1, {13, 12,  0,  8,  1}},
+      { 2, {14, 15,  5,  9,  4}},
+      { 3, {12, 13,  3, 10,  2}},
+      { 4, {15, 14,  6, 11,  7}},
+      { 5, {17, 16,  0, 12,  2}},
+      { 6, {18, 19,  3, 13,  1}},
+      { 9, {16, 17,  6, 14,  4}},
+      {10, {19, 18,  5, 15,  7}},
+      {11, { 9,  8,  0, 16,  4}},
+      {12, {10, 11,  6, 17,  2}},
+      {13, { 8,  9,  5, 18,  1}},
+      {14, {11, 10,  3, 19,  7}}}}};
 
 
 typedef Fixed<16, Int32> Fix16p16;
@@ -265,7 +420,7 @@ public:
     {
         Vector3<SFix8p8> s(scale.x*distance, scale.y*distance, scale.z);
         s.x = SFix8p8::fromRepresentation(0x7f5c);
-        s.y = SFix8p8::fromRepresentation(0x6a22);
+        s.y = SFix8p8::fromRepresentation(0x3511);
         _xx = s.x*sines.sin(theta);
         _xy = -s.y*(sines.cos(theta)*sines.cos(phi)); //sines.coscos(theta, phi);
         _xz = -s.z*(sines.cos(theta)*sines.sin(phi)); //sines.cossin(theta, phi);
@@ -326,14 +481,13 @@ public:
     }
     void addSpan(int c, int xL, int xR, int y)
     {
-        _lines0[y].addSpan(colours[c][y & 1], xL, xR);
+        _lines0[y].addSpan(colours[c], xL, xR);
     }
     void renderDeltas(Byte* vram, SpanBuffer* last)
     {
-        for (int y = 0; y < 200; y += 2) {
+        for (int y = 0; y < 165; ++y) {
             _lines[y].renderDeltas(vram, &last->_lines0[y]);
-            _lines[y + 1].renderDeltas(vram + 0x2000, &last->_lines0[y + 1]);
-            vram += 80;
+            vram += 49*2;
         }
     }
 private:
@@ -638,7 +792,7 @@ private:
     private:
         struct Span
         {
-            Byte _x;
+            Word _x;
             Byte _c;
         };
         Span* _s;
@@ -696,18 +850,18 @@ public:
         cgaRegisters[CGAData::registerVerticalTotalHigh] = 0;
         cgaRegisters[CGAData::registerVerticalDisplayedHigh] = 0;
         cgaRegisters[CGAData::registerVerticalSyncPositionHigh] = 0;
-        cgaRegisters[CGAData::registerMode] = 0x0a;
+        cgaRegisters[CGAData::registerMode] = 0x09;
         cgaRegisters[CGAData::registerPalette] = 0x30;
-        cgaRegisters[CGAData::registerHorizontalTotal] = 57 - 1;
-        cgaRegisters[CGAData::registerHorizontalDisplayed] = 40;
-        cgaRegisters[CGAData::registerHorizontalSyncPosition] = 45;
+        cgaRegisters[CGAData::registerHorizontalTotal] = 114 - 1;
+        cgaRegisters[CGAData::registerHorizontalDisplayed] = 49;
+        cgaRegisters[CGAData::registerHorizontalSyncPosition] = 90;
         cgaRegisters[CGAData::registerHorizontalSyncWidth] = 10;
-        cgaRegisters[CGAData::registerVerticalTotal] = 128 - 1;
+        cgaRegisters[CGAData::registerVerticalTotal] = 256 - 1;
         cgaRegisters[CGAData::registerVerticalTotalAdjust] = 6;
-        cgaRegisters[CGAData::registerVerticalDisplayed] = 100;
-        cgaRegisters[CGAData::registerVerticalSyncPosition] = 112;
+        cgaRegisters[CGAData::registerVerticalDisplayed] = 165;
+        cgaRegisters[CGAData::registerVerticalSyncPosition] = 224;
         cgaRegisters[CGAData::registerInterlaceMode] = 2;
-        cgaRegisters[CGAData::registerMaximumScanline] = 1;
+        cgaRegisters[CGAData::registerMaximumScanline] = 0;
         cgaRegisters[CGAData::registerCursorStart] = 6;
         cgaRegisters[CGAData::registerCursorEnd] = 7;
         cgaRegisters[CGAData::registerStartAddressHigh] = 0;
@@ -732,7 +886,7 @@ public:
     }
     void create()
     {
-        setText("CGA Span buffer");
+        setText("CGA +HRES Span buffer");
         setInnerSize(_outputSize);
         _bitmap.setTopLeft(Vector(0, 0));
         _bitmap.setInnerSize(_outputSize);
@@ -745,11 +899,11 @@ public:
         _theta = (_theta + _dTheta) & 0x7ff;
         _phi = (_phi + _dPhi) & 0x7ff;
         float zs = 1;
-        float ys = 99.5f;
-        float xs = 6*ys/5;
-        float distance = (256.0 / 200.0)*(5.0 / 6.0);
+        float ys = 82.5f;
+        float xs = 12*ys/5;
+        float distance = (360.0 / 165.0)*(5.0 / 12.0);
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
-            Vector2<float>(127.5, 100));
+            Vector2<float>(180.0, 82.5));
 
         Shape* shape = &shapes[_shape];
         _corners.ensure(shape->_nVertices);
