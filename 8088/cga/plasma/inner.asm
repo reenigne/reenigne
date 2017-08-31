@@ -28,6 +28,8 @@
 ; 446 updates == 42.2 scanlines
 ; total == 215.7 scanlines - 46.3 to spare
 
+;
+
        CLL  CLR  CRL  CRR
 L 39   45   51   73   87
   40   41   57   71   91

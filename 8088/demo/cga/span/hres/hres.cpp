@@ -506,11 +506,13 @@ private:
             // Can remove this first line if we know we're going to be painting
             // the entire screen.
             _s[0]._c = 0;
-            _s[1]._x = 255;
+            _s[1]._x = 360;
             _n = 1;
         }
         void addSpan(int c, int xL, int xR)
         {
+            //if (xL < 0 || xR > 360)
+            //    printf("Error 1!\n");
             if (xL >= xR)
                 return;
             int i;
@@ -572,8 +574,8 @@ private:
                             break;
                     }
                 }
-                if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
-                    printf("Error\n");
+                if (_s[_n]._x != 360 || _s[_n - 1]._c != 0)
+                    printf("Error 2a\n");
                 return;
             }
             if (xR == _s[j + 1]._x) {
@@ -636,31 +638,50 @@ private:
                             _s[k] = _s[k + o];
                 }
             }
-            if (_s[_n]._x != 255 || _s[_n - 1]._c != 0)
-                printf("Error\n");
+            if (_s[_n]._x != 360 || _s[_n - 1]._c != 0)
+                printf("Error 2\n");
         }
-        //void renderDeltas0(Byte* vram, const Line* o) const
-        //{
-        //    Span* s = _s;
-        //    int xL, xR;
-        //    do {
-        //        xL = s->_x;
-        //        int c = s->_c;
-        //        ++s;
-        //        xR = s->_x;
-        //        for (int x = xL; x < xR; ++x) {
-        //            int a = (x >> 2);
-        //            int s = (x & 3) << 1;
-        //            Byte m = 0xc0 >> s;
-        //            vram[a] = (vram[a] & ~m) | (c & m);
-        //        }
-        //    } while (xR < 255);
-        //}
         void renderDeltas(Byte* vram, const Line* o) const
         {
-            //++globalCount;
-            //if (globalCount == 0x00002a47)
-            //    printf("Break");
+            Span* s = _s;
+            int xL, xR;
+            int edge1 = -1, edge2 = -1;
+            int xLCell = s->_x >> 3;
+            int c0 = 0;
+
+            do {
+                xL = s->_x;
+                int c = s->_c;
+                ++s;
+                xR = s->_x;
+                int xRCell = xR >> 3;
+                if (xRCell > xLCell) {
+                    if (edge1 != -1) {
+                        if (edge2 == -1)
+                            vram[xLCell*2] = characters[edge1];
+                        else
+                            vram[xLCell*2] = characters[edge1*8 + edge2];
+                        vram[xLCell*2 + 1] = c0 + c*16;
+                        ++xLCell;
+                    }
+                    while (xLCell < xRCell) {
+                        vram[xLCell*2] = 0xdb;
+                        vram[xLCell*2 + 1] = c;
+                        ++xLCell;
+                    }
+                    edge1 = -1;
+                    edge2 = -1;
+                }
+                if (edge1 == -1) {
+                    edge1 = xR & 7;
+                    c0 = c;
+                }
+                else
+                    edge2 = xR & 7;
+            } while (xR < 360);
+        }
+        void renderDeltas1(Byte* vram, const Line* o) const
+        {
             Byte* vram0 = vram;
 
             static const Byte mask[4] = {0xff, 0x3f, 0x0f, 0x03};
@@ -810,6 +831,8 @@ public:
       : _wisdom(File("wisdom")), _output(&_data, &_sequencer, &_bitmap),
         _theta(0), _phi(0), _dTheta(3), _dPhi(5), _autoRotate(true), _shape(0)
     {
+        _sequencer.setROM(File("5788005.u33", true));
+
         _output.setConnector(0);          // RGBI
         _output.setScanlineProfile(0);    // rectangle
         _output.setHorizontalProfile(0);  // rectangle
@@ -997,8 +1020,8 @@ public:
 private:
     void horizontalLine(int xL, int xR, int y, int c)
     {
-        if (y < 0 || y >= 200 || xL < 0 || xR > 320)
-             printf("Error\n");
+        if (y < 0 || y >= 165 || xL < 0 || xR > 360)
+             printf("Error 3\n");
 
         _buffers[_buffer].addSpan(c, xL, xR, y);
 
