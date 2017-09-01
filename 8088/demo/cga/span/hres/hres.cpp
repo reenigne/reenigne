@@ -5,8 +5,8 @@
 #include "alfe/cga.h"
 #include "alfe/fix.h"
 
-typedef Fixed<8, Word> UFix8p8;
-typedef Fixed<8, Int16> SFix8p8;
+typedef Fixed<7, Word> UFix8p8;
+typedef Fixed<7, Int16> SFix8p8;
 
 typedef Vector3<SFix8p8> Point3;
 
@@ -186,7 +186,7 @@ struct Shape
         _nVertices = vertices.size();
         _vertices.allocate(_nVertices);
         _vertex0 = &_vertices[0];
-        float distance = (256.0 / 200.0)*(5.0 / 6.0);
+        float distance = (392.0 / 165.0)*(5.0 / 12.0);
         scale = distance/(scale * sqrt(1 + distance*distance));
         for (int i = 0; i < _nVertices; ++i) {
             _vertex0[i] = vertices.begin()[i] * scale;
@@ -364,7 +364,7 @@ Shape shapes[] {
 
 
 typedef Fixed<16, Int32> Fix16p16;
-typedef Fixed<8, Int32> Fix24p8;
+typedef Fixed<7, Int32> Fix24p8;
 typedef Vector2<UFix8p8> Point2;
 
 class SineTable
@@ -419,8 +419,8 @@ public:
         Vector2<SFix8p8> offset)
     {
         Vector3<SFix8p8> s(scale.x*distance, scale.y*distance, scale.z);
-        s.x = SFix8p8::fromRepresentation(0x7f5c);
-        s.y = SFix8p8::fromRepresentation(0x3511);
+        //s.x = SFix8p8::fromRepresentation(0x7f5c);
+        //s.y = SFix8p8::fromRepresentation(0x3511);
         _xx = s.x*sines.sin(theta);
         _xy = -s.y*(sines.cos(theta)*sines.cos(phi)); //sines.coscos(theta, phi);
         _xz = -s.z*(sines.cos(theta)*sines.sin(phi)); //sines.cossin(theta, phi);
@@ -441,7 +441,7 @@ public:
             lmul(_zy, model.z);
         r._xyz.z = lmul(_xz, model.x) + lmul(_yz, model.y) +
             lmul(_zz, model.z);
-        Int16 d = ((r._xyz.z.representation() >> 8) + _distance.representation() + 0x500)/5;
+        Int16 d = ((r._xyz.z.representation() >> 8) + _distance.representation() + 0xa00)/5;
         r._z = SFix8p8::fromRepresentation(d);
         r._xy = Vector2<Fix24p8>(
             Fix24p8::fromRepresentation((r._xyz.x.representation() / d +
@@ -506,12 +506,12 @@ private:
             // Can remove this first line if we know we're going to be painting
             // the entire screen.
             _s[0]._c = 0;
-            _s[1]._x = 360;
+            _s[1]._x = 392;
             _n = 1;
         }
         void addSpan(int c, int xL, int xR)
         {
-            //if (xL < 0 || xR > 360)
+            //if (xL < 0 || xR > 392)
             //    printf("Error 1!\n");
             if (xL >= xR)
                 return;
@@ -574,7 +574,7 @@ private:
                             break;
                     }
                 }
-                if (_s[_n]._x != 360 || _s[_n - 1]._c != 0)
+                if (_s[_n]._x != 392 || _s[_n - 1]._c != 0)
                     printf("Error 2a\n");
                 return;
             }
@@ -638,7 +638,7 @@ private:
                             _s[k] = _s[k + o];
                 }
             }
-            if (_s[_n]._x != 360 || _s[_n - 1]._c != 0)
+            if (_s[_n]._x != 392 || _s[_n - 1]._c != 0)
                 printf("Error 2\n");
         }
         void renderDeltas(Byte* vram, const Line* o) const
@@ -678,7 +678,7 @@ private:
                 }
                 else
                     edge2 = xR & 7;
-            } while (xR < 360);
+            } while (xR < 392);
         }
         void renderDeltas1(Byte* vram, const Line* o) const
         {
@@ -874,7 +874,7 @@ public:
         cgaRegisters[CGAData::registerVerticalDisplayedHigh] = 0;
         cgaRegisters[CGAData::registerVerticalSyncPositionHigh] = 0;
         cgaRegisters[CGAData::registerMode] = 0x09;
-        cgaRegisters[CGAData::registerPalette] = 0x30;
+        cgaRegisters[CGAData::registerPalette] = 0x0f;
         cgaRegisters[CGAData::registerHorizontalTotal] = 114 - 1;
         cgaRegisters[CGAData::registerHorizontalDisplayed] = 49;
         cgaRegisters[CGAData::registerHorizontalSyncPosition] = 90;
@@ -924,9 +924,9 @@ public:
         float zs = 1;
         float ys = 82.5f;
         float xs = 12*ys/5;
-        float distance = (360.0 / 165.0)*(5.0 / 12.0);
+        float distance = (392.0 / 165.0)*(5.0 / 12.0);
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
-            Vector2<float>(180.0, 82.5));
+            Vector2<float>(196.0, 82.5));
 
         Shape* shape = &shapes[_shape];
         _corners.ensure(shape->_nVertices);
@@ -1020,7 +1020,7 @@ public:
 private:
     void horizontalLine(int xL, int xR, int y, int c)
     {
-        if (y < 0 || y >= 165 || xL < 0 || xR > 360)
+        if (y < 0 || y >= 165 || xL < 0 || xR > 392)
              printf("Error 3\n");
 
         _buffers[_buffer].addSpan(c, xL, xR, y);
