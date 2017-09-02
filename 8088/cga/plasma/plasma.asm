@@ -249,19 +249,19 @@ port61low:
   %else
     dec si
   %endif
-  and si,0x1ff
   lodsb
   %if %2 != 0
-    add bp,%2*40
+    add bx,%2*40
   %endif
-  and bp,0x1ff
-  add al,[bp]
-  add al,ah
-  xlatb
+  add al,[bx]
+  xchg ax,si
   %if %1 == 1
-    and al,0xf0
+    mov si,[bp+si+1568]
+  %else
+    mov si,[bp+si]
   %endif
-  stosb                         ; 144 cycles == 422 iterations during active
+  xchg ax,si
+  stosw
 %endmacro
 
 %macro plasmaIncrementY 0
