@@ -672,19 +672,16 @@ private:
                     edge1 = -1;
                     edge2 = -1;
                 }
-                if (edge1 == -1) {
+                if (edge1 == -1)
                     edge1 = xR & 7;
-                    c0 = c;
-                }
                 else
                     edge2 = xR & 7;
+                c0 = c;
             } while (xR < 392);
         }
         void renderDeltas1(Byte* vram, const Line* o) const
         {
             Byte* vram0 = vram;
-
-            static const Byte mask[4] = {0xff, 0x3f, 0x0f, 0x03};
 
             const Span* sn = _s;
             const Span* so = o->_s;
@@ -697,43 +694,42 @@ private:
             int xLo = 0;
             int xRo = so->_x;
 
-            bool havePartial = false;
-            Byte partial;
+            int edge1 = -1, edge2 = -1, c0 = 0;
             do {
-                if ((xRn & 0xfc) == (xLn & 0xfc)) {
-                    if (cn != co || havePartial) {
-                        Byte newBits = cn & mask[xLn & 3] & ~mask[xRn & 3];
-                        if (!havePartial) {
-                            if ((xLn & 3) == 0)
-                                partial = 0;
-                            else
-                                partial = vram[xLn >> 2] & ~mask[xLn & 3];
-                            havePartial = true;
-                        }
-                        partial |= newBits;
+                if ((xRn & 0x1f8) == (xLn & 0x1f8)) {
+                    if (cn != co || edge1 != -1) {
+                        //Byte newBits = cn & mask[xLn & 3] & ~mask[xRn & 3];
+                        //if (!havePartial) {
+                        //    if ((xLn & 3) == 0)
+                        //        partial = 0;
+                        //    else
+                        //        partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                        //    havePartial = true;
+                        //}
+                        //partial |= newBits;
                     }
                     else {
-                        if ((xRo & 0xfc) == (xLn & 0xfc)) {
-                            partial = ((vram[xLn >> 2] & ~mask[xRo & 3]) | (cn & mask[xRo & 3])) & ~mask[xRn & 3];
-                            havePartial = true;
+                        if ((xRo & 0x1f8) == (xLn & 0x1f8)) {
+                            //partial = ((vram[xLn >> 2] & ~mask[xRo & 3]) | (cn & mask[xRo & 3])) & ~mask[xRn & 3];
+                            //havePartial = true;
                         }
                     }
                 }
                 else {
                     if (cn != co) {
-                        if (!havePartial)
-                            partial = vram[xLn >> 2] & ~mask[xLn & 3];
-                        vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                        //if (!havePartial)
+                        //    partial = vram[xLn >> 2] & ~mask[xLn & 3];
+                        //vram[xLn >> 3] = partial | (cn & mask[xLn & 3]);
                     }
                     else {
-                        if (havePartial)
-                            vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
-                        else {
-                            if ((xRo & 0xfc) == (xLn & 0xfc)) {
-                                Byte* p = vram + (xLn >> 2);
-                                *p = (*p & ~mask[xLn & 3]) | (cn & mask[xLn & 3]);
-                            }
-                        }
+                        //if (havePartial)
+                        //    vram[xLn >> 2] = partial | (cn & mask[xLn & 3]);
+                        //else {
+                        //    if ((xRo & 0xfc) == (xLn & 0xfc)) {
+                        //        Byte* p = vram + (xLn >> 2);
+                        //        *p = (*p & ~mask[xLn & 3]) | (cn & mask[xLn & 3]);
+                        //    }
+                        //}
                     }
                     xLn = (xLn + 3) & 0xfc;
                     int storeStart = xLn;
@@ -774,20 +770,20 @@ private:
                     if (storeStart < storeEnd) {
                         int startByte = storeStart >> 2;
                         memset(vram + startByte, cn, (storeEnd >> 2) - startByte);
-                        if ((xRn & 3) != 0) {
-                            partial = cn & ~mask[xRn & 3];
-                            havePartial = true;
-                        }
-                        else
-                            havePartial = false;
+                        //if ((xRn & 3) != 0) {
+                        //    partial = cn & ~mask[xRn & 3];
+                        //    havePartial = true;
+                        //}
+                        //else
+                        //    havePartial = false;
                     }
                     else {
-                        if (co != cn && (xRn & 3) != 0) {
-                            partial = cn & ~mask[xRn & 3];
-                            havePartial = true;
-                        }
-                        else
-                            havePartial = false;
+                        //if (co != cn && (xRn & 3) != 0) {
+                        //    partial = cn & ~mask[xRn & 3];
+                        //    havePartial = true;
+                        //}
+                        //else
+                        //    havePartial = false;
                     }
                 }
                 xLn = xRn;
@@ -802,11 +798,11 @@ private:
                 }
             } while (xLn < 0xff);
 
-            //Byte vram2[64];
+            Byte vram2[64];
             //renderDeltas0(vram2, o);
-            //for (int i = 0; i < 64; ++i)
-            //    if (vram0[i] != vram2[i])
-            //        printf("Error\n");
+            for (int i = 0; i < 64; ++i)
+                if (vram0[i] != vram2[i])
+                    printf("Error\n");
 
 //            renderDeltas0(vram0, o);
         }
@@ -906,7 +902,25 @@ public:
         _buffer = 0;
         _buffers[0].clear();
         _buffers[1].clear();
+
+        for (int i = 0; i < sizeof(shapes)/sizeof(shapes[0]); ++i) {
+            for (int j = 0; j < shapes[i]._nFaces; ++j) {
+                int n = shapes[i]._face0[j]._nVertices;
+                _a.ensure(n + 1);
+                _b.ensure(n + 1);
+                _c.ensure(n + 1);
+                _x.ensure(n);
+                _y.ensure(n);
+                _newX.ensure(n);
+                _newY.ensure(n);
+                _moved.ensure(n);
+            }
+        }
+        _maxBytesChanged = 0;
+        _lastShape = -1;
+        _borders = true;
     }
+    ~SpanWindow() { _output.join(); }
     void create()
     {
         setText("CGA +HRES Span buffer");
@@ -922,7 +936,7 @@ public:
         _theta = (_theta + _dTheta) & 0x7ff;
         _phi = (_phi + _dPhi) & 0x7ff;
         float zs = 1;
-        float ys = 82.5f;
+        float ys = 106.0f; //82.5f;   
         float xs = 12*ys/5;
         float distance = (392.0 / 165.0)*(5.0 / 12.0);
         p.init(_theta, _phi, distance, Vector3<float>(xs, ys, zs),
@@ -940,11 +954,10 @@ public:
         Face* face = shape->_face0;
         int nFaces = shape->_nFaces;
         for (int i = 0; i < nFaces; ++i, ++face) {
-            int* vertices = face->_vertex0;
-            TransformedPoint p0 = corners[vertices[0]];
-            TransformedPoint p1 = corners[vertices[1]];
-            TransformedPoint p2 = corners[vertices[2]];
-            vertices += 3;
+            int* vertex = face->_vertex0;
+            TransformedPoint p0 = corners[vertex[0]];
+            TransformedPoint p1 = corners[vertex[1]];
+            TransformedPoint p2 = corners[vertex[2]];
 
             Vector2<SInt16> s0(p0._xy.x.representation() >> 9, p0._xy.y.representation() >> 9);
             Vector2<SInt16> s1(p1._xy.x.representation() >> 9, p1._xy.y.representation() >> 9);
@@ -953,22 +966,115 @@ public:
             s2 -= s0;
             if (s1.x*s2.y >= s1.y*s2.x)
                 continue;
+
+            float xMin = 392;
+            float xMax = 0;
+            float yMin = 165;
+            float yMax = 0;
+            int nVertices = face->_nVertices;
+            for (int j = 0; j < nVertices; ++j) {
+                TransformedPoint p = corners[*vertex];
+                float x = p._xy.x.representation() / 128.0f;
+                float y = p._xy.y.representation() / 128.0f;
+                _x[j] = x;
+                _y[j] = y;
+                if (x < xMin)
+                    xMin = x;
+                if (y < yMin)
+                    yMin = y;
+                if (x > xMax)
+                    xMax = x;
+                if (y > yMax)
+                    yMax = y;
+                ++vertex;
+            }
+            // _a[1] corresponds to _x[0] and _x[1]
+            float lastX = _x[nVertices - 1];
+            float lastY = _y[nVertices - 1];
+            for (int j = 0; j < nVertices; ++j) {
+                float x = _x[j];
+                float y = _y[j];
+                float a = y - lastY;
+                float b = x - lastX;
+                float c = y*lastX - x*lastY;
+                if (_borders)
+                    c += 3.5*sqrt(a*a + b*b/5.76);
+                _a[j] = a;
+                _b[j] = b;
+                _c[j] = c;
+                lastX = x;
+                lastY = y;
+            }
+            _a[nVertices] = _a[0];
+            _b[nVertices] = _b[0];
+            _c[nVertices] = _c[0];
+
+            // _x[0] corresponds to _a[0] and _a[1]
+            float lastA = _a[0];
+            float lastB = _b[0];
+            float lastC = _c[0];
+            bool viable = true;
+            for (int j = 0; j < nVertices; ++j) {
+                float a = _a[j + 1];
+                float b = _b[j + 1];
+                float c = _c[j + 1];
+
+                float e = a*lastB - lastA*b;
+                if (_borders && e > -300 && e < 300) {
+                    viable = false;
+                    break;
+                }
+                float d = 1.0f/e;
+                float x = (lastB*c - b*lastC)*d;
+                float y = (lastA*c - a*lastC)*d;
+                //if (x < 0 || y < 0 || x >= 392 || y >= 165) {
+                if (_borders && (x < xMin || y < yMin || x > xMax || y > yMax)) {
+                    viable = false;
+                    break;
+                }
+                _newX[j] = x;
+                _newY[j] = y;
+                _moved[j]._xy.x = Fix24p8::fromRepresentation(x*128.0);
+                _moved[j]._xy.y = Fix24p8::fromRepresentation(y*128.0);
+
+                //float d = 256.0f/(a*lastB - lastA*b);
+                //_moved[j]._xy.x = Fix24p8::fromRepresentation((lastB*c - b*lastC)*d);
+                //_moved[j]._xy.y = Fix24p8::fromRepresentation((lastA*c - a*lastC)*d);
+                lastA = a;
+                lastB = b;
+                lastC = c;
+            }
+            if (!viable)
+                continue;
+
+            p0 = _moved[0];
+            p1 = _moved[1];
+            p2 = _moved[2];
             int c = face->_colour;
-            _count = 0;
             fillTriangle(p0._xy, p1._xy, p2._xy, c);
-            //printf("%i ", _count);
-            //if (_count == 0)
-            //    printf("Empty!");
-            int nVertices = face->_nVertices - 3;
-            for (int i = 0; i < nVertices; ++i) {
-                TransformedPoint p3 = corners[*vertices];
+            for (int j = 3; j < nVertices; ++j) {
+                TransformedPoint p3 = _moved[j];
                 fillTriangle(p0._xy, p2._xy, p3._xy, c);
                 p2 = p3;
-                ++vertices;
             }
         }
         //printf("\n");
+        int count = 0;
+        for (int i = 0; i < 0x4000; ++i)
+            _vramTemp[i] = _vram[i];
+
         _buffers[_buffer].renderDeltas(&_vram[0], &_buffers[1 - _buffer]);
+
+        for (int i = 0; i < 0x4000; ++i)
+            if (_vramTemp[i] != _vram[i])
+                ++count;
+        if (count > _maxBytesChanged)
+            _maxBytesChanged = count;
+        if (_lastShape != _shape)
+            _maxBytesChanged = 0;
+        _lastShape = _shape;
+        printf("%i bytes changed, max = %i\n", count, _maxBytesChanged);
+
         _buffer = 1 - _buffer;
         _buffers[_buffer].clear();
         _data.change(0, 0, 0x4000, &_vram[0]);
@@ -1006,6 +1112,9 @@ public:
                 return true;
             case 'N':
                 _shape = (_shape + 1) % (sizeof(shapes)/sizeof(shapes[0]));
+                return true;
+            case 'B':
+                _borders = !_borders;
                 return true;
             case VK_SPACE:
                 _autoRotate = !_autoRotate;
@@ -1178,14 +1287,26 @@ private:
     bool _autoRotate;
     Vector _outputSize;
     Byte _vram[0x4000];
+    Byte _vramTemp[0x4000];
     UFix8p8 _xL;
     UFix8p8 _xR;
     bool _fp;
     int _shape;
+    int _lastShape;
     Array<TransformedPoint> _corners;
     int _count;
     SpanBuffer _buffers[2];
     int _buffer;
+    Array<float> _a;
+    Array<float> _b;
+    Array<float> _c;
+    Array<float> _x;
+    Array<float> _y;
+    Array<float> _newX;
+    Array<float> _newY;
+    Array<TransformedPoint> _moved;
+    int _maxBytesChanged;
+    bool _borders;
 };
 
 class Program : public WindowProgram<SpanWindow>
