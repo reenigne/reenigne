@@ -1,0 +1,46 @@
+Convert coordinates into edge equations
+  x0, y0, x1, y1 => a*x + b*y = c
+  a*x0 + b*y0 = c
+  a*x1 + b*y1 = c
+  a*x1 + b*y1 - a*x0 - b*y0 = 0
+  a*(x1 - x0) + b*(y1 - y0) = 0    One solution is a = y1 - y0, b = x0 - x1
+  (y1 - y0)*x0 + (x0 - x1)*y0 = c = y1*x0 - y0*x0 + x0*y0 - x1*y0 = y1*x0 - x1*y0
+Move edge equations. Slope is the same so we want to adjust c
+  Suppose x1 == x0, y1 > y0. Then we want to increase x0 and x1 by 3.5
+  New x0 and x1 are xN = x0 + 3.5
+  New equation is (y1 - y0)*x = (y1 - y0)*(x0 + 3.5)
+  Want to compute new c
+  Suppose we change c to cN. How far does the line move?
+  We can pick any perpendicular line between the c line and the cN line to measure along. Pick the line that goes through the origin.
+  a*x + b*y = c
+  Distance from origin to (x,y) is d = sqrt(x*x + (c - a*x)*(c - a*x)/b/b)
+  d minimized when e = d*d = x*x + (c - a*x)*(c - a*x)/b/b  minimized
+  de/dx = 0
+  e = x*x + c*c/b/b - 2*a*c*x/b/b + a*a*x*x/b/b
+  de/dx = 2*x - 2*a*c/b/b + 2*a*a*x/b/b = 2*x*(1 - a*a/b/b) - 2*a*c/b/b
+  a*c/b/b = x*(1 - a*a/b/b)
+  x = (a*c/b/b)/(1 - a*a/b/b)
+  Multiply top and bottom by b*b
+  x = a*c/(b*b - a*a)
+  y = (c - a*x)/b
+  x*x + y*y = x*x + (c - a*x)*(c - a*x)/b/b = a*c/(b*b - a*a)*a*c/(b*b - a*a) + (c - a*a*c/(b*b - a*a))*(c - a*a*c/(b*b - a*a))/b/b
+  (x*x + y*y)*(a*a + b*b)*(a*a + b*b)*b*b = a*c*a*c*b*b + (c*(a*a + b*b) - a*a*c)*(c*(a*a + b*b) - a*a*c)
+  (x*x + y*y)*(a*a + b*b)*(a*a + b*b)*b*b = a*c*a*c*b*b + (c*a*a + c*b*b - a*a*c)*(c*a*a + c*b*b - a*a*c)
+  (x*x + y*y)*(a*a + b*b)*(a*a + b*b)*b*b = a*c*a*c*b*b + c*a*a*c*a*a + c*a*a*c*b*b - c*a*a*a*a*c + c*b*b*c*a*a + c*b*b*c*b*b - c*b*b*a*a*c - a*a*c*c*a*a - a*a*c*c*b*b + a*a*c*a*a*c
+  (x*x + y*y)*(a*a + b*b)*(a*a + b*b)*b*b = a*c*a*c*b*b + c*a*a*c*b*b + c*b*b*c*a*a + c*b*b*c*b*b - c*b*b*a*a*c  - a*a*c*c*b*b
+  (x*x + y*y)*(a*a + b*b)*(a*a + b*b) = c*c*(a*a + b*b)
+  (x*x + y*y)*(a*a + b*b) = c*c
+  x*x + y*y = c*c/(a*a + b*b)
+  d = sqrt(x*x + y*y) = c/sqrt(a*a + b*b)
+  So, moving the line from c to cN changes the d by (cN - c)/sqrt(a*a + b*b) = 3.5 hdots
+  cN = c + 3.5*sqrt(a*a + b*b)
+Figure out new coordinates from intersecting the edge equations
+  a0*x + b0*y = c0,  a1*x + b1*y = c1
+  a1*a0*x + a1*b0*y = a1*c0,  a0*a1*x + a0*b1*y = a0*c1
+  a0*b1*x + b0*b1*y = b1*c0,  a1*b0*x + b0*b1*y = b0*c1
+  a1*b0*y - a0*b1*y = a1*c0 - a0*c1
+  a0*b1*x - a1*b0*x = b1*c0 - b0*c1
+
+  y = (a1*c0 - a0*c1)/(a1*b0 - a0*b1)
+  x = (b0*c1 - b1*c0)/(a1*b0 - a0*b1)
+

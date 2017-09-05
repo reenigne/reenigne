@@ -11,7 +11,7 @@
   cld
   rep movsw
 
-  int 0x60
+;  int 0x60
   cli
 
 restart:
@@ -54,7 +54,7 @@ restart:
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0003
+  mov ax,0x0a03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -107,7 +107,6 @@ restart:
   mov ax,0xc00f
   out dx,ax
 
-  mov dl,0xda
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
@@ -120,17 +119,24 @@ restart:
   mov dl,0xd4
 
 
-  mov bx,[cs:initial2]
+  mov bx,[cs:initial]
   add bx,timeSlide
   call bx
 
 loopTop1:
-   inc bx
+  mov ax,0x0902   ; horizontal sync position = 9
+  out dx,ax       ; Second write must occur between char 81 and char 90    216 to 240     between the two hsync_position writes, need 216 cycles. Currently 1270 to 1432  == 162
+  mov ax,0x1901
+  out dx,ax
+  mov ax,0x2000   ; horizontal total = 33
+  out dx,ax       ; Second write must occur between char 81 and char 114   216 to 304
+
   mov ax,0x5a02   ; horizontal sync position = 90
-  out dx,ax       ; Second write must occur between char 0 and char 9
-  mov ax,0x5000   ; horizontal total = 81
-  out dx,ax       ; Second write must occur between char 0 and char 32
+  out dx,ax       ; Second write must occur between char 0 and char 9      0 to 24
+  mov ax,0x5001
   mov ah,bh
+  mov ax,0x5000   ; horizontal total = 81
+  out dx,ax       ; Second write must occur between char 0 and char 32     0 to 85.3
   mov al,0x0c     ; Start address high
   out dx,ax       ; Second write must occur between char 0 and char 114
   mov ah,bl
@@ -142,14 +148,9 @@ loopTop1:
   out dx,al
   mov dl,0xd4
 
-  times 13 nop
+  inc bx
 
-  mov ax,0x0902   ; horizontal sync position = 9
-  out dx,ax       ; Second write must occur between char 81 and char 90
-  mov ax,0x2000   ; horizontal total = 33
-  out dx,ax       ; Second write must occur between char 81 and char 114
-
-  times 1 nop
+  times 4 nop
 
   loop loopTop1
 
@@ -170,7 +171,7 @@ timeSlide:
 
 
 initial: dw 0
-initial2: dw 0
+initial2: dw 3
 
 data:
 
