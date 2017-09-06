@@ -117,37 +117,41 @@ restart:
 
 
   xor bx,bx
-  mov cx,65535
+  mov cx,32767
   mov dl,0xd4
   mov di,0x5a02
   mov bp,0x0902
 
 
-  mov bx,[cs:initial2]
+  mov bx,[cs:initial]
   add bx,timeSlide
   call bx
 
 loopTop1:
   mov ax,0x2000   ;a
   out dx,ax
-  inc ax
-;  mov ax,0x2001   ;b
+;  inc ax
+  mov ax,0x2001   ;b
   out dx,ax
-  xchg ax,di
-;  mov ax,0x5a02   ;c
+;  xchg ax,di
+  mov ax,0x0902   ;c
   out dx,ax
-  xchg ax,di
-  lodsb
-  out 0xe0,al
+;  xchg ax,di
+
+;  nop
+
   mov ax,0x5001   ;d
   out dx,ax
-  dec ax
-;  mov ax,0x5000   ;e
+;  dec ax
+  mov ax,0x5000   ;e
   out dx,ax
-  xchg ax,bp
-;  mov ax,0x0902   ;f
+;  xchg ax,bp
+  mov ax,0x5a02   ;f
   out dx,ax
-  xchg ax,bp
+;  xchg ax,bp
+
+;  lodsb
+;  out 0xe0,al
 
   mov ah,bh
   mov al,0x0c
@@ -192,7 +196,7 @@ loopTop1:
 
 
   inc word[cs:initial]
-  cmp word[cs:initial],1 ;76
+  cmp word[cs:initial],76
   je done
   jmp restart
 
@@ -207,15 +211,7 @@ timeSlide:
 
 
 initial: dw 0
-initial2: dw 3
-
-; 1  no
-; 2  no
-; 3  no
-; 4  no
-; 5  no
-; 6  no
-; 7  no
+initial2: dw 70
 
 data:
 

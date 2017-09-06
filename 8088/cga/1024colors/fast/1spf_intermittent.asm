@@ -119,8 +119,6 @@ restart:
   xor bx,bx
   mov cx,65535
   mov dl,0xd4
-  mov di,0x5a02
-  mov bp,0x0902
 
 
   mov bx,[cs:initial2]
@@ -130,24 +128,16 @@ restart:
 loopTop1:
   mov ax,0x2000   ;a
   out dx,ax
-  inc ax
-;  mov ax,0x2001   ;b
+  mov ax,0x2001   ;b
   out dx,ax
-  xchg ax,di
-;  mov ax,0x5a02   ;c
+  mov ax,0x5a02   ;c
   out dx,ax
-  xchg ax,di
-  lodsb
-  out 0xe0,al
   mov ax,0x5001   ;d
   out dx,ax
-  dec ax
-;  mov ax,0x5000   ;e
+  mov ax,0x5000   ;e
   out dx,ax
-  xchg ax,bp
-;  mov ax,0x0902   ;f
+  mov ax,0x0902   ;f
   out dx,ax
-  xchg ax,bp
 
   mov ah,bh
   mov al,0x0c

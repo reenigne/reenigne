@@ -2,7 +2,7 @@
 
 FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
-REFRESH      EQU 0     ; Refresh period in cycles, or 0 to disable
+REFRESH      EQU 19   ; Refresh period in cycles, or 0 to disable
 
   cli
   mov ax,cs
@@ -172,32 +172,71 @@ lut: db 0x88,8
 
 
 testRoutine:
-  ; Append the code to test - it should end with a "ret"
+  mov dx,0x3d4
+  mov cx,0xffff
+  xor si,si
 
-  mov ax,0x89ab
-  mov ds,ax
-  mov ax,0x9acd
-  mov es,ax
+%macro innerLoop 0
+;  mov ax,0x2000
+;  out dx,ax
+;  mov ax,0x2001
+;  out dx,ax
+;  mov ax,0x5a02
+;  out dx,ax
+;  mov ax,0x5001
+;  out dx,ax
+;  mov ax,0x5000
+;  out dx,ax
+;  mov ax,0x0902
+;  out dx,ax
 
-  mov ax,0x1234
-  mov bx,0x2345
-  mov cx,0x3579
-  mov dx,0x4abc
-  mov si,0x5678
-  mov di,0x6996
-  mov bp,0x7adf
-  mov [ss:bx],dx
-  mov [ss:bx+2],bx
+  mov ax,0x2000   ;a
+  out dx,ax
+  inc ax
+;  mov ax,0x2001   ;b
+  out dx,ax
+  xchg ax,di
+;  mov ax,0x5a02   ;c
+  out dx,ax
+  xchg ax,di
+  lodsb
+  out 0xe0,al
+  mov ax,0x5001   ;d
+  out dx,ax
+  dec ax
+;  mov ax,0x5000   ;e
+  out dx,ax
+  xchg ax,bp
+;  mov ax,0x0902   ;f
+  out dx,ax
+  xchg ax,bp
 
-  mov bp,[ss:bx]
-  mov ax,0x1234
-  mov si,0x5678
-  db 0xc4, 0xf0    ; lds si,ax
-  db 0xc4, 0xf0    ; lds si,ax
-  db 0xc4, 0xf0    ; lds si,ax
 
-  db 0xff, 0xff
-  pop ax
+  mov ah,bh
+  mov al,0x0c
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  mov al,bl
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+  inc bx
+
+;   inc bx
+
+;  times 4 nop
+
+;  mov al,0x0f
+;  mul al
+  loop %%loopTop
+%%loopTop:
+%endmacro
+
+%rep 5
+  innerLoop
+%endrep
 
   ret
-
