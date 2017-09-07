@@ -386,7 +386,7 @@ cpu 8086
 %endmacro
 
 
-%macro lockstep 0
+%macro lockstep 1
   mov dx,0x03d8
   mov al,0
   out dx,al
@@ -469,8 +469,14 @@ cpu 8086
   mul cl
   jmp $+2
 
-  initCGA 1
-  ensureRefresh
+  %if %1==0
+    initCGA 1
+    ensureRefresh
+  %endif
+%endmacro
+
+%macro lockstep 0
+  lockstep 0
 %endmacro
 
 

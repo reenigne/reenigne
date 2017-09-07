@@ -11,12 +11,68 @@
   cld
   rep movsw
 
+  ; Determine and print phase
+  lockstep 1
+  mov ax,cs
+  mov es,ax
+  mov ds,ax
+  mov di,data
+
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+  %rep 12
+    readPIT16 2
+    stosw
+  %endrep
+
+  refreshOn
+
+  mov ax,'0'
+  mov di,[data+8]
+  mov si,[data+6]
+  mov bx,[data+4]
+  mov cx,[data+2]
+  mov dx,[data]
+  sub dx,cx
+  sub dx,20
+  jnz notPhase0
+  add ax,1
+notPhase0:
+  sub cx,bx
+  sub cx,20
+  jnz notPhase1
+  add ax,2
+notPhase1:
+  sub bx,si
+  sub bx,20
+  jnz notPhase2
+  add ax,4
+notPhase2:
+  sub si,di
+  sub si,20
+  jnz notPhase3
+  add ax,8
+notPhase3:
+
+  sti
+  outputCharacter
+  cli
+
+
 restart:
   sti
   int 0x60
   cli
 
-  lockstep
+  lockstep 1
 
   ; Mode                                                09
   ;      1 +HRES                                         1
@@ -51,7 +107,7 @@ restart:
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     5a
-  mov ax,0x5a02
+  mov ax,0x0902
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
@@ -110,6 +166,31 @@ restart:
 
   mov dl,0xda
 
+  times 107 nop
+
+
+  mov ax,cs
+  mov es,ax
+  mov ds,ax
+  mov di,[dataPointer]
+
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+  %rep 5
+    readPIT16 2
+    stosw
+  %endrep
+  mov [dataPointer],cs
+
+
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,19
@@ -117,7 +198,7 @@ restart:
 
 
   xor bx,bx
-  mov cx,65535
+  mov cx,60000
   mov dl,0xd4
 
 
@@ -126,17 +207,17 @@ restart:
   call bx
 
 loopTop1:
-  mov ax,0x2000   ;a
+  mov ax,0x2001
   out dx,ax
-  mov ax,0x2001   ;b
+  mov ax,0x2000
   out dx,ax
-  mov ax,0x5a02   ;c
+  mov ax,0x5a02
   out dx,ax
-  mov ax,0x5001   ;d
+  mov ax,0x5001
   out dx,ax
-  mov ax,0x5000   ;e
+  mov ax,0x5000
   out dx,ax
-  mov ax,0x0902   ;f
+  mov ax,0x0902
   out dx,ax
 
   mov ah,bh
@@ -152,42 +233,55 @@ loopTop1:
   mov dl,0xd4
   inc bx
 
-;   inc bx
-;  mov ax,0x5a02   ; horizontal sync position = 90
-;  out dx,ax       ; Second write must occur between char 0 and char 9
-;  mov ax,0x5000   ; horizontal total = 81
-;  out dx,ax       ; Second write must occur between char 0 and char 32
-;  mov ah,bh
-;  mov al,0x0c     ; Start address high
-;  out dx,ax       ; Second write must occur between char 0 and char 114
-;  mov ah,bl
-;  inc ax          ; Start address low
-;  out dx,ax       ; Second write must occur between char 0 and char 114
-
-;  mov al,bl
-;  mov dl,0xd9
-;  out dx,al
-;  mov dl,0xd4
-
-;  times 13 nop
-
-;  mov ax,0x0902   ; horizontal sync position = 9
-;  out dx,ax       ; Second write must occur between char 81 and char 90
-;  mov ax,0x2000   ; horizontal total = 33
-;  out dx,ax       ; Second write must occur between char 81 and char 114
-
-;  times 1 nop
-
   loop loopTop1
 
 
   inc word[cs:initial]
-  cmp word[cs:initial],1 ;76
+  cmp word[cs:initial],76
   je done
   jmp restart
 
 done:
   sti
+
+  mov ax,cs
+  mov ds,ax
+  mov di,[dataPointer2]
+  mov ax,'0'
+  mov bp,[di+8]
+  mov si,[di+6]
+  mov bx,[di+4]
+  mov cx,[di+2]
+  mov dx,[di]
+  sub dx,cx
+  sub dx,20
+  jnz notPhase0
+  add ax,1
+notPhase0:
+  sub cx,bx
+  sub cx,20
+  jnz notPhase1
+  add ax,2
+notPhase1:
+  sub bx,si
+  sub bx,20
+  jnz notPhase2
+  add ax,4
+notPhase2:
+  sub si,bp
+  sub si,20
+  jnz notPhase3
+  add ax,8
+notPhase3:
+
+  outputCharacter
+
+  add di,10
+  mov [dataPointer2],di
+  cmp di,[dataPointer]
+  jne done
+
+
   int 0x67
 
 
@@ -196,16 +290,8 @@ timeSlide:
   ret
 
 
-initial: dw 0
-initial2: dw 3
-
-; 1  no
-; 2  no
-; 3  no
-; 4  no
-; 5  no
-; 6  no
-; 7  no
+initial: dw 60
+initial2: dw 58
 
 data:
 
@@ -309,4 +395,5 @@ data:
   dw 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
   dw 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
   dw 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+
 
