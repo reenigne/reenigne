@@ -16,7 +16,7 @@
   mov ax,cs
   mov es,ax
   mov ds,ax
-  mov di,data
+  mov di,[dataPointer]
 
   in al,0x61
   or al,3
@@ -28,7 +28,8 @@
   mov al,0
   out dx,al
   out dx,al
-  %rep 12
+
+  %rep 5
     readPIT16 2
     stosw
   %endrep
@@ -73,6 +74,31 @@ restart:
   cli
 
   lockstep 1
+  mov ax,cs
+  mov es,ax
+  mov ds,ax
+  mov di,[dataPointer]
+
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+
+  %rep 5
+    readPIT16 2
+    stosw
+  %endrep
+  mov [dataPointer],di
+
+    initCGA 1
+    ensureRefresh
+
 
   ; Mode                                                09
   ;      1 +HRES                                         1
@@ -169,27 +195,7 @@ restart:
   times 107 nop
 
 
-  mov ax,cs
-  mov es,ax
-  mov ds,ax
-  mov di,[dataPointer]
-
-  in al,0x61
-  or al,3
-  out 0x61,al
-
-  mov al,TIMER2 | BOTH | MODE2 | BINARY
-  out 0x43,al
-  mov dx,0x42
-  mov al,0
-  out dx,al
-  out dx,al
-  %rep 5
-    readPIT16 2
-    stosw
-  %endrep
-  mov [dataPointer],cs
-
+  mov dx,0x3d4
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
@@ -255,31 +261,32 @@ done:
   mov dx,[di]
   sub dx,cx
   sub dx,20
-  jnz notPhase0
+  jnz .notPhase0
   add ax,1
-notPhase0:
+.notPhase0:
   sub cx,bx
   sub cx,20
-  jnz notPhase1
+  jnz .notPhase1
   add ax,2
-notPhase1:
+.notPhase1:
   sub bx,si
   sub bx,20
-  jnz notPhase2
+  jnz .notPhase2
   add ax,4
-notPhase2:
+.notPhase2:
   sub si,bp
   sub si,20
-  jnz notPhase3
+  jnz .notPhase3
   add ax,8
-notPhase3:
+.notPhase3:
 
   outputCharacter
 
+  mov di,[dataPointer2]
   add di,10
   mov [dataPointer2],di
   cmp di,[dataPointer]
-  jne done
+  jb done
 
 
   int 0x67
@@ -291,7 +298,9 @@ timeSlide:
 
 
 initial: dw 60
-initial2: dw 58
+initial2: dw 74
+dataPointer: dw data
+dataPointer2: dw data
 
 data:
 

@@ -172,6 +172,58 @@ lut: db 0x88,8
 
 
 testRoutine:
+  aaa
+  aaa
+  aaa
+  aaa
+  aaa
+  aaa
+  aaa
+  aaa
+  aaa
+  aaa
+  ret
+
+
+  mov dx,0x3d9
+%rep 10
+  in al,dx
+  test al,8
+  jz $+2
+%endrep
+%rep 10
+  in al,dx
+  test al,8
+  jnz $+2
+%endrep
+
+
+
+  mov di,data
+  mov ax,cs
+  mov es,ax
+  mov dx,0x3da
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+  in al,dx
+  stosb
+
 ;  readPIT16 0
 ;  stosw
 ;  readPIT16 0
