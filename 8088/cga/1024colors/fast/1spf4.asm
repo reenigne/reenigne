@@ -67,9 +67,12 @@ notPhase3:
   rep movsw
 
 restart:
+
   sti
   captureScreen
   cli
+
+  lockstep 1
 
   xor ax,ax
   mov ds,ax
@@ -98,6 +101,7 @@ restart:
   out dx,ax
   mov ax,0x0100
   out dx,ax
+
 
 
   ; Mode                                                09
@@ -195,9 +199,9 @@ restart:
   mov ds,ax
   mov word[0x20],interrupt8
   mov word[0x22],cs
-  writePIT16 0, 2, 2
+  writePIT16 0, 2, 2         ; Ensure we have a pending IRQ0
 
-  safeRefreshOff
+;  safeRefreshOff
 
   mov dx,0x3da
   waitForDisplayDisable
@@ -208,9 +212,9 @@ restart:
 
 
   times 6 nop
-  times 6 nop
-  times 6 nop
-  times 6 nop
+;  times 6 nop
+;  times 6 nop
+;  times 6 nop
 
 
   mov dl,0xd4
@@ -226,7 +230,7 @@ restart:
   add bx,timeSlide
   call bx
 
-  writePIT16 0, 2, 19912
+  writePIT16 0, 2, 19912     ; Now counting down with the frame, one IRQ0 pending
 
   ensureRefresh
 
@@ -295,7 +299,7 @@ loopTop1:
   loop loopTop1
 
   inc word[cs:initial]
-  cmp word[cs:initial],23
+  cmp word[cs:initial],6
   je done
 
   mov al,0x20

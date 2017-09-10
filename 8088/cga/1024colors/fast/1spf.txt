@@ -1,0 +1,434 @@
+With hsync width 0, htotal = 0x66, get an active area with:
+  hsync position = 0x53  yes
+                   0x56  yes
+                   0x57  yes
+                   0x58  no
+  hsync position = 0x5a  no
+With hsync width 0xf, htotal = 0x66, get an active area with:
+                   0x58  yes
+                   0x59  no
+
+if hsync_position + hsync_width > htotal + 1  then we don't get an active area
+if the hsync never starts, then this isn't an issue
+
+With horizontal_sync_position = 0x73, horizontal_total = 0x66 (103 characters)
+  horizontal_displayed = 0x66  start address latches
+  horizontal_displayed = 0x67  start address doesn't latch
+
+
+So, plan is:
+  horizontal_total = 80 and 32 (81 and 33, totalling 114)
+  horizontal_displayed = 80  (80 columns in active scanline)
+  horizontal_sync_position = 90 and 9 (no hsync in active, hsync at CRT char 90 in inactive)
+  horizontal_sync_width = 0 or 15 (doesn't matter)
+  vertical_total = 1         (2 rows per CRTC frame)
+  vertical_total_adjust = 0  (0 extra scanlines)
+  vertical_displayed = 1     (the active scanline forms the active width, the inactive scanline forms the overscan)
+  vertical_sync_position = 25  (doesn't matter for now)
+  interlace_mode = 0         (non-interlaced)
+  max_scan_line_address = 0  (1 scanline per row)
+
+Sequence:
+  CRT char  CRTC char  raster             CPU
+    0         0        active start
+                                          Set horizontal_sync_position to 90
+    9         9
+                                          Set horizontal_total to 80
+   32        32
+                                          Set start address
+   80        80        inactive start
+   81         0        second CRTC frame  Set horizontal_sync_position to 9
+   90         9        hsync start
+                                          Set horizontal_total to 32
+  106        25        hsync end
+
+  114 = 0    33 = 0    active start
+
+
+
+Distance from palette change to hsync start = 144 cycles
+Palette write is at char 36 == cycle 96
+palette write is at cycle 1420, first write at cycle 1299, so first write is at -25, which is 37 cycles too early
+
+
+Distance from palette change to hsync start = 120 cycles
+Palette write is at char 45 == cycle 120
+
+
+What is the latency of waitForDisplayEnable? Something like 39.25 cycles - too many to be able to avoid cycle counting
+  Presumably it takes 39 cycles when there's no refresh
+
+2 scanlines is 1824 hdots
+39 cycles is 117 hdots      1824 % 117 == 69  117 % 69 == 48  69 % 48 == 21  48 % 21 == 6  21 % 6 == 3  so gcd(1824, 117) == 3  == 1 CPU cycle
+40 cycles is 120 hdots      1824 % 120 == 24  so gcd(1824, 120) == 24  == 8 CPU cycles, this could miss the pulse
+
+
+
+Set horizontal_total to 32             0:80 - 1:00    34   a   1301   0  0      1299   0   0
+Set horizontal_displayed to 32         0:80 - 1:00    34   b   1329  28 11      1319  20   8
+Set horizontal_sync_position to 90     0:90 - 1:09    33   c   1357  56 21      1339  40  15
+Set horizontal_displayed to 80         0:00 - 0:32    32   d   1390  89 33      1399 100  38
+Set horizontal_total to 80             0:00 - 0:32    80   e   1418 117 44      1419 120  45
+Set horizontal_sync_position to 9      0:09 - 0:90    81   f   1451 150 56      1439 140  53
+Set start_address_high                                                          1480 181  68
+Set start_address_low                                                           1508 209  78
+
+
+0        10        20        30        40        50        60        70        80        90       100       110   0        10        20        30        40        50        60        70        80        90       100       110
+|         |         |         |         |         |         |         |         |         |         |         |   |         |         |         |         |         |         |         |         |         |         |         |
+                                                                                          Ssssssssssssssss
+                                                                                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa                                                                                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                                                                bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb                                                                                bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+ccccccccc                                                                                 ccccccccccccccccccccccccccccccccc                                                                                 cccccccccccccccccccccccc
+dddddddddddddddddddddddddddddddd                                                                                  dddddddddddddddddddddddddddddddd
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee                                                                                  eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+         fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff                                 fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+                                                                                 a       b      c                      d      e       f              H         L
+
+
+          x              x        x          x                                   x          x         x           x          x            x        x          x
+                                                                                 a          b         c           d          e            f        H          L
+                                                                                                     a          b         c           d          e            f        H          L
+
+
+
+
+
+
+1301   0
+1329  11
+1357  21
+1395  35
+1423  46
+1454  58
+1482  68
+1510  78
+
+In 1spf_intermittent, when it's working, why are there only a few initial phases where it works? There should be about 8.
+How sure are we that the CRTC works by counting up and comparing rather than by loading and counting down?
+  Pretty sure - counting down would require more transistors and horizontal probably works the same way as vertical
+There is something wrong with my model of how the CRTC works. Possible problems:
+  Counting down instead of up
+    How could we test this?
+      Change horizontal displayed etc during active time and see what happens
+
+Plan:
+  Display lockstep_visible and see if the CRTC copes with a 1-column screen
+    It does, but the column could still be free-running
+      Will need to have refresh off
+
+"in al,dx ; stosb" is 21 cycles == 63 hdots
+4*8 == 32 hdots
+gcd(63, 32) = 1
+
+waitForDisplayEnable == 37 cycles with refresh off
+
+
+VMX, VSX, -misel
+
+
+
+  Figure out why 1spf_intermittent is doing differenet things despite being in lockstep
+
+  Try modifying values slightly to see how it affects number of working nop-counts
+
+
+With refresh disabled, "readPIT16 0 / stosw" is 83 cycles (20.75 IOs)
+
+
+Phase 2 - worked with initial=70 (twice) but then not in 1spf_intermittent.bin ?  Did I change something between them? No
+  Try 66
+  Try 61, 63, 66, 69, 71
+
+Phase 4 - worked with initial=21 then worked in  1spf_intermittent.bin as well   13 NOPs before refresh set
+  This doesn't work phase 2
+
+
+
+New version (with "initCGA 1" and safeRefresh in place again)
+Phase 2, 1spf2_intermittent.bin
+
+
+
+In all our experiments, we seem to get overscan and active swapped much more often than correct
+  This suggests there is some problem with having a scanline that has active data but no hsync
+
+
+Plan:
+  Try with 1 row of 2 scanlines
+    That will put things in overscan though
+  Try having vertical_displayed == 2 and setting horizonta_displayed == 1 in the overscan - then both scanlines are active and there's no asymmetry problem
+    Then increase htotal for active scanline to push the extra column under the bezel
+  Can we make do without moving hsync? That implies having hsync in the long scanline
+    Suppose we want 15 characters for hsync (90-105) - then we have 9 characters
+
+
+Suppose our two horizontal totals are tl and tr, tl+tr == 114, tl>tr. Left scanline is 0 to tl, right scanline is tl to tl+tr
+e: Set ht=tl between 0 and tr (width tr)
+a: Set ht=tr between tl and tl+tr (width tr)
+Suppose our two horizontal displayed values are dl and dr. dl>dr. dl<=tl. dr<=tr. dl=80. Want to minimize dr.
+d: Set hd=dl between tl+dr and dr (width (tl+tr+dr)-(tl+dr) == tr)
+b: Set hd=dr between dl and tl+dr (width dr+tl-dl). So we can have dr=1 safely
+Suppose our two horizontal sync positions are sl and sr. sl > tl to suppress sync. sr < tr-sw  (sw = sync width)
+c: Set hs=sl between tl+sr and sr (width (tl+tr+sr)-(tl+sr) == tr)
+f: Set hs=sr between sr and tl+sr (width tl)
+
+Worked example:
+  active_left(80)  overscan_left(N)  active_right(1)  overscan_right(1)  sync(15)  overscan_final(17-N)
+  Want the sync to be at 90, which gives N=8
+  tl = 80+N = 88         (program 0x57)
+  tr = 1+1+15+17-N = 26  (program 0x19)
+  dl = 80
+  dr = 1
+  sl = 90
+  sr = 2
+  a width = tr = 26
+  b width = dr+tl-dl = 1+88-80 = 9 characters = 72 hdots = 24 cycles = 6 IOs
+  c width = tl = 26
+  d width = tr = 26
+  e width = tr = 26
+  f width = tl = 88
+0        10        20        30        40        50        60        70        80        90       100       110   0        10        20        30        40        50        60        70        80        90       100       110
+|         |         |         |         |         |         |         |         |         |         |         |   |         |         |         |         |         |         |         |         |         |         |         |
+                                                                                          Sssssssssssssss
+                                                                                        aaaaaaaaaaaaaaaaaaaaaaaaaa                                                                                        aaaaaaaaaaaaaaaaaaaaaaaaaa
+                                                                                bbbbbbbbb                                                                                                         bbbbbbbbb
+cc                                                                                        cccccccccccccccccccccccccc                                                                                        cccccccccccccccccccccccc
+d                                                                                        dddddddddddddddddddddddddd                                                                                        ddddddddddddddddddddddddd
+eeeeeeeeeeeeeeeeeeeeeeeee                                                                                         eeeeeeeeeeeeeeeeeeeeeeeee
+  fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff                           fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+                                                                                 b          a        d        c           e            f
+
+Suppose we have a 34-character wide initial state
+
+
+
+So, order is badcefHLPS
+
+  mov bp,0x5001
+  mov di,0x5a02
+
+
+
+  mov ax,0x0101  ; b  Horizontal_displayed  right         1321     0     0
+  out dx,ax
+
+  mov ax,0x1900  ; a  Horizontal_total      right         1349    28    11
+  out dx,ax
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left         1375    54    20
+  out dx,ax
+  xchg ax,bp
+
+  xchg ax,di
+  ;mov ax,0x5a02  ; c  Horizontal_sync       left         1399    78    29
+  out dx,ax
+  xchg ax,di
+
+  mov ax,0x5700  ; e  Horizontal_total      left          1431   110    41
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right         1465   144    54
+  out dx,ax
+
+  mov ah,bh
+  mov al,0x0c
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  mov al,bl
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+  inc bx
+
+  loop loopTop1
+
+
+45-48
+46,48
+4: 46,48,49
+
+
+With 34-character initial state and one "times 6 nop" block:
+  phase2: 2, 4, 5
+  phase4: 2, 5
+Then with 1spf4_single, 2 works with phase2 but not phase4. 2 not reliable?
+Same story with 5 - works (phase4) with 1spf4 but not 1spf4_single. Works with both in phase2
+
+With 34-character initial state and two "times 6 nop" blocks, no usable values at all in phase4
+
+With 34-character initial state and three "times 6 nop" blocks:
+  phase2: 0, 3
+Neither reliable in both phases with 1spf4_single
+
+With 34-character initial state and four "times 6 nop" blocks:
+  phase2: 1
+
+
+With 34-character initial state, one "times 6 nop" block and 15 sync width
+  phase4: 2, 4, 5
+
+With 34-character initial state, one "times 6 nop" block and 10 sync width
+  phase4: 2, 3, 5
+
+With 34-character initial state, one "times 6 nop" block and 10 sync width, later capture
+  phase4: 3
+
+With 34-character initial state, one "times 6 nop" block and 15 sync width, later capture
+  phase4: 1, 4
+  phase4: 3
+
+With 34-character initial state, one "times 6 nop" block and 15 sync width and lockstep
+  phase2: 1, 2, 4
+  phase2: 1, 2, 4
+  phase2: 1, 2, 4
+  phase4: 2, 4, 5
+  phase2: 1, 2, 4
+  1spf4_single:
+    2, 2, 2, 4, 2, 4, 2, 2, 4, 4
+
+
+
+
+None of these are reliable.
+  Can we make it reliable with a smaller hsync width?
+    If so, try increasing overscan_final so that we can use width 15
+  Try increasing one of the 1-character spans to 2
+
+
+
+
+
+Unrolled:
+
+  mov cx,0x5001
+  mov di,0x5a02
+
+
+  mov ax,0x0101  ; b  Horizontal_displayed  right
+  out dx,ax
+
+  mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+
+  xchg ax,cx
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  out dx,ax
+  xchg ax,cx
+
+  xchg ax,di
+  ;mov ax,0x5a02  ; c  Horizontal_sync       left
+  out dx,ax
+  xchg ax,di
+
+  mov ax,0x5700  ; e  Horizontal_total      left
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  pop ax
+  mov bl,al
+  mov al,0x0c
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  lodsb
+  out 0xe0,al
+
+  mov al,[bp+4]
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+  inc bx
+
+
+ax = port value
+bx = temp
+cx = spare
+dx = port address
+si = sound
+di = spare
+sp = start addresses
+bp = rasters
+
+
+
+
+Phase 0
+11111111 00000000 00000000 00000000 11111111 00000000 00000000 00000000 11111111 00000000 00000000 00000000  CRTC
+I            I             I            I             I            I             I            I              Phase 0
+ I            I             I            I             I            I             I            I              Phase 1
+  I            I             I            I             I            I             I            I              Phase 2
+   I            I             I            I             I            I             I            I              Phase 3
+
+CGA clock is 16 hdots
+PIT clock is 12 hdots
+100000000000000010000000000000001000000000000000  CGA
+
+100000000000100000000000100000000000100000000000  Phase 0
+010000000000010000000000010000000000010000000000  Phase 1
+001000000000001000000000001000000000001000000000  Phase 2
+000100000000000100000000000100000000000100000000  Phase 3
+
+100000001000000010000000 HRES CRTC
+
+
+
+
+Vsync and unrolling:
+
+Test trace.bin
+Before the critical loop starts, need to:
+
+
+
+
+Takes too long:
+  mov ax,0x0101  ; b  Horizontal_displayed  right
+  out dx,ax
+
+  mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+
+  xchg ax,cx
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  out dx,ax
+  xchg ax,cx
+
+  xchg ax,di
+  ;mov ax,0x5a02  ; c  Horizontal_sync       left
+  out dx,ax
+  xchg ax,di
+
+  mov ax,0x5700  ; e  Horizontal_total      left
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  pop ax
+  mov bl,al
+  mov al,0x0c
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  lodsb
+  out 0xe0,al
+
+  mov al,[bp+4]
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+
+We've lost our "inc ax" optimization in the first section
+
+

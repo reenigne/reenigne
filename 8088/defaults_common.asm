@@ -347,9 +347,13 @@ cpu 8086
 %endmacro
 
 %macro refreshOn 0
+  refreshOn 18
+%endmacro
+
+%macro refreshOn 1
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
-  mov al,18
+  mov al,%1
   out 0x41,al  ; Timer 1 rate
 %endmacro
 

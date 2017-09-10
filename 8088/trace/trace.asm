@@ -172,62 +172,86 @@ lut: db 0x88,8
 
 
 testRoutine:
+  mov [cs:savedSP],sp
 
   mov dx,0x3d4
-  mov cx,0xffff
   xor si,si
   mov bp,0x5001
-  mov di,0x5a02
+  mov di,0x1900
+
+  mov ax,0x5702
+  mov es,ax
 
 %macro innerLoop 0
   mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax
 
-  mov ax,0x1900  ; a  Horizontal_total      right
+  xchg ax,di
+  ;mov ax,0x1900  ; a  Horizontal_total      right
   out dx,ax
+  xchg ax,di
 
   xchg ax,bp
   ;mov ax,0x5001  ; d  Horizontal_displayed  left
   out dx,ax
   xchg ax,bp
 
-  xchg ax,di
-  ;mov ax,0x5a02  ; c  Horizontal_sync       left
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
   out dx,ax
-  xchg ax,di
 
-  mov ax,0x5700  ; e  Horizontal_total      left
+;  mov ax,0x5700  ; e  Horizontal_total      left
+  mov al,0x00
   out dx,ax
 
   mov ax,0x0202  ; f  Horizontal_sync       right
   out dx,ax
 
-  mov ah,bh
-  mov al,0x0c
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
+;  pop ax       ; 3
+;  mov cl,al    ; 2
+;  mov al,0x0c  ; 2
+;  out dx,ax    ; 3
+;  mov ah,cl    ; 2
+;  inc ax       ; 1
+;  out dx,ax    ; 3  total 16
 
-  mov al,bl
+  pop cx        ; 3
+  mov al,0x0c   ; 2
+  mov ah,ch     ; 2
+  out dx,ax     ; 3
+  inc ax        ; 1
+  mov ah,cl     ; 2
+  out dx,ax     ; 3  total 16
+
+
+;  inc dx        ; 1
+;  lodsb         ; 2
+;  out dx,al     ; 2
+;  dec dx        ; 1
+;  mov al,0x0d   ; 2
+;  out dx,al     ; 2
+;  inc dx        ; 1
+;  lodsb         ; 2
+;  out dx,al     ; 2  total 19
+
+
+
+  lodsb
+  out 0xe0,al
+
+  mov al,[bx+si]
   mov dl,0xd9
   out dx,al
   mov dl,0xd4
-  inc bx
-
-  nop
-  nop
-
-  loop %%loopTop
-%%loopTop:
 %endmacro
 
 %rep 5
   innerLoop
 %endrep
 
+  mov sp,[cs:savedSP]
   ret
-
+savedSP:
 
 
 
