@@ -1,5 +1,62 @@
   %include "../../../defaults_bin.asm"
 
+  ; Determine and print phase
+  lockstep 1
+  mov ax,cs
+  mov es,ax
+  mov ds,ax
+  mov di,data2
+
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+
+  %rep 5
+    readPIT16 2
+    stosw
+  %endrep
+
+  refreshOn
+
+  mov ax,'0'
+  mov di,[data2+8]
+  mov si,[data2+6]
+  mov bx,[data2+4]
+  mov cx,[data2+2]
+  mov dx,[data2]
+  sub dx,cx
+  sub dx,20
+  jnz notPhase0
+  add ax,1
+notPhase0:
+  sub cx,bx
+  sub cx,20
+  jnz notPhase1
+  add ax,2
+notPhase1:
+  sub bx,si
+  sub bx,20
+  jnz notPhase2
+  add ax,4
+notPhase2:
+  sub si,di
+  sub si,20
+  jnz notPhase3
+  add ax,8
+notPhase3:
+
+  sti
+  outputCharacter
+  cli
+
+
   mov ax,0xb800
   mov es,ax
   mov ax,cs
@@ -80,7 +137,7 @@ restart:
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0a03
+  mov ax,0x0f03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -92,7 +149,7 @@ restart:
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x0106
+  mov ax,0x0206
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
@@ -146,96 +203,6 @@ restart:
   waitForDisplayDisable
   waitForDisplayEnable
 
-;  ; Mode                                                09
-;  ;      1 +HRES                                         1
-;  ;      2 +GRPH                                         0
-;  ;      4 +BW                                           0
-;  ;      8 +VIDEO ENABLE                                 8
-;  ;   0x10 +1BPP                                         0
-;  ;   0x20 +ENABLE BLINK                                 0
-;  mov dx,0x3d8
-;  mov al,0x09
-;  out dx,al
-;
-;  ; Palette                                             00
-;  ;      1 +OVERSCAN B                                   0
-;  ;      2 +OVERSCAN G                                   2
-;  ;      4 +OVERSCAN R                                   4
-;  ;      8 +OVERSCAN I                                   0
-;  ;   0x10 +BACKGROUND I                                 0
-;  ;   0x20 +COLOR SEL                                    0
-;  inc dx
-;  mov al,0
-;  out dx,al
-;
-;  mov dl,0xd4
-;
-;  ;   0xff Horizontal Total                             71
-;  mov ax,0x5000
-;  out dx,ax
-;
-;  ;   0xff Horizontal Displayed                         50
-;  mov ax,0x5001
-;  out dx,ax
-;
-;  ;   0xff Horizontal Sync Position                     5a
-;  mov ax,0x0902
-;  out dx,ax
-;
-;  ;   0x0f Horizontal Sync Width                        0d
-;  mov ax,0x0003
-;  out dx,ax
-;
-;  ;   0x7f Vertical Total                               3d
-;  mov ax,0x0104
-;  out dx,ax
-;
-;  ;   0x1f Vertical Total Adjust                        00
-;  mov ax,0x0005
-;  out dx,ax
-;;
-;  ;   0x7f Vertical Displayed                           02
-;  mov ax,0x0106
-;  out dx,ax
-;
-;  ;   0x7f Vertical Sync Position                       18
-;  mov ax,0x1907
-;  out dx,ax
-;
-;  ;   0x03 Interlace Mode                               02   0 = non interlaced, 1 = interlace sync, 3 = interlace sync and video
-;  mov ax,0x0008 ; 0x0308
-;  out dx,ax
-;
-;  ;   0x1f Max Scan Line Address                        00
-;  mov ax,0x0009
-;  out dx,ax
-;
-;  ; Cursor Start                                        06
-;  ;   0x1f Cursor Start                                  6
-;  ;   0x60 Cursor Mode                                   0
-;  mov ax,0x060a
-;  out dx,ax
-;
-;  ;   0x1f Cursor End                                   07
-;  mov ax,0x080b
-;  out dx,ax
-;
-;  ;   0x3f Start Address (H)                            00
-;  mov ax,0x000c
-;  out dx,ax
-;
-;  ;   0xff Start Address (L)                            00
-;  mov ax,0x010d
-;  out dx,ax
-;
-;  ;   0x3f Cursor (H)                                   03
-;  mov ax,0x030e
-;  out dx,ax
-;
-;  ;   0xff Cursor (L)                                   c0
-;  mov ax,0xc00f
-;  out dx,ax
-
   xor bx,bx
   mov cx,20000
 
@@ -247,18 +214,12 @@ restart:
 
 
   mov dl,0xd4
-;  mov ax,0x2000
-;  out dx,ax
-  mov ax,0x0101
+  mov ax,0x5001
   out dx,ax
-  mov ax,0x2000
+  mov ax,0x5700
   out dx,ax
-  mov ax,0x0902
+  mov ax,0x0202
   out dx,ax
-
-
-;  cli
-;  hlt
 
 
   mov bx,[cs:initial]
@@ -269,12 +230,15 @@ restart:
 
   ensureRefresh
 
-  times 9 nop
+;  times 9 nop
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,19
   out 0x41,al  ; Timer 1 rate
+
+  mov bp,0x5001
+  mov di,0x5a02
 
   sti
   hlt
@@ -290,17 +254,26 @@ interrupt8second:
 
 
 loopTop1:
-  mov ax,0x2000
+  mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax
-  mov ax,0x2001
+
+  mov ax,0x1900  ; a  Horizontal_total      right
   out dx,ax
-  mov ax,0x0902 ;0x5a02
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
   out dx,ax
-  mov ax,0x5001
+  xchg ax,bp
+
+  xchg ax,di
+  ;mov ax,0x5a02  ; c  Horizontal_sync       left
   out dx,ax
-  mov ax,0x5000
+  xchg ax,di
+
+  mov ax,0x5700  ; e  Horizontal_total      left
   out dx,ax
-  mov ax,0x0902
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
   out dx,ax
 
   mov ah,bh
@@ -316,10 +289,13 @@ loopTop1:
   mov dl,0xd4
   inc bx
 
+  nop
+  nop
+
   loop loopTop1
 
   inc word[cs:initial]
-  cmp word[cs:initial],44
+  cmp word[cs:initial],49
   je done
 
   mov al,0x20
@@ -343,71 +319,8 @@ done:
   complete
 
 
-;  ; Determine and print phase
-;  lockstep 1
-;  mov ax,cs
-;  mov es,ax
-;  mov ds,ax
-;  mov di,[dataPointer]
-;
-;  in al,0x61
-;  or al,3
-;  out 0x61,al
-;
-;  mov al,TIMER2 | BOTH | MODE2 | BINARY
-;  out 0x43,al
-;  mov dx,0x42
-;  mov al,0
-;  out dx,al
-;  out dx,al
-;
-;  %rep 5
-;    readPIT16 2
-;    stosw
-;  %endrep
-;
-;  refreshOn
-;
-;  mov ax,'0'
-;  mov di,[data+8]
-;  mov si,[data+6]
-;  mov bx,[data+4]
-;  mov cx,[data+2]
-;  mov dx,[data]
-;  sub dx,cx
-;  sub dx,20
-;  jnz notPhase0
-;  add ax,1
-;notPhase0:
-;  sub cx,bx
-;  sub cx,20
-;  jnz notPhase1
-;  add ax,2
-;notPhase1:
-;  sub bx,si
-;  sub bx,20
-;  jnz notPhase2
-;  add ax,4
-;notPhase2:
-;  sub si,di
-;  sub si,20
-;  jnz notPhase3
-;  add ax,8
-;notPhase3:
-;
-;  sti
-;  outputCharacter
-;  cli
-
-
-
-;timeSlide:
-;  times 32 aaa
-;  times 4 aaa
-;  ret
-
 timeSlide:
-  times 108 nop
+  times 117 nop
   ret
 
 
@@ -419,7 +332,7 @@ dummyInterrupt8:
   iret
 
 
-initial: dw 0
+initial: dw 48
 
 data:
 
@@ -524,4 +437,4 @@ data:
   dw 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
   dw 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 
-
+data2:

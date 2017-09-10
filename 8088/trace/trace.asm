@@ -2,7 +2,7 @@
 
 FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
-REFRESH      EQU 0   ; Refresh period in cycles, or 0 to disable
+REFRESH      EQU 19   ; Refresh period in cycles, or 0 to disable
 
   cli
   mov ax,cs
@@ -172,6 +172,69 @@ lut: db 0x88,8
 
 
 testRoutine:
+
+  mov dx,0x3d4
+  mov cx,0xffff
+  xor si,si
+  mov bp,0x5001
+  mov di,0x5a02
+
+%macro innerLoop 0
+  mov ax,0x0101  ; b  Horizontal_displayed  right
+  out dx,ax
+
+  mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  out dx,ax
+  xchg ax,bp
+
+  xchg ax,di
+  ;mov ax,0x5a02  ; c  Horizontal_sync       left
+  out dx,ax
+  xchg ax,di
+
+  mov ax,0x5700  ; e  Horizontal_total      left
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  mov ah,bh
+  mov al,0x0c
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  mov al,bl
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+  inc bx
+
+  nop
+  nop
+
+  loop %%loopTop
+%%loopTop:
+%endmacro
+
+%rep 5
+  innerLoop
+%endrep
+
+  ret
+
+
+
+
+
+
+
+
   aaa
   aaa
   aaa
@@ -238,73 +301,5 @@ testRoutine:
 
 
 
-  mov dx,0x3d4
-  mov cx,0xffff
-  xor si,si
-
-%macro innerLoop 0
-;  mov ax,0x2000
-;  out dx,ax
-;  mov ax,0x2001
-;  out dx,ax
-;  mov ax,0x5a02
-;  out dx,ax
-;  mov ax,0x5001
-;  out dx,ax
-;  mov ax,0x5000
-;  out dx,ax
-;  mov ax,0x0902
-;  out dx,ax
-
-  mov ax,0x2000   ;a
-  out dx,ax
-  inc ax
-;  mov ax,0x2001   ;b
-  out dx,ax
-  xchg ax,di
-;  mov ax,0x5a02   ;c
-  out dx,ax
-  xchg ax,di
-  lodsb
-  out 0xe0,al
-  mov ax,0x5001   ;d
-  out dx,ax
-  dec ax
-;  mov ax,0x5000   ;e
-  out dx,ax
-  xchg ax,bp
-;  mov ax,0x0902   ;f
-  out dx,ax
-  xchg ax,bp
-
-
-  mov ah,bh
-  mov al,0x0c
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  mov al,bl
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
-  inc bx
-
-;   inc bx
-
-;  times 4 nop
-
-;  mov al,0x0f
-;  mul al
-  loop %%loopTop
-%%loopTop:
-%endmacro
-
-%rep 5
-  innerLoop
-%endrep
-
-  ret
 
 data:
