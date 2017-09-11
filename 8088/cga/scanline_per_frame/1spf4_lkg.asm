@@ -1,4 +1,4 @@
-  %include "../../../defaults_bin.asm"
+  %include "../../defaults_bin.asm"
 
   ; Determine and print phase
   lockstep 1

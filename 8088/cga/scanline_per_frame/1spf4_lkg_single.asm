@@ -1,22 +1,11 @@
-  %include "../../../defaults_bin.asm"
-
-  ; Copy data
-  mov ax,cs
-  mov ds,ax
-  mov ax,0xb800
-  mov es,ax
-  mov cx,8000
-  mov si,data
-  xor di,di
-  cld
-  rep movsw
+  %include "../../defaults_bin.asm"
 
   ; Determine and print phase
   lockstep 1
   mov ax,cs
   mov es,ax
   mov ds,ax
-  mov di,[dataPointer]
+  mov di,data2
 
   in al,0x61
   or al,3
@@ -37,11 +26,11 @@
   refreshOn
 
   mov ax,'0'
-  mov di,[data+8]
-  mov si,[data+6]
-  mov bx,[data+4]
-  mov cx,[data+2]
-  mov dx,[data]
+  mov di,[data2+8]
+  mov si,[data2+6]
+  mov bx,[data2+4]
+  mov cx,[data2+2]
+  mov dx,[data2]
   sub dx,cx
   sub dx,20
   jnz notPhase0
@@ -68,36 +57,47 @@ notPhase3:
   cli
 
 
+  mov ax,0xb800
+  mov es,ax
+  mov ax,cs
+  mov ds,ax
+  mov si,data
+  mov cx,8000
+  cld
+  rep movsw
+
 restart:
   sti
-  int 0x60
+  captureScreen
   cli
 
-  lockstep 1
-  mov ax,cs
-  mov es,ax
+  xor ax,ax
   mov ds,ax
-  mov di,[dataPointer]
+  mov word[0x20],dummyInterrupt8
+  mov [0x22],cs
+  mov ax,cs
+  mov ss,ax
+  mov sp,0xfffe
 
-  in al,0x61
-  or al,3
-  out 0x61,al
+  initCGA 9
+  mov dx,0x3d4
+  mov ax,0x0009
+  out dx,ax
+  mov ax,0x0005
+  out dx,ax
 
-  mov al,TIMER2 | BOTH | MODE2 | BINARY
-  out 0x43,al
-  mov dx,0x42
-  mov al,0
-  out dx,al
-  out dx,al
-
-  %rep 5
-    readPIT16 2
-    stosw
-  %endrep
-  mov [dataPointer],di
-
-    initCGA 1
-    ensureRefresh
+  mov dl,0xda
+  waitForVerticalSync
+  waitForDisplayEnable
+  mov dl,0xd4
+  mov ax,0x0106
+  out dx,ax
+  mov ax,0x0104
+  out dx,ax
+  mov ax,0x0101
+  out dx,ax
+  mov ax,0x0100
+  out dx,ax
 
 
   ; Mode                                                09
@@ -119,25 +119,25 @@ restart:
   ;   0x10 +BACKGROUND I                                 0
   ;   0x20 +COLOR SEL                                    0
   inc dx
-  mov al,0
+  mov al,15
   out dx,al
 
   mov dl,0xd4
 
   ;   0xff Horizontal Total                             71
-  mov ax,0x5000
+  mov ax,0x0100
   out dx,ax
 
   ;   0xff Horizontal Displayed                         50
-  mov ax,0x5001
+  mov ax,0x0101
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     5a
-  mov ax,0x0902
+  mov ax,0x5a02
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0003
+  mov ax,0x0f03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -149,7 +149,7 @@ restart:
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x0106
+  mov ax,0x0206
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
@@ -179,7 +179,7 @@ restart:
   out dx,ax
 
   ;   0xff Start Address (L)                            00
-  mov ax,0x000d
+  mov ax,0x010d
   out dx,ax
 
   ;   0x3f Cursor (H)                                   03
@@ -190,40 +190,90 @@ restart:
   mov ax,0xc00f
   out dx,ax
 
-  mov dl,0xda
 
-  times 107 nop
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8
+  mov word[0x22],cs
+  writePIT16 0, 2, 2
+
+  safeRefreshOff
+
+  mov dx,0x3da
+  waitForDisplayDisable
+  waitForDisplayEnable
+
+  xor bx,bx
+  mov cx,20000
 
 
-  mov dx,0x3d4
+  times 6 nop
+;  times 6 nop
+;  times 6 nop
+;  times 6 nop
+
+
+  mov dl,0xd4
+  mov ax,0x5001
+  out dx,ax
+  mov ax,0x5700
+  out dx,ax
+  mov ax,0x0202
+  out dx,ax
+
+
+  mov bx,[cs:initial]
+  add bx,timeSlide
+  call bx
+
+  writePIT16 0, 2, 19912
+
+  ensureRefresh
+
+;  times 9 nop
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,19
   out 0x41,al  ; Timer 1 rate
 
+  mov bp,0x5001
+  mov di,0x5a02
 
-  xor bx,bx
-  mov cx,60000
-  mov dl,0xd4
+  sti
+  hlt
+interrupt8:
+  mov al,0x20
+  out 0x20,al
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8second
+  sti
+  hlt
+interrupt8second:
 
-
-  mov bx,[cs:initial2]
-  add bx,timeSlide
-  call bx
 
 loopTop1:
-  mov ax,0x2001
+  mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax
-  mov ax,0x2000
+
+  mov ax,0x1900  ; a  Horizontal_total      right
   out dx,ax
-  mov ax,0x5a02
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
   out dx,ax
-  mov ax,0x5001
+  xchg ax,bp
+
+  xchg ax,di
+  ;mov ax,0x5a02  ; c  Horizontal_sync       left
   out dx,ax
-  mov ax,0x5000
+  xchg ax,di
+
+  mov ax,0x5700  ; e  Horizontal_total      left
   out dx,ax
-  mov ax,0x0902
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
   out dx,ax
 
   mov ah,bh
@@ -239,68 +289,50 @@ loopTop1:
   mov dl,0xd4
   inc bx
 
+  nop
+  nop
+
   loop loopTop1
 
-
   inc word[cs:initial]
-  cmp word[cs:initial],76
+  cmp word[cs:initial],49
   je done
+
+  mov al,0x20
+  out 0x20,al
+  writePIT16 0, 2, 0
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8last
+  sti
+  hlt
+interrupt8last:
+  mov al,0x20
+  out 0x20,al
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
+
   jmp restart
 
 done:
-  sti
-
-  mov ax,cs
-  mov ds,ax
-  mov di,[dataPointer2]
-  mov ax,'0'
-  mov bp,[di+8]
-  mov si,[di+6]
-  mov bx,[di+4]
-  mov cx,[di+2]
-  mov dx,[di]
-  sub dx,cx
-  sub dx,20
-  jnz .notPhase0
-  add ax,1
-.notPhase0:
-  sub cx,bx
-  sub cx,20
-  jnz .notPhase1
-  add ax,2
-.notPhase1:
-  sub bx,si
-  sub bx,20
-  jnz .notPhase2
-  add ax,4
-.notPhase2:
-  sub si,bp
-  sub si,20
-  jnz .notPhase3
-  add ax,8
-.notPhase3:
-
-  outputCharacter
-
-  mov di,[dataPointer2]
-  add di,10
-  mov [dataPointer2],di
-  cmp di,[dataPointer]
-  jb done
-
-
-  int 0x67
+  complete
 
 
 timeSlide:
-  times 76 nop
+  times 117 nop
   ret
 
 
-initial: dw 60
-initial2: dw 74
-dataPointer: dw data
-dataPointer2: dw data
+dummyInterrupt8:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+
+initial: dw 48
 
 data:
 
@@ -405,4 +437,4 @@ data:
   dw 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
   dw 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 
-
+data2:

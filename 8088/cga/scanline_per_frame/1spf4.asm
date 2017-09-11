@@ -1,22 +1,108 @@
-  %include "../../../defaults_bin.asm"
+  %include "../../defaults_bin.asm"
 
-  ; Copy data
+  ; Determine and print phase
+  lockstep 1
   mov ax,cs
+  mov es,ax
   mov ds,ax
+  mov di,data2
+
+  in al,0x61
+  or al,3
+  out 0x61,al
+
+  mov al,TIMER2 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov dx,0x42
+  mov al,0
+  out dx,al
+  out dx,al
+
+  %rep 5
+    readPIT16 2
+    stosw
+  %endrep
+
+  refreshOn
+
+  mov ax,'0'
+  mov di,[data2+8]
+  mov si,[data2+6]
+  mov bx,[data2+4]
+  mov cx,[data2+2]
+  mov dx,[data2]
+  sub dx,cx
+  sub dx,20
+  jnz notPhase0
+  add ax,1
+notPhase0:
+  sub cx,bx
+  sub cx,20
+  jnz notPhase1
+  add ax,2
+notPhase1:
+  sub bx,si
+  sub bx,20
+  jnz notPhase2
+  add ax,4
+notPhase2:
+  sub si,di
+  sub si,20
+  jnz notPhase3
+  add ax,8
+notPhase3:
+
+  sti
+  outputCharacter
+  cli
+
+
   mov ax,0xb800
   mov es,ax
-  mov cx,8000
+  mov ax,cs
+  mov ds,ax
   mov si,data
-  xor di,di
+  mov cx,8000
   cld
   rep movsw
 
 restart:
+
   sti
-  int 0x60
+  captureScreen
   cli
 
-  lockstep
+  lockstep 1
+
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
+  mov [0x22],cs
+  mov ax,cs
+  mov ss,ax
+  mov sp,0xfffe
+
+  initCGA 9
+  mov dx,0x3d4
+  mov ax,0x0009
+  out dx,ax
+  mov ax,0x0005
+  out dx,ax
+
+  mov dl,0xda
+  waitForVerticalSync
+  waitForDisplayEnable
+  mov dl,0xd4
+  mov ax,0x0106
+  out dx,ax
+  mov ax,0x0104
+  out dx,ax
+  mov ax,0x0101
+  out dx,ax
+  mov ax,0x0100
+  out dx,ax
+
+
 
   ; Mode                                                09
   ;      1 +HRES                                         1
@@ -37,17 +123,17 @@ restart:
   ;   0x10 +BACKGROUND I                                 0
   ;   0x20 +COLOR SEL                                    0
   inc dx
-  mov al,0
+  mov al,15
   out dx,al
 
   mov dl,0xd4
 
   ;   0xff Horizontal Total                             71
-  mov ax,0x5000
+  mov ax,0x0100
   out dx,ax
 
   ;   0xff Horizontal Displayed                         50
-  mov ax,0x5001
+  mov ax,0x0101
   out dx,ax
 
   ;   0xff Horizontal Sync Position                     5a
@@ -55,7 +141,7 @@ restart:
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0003
+  mov ax,0x0f03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -67,7 +153,7 @@ restart:
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x0106
+  mov ax,0x0206
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
@@ -97,7 +183,7 @@ restart:
   out dx,ax
 
   ;   0xff Start Address (L)                            00
-  mov ax,0x000d
+  mov ax,0x010d
   out dx,ax
 
   ;   0x3f Cursor (H)                                   03
@@ -108,50 +194,95 @@ restart:
   mov ax,0xc00f
   out dx,ax
 
-  mov dl,0xda
 
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,19
-  out 0x41,al  ; Timer 1 rate
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8
+  mov word[0x22],cs
+  writePIT16 0, 2, 2         ; Ensure we have a pending IRQ0
 
+;  safeRefreshOff
+
+  mov dx,0x3da
+  waitForDisplayDisable
+  waitForDisplayEnable
 
   xor bx,bx
-  mov cx,32767
+  mov cx,60000
+
+
+  times 6 nop
+;  times 6 nop
+;  times 6 nop
+;  times 6 nop
+
+
   mov dl,0xd4
-  mov di,0x5a02
-  mov bp,0x0902
+  mov ax,0x0101
+  out dx,ax
+  mov ax,0x2100
+  out dx,ax
+  mov ax,0x5a02
+  out dx,ax
 
 
   mov bx,[cs:initial]
   add bx,timeSlide
   call bx
 
+  writePIT16 0, 2, 19912     ; Now counting down with the frame, one IRQ0 pending
+
+  ensureRefresh
+
+;  times 9 nop
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,19
+  out 0x41,al  ; Timer 1 rate
+
+  mov bp,0x5001
+  mov di,0x1900
+  mov ax,0x5702
+  mov es,ax
+
+  sti
+  hlt
+interrupt8:
+  mov al,0x20
+  out 0x20,al
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8second
+  sti
+  hlt
+interrupt8second:
+
+
 loopTop1:
-  mov ax,0x2000   ;a
+  mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax
-;  inc ax
-  mov ax,0x2001   ;b
-  out dx,ax
-;  xchg ax,di
-  mov ax,0x0902   ;c
-  out dx,ax
-;  xchg ax,di
 
-;  nop
+  xchg ax,di
+  ;mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+  xchg ax,di
 
-  mov ax,0x5001   ;d
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
   out dx,ax
-;  dec ax
-  mov ax,0x5000   ;e
-  out dx,ax
-;  xchg ax,bp
-  mov ax,0x5a02   ;f
-  out dx,ax
-;  xchg ax,bp
+  xchg ax,bp
 
-;  lodsb
-;  out 0xe0,al
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
+  out dx,ax
+
+;  mov ax,0x5700  ; e  Horizontal_total      left
+  mov al,0x00
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
 
   mov ah,bh
   mov al,0x0c
@@ -166,52 +297,50 @@ loopTop1:
   mov dl,0xd4
   inc bx
 
-;   inc bx
-;  mov ax,0x5a02   ; horizontal sync position = 90
-;  out dx,ax       ; Second write must occur between char 0 and char 9
-;  mov ax,0x5000   ; horizontal total = 81
-;  out dx,ax       ; Second write must occur between char 0 and char 32
-;  mov ah,bh
-;  mov al,0x0c     ; Start address high
-;  out dx,ax       ; Second write must occur between char 0 and char 114
-;  mov ah,bl
-;  inc ax          ; Start address low
-;  out dx,ax       ; Second write must occur between char 0 and char 114
-
-;  mov al,bl
-;  mov dl,0xd9
-;  out dx,al
-;  mov dl,0xd4
-
-;  times 13 nop
-
-;  mov ax,0x0902   ; horizontal sync position = 9
-;  out dx,ax       ; Second write must occur between char 81 and char 90
-;  mov ax,0x2000   ; horizontal total = 33
-;  out dx,ax       ; Second write must occur between char 81 and char 114
-
-;  times 1 nop
+  nop
+  nop
 
   loop loopTop1
 
-
   inc word[cs:initial]
-  cmp word[cs:initial],76
+  cmp word[cs:initial],6
   je done
+
+  mov al,0x20
+  out 0x20,al
+  writePIT16 0, 2, 0
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8last
+  sti
+  hlt
+interrupt8last:
+  mov al,0x20
+  out 0x20,al
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
+
   jmp restart
 
 done:
-  sti
-  int 0x67
+  complete
 
 
 timeSlide:
-  times 76 nop
+  times 23 nop
   ret
 
 
+dummyInterrupt8:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+
 initial: dw 0
-initial2: dw 70
 
 data:
 
@@ -316,3 +445,4 @@ data:
   dw 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
   dw 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 
+data2:

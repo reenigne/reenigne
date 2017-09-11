@@ -384,8 +384,14 @@ PIT clock is 12 hdots
 
 Vsync and unrolling:
 
-Test trace.bin
+Test 1spf4.bin with new optimizations (es and 5702)
 Before the critical loop starts, need to:
+  Wait for scanline 0 to start
+  Set r0, r2, r6, r4, r12, r13
+At the end of the critical loop, need to:
+  Wait for scanline 199 to start
+  Set r0=0x71, r2=0x5a, r6=0x01, r4=0x40, r12=high(next 0), r13=low(next 0)
+
 
 
 

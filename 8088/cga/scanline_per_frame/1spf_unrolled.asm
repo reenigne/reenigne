@@ -1,4 +1,4 @@
-  %include "../../../defaults_bin.asm"
+  %include "../../defaults_bin.asm"
 
   ; Determine and print phase
   lockstep 1
@@ -242,7 +242,9 @@ restart:
   out 0x41,al  ; Timer 1 rate
 
   mov bp,0x5001
-  mov di,0x5a02
+  mov di,0x1900
+  mov ax,0x5702
+  mov es,ax
 
   sti
   hlt
@@ -258,48 +260,53 @@ interrupt8second:
 
 
 loopTop1:
+%macro innerLoop 0
   mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax
 
-  mov ax,0x1900  ; a  Horizontal_total      right
+  xchg ax,di
+  ;mov ax,0x1900  ; a  Horizontal_total      right
   out dx,ax
+  xchg ax,di
 
   xchg ax,bp
   ;mov ax,0x5001  ; d  Horizontal_displayed  left
   out dx,ax
   xchg ax,bp
 
-  xchg ax,di
-  ;mov ax,0x5a02  ; c  Horizontal_sync       left
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
   out dx,ax
-  xchg ax,di
 
-  mov ax,0x5700  ; e  Horizontal_total      left
+  ;mov ax,0x5700  ; e  Horizontal_total      left
+  mov al,0x00
   out dx,ax
 
   mov ax,0x0202  ; f  Horizontal_sync       right
   out dx,ax
 
-  mov ah,bh
+  pop cx
   mov al,0x0c
+  mov ah,ch
   out dx,ax
-  mov ah,bl
   inc ax
+  mov ah,cl
   out dx,ax
 
-  mov al,bl
+  lodsb
+  out 0xe0,al
+
+  mov al,[bx+si]
   mov dl,0xd9
   out dx,al
   mov dl,0xd4
-  inc bx
+%endmacro
+  times 199 innerLoop
 
-  nop
-  nop
 
-  loop loopTop1
 
   inc word[cs:initial]
-  cmp word[cs:initial],6
+  cmp word[cs:initial],3
   je done
 
   mov al,0x20
@@ -336,7 +343,7 @@ dummyInterrupt8:
   iret
 
 
-initial: dw 0
+initial: dw 2
 
 data:
 

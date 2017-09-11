@@ -1,61 +1,4 @@
-  %include "../../../defaults_bin.asm"
-
-  ; Determine and print phase
-  lockstep 1
-  mov ax,cs
-  mov es,ax
-  mov ds,ax
-  mov di,data2
-
-  in al,0x61
-  or al,3
-  out 0x61,al
-
-  mov al,TIMER2 | BOTH | MODE2 | BINARY
-  out 0x43,al
-  mov dx,0x42
-  mov al,0
-  out dx,al
-  out dx,al
-
-  %rep 5
-    readPIT16 2
-    stosw
-  %endrep
-
-  refreshOn
-
-  mov ax,'0'
-  mov di,[data2+8]
-  mov si,[data2+6]
-  mov bx,[data2+4]
-  mov cx,[data2+2]
-  mov dx,[data2]
-  sub dx,cx
-  sub dx,20
-  jnz notPhase0
-  add ax,1
-notPhase0:
-  sub cx,bx
-  sub cx,20
-  jnz notPhase1
-  add ax,2
-notPhase1:
-  sub bx,si
-  sub bx,20
-  jnz notPhase2
-  add ax,4
-notPhase2:
-  sub si,di
-  sub si,20
-  jnz notPhase3
-  add ax,8
-notPhase3:
-
-  sti
-  outputCharacter
-  cli
-
+  %include "../../defaults_bin.asm"
 
   mov ax,0xb800
   mov es,ax
@@ -137,7 +80,7 @@ restart:
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0f03
+  mov ax,0x0a03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -149,7 +92,7 @@ restart:
   out dx,ax
 
   ;   0x7f Vertical Displayed                           02
-  mov ax,0x0206
+  mov ax,0x0106
   out dx,ax
 
   ;   0x7f Vertical Sync Position                       18
@@ -294,22 +237,28 @@ restart:
 ;  out dx,ax
 
   xor bx,bx
-  mov cx,60000
+  mov cx,20000
 
 
   times 6 nop
-  times 6 nop
+;  times 6 nop
 ;  times 6 nop
 ;  times 6 nop
 
 
   mov dl,0xd4
+;  mov ax,0x2000
+;  out dx,ax
   mov ax,0x0101
   out dx,ax
-  mov ax,0x2100
+  mov ax,0x2000
   out dx,ax
-  mov ax,0x5a02
+  mov ax,0x0902
   out dx,ax
+
+
+;  cli
+;  hlt
 
 
   mov bx,[cs:initial]
@@ -320,15 +269,12 @@ restart:
 
   ensureRefresh
 
-;  times 9 nop
+  times 9 nop
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,19
   out 0x41,al  ; Timer 1 rate
-
-  mov bp,0x5001
-  mov di,0x5a02
 
   sti
   hlt
@@ -344,26 +290,17 @@ interrupt8second:
 
 
 loopTop1:
-  mov ax,0x0101  ; b  Horizontal_displayed  right
+  mov ax,0x2000
   out dx,ax
-
-  mov ax,0x1900  ; a  Horizontal_total      right
+  mov ax,0x2001
   out dx,ax
-
-  xchg ax,bp
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  mov ax,0x0902 ;0x5a02
   out dx,ax
-  xchg ax,bp
-
-  xchg ax,di
-  ;mov ax,0x5a02  ; c  Horizontal_sync       left
+  mov ax,0x5001
   out dx,ax
-  xchg ax,di
-
-  mov ax,0x5700  ; e  Horizontal_total      left
+  mov ax,0x5000
   out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right
+  mov ax,0x0902
   out dx,ax
 
   mov ah,bh
@@ -379,13 +316,10 @@ loopTop1:
   mov dl,0xd4
   inc bx
 
-  nop
-  nop
-
   loop loopTop1
 
   inc word[cs:initial]
-  cmp word[cs:initial],6
+  cmp word[cs:initial],44
   je done
 
   mov al,0x20
@@ -473,7 +407,7 @@ done:
 ;  ret
 
 timeSlide:
-  times 23 nop
+  times 108 nop
   ret
 
 
@@ -485,7 +419,7 @@ dummyInterrupt8:
   iret
 
 
-initial: dw 5
+initial: dw 0
 
 data:
 
@@ -590,4 +524,4 @@ data:
   dw 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0000, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
   dw 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 
-data2:
+
