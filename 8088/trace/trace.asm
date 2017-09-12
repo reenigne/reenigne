@@ -182,6 +182,88 @@ testRoutine:
   mov ax,0x5702
   mov es,ax
 
+
+
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
+  out dx,ax
+
+  ;mov ax,0x5700  ; e  Horizontal_total      left
+  mov al,0x00
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  pop cx
+  mov al,0x0c
+  mov ah,ch
+  out dx,ax
+  inc ax
+  mov ah,cl
+  out dx,ax
+
+  lodsb
+  out 0xe0,al
+
+;  mov ax,0x0206   ; Vertical displayed
+;  out dx,ax
+  mov ax,0x0104   ; Vertical total
+  out dx,ax
+;  aaa
+;  nop
+;  aaa
+  jmp $+2
+
+
+
+%macro innerLoop0 0
+  mov ax,0x0101  ; b  Horizontal_displayed  right
+  out dx,ax
+
+  xchg ax,di
+  ;mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+  xchg ax,di
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  out dx,ax
+  xchg ax,bp
+
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
+  out dx,ax
+
+;  mov ax,0x5700  ; e  Horizontal_total      left
+  mov al,0x00
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  mov ah,bh
+  mov al,0x0c
+  out dx,ax
+  mov ah,bl
+  inc ax
+  out dx,ax
+
+  mov al,bl
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+  inc bx
+
+  nop
+  nop
+  nop
+  nop
+  loop %%loopTop
+%%loopTop:
+%endmacro
+
+
 %macro innerLoop 0
   mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax

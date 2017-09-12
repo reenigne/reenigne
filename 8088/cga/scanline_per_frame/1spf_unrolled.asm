@@ -258,8 +258,29 @@ interrupt8:
   hlt
 interrupt8second:
 
+  mov ax,0x5700  ; e  Horizontal_total      left
+  out dx,ax
 
-loopTop1:
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  pop cx
+  mov al,0x0c
+  mov ah,ch
+  out dx,ax
+  inc ax
+  mov ah,cl
+  out dx,ax
+
+  lodsb
+  out 0xe0,al
+
+;  mov ax,0x0206   ; Vertical displayed
+;  out dx,ax
+  mov ax,0x0104   ; Vertical total
+  out dx,ax
+
+
 %macro innerLoop 0
   mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax

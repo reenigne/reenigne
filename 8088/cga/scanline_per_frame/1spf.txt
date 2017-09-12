@@ -438,3 +438,10 @@ Takes too long:
 We've lost our "inc ax" optimization in the first section
 
 
+
+1sof4 with es and 5702 optimizations:
+  phase2: 0-3
+  phase4: 0-1
+1sof4 with es and 5702 optimizations, 46 steps:
+  phase2: 22, 24, 25, 26
+  phase4: 20, 22, 23, 24

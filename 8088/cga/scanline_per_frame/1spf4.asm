@@ -299,11 +299,12 @@ loopTop1:
 
   nop
   nop
-
+  nop
+  nop
   loop loopTop1
 
   inc word[cs:initial]
-  cmp word[cs:initial],6
+  cmp word[cs:initial],46
   je done
 
   mov al,0x20
@@ -328,7 +329,7 @@ done:
 
 
 timeSlide:
-  times 23 nop
+  times 46 nop
   ret
 
 
