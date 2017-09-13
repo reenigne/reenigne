@@ -241,11 +241,6 @@ restart:
   mov al,19
   out 0x41,al  ; Timer 1 rate
 
-  mov bp,0x5001
-  mov di,0x1900
-  mov ax,0x5702
-  mov es,ax
-
   sti
   hlt
 interrupt8:
@@ -257,6 +252,13 @@ interrupt8:
   sti
   hlt
 interrupt8second:
+
+  mov bp,0x5001
+  mov di,0x1900
+  mov ax,0x5702
+  mov es,ax
+
+  ; Scanline 0
 
   mov ax,0x5700  ; e  Horizontal_total      left
   out dx,ax
@@ -280,7 +282,6 @@ interrupt8second:
   mov ax,0x0104   ; Vertical total
   out dx,ax
 
-
 %macro innerLoop 0
   mov ax,0x0101  ; b  Horizontal_displayed  right
   out dx,ax
@@ -298,6 +299,8 @@ interrupt8second:
   mov ax,es
   ;mov ax,0x5702  ; c  Horizontal_sync       left
   out dx,ax
+
+  ; Scanlines 1-198
 
   ;mov ax,0x5700  ; e  Horizontal_total      left
   mov al,0x00
@@ -322,7 +325,76 @@ interrupt8second:
   out dx,al
   mov dl,0xd4
 %endmacro
-  times 199 innerLoop
+  times 198 innerLoop
+
+  mov ax,0x0101  ; b  Horizontal_displayed  right
+  out dx,ax
+
+  xchg ax,di
+  ;mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+  xchg ax,di
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  out dx,ax
+  xchg ax,bp
+
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
+  out dx,ax
+
+  ; Scanline 199
+
+  mov ax,0x5700  ; e  Horizontal_total      left
+  out dx,ax
+
+  mov ax,0x0202  ; f  Horizontal_sync       right
+  out dx,ax
+
+  mov ax,0x3f04  ; Vertical total
+  out dx,ax
+  times 9 nop  ; TODO: tune
+
+  lodsb
+  out 0xe0,al
+
+  mov al,[bx+si]
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd4
+
+
+  mov ax,0x0101  ; b  Horizontal_displayed  right
+  out dx,ax
+
+  xchg ax,di
+  ;mov ax,0x1900  ; a  Horizontal_total      right
+  out dx,ax
+  xchg ax,di
+
+  xchg ax,bp
+  ;mov ax,0x5001  ; d  Horizontal_displayed  left
+  out dx,ax
+  xchg ax,bp
+
+  mov ax,es
+  ;mov ax,0x5702  ; c  Horizontal_sync       left
+  out dx,ax
+
+  ; Scanline 200
+
+  mov ax,0x7100  ; e  Horizontal_total      left
+  out dx,ax
+
+  mov ax,0x5a02  ; f  Horizontal_sync       right
+  out dx,ax
+
+  ; TODO: Load start address registers for scanline 0
+  ; TODO: We are now free to do per-frame vertical-overscan stuff
+  ; with no special timing requirements except:
+  ;   HLT before overscan is over
+  ;   Sound (if in use)
 
 
 

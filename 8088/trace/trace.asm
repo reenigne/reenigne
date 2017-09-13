@@ -174,6 +174,18 @@ lut: db 0x88,8
 testRoutine:
   mov [cs:savedSP],sp
 
+  cli
+  xor ax,ax
+  mov ds,ax
+  mov [0x20],irq0test
+  writePIT16 0, 2, 2         ; Ensure we have a pending IRQ0
+  sti
+  hlt
+
+
+
+irq0test:
+
   mov dx,0x3d4
   xor si,si
   mov bp,0x5001
@@ -210,11 +222,7 @@ testRoutine:
 ;  out dx,ax
   mov ax,0x0104   ; Vertical total
   out dx,ax
-;  aaa
-;  nop
-;  aaa
-  jmp $+2
-
+  out dx,ax
 
 
 %macro innerLoop0 0

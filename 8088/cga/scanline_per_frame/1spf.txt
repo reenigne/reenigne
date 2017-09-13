@@ -201,51 +201,7 @@ eeeeeeeeeeeeeeeeeeeeeeeee                                                       
 
 Suppose we have a 34-character wide initial state
 
-
-
 So, order is badcefHLPS
-
-  mov bp,0x5001
-  mov di,0x5a02
-
-
-
-  mov ax,0x0101  ; b  Horizontal_displayed  right         1321     0     0
-  out dx,ax
-
-  mov ax,0x1900  ; a  Horizontal_total      right         1349    28    11
-  out dx,ax
-
-  xchg ax,bp
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left         1375    54    20
-  out dx,ax
-  xchg ax,bp
-
-  xchg ax,di
-  ;mov ax,0x5a02  ; c  Horizontal_sync       left         1399    78    29
-  out dx,ax
-  xchg ax,di
-
-  mov ax,0x5700  ; e  Horizontal_total      left          1431   110    41
-  out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right         1465   144    54
-  out dx,ax
-
-  mov ah,bh
-  mov al,0x0c
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  mov al,bl
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
-  inc bx
-
-  loop loopTop1
 
 
 45-48
@@ -301,54 +257,6 @@ None of these are reliable.
 
 
 
-
-
-Unrolled:
-
-  mov cx,0x5001
-  mov di,0x5a02
-
-
-  mov ax,0x0101  ; b  Horizontal_displayed  right
-  out dx,ax
-
-  mov ax,0x1900  ; a  Horizontal_total      right
-  out dx,ax
-
-  xchg ax,cx
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
-  out dx,ax
-  xchg ax,cx
-
-  xchg ax,di
-  ;mov ax,0x5a02  ; c  Horizontal_sync       left
-  out dx,ax
-  xchg ax,di
-
-  mov ax,0x5700  ; e  Horizontal_total      left
-  out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right
-  out dx,ax
-
-  pop ax
-  mov bl,al
-  mov al,0x0c
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  lodsb
-  out 0xe0,al
-
-  mov al,[bp+4]
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
-  inc bx
-
-
 ax = port value
 bx = temp
 cx = spare
@@ -380,68 +288,30 @@ PIT clock is 12 hdots
 100000001000000010000000 HRES CRTC
 
 
-
-
-Vsync and unrolling:
-
-Test 1spf4.bin with new optimizations (es and 5702)
-Before the critical loop starts, need to:
-  Wait for scanline 0 to start
-  Set r0, r2, r6, r4, r12, r13
-At the end of the critical loop, need to:
-  Wait for scanline 199 to start
-  Set r0=0x71, r2=0x5a, r6=0x01, r4=0x40, r12=high(next 0), r13=low(next 0)
-
-
-
-
-
-Takes too long:
-  mov ax,0x0101  ; b  Horizontal_displayed  right
-  out dx,ax
-
-  mov ax,0x1900  ; a  Horizontal_total      right
-  out dx,ax
-
-  xchg ax,cx
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
-  out dx,ax
-  xchg ax,cx
-
-  xchg ax,di
-  ;mov ax,0x5a02  ; c  Horizontal_sync       left
-  out dx,ax
-  xchg ax,di
-
-  mov ax,0x5700  ; e  Horizontal_total      left
-  out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right
-  out dx,ax
-
-  pop ax
-  mov bl,al
-  mov al,0x0c
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  lodsb
-  out 0xe0,al
-
-  mov al,[bp+4]
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
-
-We've lost our "inc ax" optimization in the first section
-
-
-
 1sof4 with es and 5702 optimizations:
   phase2: 0-3
   phase4: 0-1
 1sof4 with es and 5702 optimizations, 46 steps:
   phase2: 22, 24, 25, 26
   phase4: 20, 22, 23, 24
+
+
+
+
+TODO:
+  Try a port access to get 304 cycles for start-of-frame in trace
+  Realign loop to scanline edge
+  Refactor in macro to avoid duplication
+  Set up data structures to display something
+
+
+
+Done:
+Test 1spf4.bin with new optimizations (es and 5702)
+Before the critical loop starts, need to:
+  Wait for scanline 0 to start
+  Set r0=0x57, r2=0x57, (r6=0x02), r4=0x01, r12=high(1), r13=low(1)
+At the end of the critical loop, need to:
+  Wait for scanline 199 to start
+  Set r0=0x71, r2=0x5a, (r6=0x01), r4=0x40, r12=high(next 0), r13=low(next 0)
+
