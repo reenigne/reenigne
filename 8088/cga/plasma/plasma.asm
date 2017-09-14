@@ -148,7 +148,6 @@ dataTables
 
 oldInterrupt8: dw 0, 0
 frameCount: dw 0, 0
-imr: db 0
 alphaX: dw 0
 alphaY: dw 0
 betaX: dw 0
@@ -334,8 +333,6 @@ teardown:
 
   mov ax,cs
   mov ds,ax
-  mov al,[imr]
-  out 0x21,al
 
   setPIT0Count 0
 

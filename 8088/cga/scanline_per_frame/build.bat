@@ -7,4 +7,6 @@ yasm visible_lockstep.asm -o visible_lockstep.bin
 yasm 1spf3.asm -o 1spf3.bin
 yasm 1spf4.asm -o 1spf4.bin
 yasm 1spf4_single.asm -o 1spf4_single.bin
-
+yasm 1spf_unrolled.asm -o 1spf_unrolled.bin
+yasm rose.asm -o r.com -l r.lst
+copy /b r.com+\pictures\reenigne\cga2ntsc\rose_out.dat rose.com

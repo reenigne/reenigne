@@ -295,18 +295,22 @@ PIT clock is 12 hdots
   phase2: 22, 24, 25, 26
   phase4: 20, 22, 23, 24
 
-
+1spf_unrolled:
+  phase2: 2, 3, 4, 5
+  phase4: 1, 2, 3, 4, 5
 
 
 TODO:
-  Try a port access to get 304 cycles for start-of-frame in trace
-  Realign loop to scanline edge
-  Refactor in macro to avoid duplication
-  Set up data structures to display something
+  Animation of rose
+    Create table of start address for y position
+      Does old restarts have 256 possible y positions?
+  Last scanline is repeated
+
 
 
 
 Done:
+
 Test 1spf4.bin with new optimizations (es and 5702)
 Before the critical loop starts, need to:
   Wait for scanline 0 to start
@@ -314,4 +318,9 @@ Before the critical loop starts, need to:
 At the end of the critical loop, need to:
   Wait for scanline 199 to start
   Set r0=0x71, r2=0x5a, (r6=0x01), r4=0x40, r12=high(next 0), r13=low(next 0)
+  Try a port access to get 304 cycles for start-of-frame in trace
+Get 304 cycles in trace for first scanline
+Realign loop to scanline edge
+Refactor in macro to avoid duplication
+Set up data structures to display something
 

@@ -98,7 +98,7 @@ loopTop:
   dec dx
   outputByte
   outputByte
-  mov dx,18996    ;65534 ;
+  mov dx,18996 + 492*3   ;65534 ;
   outputByte
   outputByte
 
@@ -174,17 +174,28 @@ lut: db 0x88,8
 testRoutine:
   mov [cs:savedSP],sp
 
-  cli
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,REFRESH
+  out 0x41,al  ; Timer 1 rate
+
   xor ax,ax
   mov ds,ax
-  mov [0x20],irq0test
+  mov word[0x20],irq0setup
   writePIT16 0, 2, 2         ; Ensure we have a pending IRQ0
+  writePIT16 0, 2, 40
+  sti
+  hlt     ; Should never be hit
+irq0setup:
+  mov al,0x20
+  out 0x20,al
+  mov word[0x20],irq0test
   sti
   hlt
 
-
-
 irq0test:
+  mov al,0x20
+  out 0x20,al
 
   mov dx,0x3d4
   xor si,si
@@ -222,54 +233,9 @@ irq0test:
 ;  out dx,ax
   mov ax,0x0104   ; Vertical total
   out dx,ax
-  out dx,ax
-
-
-%macro innerLoop0 0
-  mov ax,0x0101  ; b  Horizontal_displayed  right
-  out dx,ax
-
-  xchg ax,di
-  ;mov ax,0x1900  ; a  Horizontal_total      right
-  out dx,ax
-  xchg ax,di
-
-  xchg ax,bp
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
-  out dx,ax
-  xchg ax,bp
-
-  mov ax,es
-  ;mov ax,0x5702  ; c  Horizontal_sync       left
-  out dx,ax
-
-;  mov ax,0x5700  ; e  Horizontal_total      left
-  mov al,0x00
-  out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right
-  out dx,ax
-
-  mov ah,bh
-  mov al,0x0c
-  out dx,ax
-  mov ah,bl
-  inc ax
-  out dx,ax
-
-  mov al,bl
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
-  inc bx
-
+;  out dx,al
   nop
   nop
-  nop
-  nop
-  loop %%loopTop
-%%loopTop:
-%endmacro
 
 
 %macro innerLoop 0
@@ -340,6 +306,13 @@ irq0test:
 %endrep
 
   mov sp,[cs:savedSP]
+
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],irq0
+  writePIT16 0, 2, 0
+
+
   ret
 savedSP:
 

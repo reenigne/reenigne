@@ -57,6 +57,26 @@ notPhase3:
   cli
 
 
+  mov di,startAddresses
+  mov ax,cs
+  mov es,ax
+  xor ax,ax
+  mov cx,200
+initAddressesLoopTop:
+  stosw
+  inc ax
+  loop initAddressesLoopTop
+
+  mov di,rasterData
+  xor ax,ax
+  mov cx,200
+initRastersLoopTop:
+  stosb
+  inc ax
+  loop initRastersLoopTop
+
+
+
   mov ax,0xb800
   mov es,ax
   mov ax,cs
@@ -252,154 +272,107 @@ interrupt8:
   sti
   hlt
 interrupt8second:
+  mov al,0x20
+  out 0x20,al
 
+  mov ax,cs
+  mov ds,ax
+  mov ss,ax
+  mov sp,startAddresses
+  mov dx,0x3d4
+    pop cx
+    mov al,0x0c
+    mov ah,ch
+    out dx,ax
+    inc ax
+    mov ah,cl
+    out dx,ax
   mov bp,0x5001
   mov di,0x1900
   mov ax,0x5702
+  mov si,sampleData
+  mov bx,rasterData-sampleData
   mov es,ax
 
-  ; Scanline 0
+  ; Scanlines 0-199
 
-  mov ax,0x5700  ; e  Horizontal_total      left
-  out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right
-  out dx,ax
-
-  pop cx
-  mov al,0x0c
-  mov ah,ch
-  out dx,ax
-  inc ax
-  mov ah,cl
-  out dx,ax
-
-  lodsb
-  out 0xe0,al
-
-;  mov ax,0x0206   ; Vertical displayed
-;  out dx,ax
-  mov ax,0x0104   ; Vertical total
-  out dx,ax
-
-%macro innerLoop 0
-  mov ax,0x0101  ; b  Horizontal_displayed  right
-  out dx,ax
-
-  xchg ax,di
-  ;mov ax,0x1900  ; a  Horizontal_total      right
-  out dx,ax
-  xchg ax,di
-
-  xchg ax,bp
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
-  out dx,ax
-  xchg ax,bp
-
-  mov ax,es
-  ;mov ax,0x5702  ; c  Horizontal_sync       left
-  out dx,ax
-
-  ; Scanlines 1-198
-
-  ;mov ax,0x5700  ; e  Horizontal_total      left
+%macro scanline 1
   mov al,0x00
-  out dx,ax
+  out dx,ax        ; e  Horizontal Total         left  0x5700  88
+  mov ax,0x0202
+  out dx,ax        ; f  Horizontal Sync Position right 0x0202   2
 
-  mov ax,0x0202  ; f  Horizontal_sync       right
-  out dx,ax
-
-  pop cx
-  mov al,0x0c
-  mov ah,ch
-  out dx,ax
-  inc ax
-  mov ah,cl
-  out dx,ax
+  %if %1 != 199
+    pop cx
+    mov al,0x0c
+    mov ah,ch
+    out dx,ax
+    inc ax
+    mov ah,cl
+    out dx,ax
+  %else
+    mov ax,0x3f04
+    out dx,ax      ;    Vertical Total                 0x3f04  64  (2 for scanline 199, 62 for overscan)
+    times 9 nop  ; TODO: tune
+  %endif
 
   lodsb
   out 0xe0,al
 
-  mov al,[bx+si]
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
+  %if %1 == 0
+    mov ax,0x0104
+    out dx,ax      ;    Vertical Total
+    times 2 nop
+  %else
+    mov al,[bx+si]
+    mov dl,0xd9
+    out dx,al
+    mov dl,0xd4
+  %endif
+
+  mov ax,0x0101
+  out dx,ax        ; b  Horizontal Displayed     right 0x0101   1
+  xchg ax,di
+  out dx,ax        ; a  Horizontal Total         right 0x1900  26
+  xchg ax,di
+  xchg ax,bp
+  out dx,ax        ; d  Horizontal Displayed     left  0x5001  80
+  xchg ax,bp
+  mov ax,es
+  out dx,ax        ; c  Horizontal Sync Position left  0x5702  88
 %endmacro
-  times 198 innerLoop
-
-  mov ax,0x0101  ; b  Horizontal_displayed  right
-  out dx,ax
-
-  xchg ax,di
-  ;mov ax,0x1900  ; a  Horizontal_total      right
-  out dx,ax
-  xchg ax,di
-
-  xchg ax,bp
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
-  out dx,ax
-  xchg ax,bp
-
-  mov ax,es
-  ;mov ax,0x5702  ; c  Horizontal_sync       left
-  out dx,ax
-
-  ; Scanline 199
-
-  mov ax,0x5700  ; e  Horizontal_total      left
-  out dx,ax
-
-  mov ax,0x0202  ; f  Horizontal_sync       right
-  out dx,ax
-
-  mov ax,0x3f04  ; Vertical total
-  out dx,ax
-  times 9 nop  ; TODO: tune
-
-  lodsb
-  out 0xe0,al
-
-  mov al,[bx+si]
-  mov dl,0xd9
-  out dx,al
-  mov dl,0xd4
-
-
-  mov ax,0x0101  ; b  Horizontal_displayed  right
-  out dx,ax
-
-  xchg ax,di
-  ;mov ax,0x1900  ; a  Horizontal_total      right
-  out dx,ax
-  xchg ax,di
-
-  xchg ax,bp
-  ;mov ax,0x5001  ; d  Horizontal_displayed  left
-  out dx,ax
-  xchg ax,bp
-
-  mov ax,es
-  ;mov ax,0x5702  ; c  Horizontal_sync       left
-  out dx,ax
+%assign i 0
+%rep 200
+  scanline i
+  %assign i i+1
+%endrep
 
   ; Scanline 200
 
-  mov ax,0x7100  ; e  Horizontal_total      left
-  out dx,ax
+  mov ax,0x7100
+  out dx,ax        ; e  Horizontal Total         left  0x7100 114
+  mov ax,0x5a02
+  out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
 
-  mov ax,0x5a02  ; f  Horizontal_sync       right
-  out dx,ax
-
-  ; TODO: Load start address registers for scanline 0
   ; TODO: We are now free to do per-frame vertical-overscan stuff
   ; with no special timing requirements except:
   ;   HLT before overscan is over
   ;   Sound (if in use)
 
+  mov ax,[frame]
+  inc ax
+  mov [frame],ax
+  cmp ax,60
+  je doneFrame
 
+  mov sp,stackTop
+  sti
+  hlt
 
+doneFrame:
+  mov word[frame],0
   inc word[cs:initial]
-  cmp word[cs:initial],3
+  cmp word[cs:initial],46
   je done
 
   mov al,0x20
@@ -424,7 +397,7 @@ done:
 
 
 timeSlide:
-  times 23 nop
+  times 46 nop
   ret
 
 
@@ -436,7 +409,16 @@ dummyInterrupt8:
   iret
 
 
-initial: dw 2
+initial: dw 0
+
+startAddresses:
+  times 200 dw 0
+rasterData:
+  times 200 db 0
+sampleData:
+  times 200 db 0
+frame:
+  dw 0
 
 data:
 
@@ -542,3 +524,6 @@ data:
   dw 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x070a, 0x0f0a, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0f0a, 0x0f0a, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 
 data2:
+
+  times 128 dw 0
+stackTop:
