@@ -10,3 +10,6 @@ yasm 1spf4_single.asm -o 1spf4_single.bin
 yasm 1spf_unrolled.asm -o 1spf_unrolled.bin
 yasm rose.asm -o r.com -l r.lst
 copy /b r.com+\pictures\reenigne\cga2ntsc\rose_out.dat rose.com
+yasm rose.asm -o r.bin -dbin=1 -l r.lst
+copy /b r.bin+\pictures\reenigne\cga2ntsc\rose_out.dat rose.bin
+

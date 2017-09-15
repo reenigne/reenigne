@@ -1,3 +1,6 @@
+%ifdef bin
+%include "../../defaults_bin.asm"
+%else
 %include "../../defaults_com.asm"
 
 main:
@@ -9,6 +12,8 @@ checkMotorShutoff:
   mov byte[0x40],1
   jmp checkMotorShutoff
 noMotorShutoff:
+
+%endif
 
   in al,0x61
   or al,0x80
@@ -93,7 +98,7 @@ initAddressesLoopTop:
   mov cx,200
 initRastersLoopTop:
   stosb
-  inc ax
+;  inc ax
   loop initRastersLoopTop
 
 
@@ -180,7 +185,7 @@ initRastersLoopTop:
   out dx,ax
 
   ;   0x0f Horizontal Sync Width                        0d
-  mov ax,0x0f03
+  mov ax,0x0003 ;0x0f03
   out dx,ax
 
   ;   0x7f Vertical Total                               3d
@@ -226,11 +231,11 @@ initRastersLoopTop:
   out dx,ax
 
   ;   0x3f Cursor (H)                                   03
-  mov ax,0x030e
+  mov ax,0x3f0e
   out dx,ax
 
   ;   0xff Cursor (L)                                   c0
-  mov ax,0xc00f
+  mov ax,0xff0f
   out dx,ax
 
 
@@ -529,6 +534,7 @@ lineTable:
   %assign i i+1
 %endrep
 
+align 2
 
 section .bss
 data:
