@@ -199,6 +199,15 @@ eeeeeeeeeeeeeeeeeeeeeeeee                                                       
   fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff                           fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
                                                                                  b          a        d        c           e            f
 
+
+b  Horizontal Displayed     right 0x0101   1
+a  Horizontal Total         right 0x1900  26
+d  Horizontal Displayed     left  0x5001  80
+c  Horizontal Sync Position left  0x5702  88
+e  Horizontal Total         left  0x5700  88
+f  Horizontal Sync Position right 0x0202   2
+
+
 Suppose we have a 34-character wide initial state
 
 So, order is badcefHLPS
@@ -301,10 +310,32 @@ PIT clock is 12 hdots
 
 
 TODO:
-  Animation of rose
-    Create table of start address for y position
-      Does old restarts have 256 possible y positions?
   Last scanline is repeated
+
+
+
+
+
+Fixing up last scanline
+  Currently, CRTC-scanline 0 is short and CRTC-scanline 1 is long
+  Is this is unavoidable or just a consequence of how it self-synchronizes?
+    Does not seem to be unavoidable - it's the other way around on VWytseIj0XwW8P4623.png.raw (1spf4)
+    However, changing ES to 5702 (so that no sync pulses are skipped) yields a large chunk of overscan at the top
+  Assume CRTC-scanline 0 is short and CRTC-scanline 1 is long:
+    Scanline -1:
+      Left half is last of the overscan CRTC-scanlines
+        Set horizontal total and horizontal sync position as if it's a normal scanline
+        Can't set vertical total yet, so set start address for scanline 0
+        Could set palette register but the effect would persist for two scanlines
+      Right half is CRTC-scanline 0 as normal
+    Scanline 0:
+      Left half:
+        Need to set vertical total. Do this instead of setting the palette
+
+    Scanline 199:
+
+
+
 
 
 
@@ -323,4 +354,7 @@ Get 304 cycles in trace for first scanline
 Realign loop to scanline edge
 Refactor in macro to avoid duplication
 Set up data structures to display something
+  Animation of rose
+    Create table of start address for y position
+      Does old restarts have 256 possible y positions?
 
