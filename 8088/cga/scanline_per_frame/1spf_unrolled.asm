@@ -281,13 +281,6 @@ interrupt8second:
   mov ss,ax
   mov sp,startAddresses
   mov dx,0x3d4
-    pop cx
-    mov al,0x0c
-    mov ah,ch
-    out dx,ax
-    inc ax
-    mov ah,cl
-    out dx,ax
   mov bp,0x5001
   mov di,0x1900
   mov ax,0x5702
@@ -295,7 +288,7 @@ interrupt8second:
   mov bx,rasterData-sampleData
   mov es,ax
 
-  ; Scanlines 0-199
+  ; Scanlines -1..198
 
 %macro scanline 1
   mov al,0x00
@@ -303,19 +296,13 @@ interrupt8second:
   mov ax,0x0202
   out dx,ax        ; f  Horizontal Sync Position right 0x0202   2
 
-  %if %1 != 199
-    pop cx
-    mov al,0x0c
-    mov ah,ch
-    out dx,ax
-    inc ax
-    mov ah,cl
-    out dx,ax
-  %else
-    mov ax,0x3f04
-    out dx,ax      ;    Vertical Total                 0x3f04  64  (2 for scanline 199, 62 for overscan)
-    times 9 nop  ; TODO: tune
-  %endif
+  pop cx
+  mov al,0x0c
+  mov ah,ch
+  out dx,ax
+  inc ax
+  mov ah,cl
+  out dx,ax
 
   lodsb
   out 0xe0,al
@@ -342,18 +329,25 @@ interrupt8second:
   mov ax,es
   out dx,ax        ; c  Horizontal Sync Position left  0x5702  88
 %endmacro
-%assign i 0
+%assign i -1
 %rep 200
   scanline i
   %assign i i+1
 %endrep
 
-  ; Scanline 200
+  ; Scanline 199
 
   mov ax,0x7100
   out dx,ax        ; e  Horizontal Total         left  0x7100 114
   mov ax,0x5a02
   out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
+
+  mov ax,0x4004
+  out dx,ax      ;    Vertical Total                 0x3f04  64  (2 for scanline 199, 62 for overscan)
+  times 9 nop  ; TODO: tune
+
+  lodsb
+  out 0xe0,al
 
   ; TODO: We are now free to do per-frame vertical-overscan stuff
   ; with no special timing requirements except:

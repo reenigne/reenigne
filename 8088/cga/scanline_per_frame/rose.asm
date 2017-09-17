@@ -27,7 +27,10 @@ noMotorShutoff:
   mov [cs:oldInterrupt8],ax
   mov ax,[0x22]
   mov [cs:oldInterrupt8+2],ax
-
+  in al,0x21
+  mov [imr],al
+  mov al,0xfe  ; Enable IRQ0 (timer), disable all others
+  out 0x21,al
 
   ; Determine and print phase
   lockstep 1
@@ -464,6 +467,8 @@ tearDown:
 
   mov ax,cs
   mov ds,ax
+  mov al,[imr]
+  out 0x21,al
 
   writePIT16 0, 2, 0
 
@@ -516,7 +521,6 @@ dummyInterrupt8:
 
 
 initial: dw 3
-
 increment: dw 0
 frameCount: dw 0, 0
 oldInterrupt8: dw 0, 0
@@ -529,7 +533,7 @@ lineTable:
   %if i >= 200
      dw (i&1)*80 + 8000
   %else
-     dw (i >> 1)*80
+     dw (i >> 1)*80 - 2
   %endif
   %assign i i+1
 %endrep
