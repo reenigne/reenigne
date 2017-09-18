@@ -389,6 +389,12 @@ cpu 8086
   refreshOn
 %endmacro
 
+%macro safeRefreshOn 1
+  ensureRefresh
+  refreshOn %1
+%endmacro
+
+
 
 %macro lockstep 1
   mov dx,0x03d8

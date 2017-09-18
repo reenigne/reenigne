@@ -333,10 +333,25 @@ Fixing up last scanline
         Need to set vertical total. Do this instead of setting the palette
 
     Scanline 199:
+      Left half
+        Set vertical total instead of start address
+        set horizontal total and horizontal sync position
+      Right half:
+        CRTC scanline 2
+    Scanline 200:
+      CRTC scanline 3
+    Scanline 261 == -1
+      CRTC scanline 64
 
+With last-scanline fix:
+  phase2: 28, 29, 30, 31, 32
 
-
-
+Plan:
+  What to do about DRAM refresh?
+    It can be off for about 23 scanlines
+    Do we really need to synchronize with it?
+      We might have more than a refresh's worth of "slop" in the CPU/CRTC timings, but we need to make sure that the inner loop takes 304 cycles no matter where the refresh falls
+        Try stability on my machine with many different amounts of time between setup of PIT channels 0 and 1
 
 
 
@@ -357,4 +372,10 @@ Set up data structures to display something
   Animation of rose
     Create table of start address for y position
       Does old restarts have 256 possible y positions?
+
+Set CRTC to normal frame
+Align CPU with CRTC top-left to display-enable-polling precision (using display-enable polling)
+Align PIT with CRTC by starting it at period 19912
+Realign to IO precision by using display-enable polling and a PIT period of 19911
+Add adjustment parameter by having one PIT frame longer or shorter than 19912 PIT cycles
 

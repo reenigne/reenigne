@@ -34,7 +34,7 @@ noMotorShutoff:
   mov ds,ax
 
   mov dx,0x213
-  mov al,1
+  mov al,0
   out dx,al
 
   in al,0x61

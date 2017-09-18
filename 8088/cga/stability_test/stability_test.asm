@@ -33,6 +33,10 @@ noMotorShutoff:
   mov [0x22],ax
   mov ds,ax
 
+
+
+
+
   in al,0x61
   or al,0x80
   mov [port61high+1],al
@@ -44,12 +48,31 @@ noMotorShutoff:
   mov al,0xfe  ; Enable IRQ0 (timer), disable all others
   out 0x21,al
 
+
+
+
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,19
   out 0x41,al  ; Timer 1 rate
 
   writePIT16 0, 2, 19912     ; Now counting down with the frame, one IRQ0 pending
+
+  sti
+  hlt
+
+interrupt8temp:
+  mov al,0x20
+  out 0x20,al
+
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8
+
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,19
+  out 0x41,al  ; Timer 1 rate
 
   sti
   hlt
