@@ -12,4 +12,6 @@ yasm rose.asm -o r.com -l r.lst
 copy /b r.com+\pictures\reenigne\cga2ntsc\rose_out_rgbi.dat rose.com
 yasm rose.asm -o r.bin -dbin=1 -l r.lst
 copy /b r.bin+\pictures\reenigne\cga2ntsc\rose_out.dat rose.bin
+yasm 1spf_newstart.asm -o 1spf_newstart.bin
+yasm 1spf_newstart2.asm -o 1spf_newstart2.bin
 

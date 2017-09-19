@@ -28,7 +28,7 @@ noMotorShutoff:
   mov [cs:oldInterrupt8],ax
   mov ax,[0x22]
   mov [cs:oldInterrupt8+2],ax
-  mov word[0x20],interrupt8
+  mov word[0x20],interrupt8temp
   mov ax,cs
   mov [0x22],ax
   mov ds,ax

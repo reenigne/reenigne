@@ -311,9 +311,17 @@ PIT clock is 12 hdots
 
 TODO:
   Last scanline is repeated
+    Start address array is becoming corrupted
 
 
-
+CRTC-scanline 0 is short and CRTC-scanline 1 is long:
+  Scanline 260:         62
+  Scanline 261:     63       0
+  Scanline   0:      1       0
+  ...
+  Scanline 198:      1       0
+  Scanline 199:          1
+  Scanline 200:          2
 
 
 Fixing up last scanline
