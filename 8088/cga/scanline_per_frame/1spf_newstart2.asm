@@ -7,6 +7,11 @@
   mov ds,ax
   mov di,data2
 
+  in al,0x21
+  mov [imr],al
+  mov al,0xfe  ; Enable IRQ0 (timer), disable all others
+  out 0x21,al
+
   in al,0x61
   or al,3
   out 0x61,al
@@ -66,7 +71,8 @@ notPhase3:
   mov cx,200
 initAddressesLoopTop:
   stosw
-  inc ax
+;  inc ax
+  add ax,2 ;40
   loop initAddressesLoopTop
 
   mov di,rasterData
@@ -366,7 +372,8 @@ rasterData:
 sampleData:
   times 200 db 0
 adjustPeriod:
-  dw 0x138f ;76*64      phase4: 1332-1336, 129a-129e, phase2: 138d-1391
+  dw 0x138f ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
+imr: db 0
 
 data:
 

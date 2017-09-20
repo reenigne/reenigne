@@ -194,9 +194,6 @@ irq0setup:
   hlt
 
 irq0test:
-  mov al,0x20
-  out 0x20,al
-
   mov ax,cs
   mov ds,ax
   mov ss,ax
@@ -235,7 +232,7 @@ irq0test:
   %else
     mov ax,0x3f04
     out dx,ax      ;    Vertical Total                 0x3f04  64  (2 for scanline 199, 62 for overscan)
-    times 9 nop  ; TODO: tune
+    times 11 nop  ; TODO: tune
   %endif
 
   lodsb
@@ -285,6 +282,9 @@ irq0test:
   mov ds,ax
   mov word[0x20],irq0
   writePIT16 0, 2, 0
+
+  mov al,0x20
+  out 0x20,al
 
 
   ret

@@ -322,6 +322,80 @@ CRTC-scanline 0 is short and CRTC-scanline 1 is long:
   Scanline 198:      1       0
   Scanline 199:          1
   Scanline 200:          2
+  ...
+
+CRTC-scanline 0 is long and CRTC-scanline 1 is short:
+  Scanline   0:      0       1
+  ...
+  Scanline 199:      0       1
+  Scanline 200:          2
+  Scanline 261:         63
+
+1spf_newstart sequence:
+  CRTC                      CPU
+  Scanline -1 starts
+    Before column 80        Start address set for line 0
+  Scanline 0 starts
+    After column 0          Horizontal Total set to 88
+    After column 2          Horizontal Sync position set to 2
+    Before column 80        Start address set for line 1
+    Before column 89        Vertical total set to 2
+
+  Scanline 199 starts
+    After column 0          Horizontal Total set to 88
+    After column 2          Horizontal Sync position set to 2
+    Before column 80        Vertical total set to 64
+
+  Scanline 200 starts
+    After column 0          Horizontal Total set to 114
+    Before column 87        Horizontal Sync Position set to 90
+
+What's actually happening?
+  phase4, 1296-129a
+  The first displayed line has start address 2
+    Therefore, the code is running 2 scanlines too early
+    However, if vertical total was set to 2 early then we'd get an extra ~64 CRTC scanlines of vertical overscan
+    The first palette port write sets the overscan colour to 2.
+      This is because there are two lodsbs before the first palette set
+      Palette set is skipped on scanline 0 to set vertical total
+      So scanline 0 is empty and the first visible scanline is scanline 1
+      Why is scanline 0 empty?
+        Two possibilities:
+          One: Some signal is missing that is preventing enabling the display at the CRTC origin
+            Seems unlikely - the long frame is clearly hitting vertical displayed, vertical sync start and vertical sync end
+              Are we missing a horizontal signal? Would that matter?
+          Two: During scanline 0 we're actually displaying scanline 63 of the long CRTC frame
+        How can we distinguish between these two possibilities?
+          What happens if we set vertical displayed to 64?
+            Then scanline 0 displays long-frame data, which also suggests scenario Two
+        Assume scenario Two for now.
+          If long-frame is ending too late, it must also be starting too late
+
+  What's going on at the end?
+    Scanline 199 starts correctly
+    Nothing appears in extra column of scanline 199
+      Why? Trace says:
+        Port e0 writes at 420, 722 (302), 1020 (298)
+        Time from 0202 CRTC write to e0 write, 926->1020 == 94 (scanline 199), 622->722 == 100
+
+    Scanline 200 repeats data from scanline 199
+
+
+
+
+1spf_newstart2 behavior (designed for CRTC-scanline 0 being short):
+  phase4, 1341-1345, extra column is duplicate of column 1
+          13d9-13dd - same
+  So, what must be happening is this:
+    CRTC-scanline 0 is long.
+    When column passes 1, horizontal displayed is still 1 so next-row-start-address is latched
+
+1spf_newstart behavior (designed for CRTC-scanline 0 being short):
+  phase4, 1287-128b, extra column is duplicate of column 1
+
+Check where start address is latched. May be a row or a scanline before CRTC origin
+  Seems like start address is latched at display end of last scanline
+  Seems like vertical total is latched at the same place
 
 
 Fixing up last scanline

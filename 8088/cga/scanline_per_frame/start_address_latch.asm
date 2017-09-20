@@ -64,27 +64,6 @@ notPhase3:
   cli
 
 
-  mov di,startAddresses
-  mov ax,cs
-  mov es,ax
-  xor ax,ax
-  mov cx,200
-initAddressesLoopTop:
-  stosw
-  inc ax
-;  add ax,2 ;40
-  loop initAddressesLoopTop
-
-  mov di,rasterData
-  xor ax,ax
-  mov cx,200
-initRastersLoopTop:
-  stosb
-  inc ax
-  loop initRastersLoopTop
-
-
-
   mov ax,0xb800
   mov es,ax
   mov ax,cs
@@ -109,7 +88,6 @@ restart:
   safeRefreshOn 19
 
   writePIT16 0, 2, 2
-
   ; Mode
   ;      1 +HRES
   ;      2 +GRPH
@@ -135,19 +113,19 @@ restart:
   mov dl,0xd4
   mov ax,0x7100
   out dx,ax
-  mov ax,0x5001
+  mov ax,0x2801
   out dx,ax
   mov ax,0x5a02
   out dx,ax
   mov ax,0x0f03
   out dx,ax
-  mov ax,0x010f ;0x3f04
+  mov ax,0x5604
   out dx,ax
   mov ax,0x0005
   out dx,ax
-  mov ax,0x0206 ;0x4006 ;
+  mov ax,0x1a06
   out dx,ax
-  mov ax,0x1907
+  mov ax,0x3207
   out dx,ax
   mov ax,0x0008
   out dx,ax
@@ -166,11 +144,12 @@ restart:
   mov ax,0xff0f
   out dx,ax
 
+
   mov dl,0xda
   waitForVerticalSync
   waitForDisplayEnable
 
-  writePIT16 0, 2, 76*64 - 1
+  writePIT16 0, 2, 76*261 - 1
 
   xor ax,ax
   mov ds,ax
@@ -192,7 +171,7 @@ interrupt8a:
   hlt
 
 interrupt8b:
-  mov al,0x34                  ; We're still counting down from 76*64-1
+  mov al,0x34                  ; We're still counting down from 19911
   out 0x43,al
   mov ax,[cs:adjustPeriod]
   out 0x40,al
@@ -206,7 +185,7 @@ interrupt8b:
   hlt
 
 interrupt8c:
-  writePIT16 0, 2, 76*64       ; We're still counting down from adjustPeriod
+  writePIT16 0, 2, 76*261       ; We're still counting down from adjustPeriod
   mov word[0x20],interrupt8d
   mov al,0x20
   out 0x20,al
@@ -215,7 +194,7 @@ interrupt8c:
   hlt
 
 interrupt8d:
-  writePIT16 0, 2, 76*262       ; We're still counting down from 76*64
+  writePIT16 0, 2, 76*261       ; We're still counting down from adjustPeriod
   mov word[0x20],interrupt8
   mov al,0x20
   out 0x20,al
@@ -224,94 +203,34 @@ interrupt8d:
   hlt
 
 interrupt8:
+;  mov dx,0x3d4
+;  mov al,0x0d
+;  out dx,al
+;  mov al,1
+;  mov dl,0xd9
+;  out dx,al
+;  mov dl,0xd5
+;  out dx,al
+;  mov al,2
+;  out dx,al
+;  mov dl,0xd9
+;  out dx,al
+
+  mov dx,0x3d4
+  mov al,0x04
+  out dx,al
+  mov al,0x57
+  mov dl,0xd9
+  out dx,al
+  mov dl,0xd5
+  out dx,al
+  mov al,0x56
+  out dx,al
+  mov dl,0xd9
+  out dx,al
+
   mov ax,cs
   mov ds,ax
-  mov ss,ax
-  mov sp,startAddresses - 6
-  mov dx,0x3d4
-    pop cx
-    mov al,0x0c
-    mov ah,ch
-    out dx,ax
-    inc ax
-    mov ah,cl
-    out dx,ax
-
-;    lodsb
-;    out 0xe0,al
-;    times 13 nop
-
-  mov bp,0x5001
-  mov di,0x1900
-  mov ax,0x5702
-  mov si,sampleData
-  mov bx,(rasterData - 2)-sampleData
-  mov es,ax
-
-  ; Scanlines 0-199
-
-%macro scanline 1
-  mov al,0x00
-  out dx,ax        ; e  Horizontal Total         left  0x5700  88
-  mov ax,0x0202
-  out dx,ax        ; f  Horizontal Sync Position right 0x0202   2
-
-  %if %1 != 199
-    pop cx
-    mov al,0x0c
-    mov ah,ch
-    out dx,ax
-    inc ax
-    mov ah,cl
-    out dx,ax
-  %else
-    mov ax,0x3f04
-    out dx,ax      ;    Vertical Total                 0x3f04  64  (2 for scanline 199, 62 for overscan)
-    times 11 nop  ; time between 0x0202 CRTC write and port 0xe0 write is normally 100 cycles. Here, 9 => 94 cycles, 10 => 98 cycles, 11 => 102 cycles
-  %endif
-
-  lodsb
-  out 0xe0,al
-
-  %if %1 == 0
-    mov ax,0x0104
-    out dx,ax      ;    Vertical Total
-    times 2 nop
-  %else
-    mov al,[bx+si]
-    mov dl,0xd9
-    out dx,al
-    mov dl,0xd4
-  %endif
-
-  mov ax,0x0101
-  out dx,ax        ; b  Horizontal Displayed     right 0x0101   1
-  xchg ax,di
-  out dx,ax        ; a  Horizontal Total         right 0x1900  26
-  xchg ax,di
-  xchg ax,bp
-  out dx,ax        ; d  Horizontal Displayed     left  0x5001  80
-  xchg ax,bp
-  mov ax,es
-  out dx,ax        ; c  Horizontal Sync Position left  0x5702  88
-%endmacro
-%assign i 0
-%rep 200
-  scanline i
-  %assign i i+1
-%endrep
-
-  ; Scanline 200
-
-  mov ax,0x7100
-  out dx,ax        ; e  Horizontal Total         left  0x7100 114
-  mov ax,0x5a02
-  out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
-
-  ; TODO: We are now free to do per-frame vertical-overscan stuff
-  ; with no special timing requirements except:
-  ;   HLT before overscan is over
-  ;   Sound (if in use)
 
   in al,0x60
   xchg ax,bx
@@ -388,14 +307,8 @@ dummyInterrupt8:
 
 
 
-startAddresses:
-  times 200 dw 0
-rasterData:
-  times 200 db 0
-sampleData:
-  times 200 db 0
 adjustPeriod:
-  dw 0x1298 ; 0x1289 ;76*64
+  dw 76*261
 imr: db 0
 
 data:
