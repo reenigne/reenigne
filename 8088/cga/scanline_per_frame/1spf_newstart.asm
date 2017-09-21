@@ -71,8 +71,8 @@ notPhase3:
   mov cx,200
 initAddressesLoopTop:
   stosw
-  inc ax
-;  add ax,2 ;40
+;  inc ax
+  add ax,2 ;40
   loop initAddressesLoopTop
 
   mov di,rasterData

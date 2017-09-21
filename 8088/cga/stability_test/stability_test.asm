@@ -28,14 +28,9 @@ noMotorShutoff:
   mov [cs:oldInterrupt8],ax
   mov ax,[0x22]
   mov [cs:oldInterrupt8+2],ax
-  mov word[0x20],interrupt8temp
   mov ax,cs
   mov [0x22],ax
   mov ds,ax
-
-
-
-
 
   in al,0x61
   or al,0x80
@@ -48,14 +43,26 @@ noMotorShutoff:
   mov al,0xfe  ; Enable IRQ0 (timer), disable all others
   out 0x21,al
 
+restart:
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8dummy
 
+  sti
+  mov ax,[cs:slideCount]
+  outputHex
+  cli
 
+  mov word[0x20],interrupt8temp
 
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,19
-  out 0x41,al  ; Timer 1 rate
+  safeRefreshOff
 
+;  mov al,TIMER1 | LSB | MODE2 | BINARY
+;  out 0x43,al
+;  mov al,19
+;  out 0x41,al  ; Timer 1 rate
+
+  writePIT16 0, 2, 2
   writePIT16 0, 2, 19912     ; Now counting down with the frame, one IRQ0 pending
 
   sti
@@ -68,6 +75,10 @@ interrupt8temp:
   xor ax,ax
   mov ds,ax
   mov word[0x20],interrupt8
+
+  mov bx,[cs:slideCount]
+  add bx,slide
+  call bx
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
@@ -108,9 +119,34 @@ port61low:
   cmp bl,1
   je tearDown
 
+  cmp bl,0x4a
+  je decreaseSlide
+  cmp bl,0x4e
+  je increaseSlide
+
+continue:
   mov sp,stackTop
   sti
   hlt
+
+decreaseSlide:
+  dec word[cs:slideCount]
+  cmp word[cs:slideCount],-1
+  jne .noFixup
+  mov word[cs:slideCount],18
+.noFixup:
+  jmp restart2
+
+increaseSlide:
+  inc word[cs:slideCount]
+  cmp word[cs:slideCount],19
+  jne .noFixup
+  mov word[cs:slideCount],0
+.noFixup:
+
+restart2:
+  jmp restart
+
 
 tearDown:
   mov al,TIMER1 | LSB | MODE2 | BINARY
@@ -162,6 +198,18 @@ exit:
   mov ax,0x4c00
   int 0x21
 
+slide:
+  times 38 nop
+  ret
+
+interrupt8dummy:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
+slideCount: dw 0
 
 section .bss
 data:

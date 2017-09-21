@@ -314,16 +314,6 @@ TODO:
     Start address array is becoming corrupted
 
 
-CRTC-scanline 0 is short and CRTC-scanline 1 is long:
-  Scanline 260:         62
-  Scanline 261:     63       0
-  Scanline   0:      1       0
-  ...
-  Scanline 198:      1       0
-  Scanline 199:          1
-  Scanline 200:          2
-  ...
-
 CRTC-scanline 0 is long and CRTC-scanline 1 is short:
   Scanline   0:      0       1
   ...
@@ -381,6 +371,61 @@ What's actually happening?
     Scanline 200 repeats data from scanline 199
 
 
+CRTC-scanline 0 is short and CRTC-scanline 1 is long:
+  Scanline 260:         62
+  Scanline 261:     63       0
+  Scanline   0:      1       0
+  ...
+  Scanline 198:      1       0
+  Scanline 199:          1
+  Scanline 200:          2
+  ...
+
+1spf_newstart2 sequence:
+  CRTC                      CPU
+                            Interrupt happens
+  Scanline -1 starts                                        Horizontal total initially 114
+    0 <= column < 88        Horizontal total set to 88
+    2 < column              Horizontal sync position set to 2
+                            Start Address set for line 0
+
+  Scanline 198 starts
+                            Set horizontal displayed to 1
+  Scanline 198b (0) starts
+  Scanline 198b display end
+  Scanline 198b sync start
+                            Set horizontal total to 26
+                            Set horizontal displayed to 80
+                            Set horizontal sync position to 88
+  Scanline 199a (1) starts
+                            Set horizontal total to 114
+                            Set horizontal sync position to 90
+                            Set vertical total to 64
+  Column 80, VT latched
+
+Are the vertical total changes happening at the right times?
+  Vertical Total <- 2
+    Earliest is scanline 261a (63) column 80
+    Latest is scanline 0a (1) column 80
+    If it was too early or too late we'd have too much overscan
+  Vertical Total <- 64
+    If it was too early or too late we'd have 2 extra or 2 few scanlines, and the other VT would be in the wrong place (unless
+
+
+Question: is long scanline firstVisible-1 the last scanline of the long frame or the second scanline of the first short frame?
+  If the latter, why does display not get enabled?
+
+Terminology: firstVisible is the first scanline that actually shows active VRAM data
+scanline 0 is the second instantiation of the scanline macro in the code - it's supposed to be firstVisible, but in fact is firstVisible-1
+
+
+Issues:
+  We are not displaying on scanline 0
+  We are displaying on scanline 200
+  We are displaying on scanline 201
+
+
+
 
 
 1spf_newstart2 behavior (designed for CRTC-scanline 0 being short):
@@ -429,6 +474,7 @@ With last-scanline fix:
   phase2: 28, 29, 30, 31, 32
 
 Plan:
+
   What to do about DRAM refresh?
     It can be off for about 23 scanlines
     Do we really need to synchronize with it?
@@ -460,4 +506,7 @@ Align CPU with CRTC top-left to display-enable-polling precision (using display-
 Align PIT with CRTC by starting it at period 19912
 Realign to IO precision by using display-enable polling and a PIT period of 19911
 Add adjustment parameter by having one PIT frame longer or shorter than 19912 PIT cycles
+stable: nop-slide for DRAM refresh
+1spf_newstart and 1spf_newstart2: Check whether long scanline is 0 or 1.
+  Both have short scanline being 0
 

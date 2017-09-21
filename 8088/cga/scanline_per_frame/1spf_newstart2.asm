@@ -67,12 +67,13 @@ notPhase3:
   mov di,startAddresses
   mov ax,cs
   mov es,ax
-  xor ax,ax
+;  xor ax,ax
+  mov ax,-1
   mov cx,200
 initAddressesLoopTop:
   stosw
-;  inc ax
-  add ax,2 ;40
+  inc ax
+;  add ax,2 ;40
   loop initAddressesLoopTop
 
   mov di,rasterData
@@ -227,7 +228,7 @@ interrupt8:
   mov ax,cs
   mov ds,ax
   mov ss,ax
-  mov sp,startAddresses
+  mov sp,startAddresses-2
   mov dx,0x3d4
   mov bp,0x5001
   mov di,0x1900
@@ -292,7 +293,7 @@ interrupt8:
 
   mov ax,0x3f04
   out dx,ax      ;    Vertical Total                 0x3f04  64  (1 for scanlines -1 and 198, 62 for scanlines 199-260)
-  times 9 nop  ; TODO: tune
+  times 11 nop  ; TODO: tune
 
   lodsb
   out 0xe0,al
