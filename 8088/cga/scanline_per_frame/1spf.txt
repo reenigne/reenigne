@@ -373,11 +373,11 @@ What's actually happening?
 
 CRTC-scanline 0 is short and CRTC-scanline 1 is long:
   Scanline 260:         62
-  Scanline 261:     63       0
+  Scanline 261:     63 VT    0
   Scanline   0:      1       0
   ...
-  Scanline 198:      1       0
-  Scanline 199:          1
+  Scanline 198:      1 VT    0
+  Scanline 199:          1 VT
   Scanline 200:          2
   ...
 
@@ -389,8 +389,11 @@ CRTC-scanline 0 is short and CRTC-scanline 1 is long:
     2 < column              Horizontal sync position set to 2
                             Start Address set for line 0
 
-  Scanline 198 starts
-                            Set horizontal displayed to 1
+  Scanline 198a (1) starts
+                            Horizontal Total = 88
+                            Horizontal Sync Position = 2
+                            Start address set for scanline 199
+                            Horizontal Displayed = 1
   Scanline 198b (0) starts
   Scanline 198b display end
   Scanline 198b sync start
@@ -401,7 +404,8 @@ CRTC-scanline 0 is short and CRTC-scanline 1 is long:
                             Set horizontal total to 114
                             Set horizontal sync position to 90
                             Set vertical total to 64
-  Column 80, VT latched
+  Column 80, VT latched (?)
+
 
 Are the vertical total changes happening at the right times?
   Vertical Total <- 2
@@ -409,7 +413,12 @@ Are the vertical total changes happening at the right times?
     Latest is scanline 0a (1) column 80
     If it was too early or too late we'd have too much overscan
   Vertical Total <- 64
-    If it was too early or too late we'd have 2 extra or 2 few scanlines, and the other VT would be in the wrong place (unless
+    If it was too early or too late we'd have 2 extra or 2 few scanlines, and the other VT would be in the wrong place (unless both are wrong by the same amount)
+
+Vsync occurs on scanline 225. Programmed value = 25 so long frame starts on scanline 200 instead of 198. Therefore, setting vertical total to 64 is happening too late
+  Need a better way to tell when vertical total is latched and if it depends on each CRTC-scanline having an hsync
+
+start_address_latch: vsync is on scanline 50 of 87 - as expected.
 
 
 Question: is long scanline firstVisible-1 the last scanline of the long frame or the second scanline of the first short frame?
@@ -417,12 +426,6 @@ Question: is long scanline firstVisible-1 the last scanline of the long frame or
 
 Terminology: firstVisible is the first scanline that actually shows active VRAM data
 scanline 0 is the second instantiation of the scanline macro in the code - it's supposed to be firstVisible, but in fact is firstVisible-1
-
-
-Issues:
-  We are not displaying on scanline 0
-  We are displaying on scanline 200
-  We are displaying on scanline 201
 
 
 
@@ -473,13 +476,55 @@ Fixing up last scanline
 With last-scanline fix:
   phase2: 28, 29, 30, 31, 32
 
-Plan:
+What to do about DRAM refresh?
+  It can be off for about 23 scanlines
+  Do we really need to synchronize with it?
+    We might have more than a refresh's worth of "slop" in the CPU/CRTC timings, but we need to make sure that the inner loop takes 304 cycles no matter where the refresh falls
+      Try stability on my machine with many different amounts of time between setup of PIT channels 0 and 1
 
-  What to do about DRAM refresh?
-    It can be off for about 23 scanlines
-    Do we really need to synchronize with it?
-      We might have more than a refresh's worth of "slop" in the CPU/CRTC timings, but we need to make sure that the inner loop takes 304 cycles no matter where the refresh falls
-        Try stability on my machine with many different amounts of time between setup of PIT channels 0 and 1
+With both VT sets in main loop:
+  phase4: 1341-1345 every other scanline
+  phase2: 138d-1391 every other scanline
+  So these are a scanline apart - we've got a phase dependence for initial scanline somehow
+With initial VT of 64:
+  phase2: 1425-1429, 14bd-14c1, 138d-1391 every other scanline
+  phase4: 13ca-13ce every other scanline    - still not reliable
+With VT moved:
+  phase4: 13f5-13f9
+  phase2: 13b8-13bc
+With VT moved all the way to before start address set
+  phase4: 13f5-13f9
+  phase2: 13b8-13bc
+With VT on lines -1 and 198:
+  phase2: 13b8-13bc
+  phase4: 13f5-13f9
+With 3 nops on the VT sets:
+  phase4: 13f5-13f9
+  phase2: 13b8-13bc
+
+Plan:
+  Fix problem that causes loss of sync unless exact to the cycle. Fixing this should also fix the phase dependence and occasional failure to start when moving up/down
+    Add possibility of moving the refresh
+  Fix the problem on glitchy machines
+    Figure out the limiting factor of slop
+    See what we need to change to put a VRAM access in the loop
+
+
+trace results
+
+scanline       5700       0202       xx0c       xx0d       e0    0104       0101       1900       5001       5702
+
+-1             201/ 206   234/ 239   278/ 283   312/ 317   340   363/ 368   408        428        455        483          68
+                 305        306        306        305        305              305        305        305        305
+0              507        540        584        617/ 622   645   686        713/ 718   733/ 738   760/ 765   788/ 793     68
+                 305        305        305        305        305   304        304        304        304        304
+1              812/ 817   845/ 850   889/ 894   922/ 927   950   990       1017/1022  1037/1042  1064/1069  1092/1097     67
+                 304        304        304        304        304   304        304        304        304        304
+2             1116/1121  1149/1154  1193/1198  1226/1231  1254  1294       1321       1341       1368       1396          67
+                 304        304        304        304        304   304        304        304        304        304
+3             1420       1453       1497       1530       1558  1598       1625       1645       1672       1700          67
+                 304        304        304        304        304              305        305        308        308
+198           1724       1757       1801       1834       1862  1885/      1930       1950       1980       2008          68
 
 
 
@@ -509,4 +554,5 @@ Add adjustment parameter by having one PIT frame longer or shorter than 19912 PI
 stable: nop-slide for DRAM refresh
 1spf_newstart and 1spf_newstart2: Check whether long scanline is 0 or 1.
   Both have short scanline being 0
+Try moving the VT set instructions slightly
 

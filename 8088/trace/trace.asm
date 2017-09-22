@@ -199,13 +199,6 @@ irq0test:
   mov ss,ax
   mov sp,1234
   mov dx,0x3d4
-    pop cx
-    mov al,0x0c
-    mov ah,ch
-    out dx,ax
-    inc ax
-    mov ah,cl
-    out dx,ax
   mov bp,0x5001
   mov di,0x1900
   mov ax,0x5702
@@ -221,27 +214,25 @@ irq0test:
   mov ax,0x0202
   out dx,ax        ; f  Horizontal Sync Position right 0x0202   2
 
-  %if %1 != 199
-    pop cx
-    mov al,0x0c
-    mov ah,ch
-    out dx,ax
-    inc ax
-    mov ah,cl
-    out dx,ax
-  %else
-    mov ax,0x3f04
-    out dx,ax      ;    Vertical Total                 0x3f04  64  (2 for scanline 199, 62 for overscan)
-    times 11 nop  ; TODO: tune
-  %endif
+  pop cx
+  mov al,0x0c
+  mov ah,ch
+  out dx,ax
+  inc ax
+  mov ah,cl
+  out dx,ax
 
   lodsb
   out 0xe0,al
 
-  %if %1 == 0
+  %if %1 == -1
     mov ax,0x0104
     out dx,ax      ;    Vertical Total
-    times 2 nop
+    times 3 nop
+  %elif %1 == 198
+    mov ax,0x3f04
+    out dx,ax      ;    Vertical Total                 0x3f04  64  (1 for scanlines -1 and 198, 62 for scanlines 199-260)
+    times 3 nop
   %else
     mov al,[bx+si]
     mov dl,0xd9
@@ -265,16 +256,23 @@ irq0test:
 ;  scanline i
 ;  %assign i i+1
 ;%endrep
+  scanline -1
   scanline 0
   scanline 1
-  scanline 199
+  scanline 2
+  scanline 3
+  scanline 198
 
-  ; Scanline 200
+  ; Scanline 199
 
   mov ax,0x7100
   out dx,ax        ; e  Horizontal Total         left  0x7100 114
   mov ax,0x5a02
   out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
+
+  lodsb
+  out 0xe0,al
+
 
   mov sp,[cs:savedSP]
 

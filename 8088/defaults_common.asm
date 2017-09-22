@@ -395,7 +395,7 @@ cpu 8086
 %endmacro
 
 
-
+; TODO: lockstep may currently be leaking a CRTC row or column value. Modify the last section to handle all 4 possible row/column combinations.
 %macro lockstep 1
   mov dx,0x03d8
   mov al,0

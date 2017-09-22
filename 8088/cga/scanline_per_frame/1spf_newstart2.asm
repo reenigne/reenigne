@@ -109,7 +109,7 @@ restart:
   lockstep 1
   safeRefreshOn 19
 
-  writePIT16 0, 2, 2
+  writePIT16 0, 2, 2   ; Ensure IRQ0 pending
 
   ; Mode
   ;      1 +HRES
@@ -142,7 +142,7 @@ restart:
   out dx,ax
   mov ax,0x0f03
   out dx,ax
-  mov ax,0x0104 ;3f04
+  mov ax,0x3f04
   out dx,ax
   mov ax,0x0005
   out dx,ax
@@ -171,7 +171,7 @@ restart:
   waitForVerticalSync
   waitForDisplayEnable
 
-  writePIT16 0, 2, 76*64 - 1
+  writePIT16 0, 2, 76*64 - 1  ; Start counting down after display enable starts
 
   xor ax,ax
   mov ds,ax
@@ -193,27 +193,27 @@ interrupt8a:
   hlt
 
 interrupt8b:
-  mov al,0x34                  ; We're still counting down from 19911
+  mov al,0x34                  ; We're still counting down from 76*64 - 1
   out 0x43,al
   mov ax,[cs:adjustPeriod]
   out 0x40,al
   mov al,ah
   out 0x40,al
-  mov word[0x20],interrupt8c
-  mov al,0x20
-  out 0x20,al
-  mov sp,stackTop
-  sti
-  hlt
-
-interrupt8c:
-  writePIT16 0, 2, 76*64       ; We're still counting down from adjustPeriod
   mov word[0x20],interrupt8d
   mov al,0x20
   out 0x20,al
   mov sp,stackTop
   sti
   hlt
+
+;interrupt8c:
+;  writePIT16 0, 2, 76*64       ; We're still counting down from adjustPeriod
+;  mov word[0x20],interrupt8d
+;  mov al,0x20
+;  out 0x20,al
+;  mov sp,stackTop
+;  sti
+;  hlt
 
 interrupt8d:
   writePIT16 0, 2, 76*262       ; We're still counting down from adjustPeriod
@@ -228,7 +228,7 @@ interrupt8:
   mov ax,cs
   mov ds,ax
   mov ss,ax
-  mov sp,startAddresses-2
+  mov sp,startAddresses
   mov dx,0x3d4
   mov bp,0x5001
   mov di,0x1900
@@ -242,6 +242,7 @@ interrupt8:
 %macro scanline 1
   mov al,0x00
   out dx,ax        ; e  Horizontal Total         left  0x5700  88
+
   mov ax,0x0202
   out dx,ax        ; f  Horizontal Sync Position right 0x0202   2
 
@@ -256,10 +257,14 @@ interrupt8:
   lodsb
   out 0xe0,al
 
-  %if %1 == 0
+  %if %1 == -1
     mov ax,0x0104
     out dx,ax      ;    Vertical Total
-    times 2 nop
+    times 3 nop
+  %elif %1 == 198
+    mov ax,0x3f04
+    out dx,ax      ;    Vertical Total                 0x3f04  64  (1 for scanlines -1 and 198, 62 for scanlines 199-260)
+    times 3 nop
   %else
     mov al,[bx+si]
     mov dl,0xd9
@@ -291,12 +296,10 @@ interrupt8:
   mov ax,0x5a02
   out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
 
-  mov ax,0x3f04
-  out dx,ax      ;    Vertical Total                 0x3f04  64  (1 for scanlines -1 and 198, 62 for scanlines 199-260)
-  times 11 nop  ; TODO: tune
-
-  lodsb
-  out 0xe0,al
+;  times 11 nop  ; TODO: tune
+;
+;  lodsb
+;  out 0xe0,al
   ; TODO: We are now free to do per-frame vertical-overscan stuff
   ; with no special timing requirements except:
   ;   HLT before overscan is over
@@ -317,6 +320,14 @@ port61low:
   je moveLeft
   cmp bl,0x4d
   je moveRight
+  cmp bl,0x48
+  je moveUp
+  cmp bl,0x50
+  je moveDown
+  cmp bl,0x4a
+  je decreaseSlide
+  cmp bl,0x4e
+  je increaseSlide
 
 finishInterrupt:
   mov al,0x20
@@ -325,11 +336,44 @@ finishInterrupt:
   sti
   hlt
 
+tearDown:
+  mov al,0x20
+  out 0x20,al
+  mov sp,stackTop
+
+  writePIT16 0, 2, 0
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
+
+  complete
+
+
+decreaseSlide:
+  dec word[slideCount]
+  cmp word[slideCount],-1
+  jne .noFixup
+  mov word[slideCount],18
+.noFixup:
+  jmp doneFrame
+increaseSlide:
+  inc word[slideCount]
+  cmp word[slideCount],19
+  jne .noFixup
+  mov word[slideCount],0
+.noFixup:
+  jmp doneFrame
 moveLeft:
   dec word[adjustPeriod]
   jmp doneFrame
 moveRight:
   inc word[adjustPeriod]
+  jmp doneFrame
+moveUp:
+  sub word[adjustPeriod],76
+  jmp doneFrame
+moveDown:
+  add word[adjustPeriod],76
 
 
 doneFrame:
@@ -344,25 +388,16 @@ doneFrame:
 
   jmp restart
 
-
-tearDown:
-  mov al,0x20
-  out 0x20,al
-  mov sp,stackTop
-
-  writePIT16 0, 2, 0
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],dummyInterrupt8
-
-  complete
-
 dummyInterrupt8:
   push ax
   mov al,0x20
   out 0x20,al
   pop ax
   iret
+
+slide:
+  times 38 nop
+  ret
 
 
 
@@ -375,6 +410,7 @@ sampleData:
 adjustPeriod:
   dw 0x138f ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
 imr: db 0
+slideCount: dw 0
 
 data:
 
