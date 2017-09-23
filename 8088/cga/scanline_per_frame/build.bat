@@ -15,4 +15,5 @@ copy /b r.bin+\pictures\reenigne\cga2ntsc\rose_out.dat rose.bin
 yasm 1spf_newstart.asm -o 1spf_newstart.bin -l 1spf_newstart.lst
 yasm 1spf_newstart2.asm -o 1spf_newstart2.bin -l 1spf_newstart2.lst
 yasm start_address_latch.asm -o start_address_latch.bin
+yasm 1spf_nolockstep.asm -o 1spf_nolockstep.bin -l 1spf_nolockstep.lst
 

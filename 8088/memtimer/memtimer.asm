@@ -251,6 +251,30 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experiment1:
+  db "retrace loop$"
+  db 0
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+.endInit:
+  dw .endCode - ($+2)
+  in al,dx
+  test al,1
+  jz .endCode
+.endCode
+
+experiment2:
+  db "retrace found$"
+  db 0
+  dw .endInit - ($+2)
+  mov dx,0x3d9
+.endInit:
+  dw .endCode - ($+2)
+  in al,dx
+  test al,1
+  jnz .endCode
+.endCode
+
 experimentRestart:
   db "restart$"
   db 18

@@ -106,11 +106,6 @@ restart:
 ;  captureScreen
   cli
 
-  lockstep 1
-  safeRefreshOn 19
-
-  writePIT16 0, 2, 2   ; Ensure IRQ0 pending
-
   ; Mode
   ;      1 +HRES
   ;      2 +GRPH
@@ -119,7 +114,7 @@ restart:
   ;   0x10 +1BPP
   ;   0x20 +ENABLE BLINK
   mov dx,0x3d8
-  mov al,0x0b;9
+  mov al,9
   out dx,al
 
   ; Palette
@@ -166,6 +161,73 @@ restart:
   out dx,ax
   mov ax,0xff0f
   out dx,ax
+  mov dl,0xda
+  waitForNoVerticalSync
+  waitForVerticalSync
+  waitForDisplayEnable
+  mov ax,0x0104
+  mov dl,0xd4
+  out dx,ax
+  safeRefreshOff
+
+  writePIT16 0, 2, 2   ; Ensure IRQ0 pending
+
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8h1
+  mov [0x22],cs
+
+  mov dl,0xda
+  waitForDisplayDisable
+  waitForDisplayEnable
+
+  writePIT16 0, 2, 75
+
+  sti
+  hlt
+interrupt8h1:
+  in al,dx
+  test al,1
+  jz .noInterruptChange  ; jump if +DISPEN, finish if -DISPEN
+  mov word[0x20],interrupt8h2
+.noInterruptChange:
+  mov al,0x20
+  out 0x20,al
+  mov sp,stackTop
+  sti
+  hlt
+
+interrupt8h2:
+  mov al,0x34                  ; We're still counting down from 75
+  out 0x43,al
+  mov ax,[cs:refreshPhase]
+  out 0x40,al
+  mov al,ah
+  out 0x40,al
+  mov word[0x20],interrupt8h3
+  mov al,0x20
+  out 0x20,al
+  mov sp,stackTop
+  sti
+  hlt
+
+interrupt8h3:
+  mov word[0x20],interrupt8h4  ; We're still counting down from refreshPhase
+  mov al,0x20
+  out 0x20,al
+  mov sp,stackTop
+  sti
+  hlt
+
+interrupt8h4:
+  refreshOn 19                 ; refreshPhase has happened, restart refresh
+  mov al,0x20
+  out 0x20,al
+  mov sp,stackTop
+
+  mov dl,0xd4
+  mov ax,0x3f04
+  out dx,ax
 
   mov dl,0xda
   waitForNoVerticalSync
@@ -174,10 +236,7 @@ restart:
 
   writePIT16 0, 2, 76*64 - 1  ; Start counting down after display enable starts
 
-  xor ax,ax
-  mov ds,ax
   mov word[0x20],interrupt8a
-  mov [0x22],cs
 
   sti
   hlt
@@ -200,23 +259,14 @@ interrupt8b:
   out 0x40,al
   mov al,ah
   out 0x40,al
-  mov word[0x20],interrupt8d
+  mov word[0x20],interrupt8c
   mov al,0x20
   out 0x20,al
   mov sp,stackTop
   sti
   hlt
 
-;interrupt8c:
-;  writePIT16 0, 2, 76*64       ; We're still counting down from adjustPeriod
-;  mov word[0x20],interrupt8d
-;  mov al,0x20
-;  out 0x20,al
-;  mov sp,stackTop
-;  sti
-;  hlt
-
-interrupt8d:
+interrupt8c:
   writePIT16 0, 2, 76*262       ; We're still counting down from adjustPeriod
   mov word[0x20],interrupt8
   mov al,0x20
@@ -333,9 +383,9 @@ port61low:
   cmp bl,0x50
   je moveDown
   cmp bl,0x4a
-  je decreaseSlide
+  je decreaseRefreshPhase
   cmp bl,0x4e
-  je increaseSlide
+  je increaseRefreshPhase
   cmp bl,0x49
   je moveLeft5
   cmp bl,0x51
@@ -375,26 +425,23 @@ moveUp:
 moveDown:
   add word[adjustPeriod],76
   jmp doneFrame
-decreaseSlide:
-  dec word[slideCount]
-  cmp word[slideCount],-1
-  jne .noFixup
-  mov word[slideCount],18
-.noFixup:
+decreaseRefreshPhase:
+  dec word[refreshPhase]
+  cmp word[refreshPhase],38-1
+  jne doneFrame
+  mov word[refreshPhase],38+18
   jmp doneFrame
-increaseSlide:
-  inc word[slideCount]
-  cmp word[slideCount],19
-  jne .noFixup
-  mov word[slideCount],0
-.noFixup:
+increaseRefreshPhase:
+  inc word[refreshPhase]
+  cmp word[refreshPhase],38+19
+  jne doneFrame
+  mov word[refreshPhase],38+0
   jmp doneFrame
 moveLeft5:
   sub word[adjustPeriod],5
   jmp doneFrame
 moveRight5:
   add word[adjustPeriod],5
-;  jmp doneFrame
 
 
 doneFrame:
@@ -432,6 +479,7 @@ adjustPeriod:
   dw 0x13d4 ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
 imr: db 0
 slideCount: dw 0
+refreshPhase: dw 38
 
 data:
 

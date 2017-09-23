@@ -501,10 +501,21 @@ With VT on lines -1 and 198:
 With 3 nops on the VT sets:
   phase4: 13f5-13f9
   phase2: 13b8-13bc
+With waitForNoVerticalSync:
+  phase4: 13d2-13d6
+  phase2: 13d2-13d6
 
 Plan:
-  Fix problem that causes loss of sync unless exact to the cycle. Fixing this should also fix the phase dependence and occasional failure to start when moving up/down
-    Add possibility of moving the refresh
+  Check that DRAM won't decay
+    With refresh off, waitForDisplayEnable loop is 37 cycles or 9.25 IOs, so we might be waiting for 10 scanlines
+      But add 15 IOs for writePIT16, plus an interrupt latency
+      Refresh safety is 1.5ms which is ~23 scanlines so we could hit issues
+  Check if routine is self-synchronizing or has slop
+    Add "out dx,al" to start of interrupt routine
+    Set up dx and al before hlt
+    Add another palette change after critical part
+  Make sure it works in both CGA/CRTC phases
+
   Fix the problem on glitchy machines
     Figure out the limiting factor of slop
     See what we need to change to put a VRAM access in the loop
@@ -555,4 +566,22 @@ stable: nop-slide for DRAM refresh
 1spf_newstart and 1spf_newstart2: Check whether long scanline is 0 or 1.
   Both have short scanline being 0
 Try moving the VT set instructions slightly
+Fix problem that causes loss of sync unless exact to the cycle. Fixing this should also fix the phase dependence and occasional failure to start when moving up/down
+Figure out possible relationships between CRTC and PIT - it's just the 4 CGA/PIT startup phases times the two CGA/CRTC phases
+  100000000000100000000000100000000000100000000000 PIT
+
+  10001000
+  100000001000000010000000100000001000000010000000 CRTC phase 0
+  010000000100000001000000010000000100000001000000 CRTC phase 1
+  001000000010000000100000001000000010000000100000 CRTC phase 2
+  000100000001000000010000000100000001000000010000 CRTC phase 3
+Program for checking wait states of each segment
+Remove lockstep
+Set up a horizontal-only screen
+Wait for it to stabilize
+Turn off refresh
+Add possibility of moving the refresh (presumably refresh phase is why adding "out dx,al" to the beginning of the interrupt routine causes only a single position to work)
+  Sync to CRTC horizontally using PIT
+  wait for N cycles
+  Turn on refresh with period 19
 
