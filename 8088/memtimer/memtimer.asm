@@ -252,7 +252,7 @@ outOfSpaceMessageEnd:
 experimentData:
 
 experiment1:
-  db "retrace loop$"
+  db "retrace found$"
   db 0
   dw .endInit - ($+2)
   mov dx,0x3d9
@@ -264,7 +264,7 @@ experiment1:
 .endCode
 
 experiment2:
-  db "retrace found$"
+  db "retrace loop$"
   db 0
   dw .endInit - ($+2)
   mov dx,0x3d9

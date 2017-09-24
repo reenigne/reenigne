@@ -174,23 +174,48 @@ lut: db 0x88,8
 testRoutine:
   mov [cs:savedSP],sp
 
-  pop ax
-  pop ax
-  pop ax
-  pop ax
-  pop ax
-  pop ax
-  pop ax
-  pop ax
-  pop ax
-  pop ax
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],irq0a
+  writePIT16 0, 2, 2
+
+  mov dx,0x3d9
+  in al,dx
+  test al,1
+  jnz .loop1
+.loop1:
+  in al,dx
+  test al,1
+  jnz .loop2
+.loop2:
+  in al,dx
+  test al,1
+  jz .loop3
+.loop3:
+  writePIT16 0, 2, 31
+  sti
+  hlt
+irq0a:
+  mov al,75
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+  mov word[0x20],irq0b
+  mov al,0x20
+  out 0x20,al
+  sti
+  hlt
+irq0b:
+  in al,dx
+
+  mov al,0x20
+  out 0x20,al
+  writePIT16 0, 2, 0
+  mov word[0x20],irq0
 
   mov sp,[cs:savedSP]
   ret
 
-
-
-  mov [cs:savedSP],sp
 
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al

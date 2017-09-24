@@ -101,10 +101,16 @@ restart:
   sti
   mov ax,[cs:adjustPeriod]
   outputHex
+  mov al,32
+  outputCharacter
+  mov ax,[cs:refreshPhase]
+  outputHex
   mov al,13
   outputCharacter
 ;  captureScreen
-  cli
+
+  lockstep 1
+;  cli
 
   ; Mode
   ;      1 +HRES
@@ -168,25 +174,36 @@ restart:
   mov ax,0x0104
   mov dl,0xd4
   out dx,ax
-  safeRefreshOff
+;  safeRefreshOff
 
   writePIT16 0, 2, 2   ; Ensure IRQ0 pending
 
   xor ax,ax
   mov ds,ax
-  mov word[0x20],interrupt8h1
+  mov word[0x20],interrupt8h0
   mov [0x22],cs
 
   mov dl,0xda
   waitForDisplayDisable
   waitForDisplayEnable
 
-  writePIT16 0, 2, 75
+  writePIT16 0, 2, 31
 
   sti
   hlt
+interrupt8h0:
+  mov al,75                 ; Now counting down from 31
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+  mov word[0x20],interrupt8h1
+  mov al,0x20
+  out 0x20,al
+  sti
+  hlt
+
 interrupt8h1:
-  in al,dx
+  in al,dx                  ; Now counting down from 75
   test al,1
   jz .noInterruptChange  ; jump if +DISPEN, finish if -DISPEN
   mov word[0x20],interrupt8h2
@@ -198,9 +215,7 @@ interrupt8h1:
   hlt
 
 interrupt8h2:
-  mov al,0x34                  ; We're still counting down from 75
-  out 0x43,al
-  mov ax,[cs:refreshPhase]
+  mov ax,[cs:refreshPhase]     ; We're still counting down from 75
   out 0x40,al
   mov al,ah
   out 0x40,al
@@ -253,9 +268,7 @@ interrupt8a:
   hlt
 
 interrupt8b:
-  mov al,0x34                  ; We're still counting down from 76*64 - 1
-  out 0x43,al
-  mov ax,[cs:adjustPeriod]
+  mov ax,[cs:adjustPeriod]     ; We're still counting down from 76*64 - 1
   out 0x40,al
   mov al,ah
   out 0x40,al
@@ -267,7 +280,10 @@ interrupt8b:
   hlt
 
 interrupt8c:
-  writePIT16 0, 2, 76*262       ; We're still counting down from adjustPeriod
+  mov ax,(76*262) & 0xff        ; We're still counting down from adjustPeriod
+  out 0x40,al
+  mov al,(76*262) >> 8
+  out 0x40,al
   mov word[0x20],interrupt8
   mov al,0x20
   out 0x20,al
@@ -277,7 +293,7 @@ interrupt8c:
   hlt
 
 interrupt8:
-;    out dx,al
+    out dx,al
   mov ax,cs
   mov ds,ax
   mov ss,ax
@@ -427,15 +443,15 @@ moveDown:
   jmp doneFrame
 decreaseRefreshPhase:
   dec word[refreshPhase]
-  cmp word[refreshPhase],38-1
+  cmp word[refreshPhase],64-1
   jne doneFrame
-  mov word[refreshPhase],38+18
+  mov word[refreshPhase],64+18
   jmp doneFrame
 increaseRefreshPhase:
   inc word[refreshPhase]
-  cmp word[refreshPhase],38+19
+  cmp word[refreshPhase],64+19
   jne doneFrame
-  mov word[refreshPhase],38+0
+  mov word[refreshPhase],64+0
   jmp doneFrame
 moveLeft5:
   sub word[adjustPeriod],5
@@ -478,8 +494,7 @@ sampleData:
 adjustPeriod:
   dw 0x13d4 ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
 imr: db 0
-slideCount: dw 0
-refreshPhase: dw 38
+refreshPhase: dw 64
 
 data:
 

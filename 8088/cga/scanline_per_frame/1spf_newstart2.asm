@@ -194,9 +194,7 @@ interrupt8a:
   hlt
 
 interrupt8b:
-  mov al,0x34                  ; We're still counting down from 76*64 - 1
-  out 0x43,al
-  mov ax,[cs:adjustPeriod]
+  mov ax,[cs:adjustPeriod]     ; We're still counting down from 76*64 - 1
   out 0x40,al
   mov al,ah
   out 0x40,al
@@ -207,17 +205,11 @@ interrupt8b:
   sti
   hlt
 
-;interrupt8c:
-;  writePIT16 0, 2, 76*64       ; We're still counting down from adjustPeriod
-;  mov word[0x20],interrupt8d
-;  mov al,0x20
-;  out 0x20,al
-;  mov sp,stackTop
-;  sti
-;  hlt
-
 interrupt8d:
-  writePIT16 0, 2, 76*262       ; We're still counting down from adjustPeriod
+  mov ax,(76*262) & 0xff        ; We're still counting down from adjustPeriod
+  out 0x40,al
+  mov al,(76*262) >> 8
+  out 0x40,al
   mov word[0x20],interrupt8
   mov al,0x20
   out 0x20,al
@@ -429,7 +421,7 @@ rasterData:
 sampleData:
   times 200 db 0
 adjustPeriod:
-  dw 0x13d4 ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
+  dw 0x12fd
 imr: db 0
 slideCount: dw 0
 

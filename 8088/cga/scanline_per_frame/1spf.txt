@@ -504,17 +504,26 @@ With 3 nops on the VT sets:
 With waitForNoVerticalSync:
   phase4: 13d2-13d6
   phase2: 13d2-13d6
+With PIT restart fixed:
+  phase2: 142c-142e, 14c4-14c6, every other scanline
+  phase4: 142c-142e, 14c4-14c6, every other scanline
 
 Plan:
   Check that DRAM won't decay
     With refresh off, waitForDisplayEnable loop is 37 cycles or 9.25 IOs, so we might be waiting for 10 scanlines
       But add 15 IOs for writePIT16, plus an interrupt latency
       Refresh safety is 1.5ms which is ~23 scanlines so we could hit issues
-  Check if routine is self-synchronizing or has slop
-    Add "out dx,al" to start of interrupt routine
-    Set up dx and al before hlt
-    Add another palette change after critical part
+      Need an extra step to move the first test point left to undo the time of writePIT16 and interrupt latency
   Make sure it works in both CGA/CRTC phases
+    Add a control to switch between them
+  Rebuild stable.com with refresh position controls
+  In waitstate_test, add option to disable extender card
+  Rebuild rose.com with new startup and controls
+  On exit, output:
+    CGA/PIT phase
+    refresh phase
+    CGA/CRTC phase
+    startup time
 
   Fix the problem on glitchy machines
     Figure out the limiting factor of slop
@@ -584,4 +593,8 @@ Add possibility of moving the refresh (presumably refresh phase is why adding "o
   Sync to CRTC horizontally using PIT
   wait for N cycles
   Turn on refresh with period 19
+Check if routine is self-synchronizing or has slop
+  Add "out dx,al" to start of interrupt routine
+  Set up dx and al before hlt
+  Add another palette change after critical part
 
