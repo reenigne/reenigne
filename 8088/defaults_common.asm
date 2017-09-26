@@ -375,12 +375,13 @@ cpu 8086
   mov al,2
   out 0x41,al  ; Timer 1 rate
 
+  ; Each iteration takes 24 cycles and refreshes 2 locations.
   rep lodsw
 %endmacro
 
 %macro safeRefreshOff 0
   ensureRefresh
-  ; We now have about 1.5ms during which refresh can be off
+  ; We now have about 1.6ms during which refresh can be off
   refreshOff
 %endmacro
 
@@ -405,7 +406,7 @@ cpu 8086
   ; per frame.
   mov dx,0x3d4
   ;   0xff Horizontal Total
-  mov ax,0x0000
+  mov ax,0x0100
   out dx,ax
   ;   0xff Horizontal Displayed                         28
   mov ax,0x0101
@@ -434,6 +435,8 @@ cpu 8086
   ;   0x1f Max Scan Line Address                        01
   mov ax,0x0009
   out dx,ax
+
+  ; 256 lchars (horizonta) + 256 lchars (vertical) = 2731 CPU cycles = 114 iterations of "rep lodsw"
 
   safeRefreshOff
 
@@ -467,17 +470,20 @@ cpu 8086
   mul cl
 
   ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
-  ; which of the two possible CRTC states we're in and switch states if we're
-  ; in the wrong one by waiting for an odd number of lchars more in one code
-  ; path than in the other. To keep CGA and CPU in lockstep, we also need both
-  ; code paths to take the same time mod 3 lchars, so we wait 3 lchars more on
-  ; one code path than on the other.
+  ; which of the four possible CRTC states we're in and switch states (by
+  ; waiting for 2*N+1 lchars) until we're in a single state. We do this by
+  ; waiting for the display enable bit to go low in a loop that takes 144
+  ; cycles per iteration. This will loop at most 3 times.
+  mov ax,1
+  test al,1
+  jnz %%loopTop   ; Always jump to clear the prefetch queue.
+%%loopTop:
+  mov al,1
+  div cl
+  times 6 nop
   in al,dx
-  and al,1
-  dec ax
-  mul cl
-  mul cl
-  jmp $+2
+  test al,1
+  jnz %%loopTop
 
   %if %1==0
     initCGA 1

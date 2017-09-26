@@ -11,7 +11,7 @@
   stosw
 
   mov dx,0x03d8
-  mov al,9
+  mov al,0
   out dx,al
 
   inc dx
@@ -85,8 +85,8 @@
   mov ax,cs
   mov es,ax
 
-%rep 32
-  in al,dx
+%rep 64
+  in al,dx        ; Each iteration of this is 21 cycles = 63 hdots
   stosb
 %endrep
 
@@ -96,7 +96,7 @@
   mov si,data
   mov ax,cs
   mov ds,ax
-%rep 32
+%rep 64
   lodsb
   push si
   and al,0x0f
@@ -104,6 +104,8 @@
   outputCharacter
   pop si
 %endrep
+
+; +HRES
 
   ; c  1100  <
   ; d  1101  =
@@ -114,6 +116,27 @@
 ;========
 
 ;11111110 00000000 00000000 00000000
+
+; -HRES
+
+;================
+;================
+;==<<<<<<<<<<<<<<
+;<<==============
+
+; Want a loop that looks like this:
+; top:
+;   delay N cycles
+;   in al,dx
+;   test al,1
+;   jnz top
+; such that the total length of the loop is 64*N - 16 or 64*N + 16 hdots for some integer N
+;   64*N - 16 => cycles = (64*N - 16)/3 => N must be 1 more than a multiple of 3
+;   64*N + 16 => cycles = (64*N + 16)/3 => N must be 2 more than a multiple of 3
+;   hdots is 48 + N*192 or 144 + N*192
+;   cycles is 16 + N*64 or 48 + N*64
+; cycles = 16, 48, 80, 112, 144, ...   16 + 32*N
+
 
 
   complete

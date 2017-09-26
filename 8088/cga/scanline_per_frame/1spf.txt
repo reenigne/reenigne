@@ -476,12 +476,6 @@ Fixing up last scanline
 With last-scanline fix:
   phase2: 28, 29, 30, 31, 32
 
-What to do about DRAM refresh?
-  It can be off for about 23 scanlines
-  Do we really need to synchronize with it?
-    We might have more than a refresh's worth of "slop" in the CPU/CRTC timings, but we need to make sure that the inner loop takes 304 cycles no matter where the refresh falls
-      Try stability on my machine with many different amounts of time between setup of PIT channels 0 and 1
-
 With both VT sets in main loop:
   phase4: 1341-1345 every other scanline
   phase2: 138d-1391 every other scanline
@@ -509,11 +503,18 @@ With PIT restart fixed:
   phase4: 142c-142e, 14c4-14c6, every other scanline
 
 Plan:
-  Check that DRAM won't decay
-    With refresh off, waitForDisplayEnable loop is 37 cycles or 9.25 IOs, so we might be waiting for 10 scanlines
-      But add 15 IOs for writePIT16, plus an interrupt latency
-      Refresh safety is 1.5ms which is ~23 scanlines so we could hit issues
-      Need an extra step to move the first test point left to undo the time of writePIT16 and interrupt latency
+  Get 1spf_horizontal working consistently
+    Try updated lockstep
+    Try a version that doesn't use IRQ0
+  Figure out how many DRAM refresh phases work for each initial delay (slop pattern)
+  See if changing left horizontal sync from 0x57 to 0x5a improves slop
+
+
+  Figure out a setup which works for all DRAM refresh phases
+    try moving VT set back to 0 and 198
+    Move current setup back to horizontal-only program and see if that has the same problem (and, if not, what the slop is there)
+      If insufficient slop in horizontal-only, try not using
+
   Make sure it works in both CGA/CRTC phases
     Add a control to switch between them
   Rebuild stable.com with refresh position controls
@@ -597,4 +598,10 @@ Check if routine is self-synchronizing or has slop
   Add "out dx,al" to start of interrupt routine
   Set up dx and al before hlt
   Add another palette change after critical part
+  Check that DRAM won't decay
+    With refresh off, waitForDisplayEnable loop is 37 cycles or 9.25 IOs, so we might be waiting for 10 scanlines
+      But add 15 IOs for writePIT16, plus an interrupt latency
+      Refresh safety is 1.5ms which is ~23 scanlines so we could hit issues
+      Need an extra step to move the first test point left to undo the time of writePIT16 and interrupt latency
+Fix up lockstep
 

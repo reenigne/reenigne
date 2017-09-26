@@ -9,7 +9,7 @@
 
   in al,0x21
   mov [imr],al
-  mov al,0xfe  ; Enable IRQ0 (timer) and IRQ1 (keyboard), disable all others
+  mov al,0xfc  ; Enable IRQ0 (timer) and IRQ1 (keyboard), disable all others
   out 0x21,al
 
   in al,0x61
@@ -98,6 +98,15 @@ initRastersLoopTop:
 
 outputNumbers:
 
+
+  mov al,0xfc  ; Enable IRQ0 (timer) and IRQ1 (keyboard), disable all others
+  out 0x21,al
+
+    mov dx,0x3d9
+    mov al,3
+    out dx,al
+
+
   sti
   mov ax,[cs:adjustPeriod]
   outputHex
@@ -110,6 +119,9 @@ outputNumbers:
 ;  captureScreen
 
 restart:
+
+  mov al,0xfc  ; Enable IRQ0 (timer) and IRQ1 (keyboard), disable all others
+  out 0x21,al
 
   lockstep 1
 ;  cli
@@ -172,8 +184,6 @@ restart:
   mov dl,0xda
   waitForNoVerticalSync
   waitForVerticalSync
-  waitForNoVerticalSync
-  waitForVerticalSync
   waitForDisplayEnable
   mov ax,0x0104
   mov dl,0xd4
@@ -186,6 +196,8 @@ restart:
   mov ds,ax
   mov word[0x20],interrupt8h0
   mov [0x22],cs
+  mov word[0x24],interrupt9
+  mov [0x24],cs
 
   mov dl,0xda
   waitForDisplayDisable
@@ -251,15 +263,9 @@ interrupt8h4:
   mov dl,0xda
   waitForNoVerticalSync
   waitForVerticalSync
-  waitForNoVerticalSync
-  waitForVerticalSync
   waitForDisplayEnable
 
   writePIT16 0, 2, 76*64 - 1  ; Start counting down after display enable starts
-
-  mov dl,0xd4
-  mov ax,0x0104
-  out dx,ax
 
   mov word[0x20],interrupt8a
 
@@ -298,19 +304,18 @@ interrupt8c:
   mov al,0x20
   out 0x20,al
   mov sp,stackTop
-;    mov dx,0x3d9
+    mov dx,0x3d9
   sti
   hlt
 
 interrupt8:
   mov al,0x20
   out 0x20,al
-  mov sp,stackTop
 
-  writePIT16 0, 2, 0
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],dummyInterrupt8
+  mov al,0xfd  ; Disable IRQ0 (timer), enable IRQ1 (keyboard), disable all others
+  out 0x21,al
+
+  sti
 
 ;  mov ax,cs
 ;  mov ds,ax
@@ -323,7 +328,7 @@ interrupt8:
   mov si,sampleData
   mov bx,rasterData-sampleData
   mov es,ax
-  mov cx,16000
+  mov cx,60000
 
 loopTop1:
   mov ax,0x0101  ; b  Horizontal_displayed  right
@@ -369,6 +374,27 @@ loopTop1:
   nop
   loop loopTop1
 
+  mov sp,stackTop
+  jmp restart
+
+
+;  times 11 nop  ; TODO: tune
+;
+;  lodsb
+;  out 0xe0,al
+  ; TODO: We are now free to do per-frame vertical-overscan stuff
+  ; with no special timing requirements except:
+  ;   HLT before overscan is over
+  ;   Sound (if in use)
+
+interrupt9:
+  mov sp,stackTop
+  mov al,0x20
+  out 0x20,al
+
+    mov dx,0x3d9
+    mov al,1
+    out dx,al
 
   mov ax,cs
   mov ds,ax
@@ -401,9 +427,20 @@ port61low:
   cmp bl,0x51
   je moveRight5
 
+  writePIT16 0, 2, 0
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
+
   jmp restart
 
 tearDown:
+  mov sp,stackTop
+
+  writePIT16 0, 2, 0
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
 
   complete
 
@@ -440,6 +477,17 @@ moveRight5:
 
 
 doneFrame:
+  mov sp,stackTop
+    mov dx,0x3d9
+    mov al,2
+    out dx,al
+
+
+  writePIT16 0, 2, 0
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],dummyInterrupt8
+
   jmp outputNumbers
 
 dummyInterrupt8:
@@ -457,7 +505,7 @@ rasterData:
 sampleData:
   times 200 db 0
 adjustPeriod:
-  dw 0x1448 ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
+  dw 0x13d4 ;76*64      phase4: 1332-1336, 129a-129e, 13d9-13dd, phase2: 138d-1391
 imr: db 0
 refreshPhase: dw 64
 
