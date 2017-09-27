@@ -5,6 +5,8 @@
   mov ax,cs
   mov es,ax
   mov ds,ax
+  mov ss,ax
+  mov sp,stackTop
   mov di,data2
 
   in al,0x21

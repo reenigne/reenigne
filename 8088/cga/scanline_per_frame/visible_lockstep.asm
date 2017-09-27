@@ -43,7 +43,7 @@
   mov ax,0x0106
   out dx,ax
   ;   0x7f Vertical Sync Position                       70
-  mov ax,0x0007
+  mov ax,0x1d07
   out dx,ax
   ;   0x03 Interlace Mode                               02
   mov ax,0x0208
@@ -139,9 +139,9 @@
 
 
 
-  complete
+;  complete
 
-  hlt
   cli
+  hlt
 
 data:

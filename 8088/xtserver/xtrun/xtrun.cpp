@@ -19,7 +19,7 @@ public:
 
         String logName("nul");
 
-        AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+        AutoStream s = File("\\\\prospero\\pipe\\xtserver", true).openPipe();
         s.write<int>(0);                        // emailLength
         s.write(String(""));                    // email
         s.write<int>(fileName.length());        // fileNameLength

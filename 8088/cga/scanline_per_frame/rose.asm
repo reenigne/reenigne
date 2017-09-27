@@ -27,6 +27,7 @@ noMotorShutoff:
   mov [cs:oldInterrupt8],ax
   mov ax,[0x22]
   mov [cs:oldInterrupt8+2],ax
+
   in al,0x21
   mov [imr],al
   mov al,0xfe  ; Enable IRQ0 (timer), disable all others
@@ -37,6 +38,8 @@ noMotorShutoff:
   mov ax,cs
   mov es,ax
   mov ds,ax
+  mov ss,ax
+  mov sp,stackTop
   mov di,data2
 
   in al,0x61
@@ -118,6 +121,26 @@ initRastersLoopTop:
   mov cx,192
   xor ax,ax
   rep stosw
+
+outputNumbers:
+  mov ax,0xb000
+  mov es,ax
+  call printNumbers
+
+  cmp word[numbersMode],0
+  je notNumbersMode
+
+  mov ax,1
+  int 0x10
+  mov ax,0xb800
+  mov es,ax
+  call printNumbers
+
+numbersScreen:
+  call doKeyboard
+  jmp numbersScreen
+
+notNumbersMode:
 
   lockstep 1
 
@@ -430,6 +453,15 @@ interrupt8second:
   inc word[frameCount+2]
 noFrameCountCarry:
 
+
+  call doKeyboard
+  mov sp,stackTop
+  sti
+  hlt
+
+
+doKeyboard:
+
   in al,0x60
   xchg ax,bx
   ; Acknowledge the previous byte
@@ -443,9 +475,6 @@ port61low:
   je tearDown
 
 
-  mov sp,stackTop
-  sti
-  hlt
 
 
 tearDown:
@@ -507,11 +536,6 @@ exit:
   int 0x21
 
 
-timeSlide:
-  times 46 nop
-  ret
-
-
 dummyInterrupt8:
   push ax
   mov al,0x20
@@ -520,12 +544,66 @@ dummyInterrupt8:
   iret
 
 
-initial: dw 3
+printNybble:
+  and al,0xf
+  cmp al,10
+  jge .letters
+  add al,'0'
+  jmp printCharacter
+.letters:
+  add al,'A'-10
+
+printCharacter:
+  mov ah,7
+  stosw
+  ret
+
+printHex:
+  push ax
+  mov al,ah
+  mov cl,4
+  shr al,cl
+  call printNybble
+  pop ax
+  push ax
+  mov al,ah
+  call printNybble
+  pop ax
+  push ax
+  mov cl,4
+  shr al,cl
+  call printNybble
+  pop ax
+  call printNybble
+  ret
+
+printNumbers:
+  xor di,di
+  mov ax,[phase]
+  call printNybble
+  mov di,160
+  mov ax,[initial]
+  call printHex
+  mov di,320
+  mov ax,[refreshPhase]
+  call printHex
+  mov di,480
+  mov ax,[cgaCrtcPhase]
+  call printNybble
+  ret
+
+
 increment: dw 0
 frameCount: dw 0, 0
 oldInterrupt8: dw 0, 0
 imr: db 0
-phase: db 0
+
+phase: dw 0
+initial: dw 3
+refreshPhase: dw 0
+cgaCrtcPhase: dw 0
+numbersMode: dw 0
+
 
 lineTable:
 %assign i 0

@@ -190,7 +190,8 @@ Worked example:
   f width = tl = 88
 0        10        20        30        40        50        60        70        80        90       100       110   0        10        20        30        40        50        60        70        80        90       100       110
 |         |         |         |         |         |         |         |         |         |         |         |   |         |         |         |         |         |         |         |         |         |         |         |
-                                                                                          Sssssssssssssss
+Xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        X                         Xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx        X
+                                                                                          Sssssssssssssss                                                                                                   Sssssssssssssss
                                                                                         aaaaaaaaaaaaaaaaaaaaaaaaaa                                                                                        aaaaaaaaaaaaaaaaaaaaaaaaaa
                                                                                 bbbbbbbbb                                                                                                         bbbbbbbbb
 cc                                                                                        cccccccccccccccccccccccccc                                                                                        cccccccccccccccccccccccc
@@ -502,32 +503,31 @@ With PIT restart fixed:
   phase2: 142c-142e, 14c4-14c6, every other scanline
   phase4: 142c-142e, 14c4-14c6, every other scanline
 
-Plan:
-  Get 1spf_horizontal working consistently
-    Try updated lockstep
-    Try a version that doesn't use IRQ0
-  Figure out how many DRAM refresh phases work for each initial delay (slop pattern)
-  See if changing left horizontal sync from 0x57 to 0x5a improves slop
+1spf_horizontal with lockstep fix:
+  phase4: 1448, 14a4, 14e0
+with 5a02 fix:
+  phase8: 1448, 14a2, 14a3,
 
+Plan:
+  Update rose.com:
+    New startup
+    Find initial values that work for both phases
+    Display numbers on MDA
+      CGA/PIT phase
+      refresh phase
+      CGA/CRTC phase
+      startup time
+    Add a key to switch to numbers display on CGA
+    Add control to switch phases
+  Test both CRTC phases in both startup phases
+  Update stability.com:
+    Same startup and other features as rose
+  Test from a real floppy
+  In waitstate_test, add option to disable extender card
+  Send out updated binaries
 
   Figure out a setup which works for all DRAM refresh phases
-    try moving VT set back to 0 and 198
-    Move current setup back to horizontal-only program and see if that has the same problem (and, if not, what the slop is there)
-      If insufficient slop in horizontal-only, try not using
-
-  Make sure it works in both CGA/CRTC phases
-    Add a control to switch between them
-  Rebuild stable.com with refresh position controls
-  In waitstate_test, add option to disable extender card
-  Rebuild rose.com with new startup and controls
-  On exit, output:
-    CGA/PIT phase
-    refresh phase
-    CGA/CRTC phase
-    startup time
-
   Fix the problem on glitchy machines
-    Figure out the limiting factor of slop
     See what we need to change to put a VRAM access in the loop
 
 
@@ -604,4 +604,10 @@ Check if routine is self-synchronizing or has slop
       Refresh safety is 1.5ms which is ~23 scanlines so we could hit issues
       Need an extra step to move the first test point left to undo the time of writePIT16 and interrupt latency
 Fix up lockstep
+Get 1spf_horizontal working consistently
+  Try updated lockstep
+Figure out how many DRAM refresh phases work for each initial delay (slop pattern)
+See if changing left horizontal sync from 0x57 to 0x5a improves slop
+Move current setup back to horizontal-only program and see if that has the same problem (and, if not, what the slop is there)
+try moving VT set back to 0 and 198
 

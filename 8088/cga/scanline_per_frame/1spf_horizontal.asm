@@ -5,11 +5,13 @@
   mov ax,cs
   mov es,ax
   mov ds,ax
+  mov ss,ax
+  mov sp,stackTop
   mov di,data2
 
   in al,0x21
   mov [imr],al
-  mov al,0xfe  ; Enable IRQ0 (timer) and IRQ1 (keyboard), disable all others
+  mov al,0xfe  ; Enable IRQ0 (timer), disable all others
   out 0x21,al
 
   in al,0x61
@@ -111,8 +113,16 @@ outputNumbers:
 
 restart:
 
+  mov al,1
+  mov dx,0x3d9
+  out dx,al
+
   lockstep 1
 ;  cli
+
+  mov al,2
+  mov dx,0x3d9
+  out dx,al
 
   ; Mode
   ;      1 +HRES
@@ -134,7 +144,7 @@ restart:
   ;   0x20 +COLOR SEL
   inc dx
   mov al,0
-  out dx,al
+;  out dx,al
 
   mov dl,0xd4
   mov ax,0x7100
@@ -319,7 +329,8 @@ interrupt8:
   mov dx,0x3d4
   mov bp,0x5001
   mov di,0x1900
-  mov ax,0x5702
+;  mov ax,0x5702
+  mov ax,0x5a02
   mov si,sampleData
   mov bx,rasterData-sampleData
   mov es,ax
@@ -343,8 +354,8 @@ loopTop1:
   ;mov ax,0x5702  ; c  Horizontal_sync       left
   out dx,ax
 
-;  mov ax,0x5700  ; e  Horizontal_total      left
-  mov al,0x00
+  mov ax,0x5700  ; e  Horizontal_total      left
+;  mov al,0x00
   out dx,ax
 
   mov ax,0x0202  ; f  Horizontal_sync       right
@@ -363,7 +374,7 @@ loopTop1:
   mov dl,0xd4
   inc bx
 
-  nop
+;  nop
   nop
   nop
   nop

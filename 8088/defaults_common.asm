@@ -398,9 +398,15 @@ cpu 8086
 
 ; TODO: lockstep may currently be leaking a CRTC row or column value. Modify the last section to handle all 4 possible row/column combinations.
 %macro lockstep 1
-  mov dx,0x03d8
-  mov al,0
-  out dx,al
+;  mov dx,0x03d8
+;  mov al,0
+;  out dx,al
+
+  initCGA 0
+  mov dl,0xda
+  waitForNoVerticalSync
+  waitForVerticalSync
+  waitForDisplayEnable
 
   ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
   ; per frame.
@@ -427,7 +433,7 @@ cpu 8086
   mov ax,0x0106
   out dx,ax
   ;   0x7f Vertical Sync Position                       70
-  mov ax,0x0007
+  mov ax,0x1d07
   out dx,ax
   ;   0x03 Interlace Mode                               02
   mov ax,0x0208
