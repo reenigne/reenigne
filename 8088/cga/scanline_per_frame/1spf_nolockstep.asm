@@ -73,6 +73,7 @@ notPhase3:
 initAddressesLoopTop:
   stosw
   inc ax
+  inc ax
 ;  add ax,2 ;40
   loop initAddressesLoopTop
 

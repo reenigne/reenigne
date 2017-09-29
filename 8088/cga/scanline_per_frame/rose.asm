@@ -15,6 +15,84 @@ noMotorShutoff:
 
 %endif
 
+  mov dx,0x3b8
+  mov al,29
+  out dx,al
+
+  mov dl,0xb4
+  ;   0xff Horizontal Total                             38  38  71  71  38  38  38  61
+  mov ax,0x6100
+  out dx,ax
+
+  ;   0xff Horizontal Displayed                         28  28  50  50  28  28  28  50
+  mov ax,0x5001
+  out dx,ax
+
+  ;   0xff Horizontal Sync Position                     2d  2d  5a  5a  2d  2d  2d  52
+  mov ax,0x5202
+  out dx,ax
+
+  ;   0x0f Horizontal Sync Width                        0a  0a  0a  0a  0a  0a  0a  0f
+  mov ax,0x0f03
+  out dx,ax
+
+  ;   0x7f Vertical Total                               1f  1f  1f  1f  7f  7f  7f  19
+  mov ax,0x1904
+  out dx,ax
+
+  ;   0x1f Vertical Total Adjust                        06  06  06  06  06  06  06  06
+  mov ax,0x0605
+  out dx,ax
+
+  ;   0x7f Vertical Displayed                           19  19  19  19  64  64  64  19
+  mov ax,0x1906
+  out dx,ax
+
+  ;   0x7f Vertical Sync Position                       1c  1c  1c  1c  70  70  70  19
+  mov ax,0x1907
+  out dx,ax
+
+  ;   0x03 Interlace Mode                               02  02  02  02  02  02  02  02
+  mov ax,0x0208
+  out dx,ax
+
+  ;   0x1f Max Scan Line Address                        07  07  07  07  01  01  01  0d
+  mov ax,0x0d09
+  out dx,ax
+
+  ; Cursor Start                                        06  06  06  06  06  06  06  0b
+  ;   0x1f Cursor Start                                  6   6   6   6   6   6   6  0b
+  ;   0x60 Cursor Mode                                   0   0   0   0   0   0   0   0
+  mov ax,0x0b0a
+  out dx,ax
+
+  ;   0x1f Cursor End                                   07  07  07  07  07  07  07  0c
+  mov ax,0x0c0b
+  out dx,ax
+
+  ;   0x3f Start Address (H)                            00  00  00  00  00  00  00  00
+  mov ax,0x000c
+  out dx,ax
+
+  ;   0xff Start Address (L)                            00  00  00  00  00  00  00  00
+  mov ax,0x000d
+  out dx,ax
+
+  ;   0x3f Cursor (H)                                   00  00  00  00  00  00  00  00
+  mov ax,0x000e
+  out dx,ax
+
+  ;   0xff Cursor (L)                                   00  00  00  00  00  00  00  00
+  mov ax,0x000f
+  out dx,ax
+
+  mov ax,0xb000
+  mov es,ax
+  xor di,di
+  mov cx,80*25
+  rep stosw
+
+
   in al,0x61
   or al,0x80
   mov [cs:port61high+1],al
@@ -113,6 +191,37 @@ initRastersLoopTop:
 
 restart:
 
+%ifdef bin
+  mov al,0xff  ; Enable IRQ0 (timer), disable all others
+  out 0x21,al
+  mov ax,[cs:phase]
+  outputHex
+  mov al,13
+  outputCharacter
+  mov al,10
+  outputCharacter
+  mov ax,[cs:adjustPeriod]
+  outputHex
+  mov al,13
+  outputCharacter
+  mov al,10
+  outputCharacter
+  mov ax,[cs:refreshPhase]
+  outputHex
+  mov al,13
+  outputCharacter
+  mov al,10
+  outputCharacter
+  mov ax,[cs:cgaCrtcPhase]
+  outputHex
+  mov al,13
+  outputCharacter
+  mov al,10
+  outputCharacter
+  mov al,0xfe  ; Enable IRQ0 (timer), disable all others
+  out 0x21,al
+%endif
+
   lockstep 1
 
   ; Mode
@@ -188,6 +297,27 @@ restart:
   mov dl,0xda
   waitForDisplayDisable
   waitForDisplayEnable
+
+
+  cmp byte[cs:cgaCrtcPhase],1
+  jne noSwitchPhase
+  mov dl,0xd4
+  mov ax,0x7200
+  out dx,ax
+  mov dl,0xda
+  waitForDisplayDisable
+  waitForDisplayEnable
+  mov dl,0xd4
+  mov ax,0x7100
+  out dx,ax
+  mov dl,0xda
+  waitForDisplayDisable
+  waitForDisplayEnable
+noSwitchPhase:
+
+  waitForDisplayDisable
+  waitForDisplayEnable
+
 
   writePIT16 0, 2, 31
 
@@ -288,12 +418,12 @@ interrupt8c:
   mov al,(76*262) >> 8
   out 0x40,al
   cmp byte[cs:stableImage],0
-  je notStableImage
+  je .notStableImage
   mov word[0x20],interrupt8stable
-  jmp doneImageSelect
-notStableImage:
+  jmp .doneImageSelect
+.notStableImage:
   mov word[0x20],interrupt8
-doneImageSelect:
+.doneImageSelect:
   mov al,0x20
   out 0x20,al
   mov sp,stackTop
@@ -304,7 +434,7 @@ interrupt8:
   mov ax,cs
   mov ds,ax
   mov ss,ax
-  mov sp,startAddresses
+  mov sp,startAddresses-2
   mov dx,0x3d4
   mov bp,0x5001
   mov di,0x1900
@@ -424,13 +554,13 @@ noFrameCountCarry:
   hlt
 
 interrupt8stable:
-;  initCGA 9,0,2;0x0a
   initCGA 0x0a
   mov dl,0xd9
   %rep 3800
     out dx,al
     inc ax
   %endrep
+interrupt8numbers:
   mov ax,cs
   mov ds,ax
   jmp endOfFrame
@@ -457,7 +587,11 @@ port61low:
   je moveDown
   cmp bl,0x4a               ; keypad-
   je decreaseRefreshPhase
+  cmp bl,0x2c               ; z
+  je decreaseRefreshPhase
   cmp bl,0x4e               ; keypad+
+  je increaseRefreshPhase
+  cmp bl,0x2d               ; x
   je increaseRefreshPhase
   cmp bl,0x39               ; space
   je switchCgaCrtcPhase
@@ -486,14 +620,16 @@ moveDown:
 decreaseRefreshPhase:
   dec word[refreshPhase]
   cmp word[refreshPhase],64-1
-  jne doneFrame
+  jne .done
   mov word[refreshPhase],64+18
+.done:
   jmp doneFrame
 increaseRefreshPhase:
   inc word[refreshPhase]
   cmp word[refreshPhase],64+19
-  jne doneFrame
+  jne .done
   mov word[refreshPhase],64+0
+.done:
   jmp doneFrame
 switchCgaCrtcPhase:
   xor byte[cgaCrtcPhase],1
@@ -511,18 +647,12 @@ toggleNumbersScreen:
   je leavingNumbersMode
 
   initCGA 9
-;  mov ax,3
-;  int 0x10
-;    mov ax,0xb800
-;    mov es,ax
-;    mov word[es:0],0x0745
+  call copyImageData
 
   jmp doneFrame
 leavingNumbersMode:
   call copyImageData
 doneFrame:
-
-  mov sp,stackTop
 
   mov ax,0xb000
   call printNumbers
@@ -537,10 +667,10 @@ doNumbersMode:
 
   mov ax,0xb800
   call printNumbers
-
-numbersScreen:
-  call doKeyboard
-  jmp numbersScreen
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8numbers
+  ret
 
 
 tearDown:
@@ -613,6 +743,8 @@ copyImageData:
 
   cmp byte[stableImage],0
   jne clearVRAM
+  cmp byte[numbersMode],0
+  jne clearVRAM
 
   mov si,data
   mov cx,8000
@@ -674,6 +806,14 @@ printNumbers:
   mov ax,[cgaCrtcPhase]
   call printNybble
   ret
+
+dummyInterrupt8:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+
 
 
 increment: dw 0
