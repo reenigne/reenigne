@@ -1,5 +1,8 @@
 %ifdef bin
 %include "../../defaults_bin.asm"
+
+  stopScreen
+
 %else
 %include "../../defaults_com.asm"
 
@@ -434,7 +437,7 @@ interrupt8:
   mov ax,cs
   mov ds,ax
   mov ss,ax
-  mov sp,startAddresses-2
+  mov sp,startAddresses
   mov dx,0x3d4
   mov bp,0x5001
   mov di,0x1900
@@ -501,6 +504,7 @@ interrupt8:
   out dx,ax        ; e  Horizontal Total         left  0x7100 114
   mov ax,0x5a02
   out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
+
 
   ; TODO: We are now free to do per-frame vertical-overscan stuff
   ; with no special timing requirements except:
