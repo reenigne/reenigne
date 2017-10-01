@@ -508,97 +508,129 @@ With PIT restart fixed:
 with 5a02 fix:
   phase8: 1448, 14a2, 14a3,
 
-Plan:
-  Update rose.com:
-    Fix static last line
-
-    Check that initial values that work for both phases
       phase8:
         cgaCrtcPhase1:
-          1426: 40-41, 4b
-          1427: 49-4b, 52
-          1428: 49-4b, 51-52
-          1429: 48-4b, 4f-52
-          142a: 48-4b, 4f-52
-          142b: 48-4b, 4f-52
-          142c: 44-47, 4c-50
-          142d: 44-47, 4c-50
-          142e: 44-47, 4c-50
-          142f: 42-44, 4c
-          1430: 42-44, 4c
-          1431: 4c
-          1432: 4c
-          1433: 4c
-          1434: 4c
+          1426: 40-41, 4b                        xx         x
+          1427: 49-4b, 52                                 xxx      x
+          1428: 49-4b, 51-52                              xxx     xx
+          1429: 48-4b, 4f-52                             xxxx   xxxx
+          142a: 48-4b, 4f-52                             xxxx   xxxx
+          142b: 48-4b, 4f-52                             xxxx   xxxx
+          142c: 44-47, 4c-50                         xxxx    xxxxx
+          142d: 44-47, 4c-50                         xxxx    xxXxx
+          142e: 44-47, 4c-50                         xxxx    xxxxx
+          142f: 42-44, 4c                          xxx       x
+          1430: 42-44, 4c                          xxx       x
+          1431: 4c                                           x
+          1432: 4c                                           x
+          1433: 4c                                           x
+          1434: 4c                                           x
 
         cgaCrtcPhase0:
-          1425: 47, 50
-          1426: 46-47, 4f-50
-          1427: 45-47, 4d-4e
-          1428: 44-47, 4d-4e
-          1429: 43-47, 4b-4e
-          142a: 43-47, 4a-4e
-          142b: 43-47, 4a-4e
-          142c: 40-43, 48-4b, 52
-          142d: 40-43, 48-4b, 52
-          142e: 40-43, 48-4b, 52
-          142f: 40, 48, 51-52
-          1430: 40, 48, 51-52
-          1431: 48
+          1425: 47, 50                                  x        x
+          1426: 46-47, 4f-50                           xx       xx
+          1427: 45-47, 4d-4e                          xxx     xx
+          1428: 44-47, 4d-4e                         xxxx     xx
+          1429: 43-47, 4b-4e                        xxxxx   xxxx
+          142a: 43-47, 4a-4e                        xxXxx  xxxxx
+          142b: 43-47, 4a-4e                        xxxxx  xxxxx
+          142c: 40-43, 48-4b, 52                 xxxx    xxxx      x
+          142d: 40-43, 48-4b, 52                 xxxx    xxxx      x
+          142e: 40-43, 48-4b, 52                 xxxx    xxxx      x
+          142f: 40, 48, 51-52                    x       x        xx
+          1430: 40, 48, 51-52                    x       x        xx
+          1431: 48                                       x
 
       phase4:
         cgaCrtcPhase1:
-          1425: 4b
-          1426: 40-41, 4a-4b
-          1427: 49-4b, 52
-          1428: 49-4b, 51-52
-          1429: 48-4b, 4f-52
-          142a: 48-4b, 4f-52
-          142b: 48-4b, 4f-52
-          142c: 43-47, 4c-50
-          142d: 43-47, 4c-50
-          142e: 43-47, 4c-50
-          142f: 42-44, 4c
-          1430: 42-44, 4c
-          1431: 4c
+          1425: 4b                                          x
+          1426: 40-41, 4a-4b                     xx        xx
+          1427: 49-4b, 52                                 xxx      x
+          1428: 49-4b, 51-52                              xxx     xx
+          1429: 48-4b, 4f-52                             xxxx   xxxx
+          142a: 48-4b, 4f-52                             xxxx   xxxx
+          142b: 48-4b, 4f-52                             xxxx   xxxx
+          142c: 43-47, 4c-50                        xxxxx    xxxxx
+          142d: 43-47, 4c-50                        xxXxx    xxxxx
+          142e: 43-47, 4c-50                        xxxxx    xxxxx
+          142f: 42-44, 4c                          xxx       x
+          1430: 42-44, 4c                          xxx       x
+          1431: 4c                                           x
 
         cgaCrtcPhase0:
-          1425: 50
-          1426: 46, 4e-50
-          1427: 44-46, 4d
-          1428: 44-46, 4c-4d
-          1429: 43-46, 4a-4d
-          142a: 43-46, 4a-4d
-          142b: 43-46, 4a-4d
-          142c: 40-42, 47-4b, 52
-          142d: 40-42, 47-4b, 52
-          142e: 40-42, 47-4b, 52
-          142f: 47, 51-52
-          1430: 47, 51-52
-          1431: 47
-          1432: 47
-          1433: 47
-          1434: 47
+          1425: 50                                               x
+          1426: 46, 4e-50                              x       xxx
+          1427: 44-46, 4d                            xxx      x
+          1428: 44-46, 4c-4d                         xxx     xx
+          1429: 43-46, 4a-4d                        xxxx   xxxx
+          142a: 43-46, 4a-4d                        xxxx   xxxx
+          142b: 43-46, 4a-4d                        xxxx   xxxx
+          142c: 40-42, 47-4b, 52                 xxx    xxxxx      x
+          142d: 40-42, 47-4b, 52                 xxx    xxXxx      x
+          142e: 40-42, 47-4b, 52                 xxx    xxxxx      x
+          142f: 47, 51-52                               x         xx
+          1430: 47, 51-52                               x         xx
+          1431: 47                                      x
+          1432: 47                                      x
+          1433: 47                                      x
+          1434: 47                                      x
 
-
-
-    Display numbers on MDA
-      CGA/PIT phase
-      refresh phase
-      CGA/CRTC phase
-      startup time
-    Add a key to switch to numbers display on CGA
-    Add control to switch phases
-  Test both CRTC phases in both startup phases
-  Update stability.com:
-    Same startup and other features as rose
-  Test from a real floppy
-  In waitstate_test, add option to disable extender card
-  Send out updated binaries
-
-  Figure out a setup which works for all DRAM refresh phases
-  Fix the problem on glitchy machines
-    See what we need to change to put a VRAM access in the loop
+Getting bottom-left and top scanline correct:
+  phase4:
+    cgaCrtcPhase0:
+      1426: 46, 4e-50                                  x       xxx
+      1427: 44-46, 4d                                xxx      x
+      1428: 44-46, 4c-4d                             xxx     xx
+      1429: 43-46, 4a-4d                            xxxx   xxxx
+      142a: 43-46, 4a-4d                            xxxx   xxxx
+      142b: 43-46, 4a-4d                            xxxx   xxxx
+      142c: 40-41, 47-4a                         xx     xxxx
+      142d: 40-41, 47-4a, 52                     xx     xxxx       x
+      142e: 40-41, 47-4a, 52                     xx     xxxx       x
+      142f: 47, 51-52                                   x         xx
+      1430: 47, 51-52                                   x         xx
+      1431: 47                                          x
+    cgaCrtcPhase1:
+      1425: 4b                                              x
+      1426: 40-41, 4a-4b                         xx        xx
+      1427: 49-4b, 52                                     xxx      x
+      1428: 49-4b, 51-52                                  xxx     xx
+      1429: 48-4b, 4f-52                                 xxxx   xxxx
+      142a: 48-4b, 4f-52                                 xxxx   xxxx
+      142b: 48-4b, 4e-52                                 xxxx  xxxxx
+      142c: 44-45, 4c-4f                             xx      xxxx
+      142d: 43-45, 4c-4f                            xxx      xxxx
+      142e: 43-45, 4c-4f                            xxx      xxxx
+      142f: 42-44                                  xxx
+      1430: 42-44                                  xxx
+  phase8:
+    cgaCrtcPhase0:
+      1424: 47                                          x
+      1425: 47                                          x
+      1426: 46-47, 4f-50                               xx       xx
+      1427: 44-47, 4d                                xxxx     x
+      1428: 44-47, 4d                                xxxx     x
+      1429: 43-46, 4b-4d                            xxxx    xxx
+      142a: 43-46, 4a-4d                            xxxx   xxxx
+      142b: 43-46, 4a-4d                            xxxx   xxxx
+      142c: 40-41. 48-4a                         xx      xxx
+      142d: 40-41. 48-4a, 52                     xx      xxx       x
+      142e: 40-41. 48-4a, 52                     xx      xxx       x
+      142f: 40, 52                               x                 x
+      1430: 51-52                                                 xx
+    cgaCrtcPhase1:
+      1426: 40-41, 4b                            xx         x
+      1427: 48-4b, 52                                    xxxx      x
+      1428: 49-4b, 51-52                                  xxx     xx
+      1429: 48-4b, 4f-52                                 xxxx   xxxx
+      142a: 48-4b, 4f-52                                 xxxx   xxxx
+      142b: 48-4b, 4f-52                                 xxxx   xxxx
+      142c: 45-46, 4c-4f                              xx     xxxx
+      142d: 44-46, 4c-4f                             xxx     xxxx
+      142e: 44-46, 4c-4f                             xxx     xxxx
+      142f: 43-44, 4c                               xx       x
+      1440: 42-44, 4c                              xxx       x
+      1431: 4c                                               x
 
 
 trace results
@@ -617,6 +649,13 @@ scanline       5700       0202       xx0c       xx0d       e0    0104       0101
                  304        304        304        304        304              305        305        308        308
 198           1724       1757       1801       1834       1862  1885/      1930       1950       1980       2008          68
 
+
+
+
+
+TODO:
+  Fix the problem on glitchy machines
+    See what we need to change to put a VRAM access in the loop
 
 
 Done:
@@ -682,4 +721,25 @@ Move current setup back to horizontal-only program and see if that has the same 
 try moving VT set back to 0 and 198
 New startup
 Figure out if changing address 200 fixes it, or if it's a real problem with the routine - it's a real problem with the routine
+    Display numbers on MDA
+      CGA/PIT phase
+      refresh phase
+      CGA/CRTC phase
+      startup time
+    Add a key to switch to numbers display on CGA
+    Add control to switch phases
+  Test both CRTC phases in both startup phases
+  Update stability.com:
+    Same startup and other features as rose
+    Fix static last line
+      Switch to mode 0x0b so we can see where palette change is happening
+      Bisect to figure out what's different between rose and nolockstep
+        Switch to nolockstep's startaddress pattern
+        Switch to nolockstep's data
+      Figure out what address it's fixed as (not constant offset from correct or previous address!)
+  Update rose.com:
+    Check that initial values that work for both phases
+  Test from a real floppy
+  In waitstate_test, add option to disable extender card
+  Send out updated binaries
 

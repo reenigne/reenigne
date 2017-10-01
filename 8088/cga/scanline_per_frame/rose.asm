@@ -169,7 +169,7 @@ notPhase2:
 notPhase3:
   mov [phase],al
 
-
+%if 0
   mov di,startAddresses
   mov ax,cs
   mov es,ax
@@ -179,6 +179,7 @@ initAddressesLoopTop:
   stosw
   inc ax
   loop initAddressesLoopTop
+%endif
 
   mov di,rasterData
   xor ax,ax
@@ -505,11 +506,26 @@ interrupt8:
   mov ax,0x5a02
   out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
 
+  mov sp,stackTop
 
   ; TODO: We are now free to do per-frame vertical-overscan stuff
   ; with no special timing requirements except:
   ;   HLT before overscan is over
   ;   Sound (if in use)
+
+%if 0
+  mov di,startAddresses
+  mov ax,cs
+  mov es,ax
+;  xor ax,ax
+  mov ax,-1
+  mov cx,200
+initAddressesLoopTop1:
+  stosw
+  inc ax
+;  add ax,2 ;40
+  loop initAddressesLoopTop1
+%endif
 
   mov ax,[increment]
   inc ax
@@ -826,8 +842,8 @@ oldInterrupt8: dw 0, 0
 imr: db 0
 
 phase: dw 0
-adjustPeriod: dw 0x142c
-refreshPhase: dw 70
+adjustPeriod: dw 0x142a
+refreshPhase: dw 0x0045
 cgaCrtcPhase: dw 0
 numbersMode: dw 0
 stableImage: dw 0
@@ -839,12 +855,12 @@ lineTable:
   %if i >= 200
      dw (i&1)*80 + 8000
   %else
-     dw (i >> 1)*80 - 2
+     dw (i >> 1)*80 -1 ;- 2
   %endif
   %assign i i+1
 %endrep
 
-align 2
+align 16
 
 section .bss
 data:
