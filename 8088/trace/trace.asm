@@ -98,7 +98,7 @@ loopTop:
   dec dx
   outputByte
   outputByte
-  mov dx,18996 ;+ 492*3   ;65534 ;
+  mov dx,18996 + 492*3   ;65534 ;
   outputByte
   outputByte
 
@@ -172,167 +172,6 @@ lut: db 0x88,8
 
 
 testRoutine:
-;  lockstep
-
-  mov dx,0x03d8
-  mov al,0
-  out dx,al
-
-  ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
-  ; per frame.
-  mov dx,0x3d4
-  ;   0xff Horizontal Total
-  mov ax,0x0100
-  out dx,ax
-  ;   0xff Horizontal Displayed                         28
-  mov ax,0x0101
-  out dx,ax
-  ;   0xff Horizontal Sync Position                     2d
-  mov ax,0x2d02
-  out dx,ax
-  ;   0x0f Horizontal Sync Width                        0a
-  mov ax,0x0a03
-  out dx,ax
-  ;   0x7f Vertical Total                               7f
-  mov ax,0x0104
-  out dx,ax
-  ;   0x1f Vertical Total Adjust                        06
-  mov ax,0x0005
-  out dx,ax
-  ;   0x7f Vertical Displayed                           64
-  mov ax,0x0106
-  out dx,ax
-  ;   0x7f Vertical Sync Position                       70
-  mov ax,0x0007
-  out dx,ax
-  ;   0x03 Interlace Mode                               02
-  mov ax,0x0208
-  out dx,ax
-  ;   0x1f Max Scan Line Address                        01
-  mov ax,0x0009
-  out dx,ax
-
-  ; 256 lchars (horizonta) + 256 lchars (vertical) = 2731 CPU cycles = 114 iterations of "rep lodsw"
-
-  cli
-  cld
-
-  xor ax,ax
-  mov ds,ax
-  mov si,ax
-
-  ; Delay for enough time to refresh 512 columns
-  mov cx,16
-
-  ; Increase refresh frequency to ensure all DRAM is refreshed before turning
-  ; off refresh.
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,2
-  out 0x41,al  ; Timer 1 rate
-
-  ; Each iteration takes 24 cycles and refreshes 2 locations.
-  rep lodsw
-
-  mov al,TIMER1 | LSB | MODE0 | BINARY
-  out 0x43,al
-  mov al,0x01  ; Count = 0x0001 so we'll stop almost immediately
-  out 0x41,al
-
-  ; Set "lodsb" destination to be CGA memory
-  mov ax,0xb800
-  mov es,ax
-  mov ds,ax
-  mov di,0x3ffc
-  mov si,di
-  mov ax,0x0303  ; Found by trial and error
-  stosw
-  mov al,0x00
-  stosb
-
-  mov dl,0xda
-
-  ; Set argument for MUL
-  mov cl,1
-
-  ; Go into CGA/CPU lockstep.
-  jmp $+2
-  mov al,0  ; exact value doesn't matter here - it's just to ensure the prefetch queue is filled
-  mul cl
-  lodsb
-  mul cl
-  nop
-  lodsb
-  mul cl
-  nop
-  lodsb
-  mul cl
-
-  ; To get the CRTC into lockstep with the CGA and CPU, we need to figure out
-  ; which of the four possible CRTC states we're in and switch states (by
-  ; waiting for 2*N+1 lchars) until we're in a single state. We do this by
-  ; waiting for the display enable bit to go low in a loop that takes 144
-  ; cycles per iteration. This will loop at most 3 times.
-  mov ax,1
-  test al,1
-  jnz .loopTop1   ; Always jump to clear the prefetch queue.
-.loopTop1:
-  mov al,1
-  div cl
-  times 6 nop
-  in al,dx
-  test al,1
-  jnz .loopTop1
-
-
-  ret
-
-
-  mov [cs:savedSP],sp
-
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],irq0a
-  writePIT16 0, 2, 2
-
-  mov dx,0x3d9
-  in al,dx
-  test al,1
-  jnz .loop1
-.loop1:
-  in al,dx
-  test al,1
-  jnz .loop2
-.loop2:
-  in al,dx
-  test al,1
-  jz .loop3
-.loop3:
-  writePIT16 0, 2, 31
-  sti
-  hlt
-irq0a:
-  mov al,75
-  out 0x40,al
-  mov al,0
-  out 0x40,al
-  mov word[0x20],irq0b
-  mov al,0x20
-  out 0x20,al
-  sti
-  hlt
-irq0b:
-  in al,dx
-
-  mov al,0x20
-  out 0x20,al
-  writePIT16 0, 2, 0
-  mov word[0x20],irq0
-
-  mov sp,[cs:savedSP]
-  ret
-
-
   mov al,TIMER1 | LSB | MODE2 | BINARY
   out 0x43,al
   mov al,REFRESH
@@ -353,16 +192,16 @@ irq0setup:
   hlt
 
 irq0test:
-  mov ax,cs
+  mov ax,0xb800
   mov ds,ax
   mov ss,ax
   mov sp,1234
   mov dx,0x3d4
-  mov bp,0x5001
+  mov bx,0x5001
   mov di,0x1900
   mov ax,0x5702
   mov si,12345
-  mov bx,123
+  mov bp,123
   mov es,ax
 
   ; Scanlines 0-199
@@ -382,7 +221,7 @@ irq0test:
   out dx,ax
 
   lodsb
-  out 0xe0,al
+;  out 0xe0,al
 
   %if %1 == -1
     mov ax,0x0104

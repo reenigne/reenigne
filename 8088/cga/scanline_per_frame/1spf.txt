@@ -310,10 +310,6 @@ PIT clock is 12 hdots
   phase4: 1, 2, 3, 4, 5
 
 
-TODO:
-  Last scanline is repeated
-    Start address array is becoming corrupted
-
 
 CRTC-scanline 0 is long and CRTC-scanline 1 is short:
   Scanline   0:      0       1
@@ -532,7 +528,7 @@ with 5a02 fix:
           1427: 45-47, 4d-4e                          xxx     xx
           1428: 44-47, 4d-4e                         xxxx     xx
           1429: 43-47, 4b-4e                        xxxxx   xxxx
-          142a: 43-47, 4a-4e                        xxXxx  xxxxx
+          142a: 43-47, 4a-4e                        xxxxx  xxxxx
           142b: 43-47, 4a-4e                        xxxxx  xxxxx
           142c: 40-43, 48-4b, 52                 xxxx    xxxx      x
           142d: 40-43, 48-4b, 52                 xxxx    xxxx      x
@@ -551,7 +547,7 @@ with 5a02 fix:
           142a: 48-4b, 4f-52                             xxxx   xxxx
           142b: 48-4b, 4f-52                             xxxx   xxxx
           142c: 43-47, 4c-50                        xxxxx    xxxxx
-          142d: 43-47, 4c-50                        xxXxx    xxxxx
+          142d: 43-47, 4c-50                        xxxxx    xxxxx
           142e: 43-47, 4c-50                        xxxxx    xxxxx
           142f: 42-44, 4c                          xxx       x
           1430: 42-44, 4c                          xxx       x
@@ -582,7 +578,7 @@ Getting bottom-left and top scanline correct:
       1427: 44-46, 4d                                xxx      x
       1428: 44-46, 4c-4d                             xxx     xx
       1429: 43-46, 4a-4d                            xxxx   xxxx
-      142a: 43-46, 4a-4d                            xxxx   xxxx
+      142a: 43-46, 4a-4d                            xxXx   xxxx
       142b: 43-46, 4a-4d                            xxxx   xxxx
       142c: 40-41, 47-4a                         xx     xxxx
       142d: 40-41, 47-4a, 52                     xx     xxxx       x
@@ -611,7 +607,7 @@ Getting bottom-left and top scanline correct:
       1427: 44-47, 4d                                xxxx     x
       1428: 44-47, 4d                                xxxx     x
       1429: 43-46, 4b-4d                            xxxx    xxx
-      142a: 43-46, 4a-4d                            xxxx   xxxx
+      142a: 43-46, 4a-4d                            xxXx   xxxx
       142b: 43-46, 4a-4d                            xxxx   xxxx
       142c: 40-41. 48-4a                         xx      xxx
       142d: 40-41. 48-4a, 52                     xx      xxx       x
@@ -650,6 +646,9 @@ scanline       5700       0202       xx0c       xx0d       e0    0104       0101
 198           1724       1757       1801       1834       1862  1885/      1930       1950       1980       2008          68
 
 
+
+Address for short scanline is immediately before the long scanline to the right, and is the programmed start address
+  This implies the short scanline is scanline 0
 
 
 
@@ -742,4 +741,6 @@ Figure out if changing address 200 fixes it, or if it's a real problem with the 
   Test from a real floppy
   In waitstate_test, add option to disable extender card
   Send out updated binaries
+  Last scanline is repeated
+    Start address array is becoming corrupted
 

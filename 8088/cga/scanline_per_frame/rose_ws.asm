@@ -435,16 +435,16 @@ interrupt8c:
   hlt
 
 interrupt8:
-  mov ax,cs
+  mov ax,0xb800
   mov ds,ax
   mov ss,ax
   mov sp,startAddresses
   mov dx,0x3d4
-  mov bp,0x5001
+  mov bx,0x5001
   mov di,0x1900
   mov ax,0x5702
   mov si,sampleData
-  mov bx,rasterData-sampleData
+  mov bp,rasterData-sampleData
   mov es,ax
 
   ; Scanlines -1..198
@@ -465,7 +465,7 @@ interrupt8:
   out dx,ax
 
   lodsb
-  out 0xe0,al
+;  out 0xe0,al
 
   %if %1 == -1
     mov ax,0x0104
@@ -476,7 +476,7 @@ interrupt8:
     out dx,ax      ;    Vertical Total                 0x3f04  64  (1 for scanlines -1 and 198, 62 for scanlines 199-260)
     times 3 nop
   %else
-    mov al,[bx+si]
+    mov al,[bp+si]
     mov dl,0xd9
     out dx,al
     mov dl,0xd4
@@ -487,9 +487,9 @@ interrupt8:
   xchg ax,di
   out dx,ax        ; a  Horizontal Total         right 0x1900  26
   xchg ax,di
-  xchg ax,bp
+  xchg ax,bx
   out dx,ax        ; d  Horizontal Displayed     left  0x5001  80
-  xchg ax,bp
+  xchg ax,bx
   mov ax,es
   out dx,ax        ; c  Horizontal Sync Position left  0x5702  88
 %endmacro
