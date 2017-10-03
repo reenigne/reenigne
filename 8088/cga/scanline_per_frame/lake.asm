@@ -169,17 +169,24 @@ notPhase2:
 notPhase3:
   mov [phase],al
 
-%if 0
+  mov si,lakeTable
+  mov di,lakeTable
+  mov cx,49*99
+initLakeTableLoopTop:
+  lodsw
+  dec ax
+  stosw
+  loop initLakeTableLoopTop
+
   mov di,startAddresses
   mov ax,cs
   mov es,ax
-  xor ax,ax
-  mov cx,200
+  mov ax,-1
+  mov cx,101
 initAddressesLoopTop:
   stosw
-  inc ax
+  add ax,80
   loop initAddressesLoopTop
-%endif
 
   mov di,rasterData
   xor ax,ax
@@ -514,50 +521,20 @@ interrupt8:
   ;   HLT before overscan is over
   ;   Sound (if in use)
 
-%if 0
-  mov di,startAddresses
+  mov di,startAddresses + 101*2
   mov ax,cs
   mov es,ax
-;  xor ax,ax
-  mov ax,-1
-  mov cx,200
-initAddressesLoopTop1:
-  stosw
-  inc ax
-;  add ax,2 ;40
-  loop initAddressesLoopTop1
-%endif
+  mov si,[lakeFrame]
+  add si,2
+  cmp si,49*2+lakeTableOffsets
+  jne noRestart
+  mov si,lakeTableOffsets
+noRestart:
+  mov [lakeFrame],si
+  mov si,[si]
+  mov cx,99
+  rep movsw
 
-  mov ax,[increment]
-  inc ax
-  mov cx,ax
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  shr ax,1
-  add cx,ax
-  mov ax,cx
-  mov [increment],ax
-  mov di,100 ;50
-  mul di
-  neg ax
-  mov dx,ax
-  add dx,0x6400
-
-  mov ax,cs
-  mov es,ax
-  mov di,startAddresses
-  mov bh,0
-%rep 200
-  add dx,cx
-  mov bl,dh
-  mov si,bx
-  mov ax,[bx+si+lineTable]
-  stosw
-%endrep
 
 endOfFrame:
   mov al,0x20
@@ -768,9 +745,9 @@ copyImageData:
   jne clearVRAM
 
   mov si,data
-  mov cx,8000
+  mov cx,8080
   rep movsw
-  mov cx,192
+  mov cx,112
   rep stosw
   ret
 
@@ -837,7 +814,7 @@ dummyInterrupt8:
 
 
 
-increment: dw 0
+lakeFrame: dw lakeTableOffsets
 frameCount: dw 0, 0
 oldInterrupt8: dw 0, 0
 imr: db 0
@@ -849,17 +826,16 @@ cgaCrtcPhase: dw 0
 numbersMode: dw 0
 stableImage: dw 0
 
+lakeTable:
+%include "../../../../lake_table.inc"
 
-lineTable:
+lakeTableOffsets:
 %assign i 0
-%rep 256
-  %if i >= 200
-     dw (i&1)*80 + 8000
-  %else
-     dw (i >> 1)*80 -1 ;- 2
-  %endif
-  %assign i i+1
+%rep 49
+  dw i+lakeTable
+  %assign i i+198
 %endrep
+
 
 align 16
 
