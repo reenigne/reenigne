@@ -2,7 +2,7 @@
 
 FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
-REFRESH      EQU 0;19   ; Refresh period in cycles, or 0 to disable
+REFRESH      EQU 19   ; Refresh period in cycles, or 0 to disable
 
   cli
   mov ax,cs
@@ -80,6 +80,11 @@ loopTop:
   hlt
   hlt
   writePIT16 0, 2, 0
+
+;  mov ax,0xb800
+;  mov ds,ax
+;  mov ax,[0]
+   lockstep 1
 
   mov ax,0x8000
   mov ds,ax
@@ -172,28 +177,31 @@ lut: db 0x88,8
 
 
 testRoutine:
-  mov al,TIMER1 | LSB | MODE2 | BINARY
-  out 0x43,al
-  mov al,REFRESH
-  out 0x41,al  ; Timer 1 rate
+  mov [cs:savedSP],sp
 
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],irq0setup
-  writePIT16 0, 2, 2         ; Ensure we have a pending IRQ0
-  writePIT16 0, 2, 40
-  sti
-  hlt     ; Should never be hit
-irq0setup:
-  mov al,0x20
-  out 0x20,al
-  mov word[0x20],irq0test
-  sti
-  hlt
-
-irq0test:
+;  mov al,TIMER1 | LSB | MODE2 | BINARY
+;  out 0x43,al
+;  mov al,REFRESH
+;  out 0x41,al  ; Timer 1 rate
+;
+;  xor ax,ax
+;  mov ds,ax
+;  mov word[0x20],irq0setup
+;  writePIT16 0, 2, 2         ; Ensure we have a pending IRQ0
+;  writePIT16 0, 2, 40
+;  sti
+;  hlt     ; Should never be hit
+;irq0setup:
+;  mov al,0x20
+;  out 0x20,al
+;  mov word[0x20],irq0test
+;  sti
+;  hlt
+;
+;irq0test:
   mov ax,0xb800
   mov ds,ax
+  mov ax,cs
   mov ss,ax
   mov sp,1234
   mov dx,0x3d4
@@ -232,7 +240,7 @@ irq0test:
     out dx,ax      ;    Vertical Total                 0x3f04  64  (1 for scanlines -1 and 198, 62 for scanlines 199-260)
     times 3 nop
   %else
-    mov al,[bx+si]
+    mov al,[bp+si]
     mov dl,0xd9
     out dx,al
     mov dl,0xd4
@@ -274,14 +282,14 @@ irq0test:
 
   mov sp,[cs:savedSP]
 
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],irq0
-  writePIT16 0, 2, 0
-
-  mov al,0x20
-  out 0x20,al
-
+;  xor ax,ax
+;  mov ds,ax
+;  mov word[0x20],irq0
+;  writePIT16 0, 2, 0
+;
+;  mov al,0x20
+;  out 0x20,al
+;
 
   ret
 savedSP:
