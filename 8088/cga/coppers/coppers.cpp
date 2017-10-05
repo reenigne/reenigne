@@ -9,10 +9,10 @@ public:
 
         String asmOutput;
         asmOutput += "sinTable:\n";
-        for (int i = 0; i < 256; ++i) {
+        for (int i = 0; i < 512; ++i) {
             if ((i & 15) == 0)
                 asmOutput += "  dw ";
-            asmOutput += "startAddresses + " + hex(static_cast<int>((sin(i*tau/256.0) + 1)*span/2 + 0.5)*2, 3);
+            asmOutput += "startAddresses + " + hex(static_cast<int>((sin(i*tau/512.0) + 1)*span/2 + 0.5)*2, 3);
             if ((i & 15) != 15)
                 asmOutput += ", ";
             else

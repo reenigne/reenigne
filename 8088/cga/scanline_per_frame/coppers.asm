@@ -169,15 +169,6 @@ notPhase2:
 notPhase3:
   mov [phase],al
 
-  mov si,lakeTable
-  mov di,lakeTable
-  mov cx,49*99
-initLakeTableLoopTop:
-  lodsw
-  dec ax
-  stosw
-  loop initLakeTableLoopTop
-
   mov di,startAddresses
   mov ax,cs
   mov es,ax
@@ -521,19 +512,113 @@ interrupt8:
   ;   HLT before overscan is over
   ;   Sound (if in use)
 
-  mov di,startAddresses + 101*2
+  mov dl,0xd9
+  mov al,1
+  out dx,al
+
+  mov di,startAddresses
   mov ax,cs
   mov es,ax
-  mov si,[lakeFrame]
-  add si,2
-  cmp si,49*2+lakeTableOffsets
-  jne noRestart
-  mov si,lakeTableOffsets
-noRestart:
-  mov [lakeFrame],si
-  mov si,[si]
-  mov cx,99
-  rep movsw
+  mov ax,80*100-1
+  mov bx,81*100-1
+  mov cx,100
+.clearLoop:
+  stosw
+  xchg ax,bx
+  stosw
+  xchg ax,bx
+  loop .clearLoop
+
+;  %assign i 0
+;  %rep 10
+;    mov si,[barPointers + i*2]
+;    mov bx,[si]
+;    add bl,bh
+;    mov [si],bl
+;    mov bh,0
+;    add bx,bx
+;    mov di,[bx+sinTable]
+;    mov si,[si+2]
+;    mov cx,16
+;    rep movsw
+;    %assign i i+1
+;  %endrep
+
+%if 0
+  %assign i 0
+  %rep 10
+    mov si,[barPointers + i*2]
+    mov bx,[si]
+    add bx,[si+2]
+    mov [si],bx
+    rol bx,1
+    xchg bh,bl
+    and bh,1
+    add bx,bx
+    mov di,[bx+sinTable]
+    mov si,[si+4]
+    mov cx,16
+    rep movsw
+    %assign i i+1
+  %endrep
+%endif
+
+
+
+; Step 1: Recompute all y and z positions, re-insert into barPointers
+
+%macro compareSwap 0
+  mov bx,[barPointers + (i-1)*2]
+  cmp di,[bx+8]
+  jle %%noSwap
+  mov [barPointers + i*2],bx
+  mov [barPointers + (i-1)*2],si
+  %%noSwap:
+%endmacro
+
+  %assign i 0
+  %rep 10
+    mov si,[barPointers + i*2]
+    mov bx,[si]
+    add bx,[si+2]
+    mov [si],bx
+    rol bx,1
+    xchg bh,bl
+    and bh,1
+    add bx,bx
+    mov di,[bx+sinTable]
+    mov [si+6],di
+    inc bh
+    and bh,3
+    mov di,[bx+sinTable]
+    mov [si+8],di
+    %if i>0
+      compareSwap
+    %endif
+    %assign i i+1
+  %endrep
+
+  recalculate
+
+; Step 2: Draw bars
+
+  %assign i 0
+  %rep 10
+    mov si,[barPointers + i*2]
+    mov di,[si+6]
+    mov si,[si+4]
+    mov cx,16
+    rep movsw
+    %assign i i+1
+  %endrep
+
+
+;%endif
+
+
+
+  mov al,0
+  out dx,al
 
 
 endOfFrame:
@@ -745,13 +830,15 @@ copyImageData:
 
   mov si,copperTable
   mov dx,10*8
-  mov ah,0xb1
+  mov bl,0xb1
 .rowLoop:
   lodsb
+  mov ah,al
+  mov al,bl
   mov cx,80
   rep stosw
   dec dx
-  jnc .rowLoop
+  jnz .rowLoop
   mov cx,8192-(10*8*80)
   xor ax,ax
   rep stosw
@@ -821,7 +908,6 @@ dummyInterrupt8:
 
 
 
-lakeFrame: dw lakeTableOffsets
 frameCount: dw 0, 0
 oldInterrupt8: dw 0, 0
 imr: db 0
@@ -862,6 +948,57 @@ copperBars:
   %assign i i+1
 %endrep
 
+sinTable:
+  dw startAddresses + 0x0B8, startAddresses + 0x0BA, startAddresses + 0x0BC, startAddresses + 0x0BE, startAddresses + 0x0C2, startAddresses + 0x0C4, startAddresses + 0x0C6, startAddresses + 0x0C8, startAddresses + 0x0CA, startAddresses + 0x0CC, startAddresses + 0x0CE, startAddresses + 0x0D0, startAddresses + 0x0D2, startAddresses + 0x0D6, startAddresses + 0x0D8, startAddresses + 0x0DA
+  dw startAddresses + 0x0DC, startAddresses + 0x0DE, startAddresses + 0x0E0, startAddresses + 0x0E2, startAddresses + 0x0E4, startAddresses + 0x0E6, startAddresses + 0x0EA, startAddresses + 0x0EC, startAddresses + 0x0EE, startAddresses + 0x0F0, startAddresses + 0x0F2, startAddresses + 0x0F4, startAddresses + 0x0F6, startAddresses + 0x0F8, startAddresses + 0x0FA, startAddresses + 0x0FC
+  dw startAddresses + 0x0FE, startAddresses + 0x100, startAddresses + 0x102, startAddresses + 0x104, startAddresses + 0x106, startAddresses + 0x108, startAddresses + 0x10A, startAddresses + 0x10C, startAddresses + 0x10E, startAddresses + 0x110, startAddresses + 0x112, startAddresses + 0x114, startAddresses + 0x116, startAddresses + 0x118, startAddresses + 0x11A, startAddresses + 0x11C
+  dw startAddresses + 0x11E, startAddresses + 0x120, startAddresses + 0x122, startAddresses + 0x124, startAddresses + 0x126, startAddresses + 0x128, startAddresses + 0x12A, startAddresses + 0x12A, startAddresses + 0x12C, startAddresses + 0x12E, startAddresses + 0x130, startAddresses + 0x132, startAddresses + 0x134, startAddresses + 0x136, startAddresses + 0x136, startAddresses + 0x138
+  dw startAddresses + 0x13A, startAddresses + 0x13C, startAddresses + 0x13E, startAddresses + 0x13E, startAddresses + 0x140, startAddresses + 0x142, startAddresses + 0x144, startAddresses + 0x144, startAddresses + 0x146, startAddresses + 0x148, startAddresses + 0x14A, startAddresses + 0x14A, startAddresses + 0x14C, startAddresses + 0x14E, startAddresses + 0x14E, startAddresses + 0x150
+  dw startAddresses + 0x150, startAddresses + 0x152, startAddresses + 0x154, startAddresses + 0x154, startAddresses + 0x156, startAddresses + 0x156, startAddresses + 0x158, startAddresses + 0x15A, startAddresses + 0x15A, startAddresses + 0x15C, startAddresses + 0x15C, startAddresses + 0x15E, startAddresses + 0x15E, startAddresses + 0x160, startAddresses + 0x160, startAddresses + 0x162
+  dw startAddresses + 0x162, startAddresses + 0x162, startAddresses + 0x164, startAddresses + 0x164, startAddresses + 0x166, startAddresses + 0x166, startAddresses + 0x166, startAddresses + 0x168, startAddresses + 0x168, startAddresses + 0x168, startAddresses + 0x16A, startAddresses + 0x16A, startAddresses + 0x16A, startAddresses + 0x16C, startAddresses + 0x16C, startAddresses + 0x16C
+  dw startAddresses + 0x16C, startAddresses + 0x16C, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170
+  dw startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x170, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16E, startAddresses + 0x16C
+  dw startAddresses + 0x16C, startAddresses + 0x16C, startAddresses + 0x16C, startAddresses + 0x16C, startAddresses + 0x16A, startAddresses + 0x16A, startAddresses + 0x16A, startAddresses + 0x168, startAddresses + 0x168, startAddresses + 0x168, startAddresses + 0x166, startAddresses + 0x166, startAddresses + 0x166, startAddresses + 0x164, startAddresses + 0x164, startAddresses + 0x162
+  dw startAddresses + 0x162, startAddresses + 0x162, startAddresses + 0x160, startAddresses + 0x160, startAddresses + 0x15E, startAddresses + 0x15E, startAddresses + 0x15C, startAddresses + 0x15C, startAddresses + 0x15A, startAddresses + 0x15A, startAddresses + 0x158, startAddresses + 0x156, startAddresses + 0x156, startAddresses + 0x154, startAddresses + 0x154, startAddresses + 0x152
+  dw startAddresses + 0x150, startAddresses + 0x150, startAddresses + 0x14E, startAddresses + 0x14E, startAddresses + 0x14C, startAddresses + 0x14A, startAddresses + 0x14A, startAddresses + 0x148, startAddresses + 0x146, startAddresses + 0x144, startAddresses + 0x144, startAddresses + 0x142, startAddresses + 0x140, startAddresses + 0x13E, startAddresses + 0x13E, startAddresses + 0x13C
+  dw startAddresses + 0x13A, startAddresses + 0x138, startAddresses + 0x136, startAddresses + 0x136, startAddresses + 0x134, startAddresses + 0x132, startAddresses + 0x130, startAddresses + 0x12E, startAddresses + 0x12C, startAddresses + 0x12A, startAddresses + 0x12A, startAddresses + 0x128, startAddresses + 0x126, startAddresses + 0x124, startAddresses + 0x122, startAddresses + 0x120
+  dw startAddresses + 0x11E, startAddresses + 0x11C, startAddresses + 0x11A, startAddresses + 0x118, startAddresses + 0x116, startAddresses + 0x114, startAddresses + 0x112, startAddresses + 0x110, startAddresses + 0x10E, startAddresses + 0x10C, startAddresses + 0x10A, startAddresses + 0x108, startAddresses + 0x106, startAddresses + 0x104, startAddresses + 0x102, startAddresses + 0x100
+  dw startAddresses + 0x0FE, startAddresses + 0x0FC, startAddresses + 0x0FA, startAddresses + 0x0F8, startAddresses + 0x0F6, startAddresses + 0x0F4, startAddresses + 0x0F2, startAddresses + 0x0F0, startAddresses + 0x0EE, startAddresses + 0x0EC, startAddresses + 0x0EA, startAddresses + 0x0E6, startAddresses + 0x0E4, startAddresses + 0x0E2, startAddresses + 0x0E0, startAddresses + 0x0DE
+  dw startAddresses + 0x0DC, startAddresses + 0x0DA, startAddresses + 0x0D8, startAddresses + 0x0D6, startAddresses + 0x0D2, startAddresses + 0x0D0, startAddresses + 0x0CE, startAddresses + 0x0CC, startAddresses + 0x0CA, startAddresses + 0x0C8, startAddresses + 0x0C6, startAddresses + 0x0C4, startAddresses + 0x0C2, startAddresses + 0x0BE, startAddresses + 0x0BC, startAddresses + 0x0BA
+  dw startAddresses + 0x0B8, startAddresses + 0x0B6, startAddresses + 0x0B4, startAddresses + 0x0B2, startAddresses + 0x0AE, startAddresses + 0x0AC, startAddresses + 0x0AA, startAddresses + 0x0A8, startAddresses + 0x0A6, startAddresses + 0x0A4, startAddresses + 0x0A2, startAddresses + 0x0A0, startAddresses + 0x09E, startAddresses + 0x09A, startAddresses + 0x098, startAddresses + 0x096
+  dw startAddresses + 0x094, startAddresses + 0x092, startAddresses + 0x090, startAddresses + 0x08E, startAddresses + 0x08C, startAddresses + 0x08A, startAddresses + 0x086, startAddresses + 0x084, startAddresses + 0x082, startAddresses + 0x080, startAddresses + 0x07E, startAddresses + 0x07C, startAddresses + 0x07A, startAddresses + 0x078, startAddresses + 0x076, startAddresses + 0x074
+  dw startAddresses + 0x072, startAddresses + 0x070, startAddresses + 0x06E, startAddresses + 0x06C, startAddresses + 0x06A, startAddresses + 0x068, startAddresses + 0x066, startAddresses + 0x064, startAddresses + 0x062, startAddresses + 0x060, startAddresses + 0x05E, startAddresses + 0x05C, startAddresses + 0x05A, startAddresses + 0x058, startAddresses + 0x056, startAddresses + 0x054
+  dw startAddresses + 0x052, startAddresses + 0x050, startAddresses + 0x04E, startAddresses + 0x04C, startAddresses + 0x04A, startAddresses + 0x048, startAddresses + 0x046, startAddresses + 0x046, startAddresses + 0x044, startAddresses + 0x042, startAddresses + 0x040, startAddresses + 0x03E, startAddresses + 0x03C, startAddresses + 0x03A, startAddresses + 0x03A, startAddresses + 0x038
+  dw startAddresses + 0x036, startAddresses + 0x034, startAddresses + 0x032, startAddresses + 0x032, startAddresses + 0x030, startAddresses + 0x02E, startAddresses + 0x02C, startAddresses + 0x02C, startAddresses + 0x02A, startAddresses + 0x028, startAddresses + 0x026, startAddresses + 0x026, startAddresses + 0x024, startAddresses + 0x022, startAddresses + 0x022, startAddresses + 0x020
+  dw startAddresses + 0x020, startAddresses + 0x01E, startAddresses + 0x01C, startAddresses + 0x01C, startAddresses + 0x01A, startAddresses + 0x01A, startAddresses + 0x018, startAddresses + 0x016, startAddresses + 0x016, startAddresses + 0x014, startAddresses + 0x014, startAddresses + 0x012, startAddresses + 0x012, startAddresses + 0x010, startAddresses + 0x010, startAddresses + 0x00E
+  dw startAddresses + 0x00E, startAddresses + 0x00E, startAddresses + 0x00C, startAddresses + 0x00C, startAddresses + 0x00A, startAddresses + 0x00A, startAddresses + 0x00A, startAddresses + 0x008, startAddresses + 0x008, startAddresses + 0x008, startAddresses + 0x006, startAddresses + 0x006, startAddresses + 0x006, startAddresses + 0x004, startAddresses + 0x004, startAddresses + 0x004
+  dw startAddresses + 0x004, startAddresses + 0x004, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000
+  dw startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x000, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x002, startAddresses + 0x004
+  dw startAddresses + 0x004, startAddresses + 0x004, startAddresses + 0x004, startAddresses + 0x004, startAddresses + 0x006, startAddresses + 0x006, startAddresses + 0x006, startAddresses + 0x008, startAddresses + 0x008, startAddresses + 0x008, startAddresses + 0x00A, startAddresses + 0x00A, startAddresses + 0x00A, startAddresses + 0x00C, startAddresses + 0x00C, startAddresses + 0x00E
+  dw startAddresses + 0x00E, startAddresses + 0x00E, startAddresses + 0x010, startAddresses + 0x010, startAddresses + 0x012, startAddresses + 0x012, startAddresses + 0x014, startAddresses + 0x014, startAddresses + 0x016, startAddresses + 0x016, startAddresses + 0x018, startAddresses + 0x01A, startAddresses + 0x01A, startAddresses + 0x01C, startAddresses + 0x01C, startAddresses + 0x01E
+  dw startAddresses + 0x020, startAddresses + 0x020, startAddresses + 0x022, startAddresses + 0x022, startAddresses + 0x024, startAddresses + 0x026, startAddresses + 0x026, startAddresses + 0x028, startAddresses + 0x02A, startAddresses + 0x02C, startAddresses + 0x02C, startAddresses + 0x02E, startAddresses + 0x030, startAddresses + 0x032, startAddresses + 0x032, startAddresses + 0x034
+  dw startAddresses + 0x036, startAddresses + 0x038, startAddresses + 0x03A, startAddresses + 0x03A, startAddresses + 0x03C, startAddresses + 0x03E, startAddresses + 0x040, startAddresses + 0x042, startAddresses + 0x044, startAddresses + 0x046, startAddresses + 0x046, startAddresses + 0x048, startAddresses + 0x04A, startAddresses + 0x04C, startAddresses + 0x04E, startAddresses + 0x050
+  dw startAddresses + 0x052, startAddresses + 0x054, startAddresses + 0x056, startAddresses + 0x058, startAddresses + 0x05A, startAddresses + 0x05C, startAddresses + 0x05E, startAddresses + 0x060, startAddresses + 0x062, startAddresses + 0x064, startAddresses + 0x066, startAddresses + 0x068, startAddresses + 0x06A, startAddresses + 0x06C, startAddresses + 0x06E, startAddresses + 0x070
+  dw startAddresses + 0x072, startAddresses + 0x074, startAddresses + 0x076, startAddresses + 0x078, startAddresses + 0x07A, startAddresses + 0x07C, startAddresses + 0x07E, startAddresses + 0x080, startAddresses + 0x082, startAddresses + 0x084, startAddresses + 0x086, startAddresses + 0x08A, startAddresses + 0x08C, startAddresses + 0x08E, startAddresses + 0x090, startAddresses + 0x092
+  dw startAddresses + 0x094, startAddresses + 0x096, startAddresses + 0x098, startAddresses + 0x09A, startAddresses + 0x09E, startAddresses + 0x0A0, startAddresses + 0x0A2, startAddresses + 0x0A4, startAddresses + 0x0A6, startAddresses + 0x0A8, startAddresses + 0x0AA, startAddresses + 0x0AC, startAddresses + 0x0AE, startAddresses + 0x0B2, startAddresses + 0x0B4, startAddresses + 0x0B6
+
+barData:
+%assign i 0
+%rep 10
+  dw 0  ; phase
+  dw i+256  ; frequency
+  dw copperBars + i*2*16  ; colour
+  dw 0 ; y
+  dw 0 ; z
+  %assign i i+1
+%endrep
+
+barPointers:
+%assign i 0
+%rep 10
+  dw barData + i*10
+  %assign i i+1
+%endrep
 
 align 16
 

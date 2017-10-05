@@ -21,4 +21,6 @@ yasm lake.asm -o l.com -l lcom.lst
 copy /b l.com+\lake_test_demo.bin lake.com
 yasm lake.asm -o l.bin -dbin=1 -l l.lst
 copy /b l.bin+\lake_test_demo.bin lake.bin
+yasm coppers.asm -o coppers.com -l ccom.lst
+yasm coppers.asm -o coppers.bin -dbin=1 -l c.lst
 
