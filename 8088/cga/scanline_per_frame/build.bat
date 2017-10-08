@@ -23,4 +23,9 @@ yasm lake.asm -o l.bin -dbin=1 -l l.lst
 copy /b l.bin+\lake_test_demo.bin lake.bin
 yasm coppers.asm -o coppers.com -l ccom.lst
 yasm coppers.asm -o coppers.bin -dbin=1 -l c.lst
+nasm wibble.asm -o wibble.obj -f obj -l wibble.lst
+..\..\..\..\Projects\Code\8088mph\tools\2obj\2obj b /s ..\..\..\..\Projects\Code\8088mph\wibble\t\wibdata.dat wibdata.obj .HUGE:wibdata
+rem ..\..\..\..\Projects\Code\8088mph\tools\2obj\2obj b /s ..\..\..\..\Pictures\reenigne\cga2ntsc\clown_cropped1_out.dat clown.obj .TINY:clown
+rem C:\msvc\bin\link wibble.obj clown.obj wibdata.obj, wibble.exe, wibble.map,, /NOLOGO /ONERROR:NOEXE /NOI /NOE
+C:\msvc\bin\link wibble.obj wibdata.obj, wibble.exe, wibble.map,, /NOLOGO /ONERROR:NOEXE /NOI /NOE
 

@@ -1,12 +1,12 @@
-%ifdef bin
-%include "../../defaults_bin.asm"
+%include "../../defaults_common.asm"
 
-  stopScreen
+extern wibdata
 
-%else
-%include "../../defaults_com.asm"
+%macro outputCharacter 0
+  call doPrintCharacter
+%endmacro
 
-main:
+..start:
   mov ax,0x40
   mov ds,ax
 checkMotorShutoff:
@@ -15,8 +15,6 @@ checkMotorShutoff:
   mov byte[0x40],1
   jmp checkMotorShutoff
 noMotorShutoff:
-
-%endif
 
   mov dx,0x3b8
   mov al,29
@@ -516,107 +514,48 @@ interrupt8:
 ;  mov al,1
 ;  out dx,al
 
+  mov bp,cs
+  mov es,bp
   mov di,startAddresses
-  mov ax,cs
-  mov es,ax
-  mov ax,80*100-1
-  mov bx,81*100-1
-  mov cx,100
-.clearLoop:
-  stosw
-  xchg ax,bx
-  stosw
-  xchg ax,bx
-  loop .clearLoop
 
-;  %assign i 0
-;  %rep 10
-;    mov si,[barPointers + i*2]
-;    mov bx,[si]
-;    add bl,bh
-;    mov [si],bl
-;    mov bh,0
-;    add bx,bx
-;    mov di,[bx+sinTable]
-;    mov si,[si+2]
-;    mov cx,16
-;    rep movsw
-;    %assign i i+1
-;  %endrep
+  lds si,[wibblePointer]
+  mov dx,ds
+%assign i 0
+%rep 200
+  lodsb                       ; 2
+  cbw                         ; 1
+  %if i != 0
+    add cx,ax                 ; 2
+  %else
+    mov cx,ax
+  %endif
+  mov bx,cx                   ; 2
+  add bx,bx                   ; 2
+  mov ax,[cs:lineTable+bx]    ; 6
+  stosw                       ; 3
+  %assign i i+1
+%endrep
+  mov ds,bp
+  mov ax,[wibbleFrame]
+  inc ax
+  cmp ax,1000
+  je restartEffect
+  mov [wibbleFrame],ax
+  mov ax,si
+  mov cl,4
+  shr ax,cl
+  add ax,dx
+  mov [wibblePointer+2],ax
+  and si,0xf
+  mov [wibblePointer],si
+  jmp doneWibble
+restartEffect:
+  mov word[wibbleFrame],0
+  mov word[wibblePointer+2],seg wibdata
+  mov word[wibblePointer],wibdata
+doneWibble:
 
-%if 0
-  %assign i 0
-  %rep 10
-    mov si,[barPointers + i*2]
-    mov bx,[si]
-    add bx,[si+2]
-    mov [si],bx
-    rol bx,1
-    xchg bh,bl
-    and bh,1
-    add bx,bx
-    mov di,[bx+sinTable]
-    mov si,[si+4]
-    mov cx,16
-    rep movsw
-    %assign i i+1
-  %endrep
-%endif
-
-
-
-; Step 1: Recompute all y and z positions, re-insert into barPointers
-
-%macro compareSwap 0
-  mov bx,[barPointers + (i-1)*2]
-  cmp di,[bx+8]
-  jle %%noSwap
-  mov [barPointers + i*2],bx
-  mov [barPointers + (i-1)*2],si
-  %%noSwap:
-%endmacro
-
-  %assign i 0
-  %rep 10
-    mov si,[barPointers + i*2]
-    mov bx,[si]
-    add bx,[si+2]
-    mov [si],bx
-    rol bx,1
-    xchg bh,bl
-    and bh,1
-    add bx,bx
-    mov di,[bx+sinTable]
-    mov [si+6],di
-    inc bh
-    and bh,3
-    mov di,[bx+sinTable]
-    mov [si+8],di
-    %if i>0
-      compareSwap
-    %endif
-    %assign i i+1
-  %endrep
-
-  recalculate
-
-; Step 2: Draw bars
-
-  %assign i 0
-  %rep 10
-    mov si,[barPointers + i*2]
-    mov di,[si+6]
-    mov si,[si+4]
-    mov cx,16
-    rep movsw
-    %assign i i+1
-  %endrep
-
-
-;%endif
-
-
-
+;  mov dx,0x3d9
 ;  mov al,0
 ;  out dx,al
 
@@ -828,20 +767,9 @@ copyImageData:
   cmp byte[numbersMode],0
   jne clearVRAM
 
-  mov si,copperTable
-  mov dx,10*8
-  mov bl,0xb1
-.rowLoop:
-  lodsb
-  mov ah,al
-  mov al,bl
-  mov cx,80
-  rep stosw
-  dec dx
-  jnz .rowLoop
-  mov cx,8192-(10*8*80)
-  xor ax,ax
-  rep stosw
+  mov si,clown
+  mov cx,8000
+  rep movsw
   ret
 
 clearVRAM:
@@ -906,23 +834,60 @@ dummyInterrupt8:
   pop ax
   iret
 
+doPrintCharacter:
+  push ax
+  push bx
+  push cx
+  push dx
+  push si
+  push di
+  push bp
+  mov dl,al
+  mov ah,2
+  int 0x21
+  pop bp
+  pop di
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  ret
+
+%rep 50
+  dw -1
+%endrep
+lineTable:
+%assign i 0
+%rep 100
+  dw i*80 -1
+  %assign i i+1
+%endrep
+%rep 50
+  dw 99*80-1
+%endrep
+
 frameCount: dw 0, 0
 oldInterrupt8: dw 0, 0
 imr: db 0
-wibblePointer: dw 0, 0
+wibblePointer: dw wibdata, seg wibdata
 wibbleFrame: dw 0
+phase: dw 0
+adjustPeriod: dw 0x142a
+refreshPhase: dw 0x0045
+cgaCrtcPhase: dw 0
+numbersMode: dw 0
+stableImage: dw 0
 
-align 16
-
-section .bss
-  resw 128
+  times 128 dw 0
 stackTop:
 startAddresses:
-  resw 200
+  times 200 dw 0
 rasterData:
-  resb 200
+  times 200 db 200
 sampleData:
-  resb 200
+  times 200 db 200
 data2:
-  resb 10
-
+  times 5 dw 0
+clown:
+  incbin "..\..\..\..\Pictures\reenigne\cga2ntsc\clown_cropped1_out.dat"

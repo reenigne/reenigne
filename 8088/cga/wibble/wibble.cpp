@@ -5,19 +5,21 @@ class Program : public ProgramBase
 public:
     void run()
     {
-        float span = 200-16;
+        String s = File("Q:\\Projects\\code\\8088mph\\wibble\\t\\wibdata.dat", true).contents();
+        for (int f = 0; f < 1000; ++f) {
+            int cx = 0;
+            for (int y = 0; y < 200; ++y) {
+                Byte bb = s[f*200 + y];
+                char al = bb;
+                int ax = al;
+                if (y == 0)
+                    cx = ax;
+                else
+                    cx += ax;
+                if (cx < -50 || cx >= 150)
+                    printf("Error!\n");
 
-        String asmOutput;
-        asmOutput += "sinTable:\n";
-        for (int i = 0; i < 512; ++i) {
-            if ((i & 15) == 0)
-                asmOutput += "  dw ";
-            asmOutput += "startAddresses + " + hex(static_cast<int>((sin(i*tau/512.0) + 1)*span/2 + 0.5)*2, 3);
-            if ((i & 15) != 15)
-                asmOutput += ", ";
-            else
-                asmOutput += "\n";
+            }
         }
-        File("sinTable.inc").openWrite().write(asmOutput);
     }
 };
