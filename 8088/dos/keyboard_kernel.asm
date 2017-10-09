@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20150430-keyb',0
+  db '20171009-keyb',0
 
 codeStart:
   mov ax,cs
@@ -785,8 +785,10 @@ sendFileRoutine:
   push di
   push ds
   push si
+  push es
   mov ax,cs
   mov ds,ax
+  mov es,ax
   mov di,writeBuffer
   mov al,4
   stosb
@@ -794,6 +796,7 @@ sendFileRoutine:
   stosw
   mov al,dl
   stosb
+  pop es
   mov si,writeBuffer
   push cx
   mov cx,4
