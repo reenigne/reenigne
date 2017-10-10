@@ -448,6 +448,36 @@ public:
         }
         return *b == 0;
     }
+    bool equalsIgnoreCase(const String& other) const
+    {
+        int l = length();
+        if (l != other.length())
+            return false;
+        const T* a = data();
+        const T* b = other.data();
+        for (int i = 0; i < l; ++i) {
+            if (tolower(*a) != tolower(*b))
+                return false;
+            ++a;
+            ++b;
+        }
+        return true;
+    }
+    bool equalsIgnoreCase(const char* b) const
+    {
+        const T* a = data();
+        for (int i = 0; i < length(); ++i) {
+            if (*b == 0)
+                return false;
+            if (tolower(*a) != tolower(*b))
+                return false;
+            ++a;
+            ++b;
+        }
+        return *b == 0;
+    }
+
+
     bool operator!=(const String& other) const { return !operator==(other); }
     bool operator<(const String& other) const
     {

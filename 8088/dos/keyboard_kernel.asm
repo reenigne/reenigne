@@ -799,9 +799,11 @@ sendFileRoutine:
   pop es
   mov si,writeBuffer
   push cx
+  push dx
   mov cx,4
   mov ah,0
   call sendLoop
+  pop dx
   pop cx
   pop si
   pop ds

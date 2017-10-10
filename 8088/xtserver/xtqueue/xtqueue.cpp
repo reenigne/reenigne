@@ -487,95 +487,103 @@ private:
     OVERLAPPED _overlapped;
 };
 
-class AudioCapture : public Handle::Body
+class AudioCapture : public Handle
 {
 public:
-    AudioCapture()
-    {
-        IF_ERROR_THROW(DirectSoundCaptureCreate8(NULL, &_capture, NULL));
-        WAVEFORMATEX format;
-        ZeroMemory(&format, sizeof(WAVEFORMATEX));
-        format.wFormatTag = WAVE_FORMAT_PCM;
-        format.nChannels = 2;
-        format.nSamplesPerSec = 44100;
-        format.nAvgBytesPerSec = 44100*2*2;
-        format.nBlockAlign = 2*2;
-        format.wBitsPerSample = 16;
-        format.cbSize = 0;
-        DSCBUFFERDESC desc;
-        ZeroMemory(&desc, sizeof(DSCBUFFERDESC));
-        desc.dwSize = sizeof(DSCBUFFERDESC);
-        desc.dwBufferBytes = 6*60*44100*2*2;
-        desc.lpwfxFormat = &format;
-        COMPointer<IDirectSoundCaptureBuffer> buffer;
-        IF_ERROR_THROW(_capture->CreateCaptureBuffer(&desc, &buffer, NULL));
-        _buffer = COMPointer<IDirectSoundCaptureBuffer8>(buffer,
-            &IID_IDirectSoundCaptureBuffer8);
-        IF_ERROR_THROW(_buffer->Start(0));
-    }
-    void finish(File file)
-    {
-        IF_ERROR_THROW(_buffer->Stop());
-        DWORD readPosition;
-        IF_ERROR_THROW(_buffer->GetCurrentPosition(NULL, &readPosition));
-        Lock lock(_buffer, 0, readPosition);
-        lock.write(file);
-    }
+    AudioCapture() : Handle(create<Body>()) { }
+    AudioCapture(Handle h) : Handle(h) { }
+    void finish(File file) { to<Body>()->finish(file); }
 private:
-    class Lock
+    class Body : public Handle::Body
     {
     public:
-        Lock(IDirectSoundCaptureBuffer8* buffer, DWORD offset, DWORD bytes)
-          : _buffer(buffer), _bytes(bytes)
+        Body()
         {
-            IF_ERROR_THROW(_buffer->Lock(offset, _bytes, &_audioPointer1,
-                &_audioBytes1, &_audioPointer2, &_audioBytes2, 0));
+            IF_ERROR_THROW(DirectSoundCaptureCreate8(NULL, &_capture, NULL));
+            WAVEFORMATEX format;
+            ZeroMemory(&format, sizeof(WAVEFORMATEX));
+            format.wFormatTag = WAVE_FORMAT_PCM;
+            format.nChannels = 2;
+            format.nSamplesPerSec = 44100;
+            format.nAvgBytesPerSec = 44100*2*2;
+            format.nBlockAlign = 2*2;
+            format.wBitsPerSample = 16;
+            format.cbSize = 0;
+            DSCBUFFERDESC desc;
+            ZeroMemory(&desc, sizeof(DSCBUFFERDESC));
+            desc.dwSize = sizeof(DSCBUFFERDESC);
+            desc.dwBufferBytes = 6*60*44100*2*2;
+            desc.lpwfxFormat = &format;
+            COMPointer<IDirectSoundCaptureBuffer> buffer;
+            IF_ERROR_THROW(_capture->CreateCaptureBuffer(&desc, &buffer, NULL));
+            _buffer = COMPointer<IDirectSoundCaptureBuffer8>(buffer,
+                &IID_IDirectSoundCaptureBuffer8);
+            IF_ERROR_THROW(_buffer->Start(0));
         }
-        ~Lock()
+        void finish(File file)
         {
-            _buffer->Unlock(_audioPointer1, _bytesRead1, _audioPointer2,
-                _bytesRead2);
-        }
-        void write(File file)
-        {
-            AutoStream stream = file.openWrite();
-            stream.write("RIFF");
-            stream.write<UInt32>(_bytes + 0x24);
-            stream.write("WAVEfmt ");
-            stream.write<UInt32>(0x10);
-            stream.write<UInt16>(1);
-            stream.write<UInt16>(2);
-            stream.write<UInt32>(44100);
-            stream.write<UInt32>(44100*2*2);
-            stream.write<UInt16>(2*2);
-            stream.write<UInt16>(16);
-            stream.write("data");
-            stream.write<UInt32>(_bytes);
-            if (_bytes < _audioBytes1) {
-                stream.write(_audioPointer1, _bytes);
-                _bytesRead1 = _bytes;
-                _bytesRead2 = 0;
-            }
-            else {
-                stream.write(_audioPointer1, _audioBytes1);
-                _bytesRead1 = _audioBytes1;
-                stream.write(_audioPointer2, _bytes - _audioBytes1);
-                _bytesRead2 = _bytes - _audioBytes1;
-            }
+            IF_ERROR_THROW(_buffer->Stop());
+            DWORD readPosition;
+            IF_ERROR_THROW(_buffer->GetCurrentPosition(NULL, &readPosition));
+            Lock lock(_buffer, 0, readPosition);
+            lock.write(file);
         }
     private:
-        DWORD _bytes;
-        LPVOID _audioPointer1;
-        DWORD _audioBytes1;
-        LPVOID _audioPointer2;
-        DWORD _audioBytes2;
-        DWORD _bytesRead1;
-        DWORD _bytesRead2;
-        IDirectSoundCaptureBuffer8* _buffer;
-    };
+        class Lock
+        {
+        public:
+            Lock(IDirectSoundCaptureBuffer8* buffer, DWORD offset, DWORD bytes)
+              : _buffer(buffer), _bytes(bytes)
+            {
+                IF_ERROR_THROW(_buffer->Lock(offset, _bytes, &_audioPointer1,
+                    &_audioBytes1, &_audioPointer2, &_audioBytes2, 0));
+            }
+            ~Lock()
+            {
+                _buffer->Unlock(_audioPointer1, _bytesRead1, _audioPointer2,
+                    _bytesRead2);
+            }
+            void write(File file)
+            {
+                AutoStream stream = file.openWrite();
+                stream.write("RIFF");
+                stream.write<UInt32>(_bytes + 0x24);
+                stream.write("WAVEfmt ");
+                stream.write<UInt32>(0x10);
+                stream.write<UInt16>(1);
+                stream.write<UInt16>(2);
+                stream.write<UInt32>(44100);
+                stream.write<UInt32>(44100*2*2);
+                stream.write<UInt16>(2*2);
+                stream.write<UInt16>(16);
+                stream.write("data");
+                stream.write<UInt32>(_bytes);
+                if (_bytes < _audioBytes1) {
+                    stream.write(_audioPointer1, _bytes);
+                    _bytesRead1 = _bytes;
+                    _bytesRead2 = 0;
+                }
+                else {
+                    stream.write(_audioPointer1, _audioBytes1);
+                    _bytesRead1 = _audioBytes1;
+                    stream.write(_audioPointer2, _bytes - _audioBytes1);
+                    _bytesRead2 = _bytes - _audioBytes1;
+                }
+            }
+        private:
+            DWORD _bytes;
+            LPVOID _audioPointer1;
+            DWORD _audioBytes1;
+            LPVOID _audioPointer2;
+            DWORD _audioBytes2;
+            DWORD _bytesRead1;
+            DWORD _bytesRead2;
+            IDirectSoundCaptureBuffer8* _buffer;
+        };
 
-    COMPointer<IDirectSoundCapture8> _capture;
-    COMPointer<IDirectSoundCaptureBuffer8> _buffer;
+        COMPointer<IDirectSoundCapture8> _capture;
+        COMPointer<IDirectSoundCaptureBuffer8> _buffer;
+    };
 };
 
 class XTThread : public Thread
@@ -1280,7 +1288,7 @@ private:
             }
 
             int c = _serialThread.character();
-//            console.write(String("{") + debugByte(c) + "}");
+            //console.write(String("{") + debugByte(c) + "}");
             if (c == -1)
                 continue;
             if (!escape && _fileState == 0) {
@@ -1298,7 +1306,7 @@ private:
                         break;
                     case 0x02:
                         // Start recording audio
-                        _audioCapture = new AudioCapture;
+                        _audioCapture = AudioCapture();
                         processed = true;
                         break;
                     case 0x03:
@@ -1337,8 +1345,8 @@ private:
                 if (c != 0)
                     escape = false;
                 if (processed) {
-                    if (_fileState != 0)
-                        console.write(String("[") + debugByte(c) + String("]"));
+                    //if (_fileState != 0)
+                    //    console.write(String("[") + debugByte(c) + String("]"));
                     continue;
                 }
             }
@@ -1380,6 +1388,8 @@ private:
                 case 4:
                     // Get file data
                     file[filePointer++] = c;
+                    if ((filePointer & 0xff) == 0)
+                        console.write<Byte>('|');
                     if (filePointer == fileSize) {
                         _fileState = 0;
                         String fileName = _item->secret() + fileCount + ".dat";
@@ -1451,8 +1461,8 @@ private:
         String baseName = htDocsPath(rawName);
         String waveName = baseName + ".wav";
         File wave(waveName, true);
-        _audioCapture.as<AudioCapture>()->finish(wave);
-        _audioCapture = 0;
+        _audioCapture.finish(wave);
+        _audioCapture = Handle();
         String commandLine = "\"" + _lamePath + "\" \"" + waveName + "\" \"" +
             baseName + ".mp3\" " + _lameOptions;
         NullTerminatedWideString data(commandLine);
@@ -1572,7 +1582,7 @@ private:
     String _vDos;
 
     int _imageCount;
-    Handle _audioCapture;
+    AudioCapture _audioCapture;
     int _audioCount;
     Byte _hostInterruptOperation;
     Byte _diskError;
