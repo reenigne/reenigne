@@ -879,8 +879,6 @@ cgaCrtcPhase: dw 0
 numbersMode: dw 0
 stableImage: dw 0
 
-  times 128 dw 0
-stackTop:
 startAddresses:
   times 200 dw 0
 rasterData:
@@ -891,3 +889,8 @@ data2:
   times 5 dw 0
 clown:
   incbin "..\..\..\..\Pictures\reenigne\cga2ntsc\clown_cropped1_out.dat"
+
+segment stack stack
+  times 128 dw 0
+stackTop:
+

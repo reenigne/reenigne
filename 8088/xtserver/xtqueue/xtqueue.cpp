@@ -490,10 +490,15 @@ private:
 class AudioCapture : public Handle
 {
 public:
-    AudioCapture() : Handle(create<Body>()) { }
-    AudioCapture(Handle h) : Handle(h) { }
+    static AudioCapture audioCapture()
+    {
+        return AudioCapture(1);
+    }
+    AudioCapture() { }
     void finish(File file) { to<Body>()->finish(file); }
 private:
+    AudioCapture(Handle h) : Handle(h) { }
+    AudioCapture(int) : Handle(create<Body>()) { }
     class Body : public Handle::Body
     {
     public:
@@ -1306,7 +1311,7 @@ private:
                         break;
                     case 0x02:
                         // Start recording audio
-                        _audioCapture = AudioCapture();
+                        _audioCapture = AudioCapture::audioCapture();
                         processed = true;
                         break;
                     case 0x03:
@@ -1351,8 +1356,8 @@ private:
                 }
             }
             escape = false;
-            //if (_fileState != 0)
-            //    console.write(String("[") + debugByte(c) + String("]"));
+            if (_fileState != 0 && _fileState != 4 && _fileState != 6)
+                console.write(String("[") + debugByte(c) + String("]"));
             switch (_fileState) {
                 case 0:
                     // No file operation in progress - output to HTTP
@@ -1462,7 +1467,7 @@ private:
         String waveName = baseName + ".wav";
         File wave(waveName, true);
         _audioCapture.finish(wave);
-        _audioCapture = Handle();
+        _audioCapture = AudioCapture();
         String commandLine = "\"" + _lamePath + "\" \"" + waveName + "\" \"" +
             baseName + ".mp3\" " + _lameOptions;
         NullTerminatedWideString data(commandLine);

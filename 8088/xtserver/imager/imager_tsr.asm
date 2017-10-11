@@ -490,8 +490,10 @@ sendFileRoutine:
   push di
   push ds
   push si
+  push es
   mov ax,cs
   mov ds,ax
+  mov es,ax
   mov di,writeBuffer
   mov al,4
   stosb
@@ -499,11 +501,14 @@ sendFileRoutine:
   stosw
   mov al,dl
   stosb
+  pop es
   mov si,writeBuffer
   push cx
+  push dx
   mov cx,4
   mov ah,0
   call sendLoop
+  pop dx
   pop cx
   pop si
   pop ds
