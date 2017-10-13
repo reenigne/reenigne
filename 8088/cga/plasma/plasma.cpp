@@ -32,6 +32,9 @@ int shadesGeometry[] = {
 //    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 int gradientPairs[] = {
+    0x00b1, 0x00b1, 0x00b1, 0x00b1,
+    0x00b1, 0x00b1, 0x00b1, 0x00b1,
+
     0x00b1, 0x08b0, 0x08b1, 0x80b0,
     0x88b1, 0x84b0, 0x84b1, 0x48b0,
     0x44b1, 0x45b0, 0x45b1, 0x54b0,
@@ -46,6 +49,13 @@ int gradientPairs[] = {
     0x66b1, 0x64b0, 0x64b1, 0x46b0,
     0x44b1,
 
+    0x44b1, 0x44b1, 0x44b1, 0x44b1,
+    0x44b1, 0x44b1, 0x44b1, 0x44b1,
+
+
+    0x00b0, 0x00b0, 0x00b0, 0x00b0,
+    0x00b0, 0x00b0, 0x00b0, 0x00b0,
+
     0x00b0, 0x00b0, 0x08b0, 0x08b0,
     0x08b1, 0x08b1, 0x08b1, 0x04b1,
     0x04b1, 0x04b1, 0x04b1, 0x05b1,
@@ -58,7 +68,10 @@ int gradientPairs[] = {
     0x0bb1, 0x0bb1, 0x0db1, 0x0db1,
     0x0db1, 0x0db1, 0x06b1, 0x06b1,
     0x06b1, 0x06b1, 0x04b1, 0x04b1,
-    0x04b1};
+    0x04b1,
+
+    0x04b1, 0x04b1, 0x04b1, 0x04b1,
+    0x04b1, 0x04b1, 0x04b1, 0x04b1};
 
 class PlasmaWindow : public RootWindow
 {
@@ -142,6 +155,10 @@ public:
         _sin.allocate(512);
         for (int i = 0; i < 512; ++i)
             _sin[i] = static_cast<int>(32*(sin(i*tau/512) + 1));
+        _colourShift.allocate(256);
+        for (int i = 0; i < 256; ++i)
+            _colourShift[i] = static_cast<int>(33*4*(sin(i*tau/256) + 1));
+
         _frame = 0;
 
         String image = File("yuiShades.bin", true).contents().
@@ -207,11 +224,20 @@ public:
                 asmOutput += "\n";
         }
         asmOutput += "gradientTable:\n";
-        for (int i = 0; i < 256; ++i) {
-            if ((i & 15) == 0)
-                asmOutput += "  db ";
-            asmOutput += hex(gradientAttributes[i/8], 2);
-            if ((i & 15) != 15)
+        for (int i = 0; i < 520; ++i) {
+            if ((i & 7) == 0)
+                asmOutput += "  dw ";
+            asmOutput += hex(gradientPairs[i/8], 4);
+            if ((i & 7) != 7)
+                asmOutput += ", ";
+            else
+                asmOutput += "\n";
+        }
+        for (int i = 0; i < 520; ++i) {
+            if ((i & 7) == 0)
+                asmOutput += "  dw ";
+            asmOutput += hex(gradientPairs[i/8 + 65], 4);
+            if ((i & 7) != 7)
                 asmOutput += ", ";
             else
                 asmOutput += "\n";
@@ -250,16 +276,21 @@ public:
         _animated.restart();
 
         int c = 0;
+        int vf = _colourShift[_frame & 255];
         for (int y = 0; y < 100; ++y) {                     
-            int vy = _sin[(_frame*16 + y*24) & 0x1ff] + _sin[(-_frame + y*3) & 0x1ff];
+            int vy = _sin[(_frame*16 + y*24) & 0x1ff] + _sin[(-_frame + y*3) & 0x1ff] + vf;
             for (int x = 0; x < 80; ++x) {
                 if (!inShade(x, y))
                     continue;
                 int v = _sin[(_frame*8 + x*40) & 0x1ff] + _sin[(_frame*2 + x*5) & 0x1ff] + vy;
-                Byte attr = gradientAttributes[v >> 3];
+                Word pair;
                 if (edgeShade(x, y))
-                    attr &= 0xf0;
-                _vram[y*160 + x*2 + 1] = attr;
+                    pair = gradientPairs[(v >> 3) + 65];
+                else
+                    pair = gradientPairs[v >> 3];
+
+                _vram[y*160 + x*2] = pair & 0xff;
+                _vram[y*160 + x*2 + 1] = (pair >> 8);
                 ++c;
             }
         }
@@ -296,6 +327,7 @@ private:
     int _frame;
 
     Array<int> _sin;
+    Array<int> _colourShift;
     Array<Word> _gradient;
 };
 
