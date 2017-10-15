@@ -1,13 +1,13 @@
 100 (spare 16-pin)
- 50 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 51 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 52 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 53 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 54 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 55 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 56 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 57 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16
- 38 6845 CRTC                                                                                  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16    18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33     36 37 38 39 40
+ 50 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 7
+ 51 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 6
+ 52 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 5
+ 53 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 4
+ 54 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 3
+ 55 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 2
+ 56 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 1
+ 57 2118-4 DRAM                                                                                  2 3 4 5 6 7 8   10 11 12 13 14 15 16                                                                              Video memory bit 0
+ 38 6845 CRTC                                                                                  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16    18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33     36 37 38 39 40        CRTC
  15 74LS00 quad 2-input NAND gate                                                              1 2 3         8 9 10 11 12 13
  25 74LS00 quad 2-input NAND gate                                                              1 2 3         8 9 10 11 12 13
  46 74LS00 quad 2-input NAND gate                                                              1 2 3 4 5 6   8 9 10 11 12 13
@@ -38,36 +38,36 @@
  68 74LS86 quad 2-input XOR gate                                                               1 2 3 4 5 6   8 9 10 11 12 13
   1 74S112 dual J-K negative-edge-triggered flip-flop with clear and preset                    1 2 3 4 5 6     9 10 11 12 13 14 15
  62 74LS125 quad bus buffer with three-state outputs, negative enable                          1 2 3 4 5 6   8 9 10 11 12 13
- 17 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6          11 12 13 14 15
- 18 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6 7
- 19 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6 7
- 45 74LS151 8-line to 1-line data selector/multiplexer                                         1 2 3 4 5   7   9 10 11 12 13 14 15
-  9 74153 dual 4-line to 1-line data selector/multiplexer                                      1 2 3 4 5 6 7   9 10 11 12 13 14 15
- 10 74153 dual 4-line to 1-line data selector/multiplexer                                      1 2 3 4 5 6 7   9 10 11 12 13 14 15
+ 17 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6          11 12 13 14 15                                                                                 Port selection decoder
+ 18 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6 7                                                                                                       Port address decoder
+ 19 74LS138 3 to 8-line decoder/demultiplexer                                                  1 2 3 4 5 6 7                                                                                                       VRAM address decoder
+ 45 74LS151 8-line to 1-line data selector/multiplexer                                         1 2 3 4 5   7   9 10 11 12 13 14 15                                                                                 Chroma multiplexer
+  9 74153 dual 4-line to 1-line data selector/multiplexer                                      1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Red/green multiplexer
+ 10 74153 dual 4-line to 1-line data selector/multiplexer                                      1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Blue/intensity multiplexer
  64 74LS164 8-bit parallel-out serial shift register with asynchronous clear                   1 2   4       8 9    11 12 13
-  7 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15
-  8 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15
- 32 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15
- 21 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
- 39 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
- 40 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
-101 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15
+  7 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Right/green bit serializer
+  8 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Left/red bit serializer
+ 32 74LS166 parallel-Load 8-bit shift register                                                 1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Character bit serializer
+ 21 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 CRTC hclk delay
+ 39 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Palette register
+ 40 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Mode register
+101 74LS174 hex d flip-flop with common clear                                                  1 2 3 4 5 6 7   9 10 11 12 13 14 15                                                                                 Output RGBI buffer
   4 74S174 hex d flip-flop with common clear                                                   1 2 3 4 5 6 7   9 10 11 12 13 14 15
   5 74S174 hex d flip-flop with common clear                                                   1 2 3 4 5 6 7   9 10 11 12 13 14 15
  63 74LS175 quad d edge-triggered flip-flop with complementary outputs and asynchronous clear  1 2   4 5   7   9 10    12 13 14
- 24 74LS244 octal buffer with noninverted three-state outputs                                    2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
- 36 74LS244 octal buffer with noninverted three-state outputs                                  1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
- 67 74LS244 octal buffer with noninverted three-state outputs                                  1 2 3 4   6 7 8 9    11 12 13 14    16 17 18 19
- 66 74LS245 octal bus transceiver with noninverted three-state outputs                         1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
- 34 74LS273 8-bit register with reset                                                          1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
- 35 74LS273 8-bit register with reset                                                          1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
- 37 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19
- 58 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15
- 59 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17
- 60 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17
- 61 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17
- 12 74LS393 dual 4-bit binary counter                                                          1 2       6          11 12 13
- 33 MK36000 ROM                                                                                1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+ 24 74LS244 octal buffer with noninverted three-state outputs                                    2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19                                                                     Status register
+ 36 74LS244 octal buffer with noninverted three-state outputs                                  1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19                                                                     VRAM write buffer
+ 67 74LS244 octal buffer with noninverted three-state outputs                                  1 2 3 4   6 7 8 9    11 12 13 14    16 17 18 19                                                                     RGBI output driver
+ 66 74LS245 octal bus transceiver with noninverted three-state outputs                         1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19                                                                     Bus data driver
+ 34 74LS273 8-bit register with reset                                                          1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19                                                                     Character buffer
+ 35 74LS273 8-bit register with reset                                                          1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19                                                                     Attribute buffer
+ 37 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17 18 19                                                                     VRAM read buffer
+ 58 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15                                                                                 CRTC Column address buffer
+ 59 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17                                                                           CRTC Row address buffer
+ 60 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17                                                                           CPU Row address buffer
+ 61 74LS374 octal register with three-state outputs                                            1 2 3 4 5 6 7 8 9    11 12 13 14 15 16 17                                                                           CPU Column address buffer
+ 12 74LS393 dual 4-bit binary counter                                                          1 2       6          11 12 13                                                                                       Blink/cursor-blink counter
+ 33 MK36000 ROM                                                                                1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24                                                      Character ROM
 
 Not used:
   CRTC MA13, RA3 and RA4

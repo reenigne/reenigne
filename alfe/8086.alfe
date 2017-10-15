@@ -1,0 +1,96 @@
+MachineDescription machine8086;
+
+{
+    Auto m = &machine8086;
+
+    for (Auto r in {
+        // name
+        //        binary encoding
+        //           width
+        //              register file address
+        {"ax",    0, 2,  0},
+        {"cx",    1, 2,  2},
+        {"dx",    2, 2,  4},
+        {"bx",    3, 2,  6},
+        {"sp",    4, 2,  8},
+        {"bp",    5, 2, 10},
+        {"si",    6, 2, 12},
+        {"di",    7, 2, 14},
+
+        {"es",    0, 2, 16},
+        {"cs",    1, 2, 18},
+        {"ss",    2, 2, 20},
+        {"ds",    3, 2, 22},
+
+        {"al",    0, 1,  0},
+        {"cl",    1, 1,  2},
+        {"dl",    2, 1,  4},
+        {"bl",    3, 1,  6},
+        {"ah",    4, 1,  1},
+        {"ch",    5, 1,  3},
+        {"dh",    6, 1,  5},
+        {"bh",    7, 1,  7},
+
+        {"ip",    0, 2, 24},
+        {"flags", 0, 2, 26}})
+        m->addRegister(register);
+
+    for (Auto c in {
+        // name         registers in class
+        {"generalWord", "ax, cx, dx, bx, sp, bp, si, di"},
+        {"generalByte", "al, cl, dl, bl, ah, ch, dh, bh"},
+        {"segment",     "es, cs, ss, ds"}})
+        m->addRegisterClass(c);
+
+    Auto aluOperations = {
+        {"add", 0},
+        {"or",  1},
+        {"adc", 2},
+        {"sbb", 3},
+        {"and", 4},
+        {"sub", 5},
+        {"xor", 6},
+        {"cmp", 7}};
+
+    void addRegisterOrMemoryRegisterBytePattern<T>(T operation)
+    {
+        m->addInstructionPattern(
+    }
+
+    void addRegisterOrMemoryRegisterWordPattern<T>(T operation)
+    {
+
+    }
+
+    void addRegisterRegisterOrMemoryBytePattern<T>(T operation)
+    {
+
+    }
+
+    void addRegisterRegisterOrMemoryWordPattern<T>(T operation)
+    {
+
+    }
+
+    void addRegisterMemoryBytePattern<T>(T operation)
+    {
+        addRegisterOrMemoryRegisterBytePattern(operation);
+        addRegisterRegisterOrMemoryBytePattern(operation);
+    }
+
+    void addRegisterMemoryWordPattern<T>(T operation)
+    {
+        addRegisterOrMemoryRegisterWordPattern(operation);
+        addRegisterRegisterOrMemoryWordPattern(operation);
+    }
+
+    void addRegisterMemoryPattern<T>(T operation)
+    {
+        addRegisterMemoryBytePattern(operation);
+        addRegisterMemoryWordPattern(operation);
+    }
+
+    for (Auto o in aluOperations)
+        addRegisterMemoryPattern(o, m);
+
+}
