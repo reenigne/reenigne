@@ -278,11 +278,11 @@ public:
         int c = 0;
         int vf = _colourShift[_frame & 255];
         for (int y = 0; y < 100; ++y) {                     
-            int vy = _sin[(_frame*16 + y*24) & 0x1ff] + _sin[(-_frame + y*3) & 0x1ff] + vf;
+            int vy = _sin[(_frame*3 + y*24) & 0x1ff] + _sin[(-_frame*4 + y*23) & 0x1ff] + vf;
             for (int x = 0; x < 80; ++x) {
                 if (!inShade(x, y))
                     continue;
-                int v = _sin[(_frame*8 + x*40) & 0x1ff] + _sin[(_frame*2 + x*5) & 0x1ff] + vy;
+                int v = _sin[(_frame*7 + x*40) & 0x1ff] + _sin[(_frame*8 + x*39) & 0x1ff] + vy;
                 Word pair;
                 if (edgeShade(x, y))
                     pair = gradientPairs[(v >> 3) + 65];
