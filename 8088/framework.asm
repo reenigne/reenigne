@@ -1,5 +1,6 @@
 %macro createRegister 1
   %assign valueOf_%1 0
+  %assign symbolValueOf_%1 0
   %assign isSet_%1 0
   %assign isSplitRegister_%1 0
   %assign isSplitByteRegister_%1 0
@@ -10,6 +11,13 @@
 %endmacro
 
 %assign wordRegisterIndex 0
+%assign symbolIndex 0
+
+%macro createSymbol 1
+  %assign symbolIndex_%1 symbolIndex
+  %assign symbolName_%[symbolIndex] %1
+  %assign symbolIndex symbolIndex+1
+%endmacro
 
 %macro createWordRegister 1
   createRegister %1
