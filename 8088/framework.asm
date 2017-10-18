@@ -147,13 +147,21 @@ createPortRegister pitMode, 0x43
 %endmacro
 
 %macro setHelper 2
+  %assign symbolValueOf_%1 0
   %assign valueOf_%1 %2
   %assign isSet_%1 1
 %endmacro
 
+%macro setSymbolHelper 3
+  %assign symbolValueOf_%1 symbolIndex_%3
+  %assign valueOf_%1 %2
+  %assign isSet_%1 1
+%endmacro
+
+
 ; Sets a register to a constant value
 %macro set4 2
-  %if !isSet_%1 || valueOf_%1 != %2
+  %if !isSet_%1 || valueOf_%1 != %2 || symbolValueOf_%1 != 0
     mov %1, %2
     setHelper %1, %2
     %if isSplitRegister_%1
@@ -326,7 +334,7 @@ createPortRegister pitMode, 0x43
 
 ; Sets a register to a constant value, performing various optimizations
 %macro set 2
-  %if !isSet_%1 || valueOf_%1 != %2
+  %if !isSet_%1 || valueOf_%1 != %2 || symbolValueOf_%1 != 0
     %if isPortRegister_%1
       %if isIndexedPortRegister_%1
         set2 indexRegister_%1, indexValue_%1
