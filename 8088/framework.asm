@@ -1,7 +1,6 @@
 %macro createRegister 1
   %assign valueOf_%1 0
-  %assign symbolValueOf_%1 0
-  %assign isSet_%1 0
+  %assign symbolValueOf_%1 -1
   %assign isSplitRegister_%1 0
   %assign isSplitByteRegister_%1 0
   %assign isLowByteRegister_%1 0
@@ -147,21 +146,19 @@ createPortRegister pitMode, 0x43
 %endmacro
 
 %macro setHelper 2
-  %assign symbolValueOf_%1 0
+  %assign symbolValueOf_%1 -1
   %assign valueOf_%1 %2
-  %assign isSet_%1 1
 %endmacro
 
 %macro setSymbolHelper 3
   %assign symbolValueOf_%1 symbolIndex_%3
   %assign valueOf_%1 %2
-  %assign isSet_%1 1
 %endmacro
 
 
 ; Sets a register to a constant value
 %macro set4 2
-  %if !isSet_%1 || valueOf_%1 != %2 || symbolValueOf_%1 != 0
+  %if valueOf_%1 != %2 || symbolValueOf_%1 != 0
     mov %1, %2
     setHelper %1, %2
     %if isSplitRegister_%1
@@ -169,11 +166,11 @@ createPortRegister pitMode, 0x43
       setHelper highByteOf_%1, (%2) >> 8
     %elif isSplitByteRegister_%1
       %if isLowByteRegister_%1
-        %if isSet_%[highByteOf_%[containingRegisterOf_%1]]
+        %if symbolValueOf_%[highByteOf_%[containingRegisterOf_%1]] == 0
           setHelper containingRegisterOf_%1, (%2) | (valueOf_%[highByteOf_%[containingRegisterOf_%1]] << 8)
         %endif
       %else
-        %if isSet_%[lowByteOf_%[containingRegisterOf_%1]]
+        %if symbolValueOf_%[lowByteOf_%[containingRegisterOf_%1]] == 0
           setHelper containingRegisterOf_%1, (%2 << 8) | (valueOf_%[lowByteOf_%[containingRegisterOf_%1]])
         %endif
       %endif
@@ -183,22 +180,22 @@ createPortRegister pitMode, 0x43
 
 ; Helper for set to avoid macro recursion.
 %macro set3 2
-  %if !isSet_%1 || valueOf_%1 != %2
+  %if symbolValueOf_%1 != 0 || valueOf_%1 != %2
     %assign done 0
     %if isGeneralPurposeWordRegister_%1
-      %if isSet_%1 && valueOf_%1 == (%2) + 1
+      %if symbolValueOf_%1 == 0 && valueOf_%1 == (%2) + 1
         dec %1
         %assign done 1
-      %elif isSet_%1 && valueOf_%1 == (%2) - 1
+      %elif symbolValueOf_%1 == 0 && valueOf_%1 == (%2) - 1
         inc %1
         %assign done 1
       %elif %2 == 0
         xor %1, %1
         %assign done 1
-      %elif isSet_%1 && valueOf_%1 == (%2) + 2
+      %elif symbolValueOf_%1 == 0 && valueOf_%1 == (%2) + 2
         twice {dec %1}
         %assign done 1
-      %elif isSet_%1 && valueOf_%1 == (%2) - 2
+      %elif symbolValueOf_%1 == 0 && valueOf_%1 == (%2) - 2
         twice {inc %1}
         %assign done 1
       %endif
@@ -214,7 +211,7 @@ createPortRegister pitMode, 0x43
         %assign i i+1
       %endrep
     %endif
-    %if isSplitByteRegister_%1 && isLowByteRegister_%1 && isSet_%1 && !done
+    %if isSplitByteRegister_%1 && isLowByteRegister_%1 && symbolValueOf_%1 == 0 && !done
       %if valueOf_%1 == (%2) + 1 && valueOf_%1 != 0
         dec containingRegisterOf_%1
         %assign done 1
@@ -224,10 +221,10 @@ createPortRegister pitMode, 0x43
       %endif
     %endif
     %if isSplitRegister_%1 && !done
-      %if isSet_%[lowByteOf_%1] && valueOf_%[lowByteOf_%1] == ((%2) & 0xff)
+      %if symbolValueOf_%[lowByteOf_%1] == 0 && valueOf_%[lowByteOf_%1] == ((%2) & 0xff)
         set4 highByteOf_%1, (%2) >> 8
       %else
-        %if isSet_%[highByteOf_%1] && valueOf_%[highByteOf_%1] == ((%2) >> 8)
+        %if symbolValueOf_%[highByteOf_%1] == 0 && valueOf_%[highByteOf_%1] == ((%2) >> 8)
           set4 lowByteOf_%1, (%2) & 0xff
         %else
           set4 %1, %2
@@ -244,7 +241,7 @@ createPortRegister pitMode, 0x43
 %endmacro
 
 %macro outputPortByte 1  ; data assumed in al
-  %if %1 > 0xff || (isSet_dx && valueOf_dx == %1)
+  %if %1 > 0xff || (symbolValueOf_dx == 0 && valueOf_dx == %1)
     set3 dx, %1
     out dx, al
   %else
@@ -253,7 +250,7 @@ createPortRegister pitMode, 0x43
 %endmacro
 
 %macro outputPortByte 2
-  %if %1 > 0xff || (isSet_dx && valueOf_dx == %1)
+  %if %1 > 0xff || (symbolValueOf_dx == 0 && valueOf_dx == %1)
     set3 dx, %1
     set3 al, %2
     out dx, al
@@ -303,7 +300,7 @@ createPortRegister pitMode, 0x43
 %endmacro
 
 %macro set2 2
-  %if !isSet_%1 || valueOf_%1 != %2
+  %if symbolValueOf_%1 != 0 || valueOf_%1 != %2
     %assign done 0
     %if isPortRegister_%1
       queuePortWrite registerPort_%1, %2
@@ -334,7 +331,7 @@ createPortRegister pitMode, 0x43
 
 ; Sets a register to a constant value, performing various optimizations
 %macro set 2
-  %if !isSet_%1 || valueOf_%1 != %2 || symbolValueOf_%1 != 0
+  %if symbolValueOf_%1 != 0 || valueOf_%1 != %2
     %if isPortRegister_%1
       %if isIndexedPortRegister_%1
         set2 indexRegister_%1, indexValue_%1
@@ -348,12 +345,12 @@ createPortRegister pitMode, 0x43
 %endmacro
 
 %macro clear 1
-  %assign isSet_%1 0
+  %assign symbolValueOf_%1 -1
   %if isSplitRegister_%1
-    %assign isSet_%[lowByteOf_%1] 0
-    %assign isSet_%[highByteOf_%1] 0
+    %assign symbolValueOf_%[lowByteOf_%1] -1
+    %assign symbolValueOf_%[highByteOf_%1] -1
   %elif isSplitByteRegister_%1
-    %assign isSet_%[containingRegisterOf_%1] 0
+    %assign symbolValueOf_%[containingRegisterOf_%1] -1
   %endif
 %endmacro
 
