@@ -14,7 +14,7 @@
 
 %macro createSymbol 1
   %assign symbolIndex_%1 symbolIndex
-  %assign symbolName_%[symbolIndex] %1
+  %define symbolName_%[symbolIndex] %1
   %assign symbolIndex symbolIndex+1
 %endmacro
 
@@ -331,7 +331,9 @@ createPortRegister pitMode, 0x43
 
 ; Sets a register to a constant value, performing various optimizations
 %macro set 2
-  %if symbolValueOf_%1 != 0 || valueOf_%1 != %2
+  %ifid %2
+    setSymbolHelper %1, 0, %2
+  %elif symbolValueOf_%1 != 0 || valueOf_%1 != %2
     %if isPortRegister_%1
       %if isIndexedPortRegister_%1
         set2 indexRegister_%1, indexValue_%1
