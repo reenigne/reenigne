@@ -1,9 +1,24 @@
-class Instruction
+class Register
+{
+public:
+private:
+
+};
+
+class Instruction : public LinkedListMember<Instruction>
 {
 };
 
 class MovInstruction : public Instruction
 {
+public:
+    MovInstruction(Operand destination, Operand source)
+      : _destination(destination), _source(source)
+    { }
+private:
+    Operand _destination;
+    Operand _source;
+
 };
 
 class LabelInstruction : public Instruction
@@ -12,9 +27,19 @@ class LabelInstruction : public Instruction
 
 class InstructionChain
 {
+public:
+
+private:
+    LinkedList<Instruction> _instructions;
 };
 
-void mov(Operand destination, Operand source)
+class Operand
+{
+};
+
+InstructionChain currentInstructionChain;
+
+void emit_mov(Operand destination, Operand source)
 {
     currentInstructionChain.add(MovInstruction(destination, source));
 }
