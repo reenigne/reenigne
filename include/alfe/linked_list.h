@@ -18,26 +18,12 @@ public:
         _prev = item;
     }
 
-    T* getNext(LinkedListMember<T>* item = 0)
-    {
-        if (item == 0)
-            item = this;
-        LinkedListMember<T>* next = item->_next;
-        if (next == this)
-            return 0;
-        return static_cast<T*>(next);
-    }
-
     void release()
     {
-        while (_next != this) {
-            T* t = static_cast<T*>(_next);
-            t->remove();
-            delete t;
-        }
+        _next = this;
+        _prev = this;
     }
 
-    void clear() { _next = _prev = this; }
     bool empty() const { return _next == this; }
 
     class Iterator
@@ -47,8 +33,8 @@ public:
         T* operator->() const { return _node; }
         const Iterator& operator++()
         {
-            _node = _next;
-            _next = _list->getNext(_node);
+            _node = static_cast<T*>(
+                static_cast<LinkedListMember<T>*>(_node)->_next);
             return *this;
         }
         bool operator==(const Iterator& other) const
@@ -59,23 +45,31 @@ public:
         {
             return !operator==(other);
         }
-        bool end() const { return _node == 0; }
     private:
         T* _node;
-        T* _next;
-        LinkedList* _list;
 
-        Iterator(LinkedList* list, T* node) : _list(list), _node(node)
-        {
-            _next = _list->getNext(_node);
-        }
+        Iterator(T* node) : _node(node) { }
 
         friend class LinkedList;
     };
-    Iterator begin() { return Iterator(this, getNext()); }
-    Iterator end() { return Iterator(this, 0); }
+    Iterator begin() { return Iterator(_next); }
+    Iterator end() { return Iterator(this); }
 };
 
+template<class T> class OwningLinkedList : LinkedList<T>
+{
+public:
+    ~OwningLinkedList() { release(); }
+
+    void release()
+    {
+        while (_next != this) {
+            T* t = static_cast<T*>(_next);
+            t->remove();
+            delete t;
+        }
+    }
+};
 
 template<class T> class LinkedListMember : Uncopyable
 {
@@ -100,6 +94,8 @@ private:
     LinkedListMember<T>* _next;
     LinkedListMember<T>* _prev;
     friend class LinkedList<T>;
+    friend class LinkedList<T>::Iterator;
+    friend class OwningLinkedList<T>;
 };
 
 #endif // INCLUDED_LINKED_LIST_H
