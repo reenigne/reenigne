@@ -17,53 +17,77 @@ int Symbol::_nextCookie = 0;
 Symbol zero;
 Symbol unknown;
 
-template<class T> class Register
+class Register
 {
 public:
-    virtual T value() const = 0;
-    virtual bool isConstant() const = 0;
-    virtual void assign(T value, Symbol symbol) = 0;
-    bool hasValue(T v) { return isConstant() && value() == v; }
+    Register(String name, int binaryEncoding, int width)
+      : _name(name), _binaryEncoding(binaryEncoding), _width(width) { }
+    Word value() { return _value; }
+    bool isConstant() { return _symbol == zero; }
+    virtual void assign(T value, Symbol symbol)
+    {
+        _value = value;
+        _symbol = symbol;
+        for (auto& i : _partOf)
+            i->partAssigned(value, symbol, this);
+    }
+    bool hasValue(Word v) { return isConstant() && value() == v; }
     void clear() { assign(0, unknown); }
-};
-
-template<class T> class SimpleRegister : public Register<T>
-{
-public:
-    Register(String name, int width, int binaryEncoding)
-      : _name(name), _width(width), _binayrEncoding(binaryEncoding) { }
-    T value() const { return _value; }
-    bool isConstant() const { return _symbol == zero; }
-    void assign(T value, Symbol symbol) { _value = value; _symbol = symbol; }
-private:
-    RegisterFile* _file;
+    void makePartOf(Register* larger)
+    {
+        _partOf.append(larger);
+    }
+    virtual void partAssigned(Word value, Symbol symbol, Register* part) { }
+protected:
     String _name;
     int _width;
     int _binaryEncoding;
-
-    T _value;
+    Word _value;
     Symbol _symbol;
+    AppendableArray<Register*> _partOf;
 };
 
-template<class T, class T2> class CompoundRegister : public Register<T>
+class CompoundRegister : public Register
 {
 public:
-    CompoundRegister(Register* lowPart, Register* highPart,
-        int binaryEncoding)
-      : _lowPart(lowPart), _highPart(highPart),
-        _binaryEncoding(binaryEncoding)
-    { }
-    T value() const
+    CompoundRegister(String name, int binaryEncoding, Register* lowPart,
+        Register* highPart)
+      : Register(name, binaryEncoding, lowPart->_width + highPart->_width),
+        _lowPart(lowPart), _highPart(highPart)
     {
-        return (_highPart->value() << (8 * sizeof(T2))) | (_lowPart->value());
-    }
-    bool isConstant() const
-    {
-        return _lowPart->isConstant() && _highPart->isConstant();
+        lowPart->makePartOf(this);
+        highPart->makePartOf(this);
     }
     void assign(T value, Symbol symbol)
     {
-
+        Register::assign(value, symbol);
+        int shift = 8 * lowPart->_width;
+        // Assign direcly instead of going through assign to avoid sprious
+        // partAssigned() calls.
+        _lowPart->_value = value & ((1 << shift) - 1);
+        _lowPart->_symbol = symbol;
+        _highPart->_value = value >> shift;
+        _highPart->_symbol = (symbol == zero ? zero : unknown);
+    }
+    void partAssigned(Word value, Symbol symbol, Register* part)
+    {
+        int shift = 8 * lowPart->_width;
+        if (part == _lowPart) {
+            _value = (_highPart->_value << shift) | value;
+            if (symbol != _symbol) {
+                if (_highPart->_symbol == zero && symbol == zero)
+                    _symbol = zero;
+                else
+                    _symbol = unknown;
+            }
+        }
+        else {
+            _value = _lowPart->_value | (value << shift);
+            if (_lowPart->_symbol == zero && symbol == zero)
+                _symbol = zero;
+            else
+                _symbol = unknown;
+        }
     }
 private:
     Register<T2>* _lowPart;
@@ -72,28 +96,28 @@ private:
 };
 
 RegisterFile registerFile;
-SimpleRegister<Byte> al(&registerFile, "al", 0);
-SimpleRegister<Byte> cl(&registerFile, "cl", 1);
-SimpleRegister<Byte> dl(&registerFile, "dl", 2);
-SimpleRegister<Byte> bl(&registerFile, "bl", 3);
-SimpleRegister<Byte> ah(&registerFile, "ah", 4);
-SimpleRegister<Byte> ch(&registerFile, "ch", 5);
-SimpleRegister<Byte> dh(&registerFile, "dh", 6);
-SimpleRegister<Byte> bh(&registerFile, "bh", 7);
-SimpleRegister<Word> es(&registerFile, "es", 0);
-SimpleRegister<Word> cs(&registerFile, "cs", 1);
-SimpleRegister<Word> ss(&registerFile, "ss", 2);
-SimpleRegister<Word> ds(&registerFile, "ds", 3);
-CompoundRegister<Word, Byte> ax(&registerFile, &al, &ah, 0);
-CompoundRegister<Word, Byte> cx(&registerFile, &cl, &dh, 1);
-CompoundRegister<Word, Byte> dx(&registerFile, &dl, &dh, 2);
-CompoundRegister<Word, Byte> bx(&registerFile, &bl, &bh, 3);
-SimpleRegister<Word> sp(&registerFile, "sp", 4);
-SimpleRegister<Word> bp(&registerFile, "bp", 5);
-SimpleRegister<Word> si(&registerFile, "si", 6);
-SimpleRegister<Word> di(&registerFile, "di", 7);
-SimpleRegister<Word> ip(&registerFile, "ip", 0);
-SimpleRegister<Word> flags(&registerFile, "flags", 0);
+Register al("al", 0, 1);
+Register cl("cl", 1, 1);
+Register dl("dl", 2, 1);
+Register bl("bl", 3, 1);
+Register ah("ah", 4, 1);
+Register ch("ch", 5, 1);
+Register dh("dh", 6, 1);
+Register bh("bh", 7, 1);
+CompoundRegister ax("ax", 0, &al, &ah);
+CompoundRegister cx("cx", 1, &cl, &dh);
+CompoundRegister dx("dx", 2, &dl, &dh);
+CompoundRegister bx("bx", 3, &bl, &bh);
+Register sp("sp", 4, 2);
+Register bp("bp", 5, 2);
+Register si("si", 6, 2);
+Register di("di", 7, 2);
+Register es("es", 0, 2);
+Register cs("cs", 1, 2);
+Register ss("ss", 2, 2);
+Register ds("ds", 3, 2);
+Register ip("ip", 0, 2);
+Register flags("flags", 0, 2);
 
 class Instruction : public LinkedListMember<Instruction>
 {
