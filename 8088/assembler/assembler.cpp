@@ -58,7 +58,7 @@ public:
         lowPart->makePartOf(this);
         highPart->makePartOf(this);
     }
-    void assign(T value, Symbol symbol)
+    void assign(Word value, Symbol symbol)
     {
         Register::assign(value, symbol);
         int shift = 8 * lowPart->_width;
@@ -170,10 +170,107 @@ void out(Operand port, Operand value)
 
 }
 
+class SetInstruction
+{
+public:
+    SetInstruction(Register* destination, Word value, Symbol symbol = zero)
+      : _destination(destination), _value(value), _symbol(symbol) { }
+    bool expand()
+    {
+        if (symbol == zero) {
+            if (destination->symbol() == zero) {
+                auto r = dynamic_cast<IndexedPortRegister*>(destination);
+                if (r != 0)
+                    set(r->indexRegister(), r->indexValue());
+
+
+            }
+            else {
+
+            }
+        }
+
+    }
+private:
+    Register* _destination;
+    Word _value;
+    Symbol _symbol;
+};
+
+static const Word port_CGA_status = 0x3da;
+static const Byte mask_CGA_notDisplayEnable = 1;
+static const Byte mask_CGA_verticalSync = 8;
+
+class CGAWaitForDisplayEnableInstruction : public Instruction
+{
+public:
+    bool expand()
+    {
+        insertBefore(new SetInstruction(&dx, port_CGA_status));
+        LabelInstruction wait = new LabelInstruction();
+        insertBefore(wait);
+        insertBefore(new INInstruction(&al, &dx));
+        insertBefore(new TESTInstruction(&al, mask_CGA_notDisplayEnable));
+        insertBefore(new JNZInstruction(wait));
+        remove();
+        return true;
+    }
+};
+
+class CGAWaitForDisplayDisableInstruction : public Instruction
+{
+public:
+    bool expand()
+    {
+        insertBefore(new SetInstruction(&dx, port_CGA_status));
+        LabelInstruction wait = new LabelInstruction();
+        insertBefore(wait);
+        insertBefore(new INInstruction(&al, &dx));
+        insertBefore(new TESTInstruction(&al, mask_CGA_notDisplayEnable));
+        insertBefore(new JZInstruction(wait));
+        remove();
+        return true;
+    }
+};
+
+class CGAWaitForVerticalSyncInstruction : public Instruction
+{
+public:
+    bool expand()
+    {
+        insertBefore(new SetInstruction(&dx, port_CGA_status));
+        LabelInstruction wait = new LabelInstruction();
+        insertBefore(wait);
+        insertBefore(new INInstruction(&al, &dx));
+        insertBefore(new TESTInstruction(&al, mask_CGA_verticalSync));
+        insertBefore(new JZInstruction(wait));
+        remove();
+        return true;
+    }
+};
+
+class CGAWaitForNoVerticalSyncInstruction : public Instruction
+{
+public:
+    bool expand()
+    {
+        insertBefore(new SetInstruction(&dx, port_CGA_status));
+        LabelInstruction wait = new LabelInstruction();
+        insertBefore(wait);
+        insertBefore(new INInstruction(&al, &dx));
+        insertBefore(new TESTInstruction(&al, mask_CGA_verticalSync));
+        insertBefore(new JNZInstruction(wait));
+        remove();
+        return true;
+    }
+};
+
+
 class Program : public ProgramBase
 {
 public:
     void run()
     {
+
     }
 };

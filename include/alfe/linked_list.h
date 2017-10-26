@@ -10,13 +10,7 @@ template<class T> class LinkedList : LinkedListMember<T>
 public:
     LinkedList() { clear(); }
 
-    void add(T* item)
-    {
-        item->_prev = _prev;
-        _prev->_next = item;
-        item->_next = this;
-        _prev = item;
-    }
+    void add(T* item) { insertBefore(item); }
 
     void release()
     {
@@ -88,6 +82,23 @@ public:
         _prev = oldLocation->_prev;
         _next->_prev = this;
         _prev->_next = this;
+    }
+
+    T* next() { return static_cast<T*>(_next); }
+    T* previous() { return static_cast<T*>(_prev); }
+    void insertBefore(T* item)
+    {
+        item->_prev = _prev;
+        _prev->_next = item;
+        item->_next = this;
+        _prev = item;
+    }
+    void insertAfter(T* item)
+    {
+        item->_prev = this;
+        _next->_prev = item;
+        item->_next = _next;
+        _next = item;
     }
 
 private:
