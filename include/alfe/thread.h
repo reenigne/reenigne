@@ -255,8 +255,14 @@ public:
     void abandon()
     {
         Lock lock(&_mutex);
-        for (auto& t : _waiting)
-            t.remove();
+        // Can't use a range-based for loop here because we're
+        // removing items and continuing.
+        auto t = _waiting.next();
+        while (t != &_waiting) {
+            auto next = t->next();
+            t->remove();
+            t = next;
+        }
         for (int i = 0; i < _threads.count(); ++i) {
             Task* task = _threads[i]._task;
             if (task != 0)

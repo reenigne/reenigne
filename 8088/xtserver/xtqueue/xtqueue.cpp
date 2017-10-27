@@ -253,7 +253,7 @@ public:
                 QueueItem* item;
                 {
                     Lock lock(&_mutex);
-                    item = _queue.getNext();
+                    item = _queue.next();
                     if (item != 0)
                         item->remove();
                 }
@@ -939,7 +939,7 @@ public:
                 {
                     Lock lock(&_mutex);
                     _processing = false;
-                    i = _queue.getNext();
+                    i = _queue.next();
                 }
                 if (i == 0) {
                     // We have nothing to do - stop the the thread until we do.
@@ -956,16 +956,21 @@ public:
                     // We have something to do. Tell all the threads their
                     // position in the queue.
                     int p = 0;
-                    for (auto& i : _queue) {
-                        i.notifyQueuePosition(p);
-                        if (i.aborted()) {
-                            i.remove();
+                    // Can't use a range-based for loop here because we're
+                    // removing items and continuing.
+                    auto i = _queue.next();
+                    while (i != &_queue) {
+                        auto next = i->next();
+                        i->notifyQueuePosition(p);
+                        if (i->aborted()) {
+                            i->remove();
                             --_queuedItems;
-                            delete &i;
+                            delete i;
                         }
                         ++p;
+                        i = next;
                     }
-                    _item = _queue.getNext();
+                    _item = _queue.next();
                     if (_item != 0) {
                         _item->remove();
                         --_queuedItems;

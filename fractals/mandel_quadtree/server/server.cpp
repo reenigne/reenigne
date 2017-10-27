@@ -595,16 +595,15 @@ public:
             }
         }
 
-        // Delete all the sockets.
-        for (auto& socket : _reserveSockets) {
-            socket.remove();
-            delete &socket;
-        }
-
         // Delete all the boxes.
-        for (auto& box : _emptyBoxes) {
-            box.remove();
-            free(&box);
+        // Can't use a range-based for loop here because we're
+        // removing items and continuing.
+        auto box = _emptyBoxes.next();
+        while (box != &_emptyBoxes) {
+            auto next = box->next();
+            box->remove();
+            free(box);
+            box = next;
         }
     }
 
@@ -616,7 +615,7 @@ public:
 
     AcceptSocket* getSocket()
     {
-        AcceptSocket* socket = _reserveSockets.getNext();
+        AcceptSocket* socket = _reserveSockets.next();
         if (socket == 0)
             socket = new AcceptSocket(this);
         else
@@ -682,7 +681,7 @@ private:
     AddressInformation _addressInformation;
     Socket _listenSocket;
     int _threadCount;
-    LinkedList<AcceptSocket> _reserveSockets;
+    OwningLinkedList<AcceptSocket> _reserveSockets;
     LinkedList<AcceptSocket> _activeSockets;
     LinkedList<Box> _emptyBoxes;
     LinkedList<Box> _uniteratedBoxes;

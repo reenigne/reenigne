@@ -119,7 +119,7 @@ public:
     void create(P* p) { _p = p; }
     T* aquire()
     {
-        T* t = _reserve.getNext();
+        T* t = _reserve.next();
         if (t == 0)
             t = _p->create();
         else

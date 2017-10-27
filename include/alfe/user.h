@@ -196,8 +196,14 @@ public:
     }
     void remove()
     {
-        for (auto& window : _container)
-            window.remove();
+        // Can't use a range-based for loop here because we're
+        // removing items and continuing.
+        auto window = _container.next();
+        while (window != &_container) {
+            auto next = window->next();
+            window->remove();
+            window = next;
+        }
         Window::remove();
     }
     void add(Window* window)
