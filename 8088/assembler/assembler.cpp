@@ -177,20 +177,30 @@ public:
       : _destination(destination), _value(value), _symbol(symbol) { }
     Instruction* expand()
     {
-        if (dynamic_cast<CPURegister*>(destination) != 0)
+        if (dynamic_cast<CPURegister*>(_destination) != 0)
             return this;
 
-        if (symbol == zero) {
-            if (destination->symbol() == zero) {
-                auto pr = dynamic_cast<IndexedPortRegister*>(destination);
+        if (_symbol == zero) {
+            if (_destination->symbol() == zero) {
+                auto pr = dynamic_cast<PortRegister*>(_destionation);
                 if (pr != 0) {
-                    insertBefore(new SetInstruction(pr->indexRegister(),
-                        pr->indexValue());
+                    auto ipr = dynamic_cast<IndexedPortRegister*>(pr);
+                    if (ipr != 0) {
+                        insertBefore(new SetInstruction(ipr->indexRegister(),
+                            ipr->indexValue());
+                    }
+                    insertBefore(new PortWriteByteInstruction(
+                        pr->registerPort(), value);
+                    insertBefore(new SetNote(_destination, _value, _symbol));
+                    Instruction* r = previous();
+                    remove();
+                    return r;
                 }
-                insertBefore(new PortWriteByteInstruction(pr->registerPort(),
-                    value);
+                else {
+                    if (!_destination->hasValue(_value)) {
 
-
+                    }
+                }
             }
             else {
 
