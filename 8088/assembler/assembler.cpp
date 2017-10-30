@@ -1,5 +1,18 @@
 #include "alfe/main.h"
 
+class Register;
+
+class RegisterFile
+{
+public:
+    void addRegister(Register* r)
+    {
+        _registers.append(r);
+    }
+private:
+    AppendableArray<Register*> _registers;
+};
+
 class Symbol
 {
 public:
@@ -20,8 +33,12 @@ Symbol unknown;
 class Register
 {
 public:
-    Register(String name, int binaryEncoding, int width)
-      : _name(name), _binaryEncoding(binaryEncoding), _width(width) { }
+    Register(RegisterFile* file, String name, int binaryEncoding, int width)
+      : _file(file), _name(name), _binaryEncoding(binaryEncoding),
+        _width(width)
+    {
+        file->addRegister(this);
+    }
     Word value() { return _value; }
     bool isConstant() { return _symbol == zero; }
     virtual void assign(T value, Symbol symbol)
@@ -39,6 +56,7 @@ public:
     }
     virtual void partAssigned(Word value, Symbol symbol, Register* part) { }
 protected:
+    RegisterFile* _file;
     String _name;
     int _width;
     int _binaryEncoding;
@@ -50,9 +68,10 @@ protected:
 class CompoundRegister : public Register
 {
 public:
-    CompoundRegister(String name, int binaryEncoding, Register* lowPart,
-        Register* highPart)
-      : Register(name, binaryEncoding, lowPart->_width + highPart->_width),
+    CompoundRegister(RegisterFile* file, String name, int binaryEncoding,
+        Register* lowPart, Register* highPart)
+      : Register(file, name, binaryEncoding,
+            lowPart->_width + highPart->_width),
         _lowPart(lowPart), _highPart(highPart)
     {
         lowPart->makePartOf(this);
@@ -96,28 +115,28 @@ private:
 };
 
 RegisterFile registerFile;
-Register al("al", 0, 1);
-Register cl("cl", 1, 1);
-Register dl("dl", 2, 1);
-Register bl("bl", 3, 1);
-Register ah("ah", 4, 1);
-Register ch("ch", 5, 1);
-Register dh("dh", 6, 1);
-Register bh("bh", 7, 1);
-CompoundRegister ax("ax", 0, &al, &ah);
-CompoundRegister cx("cx", 1, &cl, &dh);
-CompoundRegister dx("dx", 2, &dl, &dh);
-CompoundRegister bx("bx", 3, &bl, &bh);
-Register sp("sp", 4, 2);
-Register bp("bp", 5, 2);
-Register si("si", 6, 2);
-Register di("di", 7, 2);
-Register es("es", 0, 2);
-Register cs("cs", 1, 2);
-Register ss("ss", 2, 2);
-Register ds("ds", 3, 2);
-Register ip("ip", 0, 2);
-Register flags("flags", 0, 2);
+Register al(&registerFile, "al", 0, 1);
+Register cl(&registerFile, "cl", 1, 1);
+Register dl(&registerFile, "dl", 2, 1);
+Register bl(&registerFile, "bl", 3, 1);
+Register ah(&registerFile, "ah", 4, 1);
+Register ch(&registerFile, "ch", 5, 1);
+Register dh(&registerFile, "dh", 6, 1);
+Register bh(&registerFile, "bh", 7, 1);
+CompoundRegister ax(&registerFile, "ax", 0, &al, &ah);
+CompoundRegister cx(&registerFile, "cx", 1, &cl, &dh);
+CompoundRegister dx(&registerFile, "dx", 2, &dl, &dh);
+CompoundRegister bx(&registerFile, "bx", 3, &bl, &bh);
+Register sp(&registerFile, "sp", 4, 2);
+Register bp(&registerFile, "bp", 5, 2);
+Register si(&registerFile, "si", 6, 2);
+Register di(&registerFile, "di", 7, 2);
+Register es(&registerFile, "es", 0, 2);
+Register cs(&registerFile, "cs", 1, 2);
+Register ss(&registerFile, "ss", 2, 2);
+Register ds(&registerFile, "ds", 3, 2);
+Register ip(&registerFile, "ip", 0, 2);
+Register flags(&registerFile, "flags", 0, 2);
 
 class Instruction : public LinkedListMember<Instruction>
 {
