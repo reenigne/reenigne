@@ -55,6 +55,7 @@ public:
         _partOf.append(larger);
     }
     virtual void partAssigned(Word value, Symbol symbol, Register* part) { }
+    int width() { return _width; }
 protected:
     RegisterFile* _file;
     String _name;
@@ -140,12 +141,154 @@ Register flags(&registerFile, "flags", 0, 2);
 
 class Instruction : public LinkedListMember<Instruction>
 {
+public:
+    virtual Instruction* expand() = 0;
+    virtual int length() = 0;
+    virtual void assemble(Byte* p) = 0;
 };
 
-class MovInstruction : public Instruction
+class OneByteInstruction : public Instruction
 {
 public:
-    MovInstruction(Operand destination, Operand source)
+    int length() { return 1; }
+};
+
+class CBWInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x98; }
+};
+
+class CMCInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xf5; }
+};
+
+class SALCInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xd6; }
+};
+
+class LAHFInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x9f; }
+};
+
+class CLCInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xf8; }
+};
+
+class STCInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xf9; }
+};
+
+class CLDInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xfc; }
+};
+
+class STDInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xfd; }
+};
+
+class CLIInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xfa; }
+};
+
+class STIInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0xfb; }
+};
+
+class SAHFInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x9e; }
+};
+
+class DAAInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x27; }
+};
+
+class DASInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x2f; }
+};
+
+class AAAInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x37; }
+};
+
+class AASInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x3f; }
+};
+
+class CWDInstruction : public OneByteInstruction
+{
+public:
+    void assemble(Byte* p) { *p = 0x99; }
+};
+
+class Operand
+{
+public:
+    virtual bool wordSize() const = 0;
+};
+
+class RegisterOperand : public Operand
+{
+public:
+    RegisterOperand(Register* r) : _register(r) { }
+    bool wordSize() const { return _register->width() == 2; }
+private:
+    Register* _register;
+};
+
+class MemoryOperand : public Operand
+{
+public:
+    bool wordSize() const { return _wordSize; }
+private:
+    bool _wordSize;
+    int _segment;
+    Word _offset;
+    Register* _base;
+    Register* _index;
+};
+
+class INCInstruction : public Instruction
+{
+public:
+    INCInstruction(
+    void assemble(Byte* p) { *p = 0x99; }
+private:
+    std::unique_ptr<Operand> _operand;
+};
+
+class MOVInstruction : public Instruction
+{
+public:
+    MOVInstruction(Operand destination, Operand source)
       : _destination(destination), _source(source)
     { }
 private:
@@ -166,30 +309,28 @@ private:
     OwningLinkedList<Instruction> _instructions;
 };
 
-class Operand
+class PortWriteBytwInstruction : public Instruction
 {
+public:
+    PortWriteByteInstruction(Word port, Byte value)
+      : _port(port), _value(value) { }
+    Instruction* expand2()
+    {
+        if (port >= 0x100)
+            insertBefore(new SetInstruction(&dx, _port));
+        if (value.size() == 1) {
+            mov(al, value);
+            if (dx.value() == port
+        }
+        else
+            mov(ax, value);
+    }
+private:
+    Word _port;
+    Byte _value;
 };
 
-void emit_mov(InstructionChain chain, Operand destination, Operand source)
-{
-    chain.add(MovInstruction(destination, source));
-}
-
-void out(Operand port, Operand value)
-{
-    if (port >= 0x100)
-        mov(dx, port);
-    if (value.size() == 1) {
-        mov(al, value);
-        if (dx.value() == port
-    }
-    else
-        mov(ax, value);
-
-
-}
-
-class SetInstruction
+class SetInstruction : public Instruction
 {
 public:
     SetInstruction(Register* destination, Word value, Symbol symbol = zero)
