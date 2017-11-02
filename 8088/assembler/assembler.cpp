@@ -408,6 +408,7 @@ public:
     bool wordSize() const { return body()->wordSize(); }
     int length() const { return body()->length(); }
     void assemble(int reg, Byte* p) const { body()->assemble(reg, p); }
+    bool isRegister() const { return body()->isRegister(); }
 protected:
     Operand(Handle h) : Handle(h) { }
     class Body : public Handle::Body
@@ -416,6 +417,7 @@ protected:
         virtual bool wordSize() const = 0;
         virtual int length() const { return 1; }
         virtual void assemble(int reg, Byte* p) const = 0;
+        virtual bool isRegister() const { return true; }
     };
     class RegisterBody : public Body
     {
@@ -438,6 +440,7 @@ protected:
         int length() const { return _e.length(); }
         void assemble(int reg, Byte* p) const { _e.assemble(reg, p); }
         int segment() { return _segment; }
+        bool isRegister() const { return false; }
     private:
         bool _wordSize;
         int _segment;
@@ -480,6 +483,10 @@ class INCInstruction : public Instruction
 {
 public:
     INCInstruction(const Operand& o) : _operand(o) { }
+    int length() const
+    {
+        if (_operand.isRegister() &&
+    }
     void assemble(Byte* p) { *p = 0x99; }
 private:
     Operand _operand;
