@@ -115,6 +115,27 @@ private:
     Register<T2>* _highPart;
 };
 
+class RegisterClass
+{
+public:
+    RegisterClass() { }
+    template<class... T> RegisterClass(const Register& r, T... rest)
+      : RegisterClass(rest)
+    {
+        _register.append(&r);
+    }
+    bool contains(const Register& r) { return contains(&r); }
+    bool contains(const Register* r)
+    {
+        for (auto rr : _registers)
+            if (r == rr)
+                return true;
+        return false;
+    }
+private:
+    AppendableArray<const Register*> _registers;
+};
+
 RegisterFile registerFile;
 Register al(&registerFile, "al", 0, 1);
 Register cl(&registerFile, "cl", 1, 1);
@@ -138,6 +159,9 @@ Register ss(&registerFile, "ss", 2, 2);
 Register ds(&registerFile, "ds", 3, 2);
 Register ip(&registerFile, "ip", 0, 2);
 Register flags(&registerFile, "flags", 0, 2);
+RegisterClass generalWordRegisters(ax, cx, dx, bx, sp, bp, si, di);
+RegisterClass generalByteRegisters(al, cl, dl, bl, ah, ch, dh, bh);
+RegisterClass segmentRegisters(es, cs, ss, ds);
 
 class Instruction : public LinkedListMember<Instruction>
 {
@@ -339,7 +363,7 @@ private:
         }
         if (r == &si || r == &di) {
             if (_index != 0)
-                throw Exception("Too many base registers in expression.");
+                throw Exception("Too many index registers in expression.");
             _index = r;
             return;
         }
@@ -409,6 +433,8 @@ public:
     int length() const { return body()->length(); }
     void assemble(int reg, Byte* p) const { body()->assemble(reg, p); }
     bool isRegister() const { return body()->isRegister(); }
+    Register* reg() const { return body()->reg(); }
+    int segment() const { return body()->segment(); }
 protected:
     Operand(Handle h) : Handle(h) { }
     class Body : public Handle::Body
@@ -418,6 +444,8 @@ protected:
         virtual int length() const { return 1; }
         virtual void assemble(int reg, Byte* p) const = 0;
         virtual bool isRegister() const { return true; }
+        virtual Register* reg() const { return 0; }
+        virtual int segment() const { return -1; }
     };
     class RegisterBody : public Body
     {
@@ -426,8 +454,12 @@ protected:
         bool wordSize() const { return _register->width() == 2; }
         void assemble(int reg, Byte* p) const
         {
+            if (!generalWordRegisters.contains(_register) &&
+                !generalByteRegisters.contains(_register))
+                throw Exception("Not a general register.");
             *p = _register->binaryEncoding() + 0xc0 + (reg << 3);
         }
+        Register* reg() const { return _register; }
     private:
         Register* _register;
     };
@@ -439,7 +471,7 @@ protected:
         bool wordSize() const { return _wordSize; }
         int length() const { return _e.length(); }
         void assemble(int reg, Byte* p) const { _e.assemble(reg, p); }
-        int segment() { return _segment; }
+        int segment() const { return _segment; }
         bool isRegister() const { return false; }
     private:
         bool _wordSize;
@@ -479,17 +511,59 @@ Operand byte(const RegisterExpression& r, int segment = -1)
     return Operand(false, segment, r);
 }
 
-class INCInstruction : public Instruction
+class IncDecInstruction : public Instruction
 {
 public:
-    INCInstruction(const Operand& o) : _operand(o) { }
+    IncDecInstruction(const Operand& o) : _operand(o) { }
     int length() const
     {
         if (_operand.isRegister() &&
+            generalWordRegisters.contains(_operand.reg()))
+            return 1;
+        return (_operand.segment() == -1 ? 0 : 1) + 1 + _operand.length();
     }
-    void assemble(Byte* p) { *p = 0x99; }
+    void assemble(Byte* p)
+    {
+        Register* r = _operand.reg();
+        if (_operand.isRegister() && generalWordRegisters.contains(r)) {
+            *p = 0x40 + r->binaryEncoding() + (isDec ? 8 : 0);
+            return;
+        }
+        int s = _operand.segment();
+        if (s != -1) {
+            *p = 0x26 + (s << 3);
+            ++p;
+        }
+        *p = 0xfe + (_operand.wordSize() ? 1 : 0);
+        _operand.assemble(isDec() ? 1 : 0, p);
+    }
+protected:
+    virtual bool isDec() const { return false; }
 private:
     Operand _operand;
+};
+
+class INCInstruction : public IncDecInstruction
+{
+public:
+    INCInstruction(const Operand& o) : IncDecInstruction(o) { }
+};
+
+class DECInstruction : public IncDecInstruction
+{
+public:
+    DECInstruction(const Operand& o) : IncDecInstruction(o) { }
+private:
+    bool isDec() const { return true; }
+};
+
+class XCHGInstruction : public Instruction
+{
+public:
+    XCHGInstruction(const Operand& o1, const Operand& o2) : _o1(o1), _o2(o2) { }
+private:
+    Operand _o1;
+    Operand _o2;
 };
 
 class MOVInstruction : public Instruction
