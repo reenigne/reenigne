@@ -560,7 +560,30 @@ private:
 class XCHGInstruction : public Instruction
 {
 public:
-    XCHGInstruction(const Operand& o1, const Operand& o2) : _o1(o1), _o2(o2) { }
+    XCHGInstruction(const Operand& o1, const Operand& o2) : _o1(o1), _o2(o2)
+    {
+        if (_o1.wordSize() != _o2.wordSize())
+            throw Exception("Operands to XCHG must be the same size.");
+        if (!_o1.isRegister() && !_o2.isRegister())
+            throw Exception("Memory<->Memory XCHG not yet implemented.");
+        if ((!_o1.i
+    }
+    int length() const
+    {
+        Register* r1 = _o1.reg();
+        Register* r2 = _o2.reg();
+        if (_o1.isRegister() && _o2.isRegister) {
+            if (r1 == &ax || r1 == &ax)
+                return 1;
+        }
+        if (!_o1.isRegister())
+            return (_o2.segment() == -1 ? 0 : 1) + 1 + _o2.length();
+        return (_o1.segment() == -1 ? 0 : 1) + 1 + _o1.length();
+    }
+    void assemble(Byte* p)
+    {
+
+    }
 private:
     Operand _o1;
     Operand _o2;
