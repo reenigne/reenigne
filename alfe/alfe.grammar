@@ -59,6 +59,7 @@ Expression =
       (
         "(" [Expression / ","] ")"
       | "[" Expression "]"
+      | "." Identifier
       )*
     )
   / "^"
