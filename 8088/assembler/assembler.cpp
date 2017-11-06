@@ -212,41 +212,66 @@ class AluInstruction : public Instruction
 public:
     AluInstruction(const Operand& destination, const Operand& source)
       : _destination(destination), _source(source)
-    { }
+    {
+    }
     int length() const
     {
-        if (source.isConstant()) {
-            if (destination.isRegister() &&
-                destination.reg()->binaryEncoding() == 0)
-                return 1 + (destination.wordSize() ? 2 : 1);
-            return destination.length() + (destination.wordSize() ? 2 : 1);
+        if (_source.isConstant()) {
+            if (_destination.isRegister() &&
+                _destination.reg()->binaryEncoding() == 0)
+                return 1 + (_destination.wordSize() ? 2 : 1);
+            return _destination.length() + (_destination.wordSize() ? 2 : 1);
         }
-        if (source.isRegister())
-            return destination.length();
-        return source.length();
+        if (_source.isRegister())
+            return _destination.length();
+        return _source.length();
     }
     void assemble(Byte* p) const
     {
         int op = operation();
-        if (source.isConstant()) {
-
-
-            int v = source.value();
-            if (destination.isRegister() &&
-                destination.reg()->binaryEncoding() == 0) {
-                return 1 + (destination.wordSize() ? 2 : 1);
+        if (_source.isConstant()) {
+            int v = _source.value();
+            if (_destination.isRegister() &&
+                _destination.reg()->binaryEncoding() == 0) {
+                _destination.assemble(4, op << 3,
+                *p = 4 + (op << 3) + (_destination.wordSize() ? 1 : 0);
+                p[1] = v;
+                if (_destination.wordSize())
+                    p[2] = v >> 8;
+                return;
             }
-            return destination.length() + (destination.wordSize() ? 2 : 1);
+            if (!_destination.wordSize()) {
+                _destination.assemble(0x80, op, p);
+                p += _destination.length();
+                *p = v;
+                return;
+            }
+            if (v >= -128 && v < 128) {
+                _destination.assemble(0x83, op, p);
+                p += _destination.length();
+                *p = v;
+                return;
+            }
+            _destination.assemble(0x81, op, p);
+            p += _destination.length();
+            *p = v;
+            p[1] = v >> 8;
+            return;
         }
-        if (source.isRegister())
-            return destination.length();
-        return source.length();
+        if (_source.isRegister()) {
+            _destination.assemble(op*8 + (_source.wordSize() ? 1 : 0),
+                _source.reg()->binaryEncoding(), p);
+            return;
+        }
+        _source.assemble(op*8 + (_destination.wordSize() ? 1 : 0),
+            _destination.reg()->binaryEncoding(), p);
+        return;
     }
 protected:
     virtual int operation() const = 0;
 private:
-    Operand destination;
-    Operand source;
+    Operand _destination;
+    Operand _source;
 };
 
 class ADDInstruction : public AluInstruction
@@ -298,14 +323,14 @@ private:
 };
 
 
-00 /r    ADD rmb,rb 01 /r    ADD rmw,rw 02 /r    ADD rb,rmb 03 /r    ADD rw,rmw 04 ib    ADD AL,ib  05 iw    ADD AX,iw  80 /0 ib ADD rmb,ib 81 /0 iw ADD rmw,iw 82 /0 ib ADD rmb,ib 83 /0 ib ADD rmw,ib
-08 /r    OR  rmb,rb 09 /r    OR  rmw,rw 0A /r    OR  rb,rmb 0B /r    OR  rw,rmw 0C ib    OR  AL,ib  0D iw    OR  AX,iw  80 /1 ib OR  rmb,ib 81 /1 iv OR  rmw,iw 82 /1 ib OR  rmb,ib 83 /1 ib  OR rmw,ib
-10 /r    ADC rmb,rb 11 /r    ADC rmw,rw 12 /r    ADC rb,rmb 13 /r    ADC rw,rmw 14 ib    ADC AL,ib  15 iw    ADC AX,iw  80 /2 ib ADC rmb,ib 81 /2 iw ADC rmw,iw 82 /2 ib ADC rmb,ib 83 /2 ib ADC rmw,ib
-18 /r    SBB rmb,rb 19 /r    SBB rmw,rw 1A /r    SBB rb,rmb 1B /r    SBB rw,rmw 1C ib    SBB AL,ib  1D iw    SBB AX,iw  80 /3 ib SBB rmb,ib 81 /3 iv SBB rmw,iw 82 /3 ib SBB rmb,ib 83 /3 ib SBB rmw,ib
-20 /r    AND rmb,rb 21 /r    AND rmw,rw 22 /r    AND rb,rmb 23 /r    AND rw,rmw 24 ib    AND AL,ib  25 iw    AND AX,iw  80 /4 ib AND rmb,ib 81 /4 iw AND rmw,iw 82 /4 ib AND rmb,ib 83 /4 ib AND rmw,ib
-28 /r    SUB rmb,rb 29 /r    SUB rmw,rw 2A /r    SUB rb,rmb 2B /r    SUB rw,rmw 2C ib    SUB AL,ib  2D iw    SUB AX,iw  80 /5 ib SUB rmb,ib 81 /5 iv SUB rmw,iw 82 /5 ib SUB rmb,ib 83 /5 ib SUB rmw,ib
-30 /r    XOR rmb,rb 31 /r    XOR rmw,rw 32 /r    XOR rb,rmb 33 /r    XOR rw,rmw 34 ib    XOR AL,ib  35 iw    XOR AX,iw  80 /6 ib XOR rmb,ib 81 /6 iv XOR rmw,iw 82 /6 ib XOR rmb,ib 83 /6 ib XOR rmw,ib
-38 /r    CMP rmb,rb 39 /r    CMP rmw,rw 3A /r    CMP rb,rmb 3B /r    CMP rw,rmw 3C ib    CMP AL,ib  3D iw    CMP AX,iw  80 /7 ib CMP rmb,ib 81 /7 iv CMP rmw,iw 82 /7 ib CMP rmb,ib 83 /7 ib CMP rmw,ib
+00 /r    ADD rmb,rb 01 /r    ADD rmw,rw 02 /r    ADD rb,rmb 03 /r    ADD rw,rmw 04 ib    ADD AL,ib  05 iw    ADD AX,iw  80 /0 ib ADD rmb,ib 81 /0 iw ADD rmw,iw 83 /0 ib ADD rmw,ib
+08 /r    OR  rmb,rb 09 /r    OR  rmw,rw 0A /r    OR  rb,rmb 0B /r    OR  rw,rmw 0C ib    OR  AL,ib  0D iw    OR  AX,iw  80 /1 ib OR  rmb,ib 81 /1 iv OR  rmw,iw 83 /1 ib  OR rmw,ib
+10 /r    ADC rmb,rb 11 /r    ADC rmw,rw 12 /r    ADC rb,rmb 13 /r    ADC rw,rmw 14 ib    ADC AL,ib  15 iw    ADC AX,iw  80 /2 ib ADC rmb,ib 81 /2 iw ADC rmw,iw 83 /2 ib ADC rmw,ib
+18 /r    SBB rmb,rb 19 /r    SBB rmw,rw 1A /r    SBB rb,rmb 1B /r    SBB rw,rmw 1C ib    SBB AL,ib  1D iw    SBB AX,iw  80 /3 ib SBB rmb,ib 81 /3 iv SBB rmw,iw 83 /3 ib SBB rmw,ib
+20 /r    AND rmb,rb 21 /r    AND rmw,rw 22 /r    AND rb,rmb 23 /r    AND rw,rmw 24 ib    AND AL,ib  25 iw    AND AX,iw  80 /4 ib AND rmb,ib 81 /4 iw AND rmw,iw 83 /4 ib AND rmw,ib
+28 /r    SUB rmb,rb 29 /r    SUB rmw,rw 2A /r    SUB rb,rmb 2B /r    SUB rw,rmw 2C ib    SUB AL,ib  2D iw    SUB AX,iw  80 /5 ib SUB rmb,ib 81 /5 iv SUB rmw,iw 83 /5 ib SUB rmw,ib
+30 /r    XOR rmb,rb 31 /r    XOR rmw,rw 32 /r    XOR rb,rmb 33 /r    XOR rw,rmw 34 ib    XOR AL,ib  35 iw    XOR AX,iw  80 /6 ib XOR rmb,ib 81 /6 iv XOR rmw,iw 83 /6 ib XOR rmw,ib
+38 /r    CMP rmb,rb 39 /r    CMP rmw,rw 3A /r    CMP rb,rmb 3B /r    CMP rw,rmw 3C ib    CMP AL,ib  3D iw    CMP AX,iw  80 /7 ib CMP rmb,ib 81 /7 iv CMP rmw,iw 83 /7 ib CMP rmw,ib
 
 9A cp    CALL cp    E8 cv    CALL cv    FF /2    CALL rmw   FF /3    CALL mp
 F6 /2    NOT  rmb   F7 /2    NOT  rmw
