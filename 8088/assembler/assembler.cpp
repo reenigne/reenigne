@@ -163,7 +163,303 @@ Register flags(&registerFile, "flags", 0, 2);
 RegisterClass generalWordRegisters(ax, cx, dx, bx, sp, bp, si, di);
 RegisterClass generalByteRegisters(al, cl, dl, bl, ah, ch, dh, bh);
 RegisterClass generalRegisters(generalWordRegisters, generalByteRegisters);
+RegisterClass indexRegisters(si, di);
 RegisterClass segmentRegisters(es, cs, ss, ds);
+
+class RegisterExpression
+{
+public:
+    RegisterExpression(const Register* r, Word offset)
+      : _base(0), _index(0), _offset(offset)
+    {
+        addRegister(r);
+    }
+    RegisterExpression(const RegisterExpression& re, Word offset)
+    {
+        *this = re;
+        _offset += offset;
+    }
+    RegisterExpression(const RegisterExpression& re, Register* r)
+    {
+        *this = re;
+        addRegister(r);
+    }
+    RegisterExpression(const RegisterExpression& re1, RegisterExpression& re2)
+    {
+        *this = re1;
+        if (re2._base != 0)
+            addRegister(re2._base);
+        if (re2._index != 0)
+            addRegister(re2._index);
+        _offset += re2._offset;
+    }
+    int length() const
+    {
+        if (_offset == 0 && (_base != &bp || _index != 0))
+            return 1;
+        if (_offset >= -128 && _offset < 128 && (_base != 0 || _index != 0))
+            return 2;
+        return 3;
+    }
+    void assemble(int reg, Byte* p) const
+    {
+        Byte modrm;
+        if (_base == 0) {
+            if (_index == 0)
+                modrm = 6;
+            else {
+                if (_index == &si)
+                    modrm = 4;
+                else
+                    modrm = 5;
+            }
+        }
+        else {
+            if (_base == &bx) {
+                if (_index == 0)
+                    modrm = 7;
+                else {
+                    if (_index == &si)
+                        modrm = 0;
+                    else
+                        modrm = 1;
+                }
+            }
+            else {
+                if (_index == 0)
+                    modrm = 6;
+                else {
+                    if (_index == &si)
+                        modrm = 2;
+                    else
+                        modrm = 3;
+                }
+            }
+        }
+        *p = modrm + (reg << 3);
+        int l = length();
+        if (l > 1) {
+            p[1] = offset;
+            if (l > 2)
+                p[2] = offset >> 8;
+        }
+    }
+    bool defaultSS() const { return _base == &bp; }
+private:
+    void addRegister(Register* r)
+    {
+        if (r == &bx || r == &bp) {
+            if (_base != 0)
+                throw Exception("Too many base registers in expression.");
+            _base = r;
+            return;
+        }
+        if (indexRegisters.contains(r)) {
+            if (_index != 0)
+                throw Exception("Too many index registers in expression.");
+            _index = r;
+            return;
+        }
+        throw Exception("Bad register in expression");
+    }
+    Word _offset;
+    const Register* _base;
+    const Register* _index;
+};
+
+RegisterExpression operator+(const Register& r, int offset)
+{
+    return RegisterExpression(&r, offset);
+}
+
+RegisterExpression operator+(int offset, const Register& r)
+{
+    return RegisterExpression(&r, offset);
+}
+
+RegisterExpression operator-(const Register& r, int offset)
+{
+    return RegisterExpression(&r, -offset);
+}
+
+RegisterExpression operator+(const RegisterExpression& re, int offset)
+{
+    return RegisterExpression(re, offset);
+}
+
+RegisterExpression operator+(int offset, const RegisterExpression& re)
+{
+    return RegisterExpression(re, offset);
+}
+
+RegisterExpression operator-(const RegisterExpression& re, int offset)
+{
+    return RegisterExpression(re, -offset);
+}
+
+RegisterExpression operator+(const Register& r, const RegisterExpression& re)
+{
+    return RegisterExpression(re, &r);
+}
+
+RegisterExpression operator+(const RegisterExpression& re, const Register& r)
+{
+    return RegisterExpression(re, &r);
+}
+
+RegisterExpression operator+(const RegisterExpression& re1,
+    const RegisterExpression& re2)
+{
+    return RegisterExpression(re1, re2);
+}
+
+class Operand : public Handle
+{
+public:
+    Operand(Register* r) : Handle(create<RegisterBody>(r)) { }
+    Operand(Register& r) : Handle(create<RegisterBody>(&r)) { }
+    Operand(int size, int segment, Word offset, const Register* base,
+        const Register* index)
+      : Handle(create<MemoryBody>(size, segment, offset, base, index) { }
+    Operand(int value, int size = 2)
+      : Handle(create<ImmediateBody>(c, size)) { }
+    int size() const { return body()->size(); }
+    int length() const { return body()->length(); }
+    void assemble(int opcode, int reg, Byte* p) const
+    {
+        body()->assemble(opcode, reg, p);
+    }
+    bool isRegister() const { return body()->isRegister(); }
+    Register* reg() const { return body()->reg(); }
+    int segment() const { return body()->segment(); }
+    bool isConstant() const { return body()->isConstant(); }
+    bool hasSize() const { return body()->size() != 0; }
+protected:
+    Operand(Handle h) : Handle(h) { }
+    class Body : public Handle::Body
+    {
+    public:
+        virtual int size() const = 0;
+        virtual int length() const { return 2; }
+        virtual void assemble(int opcode, int reg, Byte* p) const = 0;
+        virtual bool isRegister() const { return true; }
+        virtual Register* reg() const { return 0; }
+        virtual int segment() const { return -1; }
+        virtual bool isConstant() const { return false; }
+        virtual int value() const { return 0; }
+    };
+    class RegisterBody : public Body
+    {
+    public:
+        RegisterBody(Register* r) : _register(r) { }
+        int size() const { return _register->width(); }
+        void assemble(int opcode, int reg, Byte* p) const
+        {
+            *p = opcode;
+            if (!generalWordRegisters.contains(_register) &&
+                !generalByteRegisters.contains(_register))
+                throw Exception("Not a general register.");
+            p[1] = _register->binaryEncoding() + 0xc0 + (reg << 3);
+        }
+        Register* reg() const { return _register; }
+    private:
+        Register* _register;
+    };
+    class MemoryBody : public Body
+    {
+    public:
+        MemoryBody(int size, int segment, RegisterExpression e)
+          : _size(size), _segment(segment), _e(e) { }
+        int size() const { return _size; }
+        int length() const
+        {
+            return (_segment != -1 ? 1 : 0) + 1 + _e.length();
+        }
+        void assemble(int opcode, int reg, Byte* p) const
+        {
+            if (_segment != -1) {
+                *p = 0x26 + (s << 3);
+                ++p;
+            }
+            *p = opcode;
+            _e.assemble(reg, p+1);
+        }
+        int segment() const { return _segment; }
+        bool isRegister() const { return false; }
+    private:
+        int _size;
+        int _segment;
+        RegisterExpression _e;
+    };
+    class ImmediateBody : public body
+    {
+    public:
+        ImmediateBody(int value, int size)
+          : _value(value), _size(size) { }
+        int size() const { return _size; }
+        int length() const { return _size; }
+        void assemble(int opcode, int reg, Byte* p) const
+        {
+            *p = opcode + reg;
+            p[1] = _value;
+            if (_size > 1)
+                p[2] = _value >> 8;
+        }
+        bool isRegister() const { return false; }
+        bool isConstant() const { return true; }
+        int value() const { return _value; }
+    private:
+        int _size;
+        int _value;
+    };
+    const Body* body() const { return as<Body>(); }
+};
+
+Operand word(Word offset, int segment = -1)
+{
+    return Operand(2, segment, RegisterExpression(offset, 0, 0));
+}
+
+Operand byte(Word offset, int segment = -1)
+{
+    return Operand(1, segment, RegisterExpression(offset, 0, 0));
+}
+
+Operand memory(Word offset, int segment = -1)
+{
+    return Operand(0, segment, RegisterExpression(offset, 0, 0));
+}
+
+Operand word(const Register& r, int segment = -1)
+{
+    return Operand(2, segment, RegisterExpression(0, &r, 0));
+}
+
+Operand byte(const Register& r, int segment = -1)
+{
+    return Operand(1, segment, RegisterExpression(0, &r, 0));
+}
+
+Operand memory(const Register& r, int segment = -1)
+{
+    return Operand(0, segment, RegisterExpression(0, &r, 0));
+}
+
+Operand word(const RegisterExpression& r, int segment = -1)
+{
+    return Operand(2, segment, r);
+}
+
+Operand byte(const RegisterExpression& r, int segment = -1)
+{
+    return Operand(1, segment, r);
+}
+
+Operand memory(const RegisterExpression& r, int segment = -1)
+{
+    return Operand(0, segment, r);
+}
+
 
 class Instruction : public LinkedListMember<Instruction>
 {
@@ -213,6 +509,7 @@ public:
     AluInstruction(const Operand& destination, const Operand& source)
       : _destination(destination), _source(source)
     {
+        if (_source.isConstant())
     }
     int length() const
     {
@@ -263,7 +560,7 @@ public:
                 _source.reg()->binaryEncoding(), p);
             return;
         }
-        _source.assemble(op*8 + (_destination.wordSize() ? 1 : 0),
+        _source.assemble(2 + op*8 + (_destination.wordSize() ? 1 : 0),
             _destination.reg()->binaryEncoding(), p);
         return;
     }
@@ -322,15 +619,14 @@ private:
     int operation() const { return 7; }
 };
 
+class CALLInstruction : public Instruction
+{
+public:
+    CALLInstruction(const Operand& address) : _address(address) { }
 
-00 /r    ADD rmb,rb 01 /r    ADD rmw,rw 02 /r    ADD rb,rmb 03 /r    ADD rw,rmw 04 ib    ADD AL,ib  05 iw    ADD AX,iw  80 /0 ib ADD rmb,ib 81 /0 iw ADD rmw,iw 83 /0 ib ADD rmw,ib
-08 /r    OR  rmb,rb 09 /r    OR  rmw,rw 0A /r    OR  rb,rmb 0B /r    OR  rw,rmw 0C ib    OR  AL,ib  0D iw    OR  AX,iw  80 /1 ib OR  rmb,ib 81 /1 iv OR  rmw,iw 83 /1 ib  OR rmw,ib
-10 /r    ADC rmb,rb 11 /r    ADC rmw,rw 12 /r    ADC rb,rmb 13 /r    ADC rw,rmw 14 ib    ADC AL,ib  15 iw    ADC AX,iw  80 /2 ib ADC rmb,ib 81 /2 iw ADC rmw,iw 83 /2 ib ADC rmw,ib
-18 /r    SBB rmb,rb 19 /r    SBB rmw,rw 1A /r    SBB rb,rmb 1B /r    SBB rw,rmw 1C ib    SBB AL,ib  1D iw    SBB AX,iw  80 /3 ib SBB rmb,ib 81 /3 iv SBB rmw,iw 83 /3 ib SBB rmw,ib
-20 /r    AND rmb,rb 21 /r    AND rmw,rw 22 /r    AND rb,rmb 23 /r    AND rw,rmw 24 ib    AND AL,ib  25 iw    AND AX,iw  80 /4 ib AND rmb,ib 81 /4 iw AND rmw,iw 83 /4 ib AND rmw,ib
-28 /r    SUB rmb,rb 29 /r    SUB rmw,rw 2A /r    SUB rb,rmb 2B /r    SUB rw,rmw 2C ib    SUB AL,ib  2D iw    SUB AX,iw  80 /5 ib SUB rmb,ib 81 /5 iv SUB rmw,iw 83 /5 ib SUB rmw,ib
-30 /r    XOR rmb,rb 31 /r    XOR rmw,rw 32 /r    XOR rb,rmb 33 /r    XOR rw,rmw 34 ib    XOR AL,ib  35 iw    XOR AX,iw  80 /6 ib XOR rmb,ib 81 /6 iv XOR rmw,iw 83 /6 ib XOR rmw,ib
-38 /r    CMP rmb,rb 39 /r    CMP rmw,rw 3A /r    CMP rb,rmb 3B /r    CMP rw,rmw 3C ib    CMP AL,ib  3D iw    CMP AX,iw  80 /7 ib CMP rmb,ib 81 /7 iv CMP rmw,iw 83 /7 ib CMP rmw,ib
+private:
+    Operand _address;
+};
 
 9A cp    CALL cp    E8 cv    CALL cv    FF /2    CALL rmw   FF /3    CALL mp
 F6 /2    NOT  rmb   F7 /2    NOT  rmw
@@ -581,285 +877,6 @@ public:
     void assemble(Byte* p) { *p = 0xf2; }
 };
 
-
-class RegisterExpression
-{
-public:
-    RegisterExpression(const Register* r, Word offset)
-      : _base(0), _index(0), _offset(offset)
-    {
-        addRegister(r);
-    }
-    RegisterExpression(const RegisterExpression& re, Word offset)
-    {
-        *this = re;
-        _offset += offset;
-    }
-    RegisterExpression(const RegisterExpression& re, Register* r)
-    {
-        *this = re;
-        addRegister(r);
-    }
-    RegisterExpression(const RegisterExpression& re1, RegisterExpression& re2)
-    {
-        *this = re1;
-        if (re2._base != 0)
-            addRegister(re2._base);
-        if (re2._index != 0)
-            addRegister(re2._index);
-        _offset += re2._offset;
-    }
-    int length() const
-    {
-        if (_offset == 0 && (_base != &bp || _index != 0))
-            return 1;
-        if (_offset >= -128 && _offset < 128 && (_base != 0 || _index != 0))
-            return 2;
-        return 3;
-    }
-    void assemble(int reg, Byte* p) const
-    {
-        Byte modrm;
-        if (_base == 0) {
-            if (_index == 0)
-                modrm = 6;
-            else {
-                if (_index == &si)
-                    modrm = 4;
-                else
-                    modrm = 5;
-            }
-        }
-        else {
-            if (_base == &bx) {
-                if (_index == 0)
-                    modrm = 7;
-                else {
-                    if (_index == &si)
-                        modrm = 0;
-                    else
-                        modrm = 1;
-                }
-            }
-            else {
-                if (_index == 0)
-                    modrm = 6;
-                else {
-                    if (_index == &si)
-                        modrm = 2;
-                    else
-                        modrm = 3;
-                }
-            }
-        }
-        *p = modrm + (reg << 3);
-        int l = length();
-        if (l > 1) {
-            p[1] = offset;
-            if (l > 2)
-                p[2] = offset >> 8;
-        }
-    }
-    bool defaultSS() const { return _base == &bp; }
-private:
-    void addRegister(Register* r)
-    {
-        if (r == &bx || r == &bp) {
-            if (_base != 0)
-                throw Exception("Too many base registers in expression.");
-            _base = r;
-            return;
-        }
-        if (r == &si || r == &di) {
-            if (_index != 0)
-                throw Exception("Too many index registers in expression.");
-            _index = r;
-            return;
-        }
-        throw Exception("Bad register in expression");
-    }
-    Word _offset;
-    const Register* _base;
-    const Register* _index;
-};
-
-RegisterExpression operator+(const Register& r, int offset)
-{
-    return RegisterExpression(&r, offset);
-}
-
-RegisterExpression operator+(int offset, const Register& r)
-{
-    return RegisterExpression(&r, offset);
-}
-
-RegisterExpression operator-(const Register& r, int offset)
-{
-    return RegisterExpression(&r, -offset);
-}
-
-RegisterExpression operator+(const RegisterExpression& re, int offset)
-{
-    return RegisterExpression(re, offset);
-}
-
-RegisterExpression operator+(int offset, const RegisterExpression& re)
-{
-    return RegisterExpression(re, offset);
-}
-
-RegisterExpression operator-(const RegisterExpression& re, int offset)
-{
-    return RegisterExpression(re, -offset);
-}
-
-RegisterExpression operator+(const Register& r, const RegisterExpression& re)
-{
-    return RegisterExpression(re, &r);
-}
-
-RegisterExpression operator+(const RegisterExpression& re, const Register& r)
-{
-    return RegisterExpression(re, &r);
-}
-
-RegisterExpression operator+(const RegisterExpression& re1,
-    const RegisterExpression& re2)
-{
-    return RegisterExpression(re1, re2);
-}
-
-class Operand : public Handle
-{
-public:
-    Operand(Register* r) : Handle(create<RegisterBody>(r)) { }
-    Operand(Register& r) : Handle(create<RegisterBody>(&r)) { }
-    Operand(bool wordSize, int segment, Word offset, const Register* base,
-        const Register* index)
-      : Handle(create<MemoryBody>(wordSize, segment, offset, base, index)
-    { }
-    Operand(int value, bool wordSize = true)
-      : Handle(create<ImmediateBody>(c, wordSize)) { }
-    bool wordSize() const { return body()->wordSize(); }
-    int length() const { return body()->length(); }
-    void assemble(int opcode, int reg, Byte* p) const
-    {
-        body()->assemble(opcode, reg, p);
-    }
-    bool isRegister() const { return body()->isRegister(); }
-    Register* reg() const { return body()->reg(); }
-    int segment() const { return body()->segment(); }
-    bool isConstant() const { return body()->isConstant(); }
-protected:
-    Operand(Handle h) : Handle(h) { }
-    class Body : public Handle::Body
-    {
-    public:
-        virtual bool wordSize() const = 0;
-        virtual int length() const { return 2; }
-        virtual void assemble(int opcode, int reg, Byte* p) const = 0;
-        virtual bool isRegister() const { return true; }
-        virtual Register* reg() const { return 0; }
-        virtual int segment() const { return -1; }
-        virtual bool isConstant() const { return false; }
-        virtual int value() const { return 0; }
-    };
-    class RegisterBody : public Body
-    {
-    public:
-        RegisterBody(Register* r) : _register(r) { }
-        bool wordSize() const { return _register->width() == 2; }
-        void assemble(int opcode, int reg, Byte* p) const
-        {
-            *p = opcode;
-            if (!generalWordRegisters.contains(_register) &&
-                !generalByteRegisters.contains(_register))
-                throw Exception("Not a general register.");
-            p[1] = _register->binaryEncoding() + 0xc0 + (reg << 3);
-        }
-        Register* reg() const { return _register; }
-    private:
-        Register* _register;
-    };
-    class MemoryBody : public Body
-    {
-    public:
-        MemoryBody(bool wordSize, int segment, RegisterExpression e)
-          : _wordSize(wordSize), _segment(segment), _e(e) { }
-        bool wordSize() const { return _wordSize; }
-        int length() const
-        {
-            return (_segment != -1 ? 1 : 0) + 1 + _e.length();
-        }
-        void assemble(int opcode, int reg, Byte* p) const
-        {
-            if (_segment != -1) {
-                *p = 0x26 + (s << 3);
-                ++p;
-            }
-            *p = opcode;
-            _e.assemble(reg, p+1);
-        }
-        int segment() const { return _segment; }
-        bool isRegister() const { return false; }
-    private:
-        bool _wordSize;
-        int _segment;
-        RegisterExpression _e;
-    };
-    class ImmediateBody : public body
-    {
-    public:
-        ImmediateBody(int value, bool wordSize)
-          : _value(value), _wordSize(wordSize) { }
-        bool wordSize() const { return _wordSize; }
-        int length() const { return _wordSize ? 2 : 1; }
-        void assemble(int opcode, int reg, Byte* p) const
-        {
-            *p = opcode + reg;
-            p[1] = _value;
-            if (_wordSize)
-                p[2] = _value >> 8;
-        }
-        bool isRegister() const { return false; }
-        bool isConstant() const { return true; }
-        int value() const { return _value; }
-    private:
-        bool _wordSize;
-        int _value;
-    };
-    const Body* body() const { return as<Body>(); }
-};
-
-Operand word(Word offset, int segment = -1)
-{
-    return Operand(true, segment, RegisterExpression(offset, 0, 0));
-}
-
-Operand byte(Word offset, int segment = -1)
-{
-    return Operand(false, segment, RegisterExpression(offset, 0, 0));
-}
-
-Operand word(const Register& r, int segment = -1)
-{
-    return Operand(true, segment, RegisterExpression(0, &r, 0));
-}
-
-Operand byte(const Register& r, int segment = -1)
-{
-    return Operand(false, segment, RegisterExpression(0, &r, 0));
-}
-
-Operand word(const RegisterExpression& r, int segment = -1)
-{
-    return Operand(true, segment, r);
-}
-
-Operand byte(const RegisterExpression& r, int segment = -1)
-{
-    return Operand(false, segment, r);
-}
 
 class IncDecInstruction : public Instruction
 {
