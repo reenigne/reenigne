@@ -3,72 +3,13 @@
 #ifndef INCLUDED_LINKED_LIST_H
 #define INCLUDED_LINKED_LIST_H
 
-template<class T> class LinkedListMember;
-
-template<class T> class LinkedList : LinkedListMember<T>
-{
-public:
-    LinkedList() { clear(); }
-
-    void add(T* item) { insertBefore(item); }
-
-    void release()
-    {
-        _next = this;
-        _prev = this;
-    }
-
-    bool empty() const { return _next == this; }
-
-    class Iterator
-    {
-    public:
-        T& operator*() const { return *_node; }
-        T* operator->() const { return _node; }
-        const Iterator& operator++()
-        {
-            _node = static_cast<T*>(
-                static_cast<LinkedListMember<T>*>(_node)->_next);
-            return *this;
-        }
-        bool operator==(const Iterator& other) const
-        {
-            return _node == other._node;
-        }
-        bool operator!=(const Iterator& other) const
-        {
-            return !operator==(other);
-        }
-    private:
-        T* _node;
-
-        Iterator(T* node) : _node(node) { }
-
-        friend class LinkedList;
-    };
-    Iterator begin() { return Iterator(_next); }
-    Iterator end() { return Iterator(this); }
-};
-
-template<class T> class OwningLinkedList : LinkedList<T>
-{
-public:
-    ~OwningLinkedList() { release(); }
-
-    void release()
-    {
-        while (_next != this) {
-            T* t = static_cast<T*>(_next);
-            t->remove();
-            delete t;
-        }
-    }
-};
+template<class T> class LinkedList;
+template<class T> class OwningLinkedList;
 
 template<class T> class LinkedListMember : Uncopyable
 {
 public:
-    LinkedListMember() : _next(0), _prev(0) { }
+    LinkedListMember() : _next(this), _prev(this) { }
 
     void remove()
     {
@@ -84,8 +25,8 @@ public:
         _prev->_next = this;
     }
 
-    T* next() { return static_cast<T*>(_next); }
-    T* previous() { return static_cast<T*>(_prev); }
+    LinkedListMember<T>* next() { return _next; }
+    LinkedListMember<T>* previous() { return _prev; }
     void insertBefore(T* item)
     {
         item->_prev = _prev;
@@ -105,8 +46,75 @@ private:
     LinkedListMember<T>* _next;
     LinkedListMember<T>* _prev;
     friend class LinkedList<T>;
-    friend class LinkedList<T>::Iterator;
-    friend class OwningLinkedList<T>;
+    //friend class LinkedList<T>::Iterator;
+    //template<> friend class OwningLinkedList<T>;
+};
+
+template<class T> class LinkedList : public LinkedListMember<T>
+{
+public:
+    void add(T* item) { insertBefore(item); }
+
+    T* getNext(LinkedListMember<T>* c = 0)
+    {
+        if (c == 0)
+            c = this;
+        LinkedListMember<T>* n = c->next();
+        if (n == this)
+            return 0;
+        return static_cast<T*>(n);
+    }
+
+    void release()
+    {
+        _next = this;
+        _prev = this;
+    }
+
+    bool empty() const { return _next == this; }
+
+    class Iterator
+    {
+    public:
+        T& operator*() const { return *static_cast<T*>(_node); }
+        T* operator->() const { return static_cast<T*>(_node); }
+        const Iterator& operator++()
+        {
+            _node = _node->_next;
+            return *this;
+        }
+        bool operator==(const Iterator& other) const
+        {
+            return _node == other._node;
+        }
+        bool operator!=(const Iterator& other) const
+        {
+            return !operator==(other);
+        }
+    private:
+        LinkedListMember<T>* _node;
+
+        Iterator(LinkedListMember<T>* node) : _node(node) { }
+
+        friend class LinkedList<T>;
+    };
+    Iterator begin() { return Iterator(_next); }
+    Iterator end() { return Iterator(this); }
+};
+
+template<class T> class OwningLinkedList : LinkedList<T>
+{
+public:
+    ~OwningLinkedList() { release(); }
+
+    void release()
+    {
+        while (_next != this) {
+            T* t = static_cast<T*>(_next);
+            t->remove();
+            delete t;
+        }
+    }
 };
 
 #endif // INCLUDED_LINKED_LIST_H
