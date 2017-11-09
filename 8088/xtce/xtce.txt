@@ -1,0 +1,12 @@
+Don't try to do cycle-exact emulation on the XT.
+  Therefore our testcases will contain expected timings for each instruction list
+
+Modern program:
+  Generate a sequence of instructions
+    Initially random, later systematic
+  Figure out timing
+  Add data to XT program
+  Run XT program
+
+XT program:
+  Do

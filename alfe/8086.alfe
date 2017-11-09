@@ -6,40 +6,53 @@ MachineDescription machine8086;
     for (Auto r in {
         // name
         //        binary encoding
-        //           width
-        {"sp",    4, 2},
-        {"bp",    5, 2},
-        {"si",    6, 2},
-        {"di",    7, 2},
+        //           type
+        ("sp",    4, Word.type),
+        ("bp",    5, Word.type),
+        ("si",    6, Word.type),
+        ("di",    7, Word.type),
 
-        {"es",    0, 2},
-        {"cs",    1, 2},
-        {"ss",    2, 2},
-        {"ds",    3, 2},
+        ("es",    0, Word.type),
+        ("cs",    1, Word.type),
+        ("ss",    2, Word.type),
+        ("ds",    3, Word.type),
 
-        {"al",    0, 1},
-        {"cl",    1, 1},
-        {"dl",    2, 1},
-        {"bl",    3, 1},
-        {"ah",    4, 1},
-        {"ch",    5, 1},
-        {"dh",    6, 1},
-        {"bh",    7, 1},
+        ("al",    0, Byte.type),
+        ("cl",    1, Byte.type),
+        ("dl",    2, Byte.type),
+        ("bl",    3, Byte.type),
+        ("ah",    4, Byte.type),
+        ("ch",    5, Byte.type),
+        ("dh",    6, Byte.type),
+        ("bh",    7, Byte.type),
 
-        {"ip",    0, 2},
-        {"flags", 0, 2}})
+        ("ip",    0, Word.type),
+
+        ("cf",    0, Boolean.type),
+        ("pf",    0, Boolean.type),
+        ("af",    0, Boolean.type),
+        ("zf",    0, Boolean.type),
+        ("sf",    0, Boolean.type),
+        ("tf",    0, Boolean.type),
+        ("intf",  1, Boolean.type),
+        ("df",    2, Boolean.type),
+        ("of",    0, Boolean.type),
+
+        ("data",  0, Word.type),
+        ("wordSize", 0, Boolean.type)})
         m->addRegister(r);
 
-    m->addCompountRegister("ax", "al", "ah", 0);
-    m->addCompountRegister("cx", "cl", "ch", 1);
-    m->addCompountRegister("dx", "dl", "dh", 2);
-    m->addCompountRegister("bx", "bl", "bh", 3);
+    m->addCompountRegister("ax", "al", "ah", 0, Word.type);
+    m->addCompountRegister("cx", "cl", "ch", 1, Word.type);
+    m->addCompountRegister("dx", "dl", "dh", 2, Word.type);
+    m->addCompountRegister("bx", "bl", "bh", 3, Word.type);
 
     for (Auto c in {
         // name         registers in class
-        {"generalWord", "ax, cx, dx, bx, sp, bp, si, di"},
-        {"generalByte", "al, cl, dl, bl, ah, ch, dh, bh"},
-        {"segment",     "es, cs, ss, ds"}})
+        {"GeneralWord",  "ax, cx, dx, bx, sp, bp, si, di"},
+        {"GeneralByte",  "al, cl, dl, bl, ah, ch, dh, bh"},
+        {"Segment",      "es, cs, ss, ds"},
+        {"SetResetFlag", "cf, if, df"}})
         m->addRegisterClass(c);
 
     Auto aluOperations = {
@@ -93,4 +106,141 @@ MachineDescription machine8086;
     for (Auto o in aluOperations)
         addRegisterMemoryPattern(o, m);
 
+    m->addHelperCode(###
+        Void setPF()
+        {
+            pf = ((data & 1) ^ ((data & 2) != 0 ? 1 : 0) ^
+                ((data & 4) != 0 ? 1 : 0) ^ ((data & 8) != 0 ? 1 : 0) ^
+                ((data & 0x10) != 0 ? 1 : 0) ^ ((data & 0x20) != 0 ? 1 : 0) ^
+                ((data & 0x40) != 0 ? 1 : 0) ^ ((data & 0x80) != 0 ? 1 : 0))
+                != 0;
+        }
+        Void setZF()
+        {
+            zf = (data & (!wordSize ? 0xff : 0xffff)) == 0;
+        }
+        Void setSF()
+        {
+            sf = (data & (!wordSize ? 0x80 : 0x8000)) != 0;
+        }
+        void setPZS() { setPF(); setZF(); setSF(); }
+        void aad(Byte base)
+        {
+            Byte tempAL = al;
+            Byte tempAH = ah;
+            al = (tempAL + (tempAH*base)) & 0xff;
+            data = al;                               // TODO: fix either this or Berapa, cross-check 86sim
+            wordSize = false;
+            ah = 0;
+            setPZS();
+            undefine(&of);
+            undefine(&af);
+            undefine(&cf);
+        }
+        void aam(Byte base)
+        {
+            if (base == 0) {
+                interrupt(0);
+                return;
+            }
+            Byte tempAL = al;
+            ah = tempAL / base;
+            al = tempAL % base;
+            data = al;                               // TODO: fix either this or Berapa, cross-check 86sim
+            wordSize = false;
+            setPZS();
+            undefine(&of);
+            undefine(&af);
+            undefine(&cf);
+        }
+        void adc(Register* destination, Byte source)
+        {
+        }
+    ###);
+
+    m->addInstructionPattern(
+        "",
+        "aaa",
+        "byte(0x37)",
+        ###
+           if ((al & 0xf) > 9 || af) {
+               al += 6;
+               ++ah;
+               af = true;
+               cf = true;
+           }
+           else {
+               af = false;
+               cf = false;
+           }
+           al = al & 0xf;
+           undefine(&of);
+           undefine(&sf);
+           undefine(&zf);
+           undefine(&pf);
+        ###);
+
+    m->addInstructionPattern(
+        "",
+        "aas",
+        "byte(0x3f)",
+        ###
+           if ((al & 0xf) > 9 || af) {
+               al -= 6;
+               --ah;
+               af = true;
+               cf = true;
+           }
+           else {
+               af = false;
+               cf = false;
+           }
+           al = al & 0xf;
+           undefine(&of);
+           undefine(&sf);
+           undefine(&zf);
+           undefine(&pf);
+        ###);
+
+    m->addInstructionPattern(
+        "",
+        "aad",
+        "byte(0xd5).byte(0x0a)",
+        "aad(0x0a);");
+    m->addInstructionPattern(
+        "Byte base",
+        "aad \$base",
+        "byte(0xd5).byte(base)",
+        "aad(base);");
+
+    m->addInstructionPattern(
+        "",
+        "aam",
+        "byte(0xd4).byte(0x0a)",
+        "aam(0x0a);");
+    m->addInstructionPattern(
+        "Byte base",
+        "aam \$base",
+        "{0xd4, base}",
+        "aam(base);");
+
+    m->addInstructionPattern(
+        "Byte source",
+        "adc al,\$source",
+        "byte(0x14).byte(source)",
+        "adc(&al, source);");
+    m->addInstructionPattern(
+        "Word source",
+        "adc ax,\$source",
+        "byte(0x15).word(source)",
+        "adc(&ax, source);");
+    m->addInstructionPattern(
+        "GeneralByteRegister* destination, Byte source",
+        "adc \${*destination}, \$source",
+        "byte(0x80).byte(source)",
+        "adc(destination, source);");
+
 }
+
+// An instruction pattern has:
+//

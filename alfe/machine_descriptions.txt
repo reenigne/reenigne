@@ -4,9 +4,17 @@ A register is a sequence of contiguous bytes in the register file, or a concaten
 A register class is a set of registers that are interchangeable for some particular instruction pattern, so that a pattern doesn't have to be duplicated for each set of registers it can be used with
 
 What things does the compiler need to know about each instruction pattern?
-  Number of register holes
-  Class of each register hole
-    These two things can be derived dynamically from the holes in the pattern
+  Number of register/constant holes
+  Class of each register/constant hole
   How the pattern looks in assembly
   How the pattern is assembled as instruction bytes (and relocations, if targetting an object file format)
+  What the pattern does as ALFE code
+
+How should we pass instruction pattern details to MachineDescription.addInstructionPattern()?
+  String for function signature
+  String for assembly function body
+  String for binary function body
+  String for ALFE function body
+
+
 
