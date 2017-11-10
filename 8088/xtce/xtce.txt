@@ -5,8 +5,46 @@ Modern program:
   Generate a sequence of instructions
     Initially random, later systematic
   Figure out timing
+    Throw out pattern if IP doesn't reach end within a certain time
+    Throw out pattern if it writes to memory/ports it shouldn't or reads CGA memory or volatile ports
   Add data to XT program
+    Byte count
+    Instruction data
+    Expected timer value
   Run XT program
 
 XT program:
-  Do
+  Use code from memtimer
+  Print which tests fail, along with expected and observed timings
+  (Later) do a trace on any failing tests
+
+Plan:
+  Give each testcase a unique number and record them all in a file for future reference
+  Add instruction patterns one at a time
+    Go in opcode order
+      add [bx+si],al
+  After each new instruction pattern:
+    Refactor to avoid duplication
+    Add tests specifically for that pattern:
+      Queue empty (jmp before)
+      Queue full (mul before)
+      Random queue state (generate random instruction patterns)
+    Run test
+    Refine model
+  Initially:
+    No DRAM refresh
+    No CGA access
+    Single iteration
+    Repeating pattern of instructions
+    Jump/call etc. always go to next instruction
+    Each instruction pattern has a single byte sequence
+      Later try filling in operands with random patterns
+    Don't worry about register values (for MUL etc)
+
+
+8088test:
+  Collect the tests which fail
+  Add interesting functional tests
+    Undefined opcodes and addressing modes
+    Values of undefined flags
+
