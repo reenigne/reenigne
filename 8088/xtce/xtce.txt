@@ -48,3 +48,18 @@ Plan:
     Undefined opcodes and addressing modes
     Values of undefined flags
 
+
+Test format:
+  Number of functional tests
+  For each functional test:
+    Number of test bytes
+    Test bytes
+  Number of timing tests
+  For each timing test:
+    Number of init bytes
+    Init bytes
+    Number of test bytes
+    Test bytes
+    Number of relocs
+    Reloc addresses
+    Expected number of cycles per iteration of test
