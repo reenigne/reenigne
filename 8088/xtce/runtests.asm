@@ -1,7 +1,6 @@
   %include "../defaults_bin.asm"
 
-ITERS EQU 480
-DIVISOR EQU 120
+ITERS EQU 8
 
 
   mov al,TIMER0 | BOTH | MODE2 | BINARY
@@ -42,72 +41,15 @@ repeatLoop:
 
   push cx
 
-  mov cx,ITERS+48  ; Number of iterations in primary measurement
+  mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
   push bx
-  mov cx,48      ; Number of iterations in secondary measurement
+  mov cx,1       ; Number of iterations in secondary measurement
   call doMeasurement
   pop ax         ; The primary measurement will have the lower value, since the counter counts down
   sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
 
-  xor dx,dx
-  mov cx,DIVISOR
-  div cx       ; Divide by 120 to get number of cycles (quotient) and number of extra tcycles (remainder)
-
-  push dx      ; Store remainder
-
-  ; Output quotient
-  xor dx,dx
-  mov [quotient],ax
-  mov cx,10
-  div cx
-  add dl,'0'
-  mov [output+2],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+1],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+0],dl
-
-  ; Output remainder
-  pop ax
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+7],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+6],dl
-  xor dx,dx
-  div cx
-  add dl,'0'
-  mov [output+5],dl
-
-  ; Emit the final result text
-  push si
-  mov ax,[quotient]
-  cmp ax,[lastQuotient]
-  jne fullPrint
-
-  mov cx,6
-  mov si,output+4
-  jmp doPrint
-fullPrint:
-  mov [lastQuotient],ax
-  mov cx,10
-  mov si,output
-doPrint:
-  outputString
-  pop si
-  pop cx
-
-
-  loop repeatLoop1
 
   ; Advance to the next experiment
   lodsw
@@ -122,12 +64,9 @@ doPrint:
 repeatLoop1:
   jmp repeatLoop
 
-quotient: dw 0
-lastQuotient: dw 0
 
 
 doMeasurement:
-;  outputCharacter 'a'
   push si
   push cx
   push cx  ; Save number of iterations
