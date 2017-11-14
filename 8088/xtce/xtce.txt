@@ -20,6 +20,10 @@ XT program:
 
 Plan:
   Give each testcase a unique number and record them all in a file for future reference
+    Testcase number:
+      3 bits: which queue-filling variant to use (shift if we don't need CX, multiply if we do)
+      5 bits: number of NOPs
+
   Add instruction patterns one at a time
     Go in opcode order
       add [bx+si],al
@@ -49,7 +53,7 @@ Plan:
     Values of undefined flags
 
 
-Test format:
+Test format (for 8088test):
   Number of functional tests
   For each functional test:
     Number of test bytes
@@ -63,3 +67,16 @@ Test format:
     Number of relocs
     Reloc addresses
     Expected number of cycles per iteration of test
+
+Test format (for initial runtests):
+  Number of bytes taken by tests
+  Number of tests
+  For each test:
+    Number of init bytes
+    Init bytes
+    Number of test bytes
+    Test bytes
+    Number of relocs
+    Reloc addresses
+    Expected number of PIT cycles for 8 iterations of test
+

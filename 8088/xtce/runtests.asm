@@ -36,8 +36,6 @@ noRefresh:
   mov byte[pitCount],1
 doneRefresh:
 
-  mov cx,5    ; Number of repeats
-repeatLoop:
 
   push cx
 
@@ -155,13 +153,6 @@ outOfSpaceMessage:
 outOfSpaceMessageEnd:
 
 
-experimentData:
-
-
-
-lastExperiment:
-  db '$'
-
 
 savedSS: dw 0
 savedSP: dw 0
@@ -212,7 +203,7 @@ interrupt8:
   mov ds,bx
   mov bx,0x7000
   mov ss,bx
-  mov bx,0xb800
+  mov bx,0x6000
   mov es,bx
   mov dx,ax
   mov bx,ax
@@ -231,3 +222,4 @@ interrupt8:
 timerStartEnd:
 
 
+testCases:
