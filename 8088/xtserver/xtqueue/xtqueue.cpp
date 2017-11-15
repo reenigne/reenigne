@@ -1124,8 +1124,14 @@ private:
         WindowsHandle hDecoder = pi.hProcess;
         IF_FALSE_THROW(WaitForSingleObject(hDecoder, 20000) == WAIT_OBJECT_0);
 
-        _item->write("\n<a href=\"../" + rawName +
-            ".sniff.txt\">Sniffer results</a>\n");
+        if (_snifferDirect) {
+            _item->write(File(decodedName, true).contents());
+        }
+        else {
+            _item->write("\n<a href=\"../" + rawName +
+                ".sniff.txt\">Sniffer results</a>\n");
+        }
+
         ++_snifferCount;
 
     }
@@ -1157,6 +1163,7 @@ private:
         _imageCount = 0;
         _audioCount = 0;
         _snifferCount = 0;
+        _snifferDirect = false;
         int hostBytesRemaining = 0;
         _diskByteCount = 0;
         do {
@@ -1345,6 +1352,14 @@ private:
                         // Stop recording sniffer data
                         endSnifferCapture();
                         processed = true;
+                        break;
+                    case 0x08:
+                        // Sniffer to direct mode
+                        _snifferDirect = true;
+                        break;
+                    case 0x09:
+                        // Sniffer to indirect mode
+                        _snifferIndirect = true;
                         break;
                     case 0x1a:
                         return false;
@@ -1582,6 +1597,7 @@ private:
     SnifferThread _snifferThread;
     bool _snifferActive;
     int _snifferCount;
+    bool _snifferDirect;
     String _decoderPath;
     bool _killed;
     bool _cancelled;
