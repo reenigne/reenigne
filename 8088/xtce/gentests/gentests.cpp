@@ -197,6 +197,18 @@ public:
                 addTest(instruction);
         }
 
+        int totalLength = 0;
+        for (int i = 0; i < _tests.count(); ++i)
+            totalLength += _tests[i].length();
+        Array<Byte> output(totalLength);
+        Byte* p = &output[0];
+        for (int i = 0; i < _tests.count(); ++i) {
+            _tests[i].output(p);
+            p += _tests[i].length();
+        }
+
+
+
         printf("%i\n", _tests.count());
     }
 private:
