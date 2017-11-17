@@ -178,6 +178,9 @@ class Program : public ProgramBase
 public:
     void run()
     {
+        Array<Byte> testProgram;
+        File("runtest.bin").readIntoArray(&testProgram);
+
         for (int i = 0; i < 0x100; ++i) {
             Instruction instruction(i);
             if (instruction.hasModrm()) {
@@ -206,6 +209,26 @@ public:
             _tests[i].output(p);
             p += _tests[i].length();
         }
+
+        {
+            auto h = File("runtests.bin").openWrite();
+            h.write(testProgram);
+            h.write(output);
+        }
+        NullTerminatedWideString data(String("doitclient wcmd xtrun q:\\reenigne\\8088\\xtce\\gentests\\runtests.bin"));
+
+        PROCESS_INFORMATION pi;
+        ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+        STARTUPINFO si;
+        ZeroMemory(&si, sizeof(STARTUPINFO));
+        si.cb = sizeof(STARTUPINFO);
+
+        IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
+            NULL, &si, &pi) != 0);
+        CloseHandle(pi.hThread);
+        WindowsHandle hLame = pi.hProcess;
+        IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
 
 
 
