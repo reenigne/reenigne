@@ -215,7 +215,8 @@ public:
             h.write(testProgram);
             h.write(output);
         }
-        NullTerminatedWideString data(String("doitclient wcmd xtrun q:\\reenigne\\8088\\xtce\\gentests\\runtests.bin"));
+        NullTerminatedWideString data(String("doitclient wcmd xtrun "
+            "q:\\reenigne\\8088\\xtce\\gentests\\runtests.bin"));
 
         PROCESS_INFORMATION pi;
         ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
@@ -224,8 +225,9 @@ public:
         ZeroMemory(&si, sizeof(STARTUPINFO));
         si.cb = sizeof(STARTUPINFO);
 
-        IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
-            NULL, &si, &pi) != 0);
+        IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
+            "HOME=C:\\Users\\Andrew\0DOIT_HOST=prospero\0", NULL, &si, &pi)
+            != 0);
         CloseHandle(pi.hThread);
         WindowsHandle hLame = pi.hProcess;
         IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
