@@ -1,4 +1,5 @@
 #include "alfe/main.h"
+#include "alfe/space.h"
 
 class Instruction
 {
@@ -169,6 +170,11 @@ public:
             p += l;
         }
     }
+    void write()
+    {
+        for (auto i : _instructions)
+            i.write();
+    }
 private:
     AppendableArray<Instruction> _instructions;
 };
@@ -238,7 +244,15 @@ public:
         }
 
         String result = outputFile.contents();
-        
+        CharacterSource s(result);
+        if (parse(&s, "FAIL")) {
+            Rational result;
+            if (!Space::parseNumber(&s, &result))
+                throw Exception("Cannot parse number of failing test");
+            int n = result.floor();
+            _tests[i].write();
+
+        }
 
         printf("%i\n", _tests.count());
     }
@@ -249,6 +263,21 @@ private:
         t.addInstruction(i);
         _tests.append(t);
     }
-    
+    bool parse(CharacterSource* s, String m)
+    {
+        CharacterSource ss = *s;
+        CharacterSource ms(m);
+        do {
+            int mc = ms.get();
+            if (mc == -1) {
+                *s = ss;
+                return true;
+            }
+            int sc = ss.get();
+            if (sc != mc)
+                return false;
+        } while (true);
+    }
+
     AppendableArray<Test> _tests;
 };
