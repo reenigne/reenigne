@@ -139,6 +139,11 @@ public:
     {
         int o = _opcode & 0xfe;
         return o == 0xf6 || o == 0xfe || o == 0x80 || o == 0x82;
+    }  
+    void write()
+    {
+        console.write("{" + hex(_opcode, 2) + ", " + hex(_modrm, 2) + ", " +
+            hex(_offset, 4) + ", " + hex(_immediate) + "}");
     }
     
 private:
@@ -172,8 +177,17 @@ public:
     }
     void write()
     {
-        for (auto i : _instructions)
+        bool first = true;
+        console.write("{");
+        for (auto i : _instructions) {
+            if (!first)
+                console.write(",\n");
+            else
+                console.write(" ");
             i.write();
+            first = false;
+        }
+        console.write("}");
     }
 private:
     AppendableArray<Instruction> _instructions;
