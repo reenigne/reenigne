@@ -22,7 +22,7 @@ Plan:
   Give each testcase a unique number and record them all in a file for future reference
     Testcase number:
       3 bits: which queue-filling variant to use (shift if we don't need CX, multiply if we do)
-      5 bits: number of NOPs
+      5 bits: number of NOPs (0..16)
 
   Add instruction patterns one at a time
     Go in opcode order

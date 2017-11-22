@@ -156,19 +156,22 @@ private:
 class Test
 {
 public:
+    Test(int queueFiller = 0, int nops = 0)
+      : _queueFiller(queueFiller), _nops(nops) { }
     void addInstruction(Instruction instruction)
     {
         _instructions.append(instruction);
     }
     int length()
     {
-        int l = 0;
+        int l = 1;
         for (auto i : _instructions)
             l += i.length();
         return l;
     }
     void output(Byte* p)
     {
+        *p = (_queueFiller << 5) + _nops;
         for (auto i : _instructions) {
             int l = i.length();
             i.output(p);
@@ -190,6 +193,8 @@ public:
         console.write("}");
     }
 private:
+    int _queueFiller;
+    int _nops;
     AppendableArray<Instruction> _instructions;
 };
 
