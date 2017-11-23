@@ -172,6 +172,9 @@ public:
     void output(Byte* p)
     {
         *p = (_queueFiller << 5) + _nops;
+        ++p;
+        *p = length();
+        ++p;
         for (auto i : _instructions) {
             int l = i.length();
             i.output(p);
@@ -181,16 +184,16 @@ public:
     void write()
     {
         bool first = true;
-        console.write("{");
+        console.write("{{");
         for (auto i : _instructions) {
             if (!first)
                 console.write(",\n");
             else
-                console.write(" ");
+                console.write("  ");
             i.write();
             first = false;
         }
-        console.write("}");
+        console.write("}, " + decimal((_queueFiller << 5) + _nops) + "}");
     }
 private:
     int _queueFiller;
@@ -225,55 +228,67 @@ public:
                 addTest(instruction);
         }
 
-        int totalLength = 0;
-        for (int i = 0; i < _tests.count(); ++i)
-            totalLength += _tests[i].length();
-        Array<Byte> output(totalLength);
-        Byte* p = &output[0];
-        for (int i = 0; i < _tests.count(); ++i) {
-            _tests[i].output(p);
-            p += _tests[i].length();
-        }
+        int nextTest = 0;
+        int availableLength = 0xff00 - testProgram.count();
+        do {
+            int totalLength = 0;
+            int newNextTest = _tests.count();
+            for (int i = nextTest; i < _tests.count(); ++i) {
+                int nl = totalLength + _tests[i].length();
+                if (nl > availableLength) {
+                    newNextTest = i;
+                    break;
+                }
+                totalLength = nl;
+            }
+            Array<Byte> output(totalLength);
+            Byte* p = &output[0];
+            for (int i = nextTest; i < newNextTest; ++i) {
+                _tests[i].output(p);
+                p += _tests[i].length();
+            }
 
-        {
-            auto h = File("runtests.bin").openWrite();
-            h.write(testProgram);
-            h.write(output);
-        }
-        NullTerminatedWideString data(String("doitclient wcmd xtrun "
-            "q:\\reenigne\\8088\\xtce\\gentests\\runtests.bin"));
+            {
+                auto h = File("runtests.bin").openWrite();
+                h.write(testProgram);
+                h.write(output);
+            }
+            NullTerminatedWideString data(String("doitclient wcmd xtrun "
+                "q:\\reenigne\\8088\\xtce\\gentests\\runtests.bin"));
 
-        File outputFile("runtests.output");
+            File outputFile("runtests.output");
 
-        {
-            PROCESS_INFORMATION pi;
-            ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+            {
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
 
-            STARTUPINFO si;
-            ZeroMemory(&si, sizeof(STARTUPINFO));
-            si.cb = sizeof(STARTUPINFO);
-            si.hStdOutput = outputFile.openWrite();
+                STARTUPINFO si;
+                ZeroMemory(&si, sizeof(STARTUPINFO));
+                si.cb = sizeof(STARTUPINFO);
+                si.hStdOutput = outputFile.openWrite();
 
-            IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
-                "HOME=C:\\Users\\Andrew\0DOIT_HOST=prospero\0", NULL, &si, &pi)
-                != 0);
-            CloseHandle(pi.hThread);
-            WindowsHandle hLame = pi.hProcess;
-            IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
-        }
+                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
+                    "HOME=C:\\Users\\Andrew\0DOIT_HOST=prospero\0", NULL, &si, &pi)
+                    != 0);
+                CloseHandle(pi.hThread);
+                WindowsHandle hLame = pi.hProcess;
+                IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) == WAIT_OBJECT_0);
+            }
 
-        String result = outputFile.contents();
-        CharacterSource s(result);
-        if (parse(&s, "FAIL")) {
-            Rational result;
-            if (!Space::parseNumber(&s, &result))
-                throw Exception("Cannot parse number of failing test");
-            int n = result.floor();
-            _tests[i].write();
+            String result = outputFile.contents();
+            CharacterSource s(result);
+            if (parse(&s, "FAIL")) {
+                Rational result;
+                if (!Space::parseNumber(&s, &result))
+                    throw Exception("Cannot parse number of failing test");
+                int n = result.floor();
 
-        }
+                console.write(decimal(n + nextTest) + "\n");
+                _tests[n].write();
+                break;
+            }
 
-        printf("%i\n", _tests.count());
+        } while (true);
     }
 private:
     void addTest(Instruction i)
