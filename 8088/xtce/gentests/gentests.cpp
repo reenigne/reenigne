@@ -201,6 +201,36 @@ private:
     AppendableArray<Instruction> _instructions;
 };
 
+class Emulator
+{
+public:
+    Emulator() : _logging(false) { }
+    String log(Test test)
+    {
+        _logging = true;
+        _test = test;
+        run();
+        return _log;
+    }
+    int expected(Test test)
+    {
+        _test = test;
+        run();
+        return _cycles * 2;
+    }
+private:
+    void run()
+    {
+        _cycles = 0;
+    }
+
+    bool _logging;
+    Test _test;
+    String _log;
+    int _cycles;
+
+};
+
 class Program : public ProgramBase
 {
 public:
@@ -244,6 +274,10 @@ public:
             Array<Byte> output(totalLength);
             Byte* p = &output[0];
             for (int i = nextTest; i < newNextTest; ++i) {
+                Emulator emulator;
+                int cycles = emulator.expected(_tests[i]);
+                *p = cycles;
+                ++p;
                 _tests[i].output(p);
                 p += _tests[i].length();
             }
@@ -281,12 +315,33 @@ public:
                 Rational result;
                 if (!Space::parseNumber(&s, &result))
                     throw Exception("Cannot parse number of failing test");
-                int n = result.floor();
+                int n = result.floor() + nextTest;
 
-                console.write(decimal(n + nextTest) + "\n");
+                console.write(decimal(n) + "\n");
                 _tests[n].write();
+
+                CharacterSource s2(s);
+                if (!parse(&s2, "Program ended normally."))
+                    throw Exception("runtests didn't end properly");
+                String observed = s.subString(s.offset(), s2.offset());
+                File("observed.txt").openWrite().write(observed);
+                Emulator emulator;
+                String expected = emulator.log(_tests[n + nextTest]);
+                File("expected.txt").openWrite().write(expected);
+
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+                STARTUPINFO si;
+                ZeroMemory(&si, sizeof(STARTUPINFO));
+                si.cb = sizeof(STARTUPINFO);
+
+                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
+                    NULL, NULL, &si, &pi) != 0);
                 break;
             }
+
+            nextTest = newNextTest;
 
         } while (true);
     }
