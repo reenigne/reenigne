@@ -1,5 +1,7 @@
   %include "../../defaults_bin.asm"
 
+ITERS EQU 8
+
 ; Loop over tests
 ;   Do {1, 9} iterations
 ;     Copy N instances of test code to CS + 64kB
@@ -16,14 +18,31 @@
 ;     Copy an instance of test code
 ;     Execute under trace
 
-testLoop:
   mov ax,cs
   mov ds,ax
+  cli
+  mov ss,ax
+  xor sp,sp
+  sti
+testLoop:
   mov si,[testCasePointer]
-  cmp si,[testCases]
+  mov ax,si
+  sub ax,testCases
+  cmp ax,[testCases]
   jb notDone
   complete
 notDone:
+
+  mov cx,ITERS+1   ; Number of iterations in primary measurement
+  call doMeasurement
+  push bx
+  mov cx,1       ; Number of iterations in secondary measurement
+  call doMeasurement
+  pop ax         ; The primary measurement will have the lower value, since the counter counts down
+  sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
+  neg ax         ; Negate to get the positive difference.
+  cmp ax,[si]
+  je success
 
 
 
