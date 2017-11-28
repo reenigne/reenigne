@@ -44,10 +44,64 @@ notDone:
   cmp ax,[si]
   je success
 
+  mov si,failMessage
+  mov cx,5
+  outputString
+  mov si,[testCaseIndex]
+
+  mov bx,10000
+  cmp si,bx
+  jl no1e4
+  mov ax,si
+  div bx
+  mov si,dx
+  add al,'0'
+  outputCharacter
+no1e4:
+
+  mov bx,1000
+  cmp si,bx
+  jl no1e3
+  mov ax,si
+  div bx
+  mov si,dx
+  add al,'0'
+  outputCharacter
+no1e3:
+
+  mov bx,100
+  cmp si,bx
+  jl no1e2
+  mov ax,si
+  div bx
+  mov si,dx
+  add al,'0'
+  outputCharacter
+no1e2:
+
+  mov bx,10
+  cmp si,bx
+  jl no1e1
+  mov ax,si
+  div bx
+  mov si,dx
+  add al,'0'
+  outputCharacter
+no1e1:
+
+  mov ax,si
+  add al,'0'
+  outputCharacter
+
+  mov si,[testCasePointer]
+  call copyTestCase
+  ; TODO: bus sniffer
 
 
+failMessage: db "FAIL "
 
 testCasePointer: dw testCases
+testCaseIndex: dw 0
 
 testCases:
 
