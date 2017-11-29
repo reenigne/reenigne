@@ -24,8 +24,8 @@ ITERS EQU 8
   mov ss,ax
   xor sp,sp
   sti
+  mov si,testCases
 testLoop:
-  mov si,[testCasePointer]
   mov ax,si
   sub ax,testCases
   cmp ax,[testCases]
@@ -42,8 +42,14 @@ notDone:
   sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
   cmp ax,[si]
-  je success
+  jne testFailed
 
+  inc word[testCaseIndex]
+  mov bx,[si+2]
+  lea si,[si+bx+3]
+  jmp testLoop
+
+testFailed:
   mov si,failMessage
   mov cx,5
   outputString
@@ -98,9 +104,15 @@ no1e1:
   ; TODO: bus sniffer
 
 
+doMeasurement:
+  mov ax,cs
+  add ax,0x1000
+  mov es,ax
+  xor di,di
+  mov si,
+
 failMessage: db "FAIL "
 
-testCasePointer: dw testCases
 testCaseIndex: dw 0
 
 testCases:
