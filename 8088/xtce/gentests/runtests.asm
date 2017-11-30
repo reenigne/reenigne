@@ -45,7 +45,8 @@ notDone:
   jne testFailed
 
   inc word[testCaseIndex]
-  mov bx,[si+2]
+  mov bl,[si+2]
+  mov bh,0
   lea si,[si+bx+3]
   jmp testLoop
 
@@ -109,7 +110,43 @@ doMeasurement:
   add ax,0x1000
   mov es,ax
   xor di,di
-  mov si,
+  mov bl,[si+1]
+repeatLoop:
+  mov al,bl
+  and al,0xe0
+  cmp al,0
+  jne notQueueFiller0
+  mov ax,0x00b0  ; 'mov al,0'
+  stosw
+  mov ax,0xe0f6  ; 'mul al'
+  stosw
+  jmp doneQueueFiller
+notQueueFiller0:
+  jmp testFailed
+doneQueueFiller:
+  push cx
+  mov cl,bl
+  and cl,0x1f
+  mov al,0x90
+  rep stosb
+  mov cl,[si+2]
+  push si
+  add si,3
+  rep movsb
+  pop si
+  mov ax,0x00eb  ; 'jmp ip+0'
+  stosw
+  pop cx
+  loop repeatLoop
+  mov ax,0xffcd  ; 'int 0xff'
+  stosw
+
+
+
+
+
+
+
 
 failMessage: db "FAIL "
 
