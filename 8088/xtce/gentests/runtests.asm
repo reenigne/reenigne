@@ -106,6 +106,11 @@ no1e1:
 
 
 doMeasurement:
+  xor ax,ax
+  mov es,ax
+  mov word[es:0x3fc],interruptFF
+  mov word[es:0x3fe],cs
+
   mov ax,cs
   add ax,0x1000
   mov es,ax
@@ -141,8 +146,13 @@ doneQueueFiller:
   mov ax,0xffcd  ; 'int 0xff'
   stosw
 
+  safeRefreshOff
 
-
+interruptFF:
+  in al,0x40
+  mov bl,al
+  in al,0x40
+  mov bh,al
 
 
 
