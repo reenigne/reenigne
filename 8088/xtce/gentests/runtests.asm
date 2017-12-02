@@ -106,6 +106,7 @@ no1e1:
 
 
 doMeasurement:
+  cli
   xor ax,ax
   mov es,ax
   mov word[es:0x3fc],interruptFF
@@ -147,6 +148,33 @@ doneQueueFiller:
   stosw
 
   safeRefreshOff
+
+  xor ax,ax
+  mov es,ax
+  mov word[es:0x20],interrupt8a
+  mov word[es:0x22],cs
+
+  writePIT16 0, 2, 2   ; Ensure IRQ0 pending
+
+  mov al,5
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+  sti
+  hlt
+
+interrupt8a:
+  mov al,0x20
+  out 0x20,al
+  mov word[es:0x20],interrupt8b
+  sti
+  hlt
+
+interrupt8b:
+
+
+
 
 interruptFF:
   in al,0x40
