@@ -111,9 +111,12 @@ doMeasurement:
   mov es,ax
   mov word[es:0x3fc],interruptFF
   mov word[es:0x3fe],cs
+  mov [cs:savedSP],sp
+  mov [cs:savesSS],ss
 
   mov ax,cs
   add ax,0x1000
+  push ax
   mov es,ax
   xor di,di
   mov bl,[si+1]
@@ -148,33 +151,24 @@ doneQueueFiller:
   stosw
 
   safeRefreshOff
-
-  xor ax,ax
-  mov es,ax
-  mov word[es:0x20],interrupt8a
-  mov word[es:0x22],cs
-
-  writePIT16 0, 2, 2   ; Ensure IRQ0 pending
-
-  mov al,5
-  out 0x40,al
-  mov al,0
-  out 0x40,al
-
+  writePIT16 0, 2, 2
+  writePIT16 0, 2, 100
+  mov word[8*4],irq0
+  mov [8*4+2],cs
   sti
   hlt
+  hlt
+  writePIT16 0, 2, 0
+  xor ax,ax
+  push ax
+  retf
 
-interrupt8a:
+irq0:
+  push ax
   mov al,0x20
   out 0x20,al
-  mov word[es:0x20],interrupt8b
-  sti
-  hlt
-
-interrupt8b:
-
-
-
+  pop ax
+  iret
 
 interruptFF:
   in al,0x40
@@ -182,13 +176,19 @@ interruptFF:
   in al,0x40
   mov bh,al
 
+  mov sp,[cs:savedSP]
+  mov ss,[cs:savedSS]
 
+  safeRefreshOn
+  ret
 
 
 
 failMessage: db "FAIL "
 
 testCaseIndex: dw 0
+savedSP: dw 0
+savedSS: dw 0
 
 testCases:
 
