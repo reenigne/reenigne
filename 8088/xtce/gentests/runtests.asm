@@ -2,6 +2,17 @@
 
 ITERS EQU 8
 
+%macro outputByte 0
+%rep 8
+  rcr dx,1
+  sbb bx,bx
+  mov bl,[cs:lut+1+bx]
+  mov bh,0
+  mov ax,[bx]
+  times 10 nop
+%endrep
+%endmacro
+
 ; Loop over tests
 ;   Do {1, 9} iterations
 ;     Copy N instances of test code to CS + 64kB
@@ -17,6 +28,11 @@ ITERS EQU 8
 ;     Print failing test number
 ;     Copy an instance of test code
 ;     Execute under trace
+
+  xor ax,ax
+  mov ds,ax
+  mov word[8*4],irq0
+  mov [8*4+2],cs
 
   mov ax,cs
   mov ds,ax
@@ -113,11 +129,13 @@ doMeasurement:
   mov word[es:0x3fe],cs
   mov [cs:savedSP],sp
   mov [cs:savesSS],ss
+  mov sp,ax
 
   mov ax,cs
   add ax,0x1000
   push ax
   mov es,ax
+  mov ss,ax
   xor di,di
   mov bl,[si+1]
 repeatLoop:
@@ -153,14 +171,20 @@ doneQueueFiller:
   safeRefreshOff
   writePIT16 0, 2, 2
   writePIT16 0, 2, 100
-  mov word[8*4],irq0
-  mov [8*4+2],cs
   sti
   hlt
   hlt
   writePIT16 0, 2, 0
+  mov ax,es
+  mov ds,ax
   xor ax,ax
   push ax
+  mov dx,ax
+  mov bx,ax
+  mov cx,ax
+  mov si,ax
+  mov di,ax
+  mov bp,ax
   retf
 
 irq0:
