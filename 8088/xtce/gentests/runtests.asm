@@ -118,6 +118,29 @@ no1e1:
 
   mov si,[testCasePointer]
   call copyTestCase
+
+
+  mov ax,0x8000
+  mov ds,ax
+  mov ax,[0]      ; Trigger: Start of command load sequence
+  times 10 nop
+%if FASTSAMPLING != 0
+  mov dl,48
+%else
+  mov dl,16
+%endif
+  mov cx,[cs:savedCX]
+  sub dl,cl
+
+  outputByte
+  mov dx,LENGTH
+  dec dx
+  outputByte
+  outputByte
+  mov dx,18996 + 492*3   ;65534 ;
+  outputByte
+  outputByte
+
   ; TODO: bus sniffer
 
 
