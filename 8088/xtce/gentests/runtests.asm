@@ -141,24 +141,16 @@ no1e1:
   outputByte
   outputByte
 
+
   ; TODO: bus sniffer
 
 
-doMeasurement:
-  cli
-  xor ax,ax
-  mov es,ax
-  mov word[es:0x3fc],interruptFF
-  mov word[es:0x3fe],cs
-  mov [cs:savedSP],sp
-  mov [cs:savesSS],ss
-  mov sp,ax
 
+doCopy:
   mov ax,cs
   add ax,0x1000
   push ax
   mov es,ax
-  mov ss,ax
   xor di,di
   mov bl,[si+1]
 repeatLoop:
@@ -190,6 +182,19 @@ doneQueueFiller:
   loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
   stosw
+  ret
+
+doMeasurement:
+  call doCopy
+runTest:
+  cli
+  xor ax,ax
+  mov es,ax
+  mov word[es:0x3fc],interruptFF
+  mov word[es:0x3fe],cs
+  mov [cs:savedSP],sp
+  mov [cs:savesSS],ss
+  mov sp,ax
 
   safeRefreshOff
   writePIT16 0, 2, 2
@@ -198,8 +203,11 @@ doneQueueFiller:
   hlt
   hlt
   writePIT16 0, 2, 0
-  mov ax,es
+  mov ax,cs
+  add ax,0x1000
   mov ds,ax
+  mov es,ax
+  mov ss,ax
   xor ax,ax
   push ax
   mov dx,ax
@@ -208,6 +216,7 @@ doneQueueFiller:
   mov si,ax
   mov di,ax
   mov bp,ax
+  mov sp,ax
   retf
 
 irq0:
