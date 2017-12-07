@@ -164,7 +164,7 @@ public:
     }
     int length()
     {
-        int l = 1;
+        int l = 2;
         for (auto i : _instructions)
             l += i.length();
         return l;
@@ -264,15 +264,18 @@ public:
             int totalLength = 0;
             int newNextTest = _tests.count();
             for (int i = nextTest; i < _tests.count(); ++i) {
-                int nl = totalLength + _tests[i].length();
+                int nl = totalLength + _tests[i].length() + 1;
                 if (nl > availableLength) {
                     newNextTest = i;
                     break;
                 }
                 totalLength = nl;
             }
-            Array<Byte> output(totalLength);
+            Array<Byte> output(totalLength + 2);
             Byte* p = &output[0];
+            *p = totalLength;
+            p[1] = totalLength >> 8;
+            p += 2;
             for (int i = nextTest; i < newNextTest; ++i) {
                 Emulator emulator;
                 int cycles = emulator.expected(_tests[i]);
