@@ -262,7 +262,7 @@ drawComplete:
   waitForVerticalSync
   waitForNoVerticalSync
 
-  times 1542 nop
+  times 21454 - 76*180 nop
 
   writePIT16 0, 2, 76*262
 

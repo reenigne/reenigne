@@ -355,9 +355,9 @@ public:
         for (int i = 0; i < 4096; ++i)
             _fitnesses[i] = 1000000;
 
-        //_vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
-        //_vbiCapPipe.write<int>(1);
-        _vbiCapPipe = File("q:\\captured_cga.png.raw", true).openRead();
+        _vbiCapPipe = File("\\\\.\\pipe\\vbicap", true).openPipe();
+        _vbiCapPipe.write<int>(1);
+        //_vbiCapPipe = File("q:\\captured_cga.png.raw", true).openRead();
 
         int samples = 450*1024;
         int sampleSpaceBefore = 256;
@@ -849,11 +849,11 @@ private:
     {
         if (_doneCapture)
             return true;
-        static bool doneRead = false;
-        if (!doneRead) {
+        //static bool doneRead = false;
+        //if (!doneRead) {
             _vbiCapPipe.read(_b, 1024*450);
-            doneRead = true;
-        }
+        //    doneRead = true;
+        //}
         _decoder.decode();
 
         for (int i = 0; i < 4096; ++i) {
