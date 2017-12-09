@@ -124,11 +124,7 @@ no1e1:
   mov ds,ax
   mov ax,[0]      ; Trigger: Start of command load sequence
   times 10 nop
-%if FASTSAMPLING != 0
-  mov dl,48
-%else
   mov dl,16
-%endif
   mov cx,[cs:savedCX]
   sub dl,cl
 
@@ -141,7 +137,7 @@ no1e1:
   outputByte
   outputByte
 
-
+  call runTest
   ; TODO: bus sniffer
 
 
