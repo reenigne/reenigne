@@ -1,6 +1,7 @@
   %include "../../defaults_bin.asm"
 
 ITERS EQU 8
+LENGTH EQU 2048
 
 %macro outputByte 0
 %rep 8
@@ -116,6 +117,10 @@ no1e1:
   add al,'0'
   outputCharacter
 
+  mov cx,16
+loopTop:
+  mov [savedCX],cx
+
   mov si,[testCasePointer]
   call copyTestCase
 
@@ -140,6 +145,12 @@ no1e1:
   call runTest
   ; TODO: bus sniffer
 
+  mov cx,25*LENGTH
+flushLoop2:
+  loop flushLoop2
+
+  mov cx,[cs:savedCX]
+  loop loopTop
 
 
 doCopy:
@@ -178,11 +189,7 @@ doneQueueFiller:
   loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
   stosw
-  ret
 
-doMeasurement:
-  call doCopy
-runTest:
   cli
   xor ax,ax
   mov es,ax
@@ -199,6 +206,12 @@ runTest:
   hlt
   hlt
   writePIT16 0, 2, 0
+
+  ret
+
+doMeasurement:
+  call doCopy
+runTest:
   mov ax,cs
   add ax,0x1000
   mov ds,ax
@@ -241,6 +254,7 @@ failMessage: db "FAIL "
 testCaseIndex: dw 0
 savedSP: dw 0
 savedSS: dw 0
+savedCX: dw 0
 
 testCases:
 
