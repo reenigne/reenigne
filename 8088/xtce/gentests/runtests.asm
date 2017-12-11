@@ -121,9 +121,7 @@ no1e1:
 loopTop:
   mov [savedCX],cx
 
-  mov si,[testCasePointer]
-  call copyTestCase
-
+  call doCopy
 
   mov ax,0x8000
   mov ds,ax
@@ -143,15 +141,16 @@ loopTop:
   outputByte
 
   call runTest
-  ; TODO: bus sniffer
 
   mov cx,25*LENGTH
 flushLoop2:
   loop flushLoop2
 
   mov cx,[cs:savedCX]
-  loop loopTop
-
+  loop loopTop2
+  complete
+loopTop2:
+  jmp loopTop
 
 doCopy:
   mov ax,cs
@@ -173,7 +172,6 @@ repeatLoop:
 notQueueFiller0:
   jmp testFailed
 doneQueueFiller:
-  push cx
   mov cl,bl
   and cl,0x1f
   mov al,0x90
@@ -182,7 +180,6 @@ doneQueueFiller:
   push si
   add si,3
   rep movsb
-  pop si
   mov ax,0x00eb  ; 'jmp ip+0'
   stosw
   pop cx
@@ -195,9 +192,6 @@ doneQueueFiller:
   mov es,ax
   mov word[es:0x3fc],interruptFF
   mov word[es:0x3fe],cs
-  mov [cs:savedSP],sp
-  mov [cs:savesSS],ss
-  mov sp,ax
 
   safeRefreshOff
   writePIT16 0, 2, 2
@@ -206,17 +200,23 @@ doneQueueFiller:
   hlt
   hlt
   writePIT16 0, 2, 0
-
+  cli
+  pop si
   ret
 
 doMeasurement:
   call doCopy
 runTest:
+  push si
+  mov [cs:savedSP],sp
+  mov [cs:savedSS],ss
+  mov sp,ax
   mov ax,cs
   add ax,0x1000
   mov ds,ax
   mov es,ax
   mov ss,ax
+  push ax
   xor ax,ax
   push ax
   mov dx,ax
@@ -245,6 +245,7 @@ interruptFF:
   mov ss,[cs:savedSS]
 
   safeRefreshOn
+  pop si
   ret
 
 
@@ -255,6 +256,7 @@ testCaseIndex: dw 0
 savedSP: dw 0
 savedSS: dw 0
 savedCX: dw 0
+lut: db 0x88,8
 
 testCases:
 
