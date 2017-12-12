@@ -65,6 +65,7 @@ notDone:
   mov bl,[si+2]
   mov bh,0
   lea si,[si+bx+3]
+  mov [testCaseOffset],si
   jmp testLoop
 
 testFailed:
@@ -158,6 +159,7 @@ doCopy:
   push ax
   mov es,ax
   xor di,di
+  mov si,[testCaseOffset]
   mov bl,[si+1]
 repeatLoop:
   mov al,bl
@@ -177,7 +179,6 @@ doneQueueFiller:
   mov al,0x90
   rep stosb
   mov cl,[si+2]
-  push si
   add si,3
   rep movsb
   mov ax,0x00eb  ; 'jmp ip+0'
@@ -201,13 +202,11 @@ doneQueueFiller:
   hlt
   writePIT16 0, 2, 0
   cli
-  pop si
   ret
 
 doMeasurement:
   call doCopy
 runTest:
-  push si
   mov [cs:savedSP],sp
   mov [cs:savedSS],ss
   mov sp,ax
@@ -245,7 +244,6 @@ interruptFF:
   mov ss,[cs:savedSS]
 
   safeRefreshOn
-  pop si
   ret
 
 
@@ -253,6 +251,7 @@ interruptFF:
 failMessage: db "FAIL "
 
 testCaseIndex: dw 0
+testCaseOffset: dw 0
 savedSP: dw 0
 savedSS: dw 0
 savedCX: dw 0
