@@ -118,32 +118,19 @@ no1e1:
   add al,'0'
   outputCharacter
 
+  mov word[sniffer],0x8000
+
   mov cx,16
 loopTop:
   mov [savedCX],cx
 
-  call doCopy
+  call doMeasurement
 
-  mov ax,0x8000
-  mov ds,ax
-  mov ax,[0]      ; Trigger: Start of command load sequence
-  times 10 nop
-  mov dl,16
-  mov cx,[cs:savedCX]
-  sub dl,cl
-
-  outputByte
-  mov dx,LENGTH
-  dec dx
-  outputByte
-  outputByte
-  mov dx,18996 + 492*3   ;65534 ;
-  outputByte
-  outputByte
-
-  call runTest
-
-  mov cx,25*LENGTH
+  mov si,[testCaseOffset]
+  mov al,[si+2]
+  mov ah,25
+  mul ah
+  mov cx,ax
 flushLoop2:
   loop flushLoop2
 
@@ -153,7 +140,7 @@ flushLoop2:
 loopTop2:
   jmp loopTop
 
-doCopy:
+doMeasurement:
   mov ax,cs
   add ax,0x1000
   push ax
@@ -202,11 +189,25 @@ doneQueueFiller:
   hlt
   writePIT16 0, 2, 0
   cli
-  ret
 
-doMeasurement:
-  call doCopy
-runTest:
+  mov ax,[sniffer]
+  mov ds,ax
+  mov ax,[0]      ; Trigger: Start of command load sequence
+  times 10 nop
+  mov dl,16
+  mov cx,[cs:savedCX]
+  sub dl,cl
+
+  outputByte
+  mov si,[cs:testCaseOffset]
+  mov dl,[cs:si+2]
+  dec dx
+  outputByte
+  outputByte
+  mov dx,18996 + 492*3   ;65534 ;
+  outputByte
+  outputByte
+
   mov [cs:savedSP],sp
   mov [cs:savedSS],ss
   mov sp,ax
@@ -244,6 +245,9 @@ interruptFF:
   mov ss,[cs:savedSS]
 
   safeRefreshOn
+
+  mov ax,cs
+  mov ds,ax
   ret
 
 
@@ -256,6 +260,7 @@ savedSP: dw 0
 savedSS: dw 0
 savedCX: dw 0
 lut: db 0x88,8
+sniffer: dw 0x7000
 
 testCases:
 
