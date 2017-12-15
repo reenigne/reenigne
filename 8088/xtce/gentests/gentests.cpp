@@ -237,7 +237,7 @@ public:
     void run()
     {
         Array<Byte> testProgram;
-        File("runtest.bin").readIntoArray(&testProgram);
+        File("runtests.bin").readIntoArray(&testProgram);
 
         for (int i = 0; i < 0x100; ++i) {
             Instruction instruction(i);
@@ -286,12 +286,12 @@ public:
             }
 
             {
-                auto h = File("runtests.bin").openWrite();
+                auto h = File("runtest.bin").openWrite();
                 h.write(testProgram);
                 h.write(output);
             }
             NullTerminatedWideString data(String("doitclient wcmd xtrun "
-                "q:\\reenigne\\8088\\xtce\\gentests\\runtests.bin"));
+                "q:\\reenigne\\8088\\xtce\\gentests\\runtest.bin"));
 
             File outputFile("runtests.output");
 
@@ -307,12 +307,12 @@ public:
                 si.hStdOutput = h;
                 si.hStdError = h;
 
-                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
-                    "HOME=C:\\Users\\Andrew\0DOIT_HOST=prospero\0", NULL, &si,
-                    &pi) != 0);
+                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, TRUE, 0,
+                    "HOME=C:\\Users\\Andrew\0DOIT_HOST=prospero\0"
+                    "SystemRoot=C:\Windows\0", NULL, &si, &pi) != 0);
                 CloseHandle(pi.hThread);
-                WindowsHandle hLame = pi.hProcess;
-                IF_FALSE_THROW(WaitForSingleObject(hLame, 3*60*1000) ==
+                WindowsHandle hProcess = pi.hProcess;
+                IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
                     WAIT_OBJECT_0);
             }
 
@@ -350,8 +350,12 @@ public:
                     NULL, NULL, &si, &pi) != 0);
                 break;
             }
+            if (!parse(&s, "PASS"))
+                throw Exception("Test was inconclusive");
 
             nextTest = newNextTest;
+            if (nextTest == _tests.count())
+                break;
 
         } while (true);
     }

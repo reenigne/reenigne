@@ -47,6 +47,11 @@ testLoop:
   sub ax,testCases
   cmp ax,[testCases]
   jb notDone
+
+  mov si,passMessage
+  mov cx,4
+  outputString
+
   complete
 notDone:
 
@@ -253,6 +258,7 @@ interruptFF:
 
 
 failMessage: db "FAIL "
+passMessage: db "PASS"
 
 testCaseIndex: dw 0
 testCaseOffset: dw 0
