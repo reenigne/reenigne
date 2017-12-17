@@ -12,9 +12,11 @@ o18ed:
   out dx,al           ; 2
   loop o18ed
 
+; With 15 NOPs, 219 cycles raw
+; 4 refreshes per iteration at period 15 = 60 PIT cycles = 240 CPU cycles = 19.89kHz
 
 
-o18ed:
+o18ed:            ; raw count 147 cycles, does not stabilize with refresh
   sub bp,0x0384
   rcr ax,1
   sub di,0x0200
@@ -52,4 +54,32 @@ o18ed:
 ;  13 LSB (previous PIT period 30-3f)
 ;  14 MSB (previous PIT period 30-3f)
 ;  15-1f unusable (11 bytes)
+
+; With 15 NOPs, 207 cycles raw
+; 4 refreshes per iteration at period 14 = 56 PIT cycles = 224 CPU cycles = 21.31kHz
+
+
+
+o18ed:            ; raw count 143 cycles, 2 refreshes per iteration at period 19 = 38 PIT cycles = 152 CPU cycles = 31.40kHz
+  sub bp,0x0384
+  rcl al,1
+  sub di,0x0200
+  rcl al,1
+  sub dx,0x10b8
+  rcl al,1
+  sub bx,0x085c
+  rcl al,1
+  xchg ax,si
+  lodsb
+  out 0x42,al
+  loop o18ed
+
+; With 15 NOPs, 203 cycles raw
+; 3 refreshes per iteration at period 18 = 54 PIT cycles = 216 CPU cycles = 22.10kHz
+
+
+  pop si
+  pop word[si]
+  mov cl,99    ; Count until next patch
+  jmp mixPatch
 
