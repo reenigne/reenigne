@@ -514,17 +514,17 @@ hStart:
   f2: emitPatch mixPatch+22, 0                                                                                  ; f2: frequency2 = xxxx
   w3: emitPatch mixPatch+36, 0x00b3                                                                             ; w3: waveform3 = "mov bl, xx"
   f3: emitPatch mixPatch+32, 0                                                                                  ; f3: frequency3 = xxxx
-  multi startAt 7, CS_, INC_mw, l songP,                                                                runV 1  ; inc word[cs:songP]
-  multi startAt 4, CS_, MOV_ES_mw, l songP,                                                             runV 1  ; mov es,[cs:songP]
-  multi startAt 4, ES_, MOV_AL_xb, w 0x0,  SS_, MOV_xb_AL, l w0+3,                                      runV 1  ; mov al,[es:0x0]  mov [ss:w0+3],al
-  multi startAt 4, ES_, MOV_AL_xb, w 0x3,  SS_, MOV_xb_AL, l w1+3,                                      runV 1  ; mov al,[es:0x3]  mov [ss:w1+3],al
-  multi startAt 4, ES_, MOV_AL_xb, w 0x6,  SS_, MOV_xb_AL, l w2+3,                                      runV 1  ; mov al,[es:0x6]  mov [ss:w2+3],al
-  multi startAt 4, ES_, MOV_AL_xb, w 0x9,  SS_, MOV_xb_AL, l w3+3,                                      runV 1  ; mov al,[es:0x9]  mov [ss:w3+3],al
-  multi startAt 6, ES_, MOV_AX_xw, w 0x1,  SS_, MOV_xw_AX, l f0+2,                                      runV 1  ; mov ax,[es:0x1]  mov [ss:f0+2],ax
-  multi startAt 6, ES_, MOV_AX_xw, w 0x4,  SS_, MOV_xw_AX, l f1+2,                                      runV 1  ; mov ax,[es:0x4]  mov [ss:f1+2],ax
-  multi startAt 6, ES_, MOV_AX_xw, w 0x7,  SS_, MOV_xw_AX, l f2+2,                                      runV 1  ; mov ax,[es:0x7]  mov [ss:f2+2],ax
-  multi startAt 6, ES_, MOV_AX_xw, w 0xa,  SS_, MOV_xw_AX, l f3+2,                                      runV 1  ; mov ax,[es:0xa]  mov [ss:f3+2],ax
-  multi startAt 4, ES_, MOV_SP_mw, w 0xc,                                                               runV 1  ; mov sp,[es:0xc]
+  multi startAt 7, CS_, INC_mw, l songP,                                                                runV 1  ; inc word[cs:songP]                                                 3 NOPs remain
+  multi startAt 4, CS_, MOV_ES_mw, l songP,                                                             runV 1  ; mov es,[cs:songP]                                                  6
+  multi startAt 4, ES_, MOV_AL_xb, w 0x0,  SS_, MOV_xb_AL, l w0+3,                                      runV 1  ; mov al,[es:0x0]  mov [ss:w0+3],al                                  3
+  multi startAt 4, ES_, MOV_AL_xb, w 0x3,  SS_, MOV_xb_AL, l w1+3,                                      runV 1  ; mov al,[es:0x3]  mov [ss:w1+3],al                                  3
+  multi startAt 4, ES_, MOV_AL_xb, w 0x6,  SS_, MOV_xb_AL, l w2+3,                                      runV 1  ; mov al,[es:0x6]  mov [ss:w2+3],al                                  3
+  multi startAt 4, ES_, MOV_AL_xb, w 0x9,  SS_, MOV_xb_AL, l w3+3,                                      runV 1  ; mov al,[es:0x9]  mov [ss:w3+3],al                                  3
+  multi startAt 6, ES_, MOV_AX_xw, w 0x1,  SS_, MOV_xw_AX, l f0+2,                                      runV 1  ; mov ax,[es:0x1]  mov [ss:f0+2],ax                                  1
+  multi startAt 6, ES_, MOV_AX_xw, w 0x4,  SS_, MOV_xw_AX, l f1+2,                                      runV 1  ; mov ax,[es:0x4]  mov [ss:f1+2],ax                                  1
+  multi startAt 6, ES_, MOV_AX_xw, w 0x7,  SS_, MOV_xw_AX, l f2+2,                                      runV 1  ; mov ax,[es:0x7]  mov [ss:f2+2],ax                                  1
+  multi startAt 6, ES_, MOV_AX_xw, w 0xa,  SS_, MOV_xw_AX, l f3+2,                                      runV 1  ; mov ax,[es:0xa]  mov [ss:f3+2],ax                                  1
+  multi startAt 4, ES_, MOV_SP_mw, w 0xc,                                                               runV 1  ; mov sp,[es:0xc]                                                    6
 
 %assign savedTime time
 %assign savedLastStartAt lastStartAt
@@ -544,25 +544,25 @@ hStart:
 ; it up like this.
 hCrtcUpdate:
   restore
-  multi startAt 4, ES_, MOV_AL_xb, w 0xe,  SS_, MOV_xb_AL, l hCrtcUpdate+0x37,                          runV 1  ; mov al,[es:0xe]  mov [ss:sa1+7],al
-  multi startAt 4, ES_, MOV_AL_xb, w 0xf,  SS_, MOV_xb_AL, l hCrtcUpdate+0x4b,                          runV 1  ; mov al,[es:0xf]  mov [ss:sa2+7],al
-  multi forget 7, startAt 4, MOV_BX_DX, MOV_DX_iw, w 0x3d4, MOV_AX_iw, w 0x990d, OUT_DX_AX, MOV_DX_BX,  runV 1  ; sa1: mov bx,dx  mov dx,0x3d4 mov ax,0xXX0c  out dx,ax  mov dx,bx
-  multi forget 7, startAt 4, MOV_BX_DX, MOV_DX_iw, w 0x3d4, MOV_AX_iw, w 0x990c, OUT_DX_AX, MOV_DX_BX,  runV 1  ; sa2: mov bx,dx  mov dx,0x3d4 mov ax,0xXX0d  out dx,ax  mov dx,bx
-  multi forget 7, startAt 0, MOV_SP_iw, l hStart,                                                       runV 0  ; mov sp,hStart
+  multi startAt 4, ES_, MOV_AL_xb, w 0xe,  SS_, MOV_xb_AL, l hCrtcUpdate+0x37,                          runV 1  ; mov al,[es:0xe]  mov [ss:sa1+7],al                                 3
+  multi startAt 4, ES_, MOV_AL_xb, w 0xf,  SS_, MOV_xb_AL, l hCrtcUpdate+0x4b,                          runV 1  ; mov al,[es:0xf]  mov [ss:sa2+7],al                                 3
+  multi forget 7, startAt 4, MOV_BX_DX, MOV_DX_iw, w 0x3d4, MOV_AX_iw, w 0x990d, OUT_DX_AX, MOV_DX_BX,  runV 1  ; sa1: mov bx,dx  mov dx,0x3d4 mov ax,0xXX0c  out dx,ax  mov dx,bx   0
+  multi forget 7, startAt 4, MOV_BX_DX, MOV_DX_iw, w 0x3d4, MOV_AX_iw, w 0x990c, OUT_DX_AX, MOV_DX_BX,  runV 1  ; sa2: mov bx,dx  mov dx,0x3d4 mov ax,0xXX0d  out dx,ax  mov dx,bx   0
+  multi forget 7, startAt 0, MOV_SP_iw, l hStart,                                                       runV 0  ; mov sp,hStart                                                     12
 
 hScreenOutput:
   restore
-  multi startAt 6, ES_, MOV_AX_xw, w 0x0e,  SS_, MOV_xw_AX, l hScreenOutput+0x56,                       runV 1  ; mov ax,[es:0xe]  mov [ss:screenUpdate+5],ax
-  multi startAt 0, MOV_AX_iw, w 0xb800, MOV_ES_AX,                                                      runV 1  ; mov ax,0xb800  mov es,ax
+  multi startAt 6, ES_, MOV_AX_xw, w 0x0e,  SS_, MOV_xw_AX, l hScreenOutput+0x56,                       runV 1  ; mov ax,[es:0xe]  mov [ss:screenUpdate+5],ax                        1
+  multi startAt 0, MOV_AX_iw, w 0xb800, MOV_ES_AX,                                                      runV 1  ; mov ax,0xb800  mov es,ax                                          10
   multi {forget 3, 4, 5, 6}, startAt 7, ES_, MOV_mw_iw, flush,
-  screenUpdate: multi w 0, w 0,                                                                         runV 1  ; screenUpdate: mov [es:xxxx],yyyy
-  multi {forget 3, 4, 5, 6}, startAt 7, CS_, INC_mw, l screenUpdate+2,                                  runV 2  ; inc word[cs:screenUpdate+3] *twice*
-  multi startAt 0, MOV_SP_iw, l hStart,                                                                 runV 0  ; mov sp,hStart
+  screenUpdate: multi w 0, w 0,                                                                         runV 1  ; screenUpdate: mov [es:xxxx],yyyy                                   1
+  multi {forget 3, 4, 5, 6}, startAt 7, CS_, INC_mw, l screenUpdate+2,                                  runV 2  ; inc word[cs:screenUpdate+3] *twice*                                3
+  multi startAt 0, MOV_SP_iw, l hStart,                                                                 runV 0  ; mov sp,hStart                                                     12
 
 hPointerMove:
   restore
-  multi startAt 6, ES_, MOV_AX_xw, w 0x0e,  SS_, MOV_xw_AX, l screenUpdate+2,                           runV 1  ; mov ax,[es:0xe]  mov [ss:screenUpdate+3],ax
-  multi startAt 0, MOV_SP_iw, l hStart,                                                                 runV 0  ; mov sp,hStart
+  multi startAt 6, ES_, MOV_AX_xw, w 0x0e,  SS_, MOV_xw_AX, l screenUpdate+2,                           runV 1  ; mov ax,[es:0xe]  mov [ss:screenUpdate+3],ax                        1
+  multi startAt 0, MOV_SP_iw, l hStart,                                                                 runV 0  ; mov sp,hStart                                                     12
 
 hFinish:
   restore
@@ -571,7 +571,7 @@ hFinish:
 
 hNOP:
   restore
-  multi startAt 0, MOV_SP_iw, l hStart,                                                                 runV 0  ; mov sp,hStart
+  multi startAt 0, MOV_SP_iw, l hStart,                                                                 runV 0  ; mov sp,hStart                                                     12
 
 segment STACK STACK class=STACK
   resb 256

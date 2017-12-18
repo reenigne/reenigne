@@ -58,6 +58,9 @@ o18ed:            ; raw count 147 cycles, does not stabilize with refresh
 ; With 15 NOPs, 207 cycles raw
 ; 4 refreshes per iteration at period 14 = 56 PIT cycles = 224 CPU cycles = 21.31kHz
 
+; With 14 NOPs, 203 cycles raw
+; 3 refreshes per iteration at period 18 = 54 PIT cycles = 216 CPU cycles = 22.10kHz
+
 
 
 o18ed:            ; raw count 143 cycles, 2 refreshes per iteration at period 19 = 38 PIT cycles = 152 CPU cycles = 31.40kHz
@@ -76,7 +79,7 @@ o18ed:            ; raw count 143 cycles, 2 refreshes per iteration at period 19
 
 ; With 15 NOPs, 203 cycles raw
 ; 3 refreshes per iteration at period 18 = 54 PIT cycles = 216 CPU cycles = 22.10kHz
-
+; However, this routine has an issue with ah being stomped with the high byte of the patch address
 
   pop si
   pop word[si]

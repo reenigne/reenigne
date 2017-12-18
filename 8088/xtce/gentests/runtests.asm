@@ -30,6 +30,8 @@ LENGTH EQU 2048
 ;     Copy an instance of test code
 ;     Execute under trace
 
+  outputCharacter 8
+
   xor ax,ax
   mov ds,ax
   mov word[8*4],irq0
@@ -129,6 +131,10 @@ no1e1:
 loopTop:
   mov [savedCX],cx
 
+  mov al,cl
+  add al,0x40
+  outputCharacter
+
   call doMeasurement
 
   mov si,[testCaseOffset]
@@ -146,6 +152,13 @@ loopTop2:
   jmp loopTop
 
 doMeasurement:
+  mov ax,cs
+  mov ds,ax
+  mov si,fooMessage
+  mov cx,4
+  outputString
+
+
   mov ax,cs
   add ax,0x1000
   push ax
@@ -259,6 +272,7 @@ interruptFF:
 
 failMessage: db "FAIL "
 passMessage: db "PASS"
+fooMessage: db "FOOO"
 
 testCaseIndex: dw 0
 testCaseOffset: dw 0
