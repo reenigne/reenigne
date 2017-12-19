@@ -290,10 +290,7 @@ public:
                 h.write(testProgram);
                 h.write(output);
             }
-            NullTerminatedWideString data(String("doitclient wcmd xtrun "
-                "q:\\reenigne\\8088\\xtce\\gentests\\runtest.bin"));
-
-            File outputFile("runtests.output");
+            NullTerminatedWideString data(String("/c run.bat"));
 
             {
                 PROCESS_INFORMATION pi;
@@ -302,21 +299,16 @@ public:
                 STARTUPINFO si;
                 ZeroMemory(&si, sizeof(STARTUPINFO));
                 si.cb = sizeof(STARTUPINFO);
-                si.dwFlags = STARTF_USESTDHANDLES;
-                auto h = outputFile.openWrite();
-                si.hStdOutput = h;
-                si.hStdError = h;
 
-                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, TRUE, 0,
-                    "HOME=C:\\Users\\Andrew\0DOIT_HOST=prospero\0"
-                    "SystemRoot=C:\Windows\0", NULL, &si, &pi) != 0);
+                IF_FALSE_THROW(CreateProcess(L"C:\\Windows\\system32\\cmd.exe", data, NULL, NULL, FALSE, 0,
+                    NULL, NULL, &si, &pi) != 0);
                 CloseHandle(pi.hThread);
                 WindowsHandle hProcess = pi.hProcess;
                 IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
                     WAIT_OBJECT_0);
             }
 
-            String result = outputFile.contents();
+            String result = File("runtests.output").contents();
             CharacterSource s(result);
             if (parse(&s, "FAIL")) {
                 Rational result;

@@ -30,7 +30,9 @@ o18ed:            ; raw count 147 cycles, does not stabilize with refresh
   out 0x42,al         ; 3
   loop o18ed
 
-;     +++++++----- Instrument and instrument phase (
+; Sound port 0x42:
+;
+;     +++++++----- Instrument and instrument phase
 ;     |||||||
 ; fedcba9876543210
 ; ||||       ||||+- Bit 4 of last PIT period
@@ -42,7 +44,6 @@ o18ed:            ; raw count 147 cycles, does not stabilize with refresh
 ; ||+-------------- Channel 1 pulsed
 ; |+--------------- Channel 2 pulsed
 ; +---------------- Channel 3 pulsed
-
 ;
 ;  00 LSB (previous PIT period 01-0f)
 ;  01 MSB (previous PIT period 01-0f)
@@ -54,6 +55,32 @@ o18ed:            ; raw count 147 cycles, does not stabilize with refresh
 ;  13 LSB (previous PIT period 30-3f)
 ;  14 MSB (previous PIT period 30-3f)
 ;  15-1f unusable (11 bytes)
+
+; Sound port 0x61:
+;
+;     ++++++++---- Instrument and instrument phase
+;     ||||||||
+; fedcba9876543210
+; ||||        |||+- Bit 4 of last port 0x61 value (0)
+; ||||        ||+-- Bit 5 of last port 0x61 value (0)
+; ||||        |+--- Bit 6 of last port 0x61 value (1)
+; ||||        +---- Bit 7 of last port 0x61 value (0)
+; |||+------------- Channel 0 pulsed
+; ||+-------------- Channel 1 pulsed
+; |+--------------- Channel 2 pulsed
+; +---------------- Channel 3 pulsed
+;
+;  00-03 unusable (4 bytes)
+;  04 LSB
+;  05 MSB
+;  06-0f unusuable (10 bytes)
+;
+; Possible distribution of bits:
+;   3 bits: Remaining samples in pulse
+;   2 bits: channel 0 volume
+;   1 bit: channel 1 volume
+;   1 bit: channel 2 volume
+;   1 bit: channel 3 volume
 
 ; With 15 NOPs, 207 cycles raw
 ; 4 refreshes per iteration at period 14 = 56 PIT cycles = 224 CPU cycles = 21.31kHz
