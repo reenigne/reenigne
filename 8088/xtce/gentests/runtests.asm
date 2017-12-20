@@ -30,7 +30,10 @@ LENGTH EQU 2048
 ;     Copy an instance of test code
 ;     Execute under trace
 
-  outputCharacter 8
+;  outputCharacter 8
+    mov dx,0x3d9
+    mov al,0
+    out dx,al
 
   xor ax,ax
   mov ds,ax
@@ -50,9 +53,9 @@ testLoop:
   cmp ax,[testCases]
   jb notDone
 
-  mov si,passMessage
-  mov cx,4
-  outputString
+;  mov si,passMessage
+;  mov cx,4
+;  outputString
 
   complete
 notDone:
@@ -76,6 +79,12 @@ notDone:
   jmp testLoop
 
 testFailed:
+    mov dx,0x3d9
+    mov al,8
+    out dx,al
+;    cli
+;    hlt
+
   mov si,failMessage
   mov cx,5
   outputString
@@ -135,7 +144,7 @@ loopTop:
   add al,0x40
   outputCharacter
 
-  call doMeasurement
+;  call doMeasurement
 
   mov si,[testCaseOffset]
   mov al,[si+2]
@@ -145,23 +154,24 @@ loopTop:
 flushLoop2:
   loop flushLoop2
 
-  mov cx,[cs:savedCX]
+  mov cx,[savedCX]
   loop loopTop2
   complete
+    mov dx,0x3d9
+    mov al,9
+    out dx,al
+    cli
+    hlt
 loopTop2:
   jmp loopTop
 
 doMeasurement:
-  mov ax,cs
-  mov ds,ax
-  mov si,fooMessage
-  mov cx,4
-  outputString
-
+    mov dx,0x3d9
+    mov al,1
+    out dx,al
 
   mov ax,cs
   add ax,0x1000
-  push ax
   mov es,ax
   xor di,di
   mov si,[testCaseOffset]
@@ -193,20 +203,32 @@ doneQueueFiller:
   mov ax,0xffcd  ; 'int 0xff'
   stosw
 
+    mov dx,0x3d9
+    mov al,2
+    out dx,al
+
   cli
   xor ax,ax
   mov es,ax
   mov word[es:0x3fc],interruptFF
   mov word[es:0x3fe],cs
 
-  safeRefreshOff
-  writePIT16 0, 2, 2
-  writePIT16 0, 2, 100
-  sti
-  hlt
-  hlt
-  writePIT16 0, 2, 0
-  cli
+    mov dx,0x3d9
+    mov al,3
+    out dx,al
+
+;  safeRefreshOff
+;  writePIT16 0, 2, 2
+;  writePIT16 0, 2, 100
+;  sti
+;  hlt
+;  hlt
+;  writePIT16 0, 2, 0
+;  cli
+
+    mov dx,0x3d9
+    mov al,4
+    out dx,al
 
   mov ax,[sniffer]
   mov ds,ax
@@ -226,17 +248,19 @@ doneQueueFiller:
   outputByte
   outputByte
 
+    mov dx,0x3d9
+    mov al,5
+    out dx,al
+
   mov [cs:savedSP],sp
   mov [cs:savedSS],ss
-  mov sp,ax
   mov ax,cs
   add ax,0x1000
   mov ds,ax
   mov es,ax
   mov ss,ax
-  push ax
+
   xor ax,ax
-  push ax
   mov dx,ax
   mov bx,ax
   mov cx,ax
@@ -244,7 +268,12 @@ doneQueueFiller:
   mov di,ax
   mov bp,ax
   mov sp,ax
-  retf
+;  mov word[cs:testBuffer],0
+;  mov [cs:testBuffer+2],ds
+  mov word[cs:testBuffer],interruptFF
+  mov word[cs:testBuffer+2],cs
+
+  jmp far [cs:testBuffer]
 
 irq0:
   push ax
@@ -254,6 +283,10 @@ irq0:
   iret
 
 interruptFF:
+    mov dx,0x3d9
+    mov al,6
+    out dx,al
+
   in al,0x40
   mov bl,al
   in al,0x40
@@ -262,7 +295,7 @@ interruptFF:
   mov sp,[cs:savedSP]
   mov ss,[cs:savedSS]
 
-  safeRefreshOn
+;  safeRefreshOn
 
   mov ax,cs
   mov ds,ax
@@ -272,10 +305,10 @@ interruptFF:
 
 failMessage: db "FAIL "
 passMessage: db "PASS"
-fooMessage: db "FOOO"
 
 testCaseIndex: dw 0
 testCaseOffset: dw 0
+testBuffer: dw 0, 0
 savedSP: dw 0
 savedSS: dw 0
 savedCX: dw 0

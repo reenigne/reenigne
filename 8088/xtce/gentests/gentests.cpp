@@ -290,7 +290,7 @@ public:
                 h.write(testProgram);
                 h.write(output);
             }
-            NullTerminatedWideString data(String("/c run.bat"));
+            NullTerminatedWideString data(String("cmd /c run.bat"));
 
             {
                 PROCESS_INFORMATION pi;
@@ -300,8 +300,8 @@ public:
                 ZeroMemory(&si, sizeof(STARTUPINFO));
                 si.cb = sizeof(STARTUPINFO);
 
-                IF_FALSE_THROW(CreateProcess(L"C:\\Windows\\system32\\cmd.exe", data, NULL, NULL, FALSE, 0,
-                    NULL, NULL, &si, &pi) != 0);
+                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
+                    0, NULL, NULL, &si, &pi) != 0);
                 CloseHandle(pi.hThread);
                 WindowsHandle hProcess = pi.hProcess;
                 IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
