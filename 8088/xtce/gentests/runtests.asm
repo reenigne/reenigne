@@ -42,11 +42,20 @@ LENGTH EQU 2048
 
   mov ax,cs
   mov ds,ax
+
+    mov ax,ds
+    outputHex
+    outputCharacter ':'
+    mov ax,testCases
+    outputHex
+    outputCharacter ' '
+
   cli
   mov ss,ax
   xor sp,sp
   sti
   mov si,testCases
+  mov [testCaseOffset],si
 testLoop:
   mov ax,si
   sub ax,testCases
@@ -58,6 +67,11 @@ testLoop:
 ;  outputString
 
   complete
+    mov dx,0x3d9
+    mov al,11
+    out dx,al
+    cli
+    hlt
 notDone:
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
@@ -144,7 +158,7 @@ loopTop:
   add al,0x40
   outputCharacter
 
-;  call doMeasurement
+  call doMeasurement
 
   mov si,[testCaseOffset]
   mov al,[si+2]
@@ -170,6 +184,8 @@ doMeasurement:
     mov al,1
     out dx,al
 
+    outputCharacter '*'
+
   mov ax,cs
   add ax,0x1000
   mov es,ax
@@ -177,6 +193,10 @@ doMeasurement:
   mov si,[testCaseOffset]
   mov bl,[si+1]
 repeatLoop:
+
+    outputCharacter '+'
+
+  push cx
   mov al,bl
   and al,0xe0
   cmp al,0
@@ -187,6 +207,18 @@ repeatLoop:
   stosw
   jmp doneQueueFiller
 notQueueFiller0:
+
+    mov ax,ds
+    outputHex
+    outputCharacter ':'
+    mov ax,si
+    outputHex
+
+    mov dx,0x3d9
+    mov al,10
+    out dx,al
+    cli
+    hlt
   jmp testFailed
 doneQueueFiller:
   mov cl,bl
@@ -194,8 +226,10 @@ doneQueueFiller:
   mov al,0x90
   rep stosb
   mov cl,[si+2]
+  push si
   add si,3
   rep movsb
+  pop si
   mov ax,0x00eb  ; 'jmp ip+0'
   stosw
   pop cx
