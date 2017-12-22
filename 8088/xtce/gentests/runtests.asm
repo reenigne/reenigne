@@ -31,9 +31,6 @@ LENGTH EQU 2048
 ;     Execute under trace
 
 ;  outputCharacter 8
-    mov dx,0x3d9
-    mov al,0
-    out dx,al
 
   xor ax,ax
   mov ds,ax
@@ -43,22 +40,15 @@ LENGTH EQU 2048
   mov ax,cs
   mov ds,ax
 
-    mov ax,ds
-    outputHex
-    outputCharacter ':'
-    mov ax,testCases
-    outputHex
-    outputCharacter ' '
-
   cli
   mov ss,ax
   xor sp,sp
   sti
-  mov si,testCases
+  mov si,testCases+2
   mov [testCaseOffset],si
 testLoop:
   mov ax,si
-  sub ax,testCases
+  sub ax,testCases+2
   cmp ax,[testCases]
   jb notDone
 
