@@ -164,7 +164,7 @@ public:
     }
     int length()
     {
-        int l = 2;
+        int l = 0;
         for (auto i : _instructions)
             l += i.length();
         return l;
@@ -193,7 +193,7 @@ public:
             i.write();
             first = false;
         }
-        console.write("}, " + decimal((_queueFiller << 5) + _nops) + "}");
+        console.write("}, " + decimal((_queueFiller << 5) + _nops) + "}\n");
     }
 private:
     int _queueFiller;
@@ -246,7 +246,7 @@ public:
                     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
                     0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
                     0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
-                int jj = 0;
+                int jj = 1;
                 if (instruction.isGroup())
                     jj = 8;
                 for (int m = 0; m < 25; ++m) {
@@ -264,7 +264,7 @@ public:
             int totalLength = 0;
             int newNextTest = _tests.count();
             for (int i = nextTest; i < _tests.count(); ++i) {
-                int nl = totalLength + _tests[i].length() + 1;
+                int nl = totalLength + _tests[i].length() + 3;
                 if (nl > availableLength) {
                     newNextTest = i;
                     break;
@@ -310,40 +310,53 @@ public:
 
             String result = File("runtests.output").contents();
             CharacterSource s(result);
-            if (parse(&s, "FAIL")) {
-                Rational result;
-                if (!Space::parseNumber(&s, &result))
-                    throw Exception("Cannot parse number of failing test");
-                int n = result.floor() + nextTest;
+            do {
+                if (parse(&s, "FAIL")) {
+                    Rational result;
+                    Space::parse(&s);
+                    if (!Space::parseNumber(&s, &result))
+                        throw Exception("Cannot parse number of failing test");
+                    int n = result.floor() + nextTest;
 
-                console.write(decimal(n) + "\n");
-                _tests[n].write();
+                    console.write(decimal(n) + "\n");
+                    _tests[n].write();
 
-                CharacterSource s2(s);
-                if (!parse(&s2, "Program ended normally."))
-                    throw Exception("runtests didn't end properly");
-                String observed = s.subString(s.offset(), s2.offset());
-                File("observed.txt").openWrite().write(observed);
-                Emulator emulator;
-                String expected = emulator.log(_tests[n + nextTest]);
-                File("expected.txt").openWrite().write(expected);
+                    CharacterSource s2(s);
+                    CharacterSource oldS2(s2);
+                    do {
+                        if (parse(&s2, "Program ended normally."))
+                            break;
+                        int c = s2.get();
+                        if (c == -1)
+                            throw Exception("runtests didn't end properly");
+                        oldS2 = s2;
+                    } while (true);
+                    String observed = s.subString(s.offset(), oldS2.offset());
+                    File("observed.txt").openWrite().write(observed);
+                    Emulator emulator;
+                    String expected = emulator.log(_tests[n + nextTest]);
+                    File("expected.txt").openWrite().write(expected);
 
-                PROCESS_INFORMATION pi;
-                ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+                    PROCESS_INFORMATION pi;
+                    ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
 
-                STARTUPINFO si;
-                ZeroMemory(&si, sizeof(STARTUPINFO));
-                si.cb = sizeof(STARTUPINFO);
+                    STARTUPINFO si;
+                    ZeroMemory(&si, sizeof(STARTUPINFO));
+                    si.cb = sizeof(STARTUPINFO);
 
-                NullTerminatedWideString data(
-                    String("windiff observed.txt expected.txt"));
+                    NullTerminatedWideString data(
+                        String("windiff observed.txt expected.txt"));
 
-                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
-                    NULL, NULL, &si, &pi) != 0);
-                break;
-            }
-            if (!parse(&s, "PASS"))
-                throw Exception("Test was inconclusive");
+                    IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
+                        NULL, NULL, &si, &pi) != 0);
+                    break;
+                }
+                if (parse(&s, "PASS"))
+                    break;
+                int c = s.get();
+                if (c == -1)
+                    throw Exception("Test was inconclusive");
+            } while (true);
 
             nextTest = newNextTest;
             if (nextTest == _tests.count())

@@ -253,7 +253,7 @@ public:
                 QueueItem* item;
                 {
                     Lock lock(&_mutex);
-                    item = _queue.next();
+                    item = _queue.getNext();
                     if (item != 0)
                         item->remove();
                 }
@@ -695,8 +695,8 @@ public:
                     // Run a program
                     Lock lock(&_mutex);
                     _queue.add(item);
-                    item->writeNoEmail("<form action='http://reenigne.homenet."
-                        "org/cgi-bin/xtcancel.exe' method='post'>\n"
+                    item->writeNoEmail("<form action='http://reenigne.mooo."
+                        "com/cgi-bin/xtcancel.exe' method='post'>\n"
                         "<input type='hidden' name='secret' value='" +
                         item->secret() + "'/>\n"
                         "<button type='submit'>Cancel</button>\n"
@@ -939,7 +939,7 @@ public:
                 {
                     Lock lock(&_mutex);
                     _processing = false;
-                    i = _queue.next();
+                    i = _queue.getNext();
                 }
                 if (i == 0) {
                     // We have nothing to do - stop the the thread until we do.
@@ -958,9 +958,9 @@ public:
                     int p = 0;
                     // Can't use a range-based for loop here because we're
                     // removing items and continuing.
-                    auto i = _queue.next();
-                    while (i != &_queue) {
-                        auto next = i->next();
+                    auto i = _queue.getNext();
+                    while (i != 0) {
+                        auto next = _queue.getNext(i);
                         i->notifyQueuePosition(p);
                         if (i->aborted()) {
                             i->remove();
@@ -970,7 +970,7 @@ public:
                         ++p;
                         i = next;
                     }
-                    _item = _queue.next();
+                    _item = _queue.getNext();
                     if (_item != 0) {
                         _item->remove();
                         --_queuedItems;
@@ -1359,7 +1359,7 @@ private:
                         break;
                     case 0x09:
                         // Sniffer to indirect mode
-                        _snifferIndirect = true;
+                        _snifferDirect = false;
                         break;
                     case 0x1a:
                         return false;

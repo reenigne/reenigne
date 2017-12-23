@@ -30,12 +30,14 @@ LENGTH EQU 2048
 ;     Copy an instance of test code
 ;     Execute under trace
 
-;  outputCharacter 8
+  outputCharacter 8
 
   xor ax,ax
   mov ds,ax
   mov word[8*4],irq0
   mov [8*4+2],cs
+  mov word[0xff*4],interruptFF
+  mov word[0xff*4+2],cs
 
   mov ax,cs
   mov ds,ax
@@ -52,16 +54,11 @@ testLoop:
   cmp ax,[testCases]
   jb notDone
 
-;  mov si,passMessage
-;  mov cx,4
-;  outputString
+  mov si,passMessage
+  mov cx,4
+  outputString
 
   complete
-    mov dx,0x3d9
-    mov al,11
-    out dx,al
-    cli
-    hlt
 notDone:
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
@@ -83,11 +80,8 @@ notDone:
   jmp testLoop
 
 testFailed:
-    mov dx,0x3d9
-    mov al,8
-    out dx,al
-;    cli
-;    hlt
+  shr ax,1
+  mov [countedCycles],ax
 
   mov si,failMessage
   mov cx,5
@@ -138,44 +132,33 @@ no1e1:
   add al,'0'
   outputCharacter
 
+  outputCharacter 10
+
   mov word[sniffer],0x8000
+
+  outputCharacter 6
 
   mov cx,16
 loopTop:
   mov [savedCX],cx
-
-  mov al,cl
-  add al,0x40
-  outputCharacter
-
+  mov cx,1
   call doMeasurement
 
-  mov si,[testCaseOffset]
-  mov al,[si+2]
-  mov ah,25
-  mul ah
+  mov ax,[countedCycles]
+  mov dx,25
+  mul dx
   mov cx,ax
 flushLoop2:
   loop flushLoop2
 
   mov cx,[savedCX]
   loop loopTop2
+  outputCharacter 7
   complete
-    mov dx,0x3d9
-    mov al,9
-    out dx,al
-    cli
-    hlt
 loopTop2:
   jmp loopTop
 
 doMeasurement:
-    mov dx,0x3d9
-    mov al,1
-    out dx,al
-
-    outputCharacter '*'
-
   mov ax,cs
   add ax,0x1000
   mov es,ax
@@ -183,8 +166,6 @@ doMeasurement:
   mov si,[testCaseOffset]
   mov bl,[si+1]
 repeatLoop:
-
-    outputCharacter '+'
 
   push cx
   mov al,bl
@@ -198,17 +179,6 @@ repeatLoop:
   jmp doneQueueFiller
 notQueueFiller0:
 
-    mov ax,ds
-    outputHex
-    outputCharacter ':'
-    mov ax,si
-    outputHex
-
-    mov dx,0x3d9
-    mov al,10
-    out dx,al
-    cli
-    hlt
   jmp testFailed
 doneQueueFiller:
   mov cl,bl
@@ -227,35 +197,16 @@ doneQueueFiller:
   mov ax,0xffcd  ; 'int 0xff'
   stosw
 
-    mov dx,0x3d9
-    mov al,2
-    out dx,al
-
+  safeRefreshOff
+  writePIT16 0, 2, 2
+  writePIT16 0, 2, 100
+  sti
+  hlt
+  hlt
+  writePIT16 0, 2, 0
   cli
-  xor ax,ax
-  mov es,ax
-  mov word[es:0x3fc],interruptFF
-  mov word[es:0x3fe],cs
 
-    mov dx,0x3d9
-    mov al,3
-    out dx,al
-
-;  safeRefreshOff
-;  writePIT16 0, 2, 2
-;  writePIT16 0, 2, 100
-;  sti
-;  hlt
-;  hlt
-;  writePIT16 0, 2, 0
-;  cli
-
-    mov dx,0x3d9
-    mov al,4
-    out dx,al
-
-  mov ax,[sniffer]
-  mov ds,ax
+  mov ds,[cs:sniffer]
   mov ax,[0]      ; Trigger: Start of command load sequence
   times 10 nop
   mov dl,16
@@ -264,17 +215,13 @@ doneQueueFiller:
 
   outputByte
   mov si,[cs:testCaseOffset]
-  mov dl,[cs:si+2]
-  dec dx
+  mov dx,[cs:countedCycles]
+;  dec dx
   outputByte
   outputByte
-  mov dx,18996 + 492*3   ;65534 ;
+  mov dx,714
   outputByte
   outputByte
-
-    mov dx,0x3d9
-    mov al,5
-    out dx,al
 
   mov [cs:savedSP],sp
   mov [cs:savedSS],ss
@@ -292,11 +239,8 @@ doneQueueFiller:
   mov di,ax
   mov bp,ax
   mov sp,ax
-;  mov word[cs:testBuffer],0
-;  mov [cs:testBuffer+2],ds
-  mov word[cs:testBuffer],interruptFF
-  mov word[cs:testBuffer+2],cs
-
+  mov word[cs:testBuffer],0
+  mov [cs:testBuffer+2],ds
   jmp far [cs:testBuffer]
 
 irq0:
@@ -307,10 +251,6 @@ irq0:
   iret
 
 interruptFF:
-    mov dx,0x3d9
-    mov al,6
-    out dx,al
-
   in al,0x40
   mov bl,al
   in al,0x40
@@ -319,7 +259,7 @@ interruptFF:
   mov sp,[cs:savedSP]
   mov ss,[cs:savedSS]
 
-;  safeRefreshOn
+  safeRefreshOn
 
   mov ax,cs
   mov ds,ax
@@ -338,6 +278,7 @@ savedSS: dw 0
 savedCX: dw 0
 lut: db 0x88,8
 sniffer: dw 0x7000
+countedCycles: dw 1
 
 testCases:
 
