@@ -175,11 +175,38 @@ public:
         ++p;
         *p = length();
         ++p;
+        outputBytes(p);
+    }
+    Byte* outputBytes(Byte* p)
+    {
         for (auto i : _instructions) {
             int l = i.length();
             i.output(p);
             p += l;
         }
+        return p;
+    }
+    Byte* outputCode(Byte* p)
+    {
+        switch (_queueFiller) {
+            case 0:
+                p[0] = 0xb0;
+                p[1] = 0x00;
+                p[2] = 0xf6;
+                p[3] = 0xe0;
+                p += 4;
+                break;
+            default:
+                throw Exception("Unknown queue filler.");
+        }
+        for (int i = 0; i < _nops; ++i) {
+            *p = 0x90;
+            ++p;
+        }
+        p = outputBytes(p);
+        p[0] = 0xeb;
+        p[1] = 0x00;
+        return p + 2;
     }
     void write()
     {
@@ -222,12 +249,136 @@ private:
     void run()
     {
         _cycles = 0;
+        _test.outputCode(&_ram[0x10a80]);
+        ax() = 0;
+        cx() = 0;
+        dx() = 0;
+        bx() = 0;
+        sp() = 0;
+        bp() = 0;
+        si() = 0;
+        di() = 0;
+        es() = 0x10a8;
+        cs() = 0x10a8;
+        ss() = 0x10a8;
+        ds() = 0x10a8;
+
     }
 
     bool _logging;
     Test _test;
     String _log;
     int _cycles;
+    Array<Byte> _ram[0xa0000];
+
+    template<class U> class Register
+    {
+    public:
+        void init(String name, U* data)
+        {
+            _name = name;
+            _data = data;
+            _read = false;
+            _written = false;
+        }
+        const U& operator=(U value)
+        {
+            *_data = value;
+            _writtenValue = value;
+            _written = true;
+            return *_data;
+        }
+        operator U()
+        {
+            if (!_read && !_written) {
+                _read = true;
+                _readValue = *_data;
+            }
+            return *_data;
+        }
+        const U& operator+=(U value)
+        {
+            return operator=(operator U() + value);
+        }
+        const U& operator-=(U value)
+        {
+            return operator=(operator U() - value);
+        }
+        const U& operator%=(U value)
+        {
+            return operator=(operator U() % value);
+        }
+        const U& operator&=(U value)
+        {
+            return operator=(operator U() & value);
+        }
+        const U& operator^=(U value)
+        {
+            return operator=(operator U() ^ value);
+        }
+        U operator-() const { return -operator U(); }
+        void operator++() { operator=(operator U() + 1); }
+        void operator--() { operator=(operator U() - 1); }
+        String text()
+        {
+            String text;
+            if (_read) {
+                text = hex(_readValue, sizeof(U)==1 ? 2 : 4, false) + "<-" +
+                    _name + "  ";
+                _read = false;
+            }
+            if (_written) {
+                text += _name + "<-" +
+                    hex(_writtenValue, sizeof(U)==1 ? 2 : 4, false) + "  ";
+                _written = false;
+            }
+            return text;
+        }
+    protected:
+        String _name;
+        U* _data;
+        bool _read;
+        bool _written;
+        U _readValue;
+        U _writtenValue;
+    };
+    Register<UInt16>& rw() { return _wordRegisters[_opcode & 7]; }
+    Register<UInt16>& ax() { return _wordRegisters[0]; }
+    Register<UInt16>& cx() { return _wordRegisters[1]; }
+    Register<UInt16>& dx() { return _wordRegisters[2]; }
+    Register<UInt16>& bx() { return _wordRegisters[3]; }
+    Register<UInt16>& sp() { return _wordRegisters[4]; }
+    Register<UInt16>& bp() { return _wordRegisters[5]; }
+    Register<UInt16>& si() { return _wordRegisters[6]; }
+    Register<UInt16>& di() { return _wordRegisters[7]; }
+    Register<UInt8>& rb() { return _byteRegisters[_opcode & 7]; }
+    Register<UInt8>& al() { return _byteRegisters[0]; }
+    Register<UInt8>& cl() { return _byteRegisters[1]; }
+    Register<UInt8>& ah() { return _byteRegisters[4]; }
+    Register<UInt16>& es() { return _segmentRegisters[0]; }
+    Register<UInt16>& cs() { return _segmentRegisters[1]; }
+    Register<UInt16>& ss() { return _segmentRegisters[2]; }
+    Register<UInt16>& ds() { return _segmentRegisters[3]; }
+
+    Register<UInt16> _wordRegisters[8];
+    Register<UInt8> _byteRegisters[8];
+    Register<UInt16> _segmentRegisters[8];
+    UInt16 _registerData[8];      /* AX CX DX BX SP BP SI DI */
+    UInt16 _segmentRegisterData[8];
+    UInt16 _flagsData;
+    //   0: CF = unsigned overflow?
+    //   1:  1
+    //   2: PF = parity: even number of 1 bits in result?
+    //   3:  0
+    //   4: AF = unsigned overflow for low nybble
+    //   5:  0
+    //   6: ZF = zero result?
+    //   7: SF = result is negative?
+    //   8: TF = interrupt after every instruction?
+    //   9: IF = interrupts enabled?
+    //  10: DF = SI/DI decrement in string operations
+    //  11: OF = signed overflow?
+    UInt8 _opcode;
 
 };
 
