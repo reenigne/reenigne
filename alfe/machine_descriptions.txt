@@ -16,5 +16,11 @@ How should we pass instruction pattern details to MachineDescription.addInstruct
   String for binary function body
   String for ALFE function body
 
+Target flags:
+  e.g. only8086 for conditional jump opcodes 60-6f
+  Also used for whether undefine() or the actual behavior is specified
 
+How can timing information be specified?
+  Have some hidden registers which control timing, including a special "current time" register
+  An instruction pattern can set timing registers based on operands and previous timing register values
 

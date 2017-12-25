@@ -206,7 +206,9 @@ public:
         p = outputBytes(p);
         p[0] = 0xeb;
         p[1] = 0x00;
-        return p + 2;
+        p[2] = 0xcd;
+        p[3] = 0xff;
+        return p + 4;
     }
     void write()
     {
@@ -231,7 +233,19 @@ private:
 class Emulator
 {
 public:
-    Emulator() : _logging(false) { }
+    Emulator() : _logging(false)
+    {
+        static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
+        static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
+        static String s[8] = {"ES", "CS", "SS", "DS", "??", "??", "??", "??"};
+        for (int i = 0; i < 8; ++i) {
+            _wordRegisters[i].init(w[i], &_registerData[i]);
+            _byteRegisters[i].init(b[i], reinterpret_cast<UInt8*>(
+                &_registerData[i & 3]) + (i >= 4 ? 1 : 0));
+            _segmentRegisters[i].init(s[i], &_segmentRegisterData[i]);
+        }
+        _flags.init("F", &_flagsData);
+    }
     String log(Test test)
     {
         _logging = true;
@@ -249,7 +263,8 @@ private:
     void run()
     {
         _cycles = 0;
-        _test.outputCode(&_ram[0x10a80]);
+        Byte* stopP = _test.outputCode(&_ram[0x10a80]);
+        _stopIP = (stopP - &_ram[0]) - 0x10a82;
         ax() = 0;
         cx() = 0;
         dx() = 0;
@@ -342,6 +357,8 @@ private:
         U _readValue;
         U _writtenValue;
     };
+    int _stopIP;
+
     Register<UInt16>& rw() { return _wordRegisters[_opcode & 7]; }
     Register<UInt16>& ax() { return _wordRegisters[0]; }
     Register<UInt16>& cx() { return _wordRegisters[1]; }
