@@ -233,7 +233,7 @@ private:
 class Emulator
 {
 public:
-    Emulator() : _logging(false)
+    Emulator() : _logging(false), _ram(0xa0000)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -277,14 +277,66 @@ private:
         cs() = 0x10a8;
         ss() = 0x10a8;
         ds() = 0x10a8;
+        do {
+            //    String line = String(decimal(_cycle)).alignRight(5) + " ";
+            //    switch (_busState) {
+            //        case t1:
+            //            line += "T1 " + hex(_busAddress, 5, false) + " ";
+            //            break;
+            //        case t2:
+            //            line += "T2 ";
+            //            if (_ioInProgress == ioWrite)
+            //                line += "M<-" + hex(_busData, 2, false) + " ";
+            //            else
+            //                line += "      ";
+            //            break;
+            //        case t3: line += "T3       "; break;
+            //        case tWait: line += "Tw       "; break;
+            //        case t4:
+            //            line += "T4 ";
+            //            if (_ioInProgress == ioWrite)
+            //                line += "      ";
+            //            else
+            //                if (_abandonFetch)
+            //                    line += "----- ";
+            //                else
+            //                    line += "M->" + hex(_busData, 2, false) + " ";
+            //            break;
+            //        case tIdle: line += "         "; break;
+            //    }
+            if (_newInstruction) {
+                UInt32 a = codeAddress(_newIP);
+                if (!_visited[a]) {
+                    console.write(String(decimal(_cycle)).alignRight(5) + " " +
+                        hex(csQuiet(), 4, false) + ":" +
+                        hex(_newIP, 4, false) + " " +
+                        _disassembler.disassemble(_newIP) + "\n");
+                }
+                _visited[a] = true;
+                //        line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
+                //            + " " + _disassembler.disassemble(_newIP);
+            }
+            //    line = line.alignLeft(50);
+            //    for (int i = 0; i < 8; ++i) {
+            //        line += _byteRegisters[i].text();
+            //        line += _wordRegisters[i].text();
+            //        line += _segmentRegisters[i].text();
+            //    }
+            //    line += _flags.text();
+            //    //if(_newInstruction)
+            //        console.write(line + "\n");
+            _newInstruction = false;
+        }
 
+        ++_cycle;
+    } while (true);
     }
 
     bool _logging;
     Test _test;
     String _log;
     int _cycles;
-    Array<Byte> _ram[0xa0000];
+    Array<Byte> _ram;
 
     template<class U> class Register
     {
