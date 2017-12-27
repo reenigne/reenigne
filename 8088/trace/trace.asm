@@ -103,7 +103,7 @@ loopTop:
   dec dx
   outputByte
   outputByte
-  mov dx,18996 + 492*3   ;65534 ;
+  mov dx,18996; + 492*3   ;65534 ;
   outputByte
   outputByte
 
@@ -178,6 +178,15 @@ lut: db 0x88,8
 
 testRoutine:
   mov [cs:savedSP],sp
+
+  mov ax,0xaa
+  mov cl,0; 0xff
+  db 0xd3, 0xf0
+  push ax
+  pop ax
+  ret
+
+
 
 ;  mov al,TIMER1 | LSB | MODE2 | BINARY
 ;  out 0x43,al
