@@ -341,8 +341,7 @@ private:
         case 0x9e: return "SAHF";
         case 0x9f: return "LAHF";
         case 0xa0:
-        case 0xa1: return "MOV " + accum() + ", " + size() + "[" + iw() +
-            "]";
+        case 0xa1: return "MOV " + accum() + ", " + size() + "[" + iw() + "]";
         case 0xa2:
         case 0xa3: return "MOV " + size() + "[" + iw() + "], " + accum();
         case 0xa4:
@@ -658,27 +657,27 @@ private:
             case t1:
                 if (_ioInProgress == ioInstructionFetch) {
                     _busAddress = physicalAddress(1, _prefetchAddress);
-                    _bus->setAddressReadMemory(_tick, _busAddress);
+                    //_bus->setAddressReadMemory(_tick, _busAddress);
                 }
                 else {
                     int segment = _segment;
                     if (_segmentOverride != -1)
                         segment = _segmentOverride;
                     _busAddress = physicalAddress(segment, _address);
-                    if (_usePortSpace) {
-                        if (_ioInProgress == ioWrite)
-                            _bus->setAddressWriteIO(_tick, _busAddress);
-                        else
-                            _bus->setAddressReadIO(_tick, _busAddress);
-                    }
-                    else {
-                        if (_ioInProgress == ioWrite) {
-                            _bus->setAddressWriteMemory(_tick,
-                                _busAddress);
-                        }
-                        else
-                            _bus->setAddressReadMemory(_tick, _busAddress);
-                    }
+                    //if (_usePortSpace) {
+                    //    if (_ioInProgress == ioWrite)
+                    //        _bus->setAddressWriteIO(_tick, _busAddress);
+                    //    else
+                    //        _bus->setAddressReadIO(_tick, _busAddress);
+                    //}
+                    //else {
+                    //    if (_ioInProgress == ioWrite) {
+                    //        _bus->setAddressWriteMemory(_tick,
+                    //            _busAddress);
+                    //    }
+                    //    else
+                    //        _bus->setAddressReadMemory(_tick, _busAddress);
+                    //}
                 }
                 _busState = t2;
                 break;
@@ -686,26 +685,28 @@ private:
                 if (_ioInProgress == ioWrite) {
                     _ioRequested = ioNone;
                     switch (_byte) {
-                    case ioSingleByte:
-                        _busData = _data;
-                        _state = _afterIO;
-                        break;
-                    case ioWordFirst:
-                        _busData = _data;
-                        _ioInProgress = ioWrite;
-                        _byte = ioWordSecond;
-                        ++_address;
-                        break;
-                    case ioWordSecond:
-                        _busData = _data >> 8;
-                        _state = _afterIO;
-                        _byte = ioSingleByte;
-                        break;
+                        case ioSingleByte:
+                            _busData = _data;
+                            _state = _afterIO;
+                            break;
+                        case ioWordFirst:
+                            _busData = _data;
+                            _ioInProgress = ioWrite;
+                            _byte = ioWordSecond;
+                            ++_address;
+                            break;
+                        case ioWordSecond:
+                            _busData = _data >> 8;
+                            _state = _afterIO;
+                            _byte = ioSingleByte;
+                            break;
                     }
-                    if (_usePortSpace)
-                        _bus->writeIO(_tick, _busData);
-                    else
-                        _bus->writeMemory(_tick, _busData);
+                    //if (_usePortSpace)
+                    //    _bus->writeIO(_tick, _busData);
+                    //else
+                    //    _bus->writeMemory(_tick, _busData);
+                    if (!_usePortSpace)
+                        _ram[_busAddress] = _busData;
                 }
                 _busState = t3;
                 break;
@@ -721,7 +722,8 @@ private:
                     if (_abandonFetch)
                         break;
                     _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
-                        _bus->readMemory(_tick);
+                        _ram[_busAddress];
+                        //_bus->readMemory(_tick);
                     ++_prefetched;
                     ++_prefetchAddress;
                     completeInstructionFetch();
@@ -730,29 +732,29 @@ private:
                 if (_ioInProgress == ioWrite)
                     break;
                 if (_ioInProgress == ioInterruptAcknowledge)
-                    _data = _pic->readAcknowledgeByte(_tick);
+                    _data = 8; //_pic->readAcknowledgeByte(_tick);
                 else
                     if (_usePortSpace)
-                        _busData = _bus->readIO(_tick);
+                        _busData = 0xff; //_bus->readIO(_tick);
                     else
-                        _busData = _bus->readMemory(_tick);
+                        _busData = _ram[_busAddress]; //_bus->readMemory(_tick);
                 _ioRequested = ioNone;
                 switch (_byte) {
-                case ioSingleByte:
-                    _data = _busData;
-                    _state = _afterIO;
-                    break;
-                case ioWordFirst:
-                    _data = _busData;
-                    _ioInProgress = ioRead;
-                    _byte = ioWordSecond;
-                    ++_address;
-                    break;
-                case ioWordSecond:
-                    _data |= static_cast<UInt16>(_busData) << 8;
-                    _state = _afterIO;
-                    _byte = ioSingleByte;
-                    break;
+                    case ioSingleByte:
+                        _data = _busData;
+                        _state = _afterIO;
+                        break;
+                    case ioWordFirst:
+                        _data = _busData;
+                        _ioInProgress = ioRead;
+                        _byte = ioWordSecond;
+                        ++_address;
+                        break;
+                    case ioWordSecond:
+                        _data |= static_cast<UInt16>(_busData) << 8;
+                        _state = _afterIO;
+                        _byte = ioSingleByte;
+                        break;
                 }
                 break;
             case t4:
@@ -881,24 +883,24 @@ private:
                     }
                     _useMemory = true;
                     switch (_modRM & 7) {
-                    case 0: _wait = 7; _address = bx() + si(); break;
-                    case 1: _wait = 8; _address = bx() + di(); break;
-                    case 2: _wait = 8; _address = bp() + si(); break;
-                    case 3: _wait = 7; _address = bp() + di(); break;
-                    case 4: _wait = 5; _address =        si(); break;
-                    case 5: _wait = 5; _address =        di(); break;
-                    case 6: _wait = 5; _address = bp();        break;
-                    case 7: _wait = 5; _address = bx();        break;
+                        case 0: _wait = 7; _address = bx() + si(); break;
+                        case 1: _wait = 8; _address = bx() + di(); break;
+                        case 2: _wait = 8; _address = bp() + si(); break;
+                        case 3: _wait = 7; _address = bp() + di(); break;
+                        case 4: _wait = 5; _address =        si(); break;
+                        case 5: _wait = 5; _address =        di(); break;
+                        case 6: _wait = 5; _address = bp();        break;
+                        case 7: _wait = 5; _address = bx();        break;
                     }
                     switch (_modRM & 0xc0) {
-                    case 0x00:
-                        if ((_modRM & 7) == 6)
-                            fetch(stateEAOffset, true);
-                        else
-                            _state = stateEASetSegment;
-                        break;
-                    case 0x40: fetch(stateEAByte, false); break;
-                    case 0x80: fetch(stateEAWord, true); break;
+                        case 0x00:
+                            if ((_modRM & 7) == 6)
+                                fetch(stateEAOffset, true);
+                            else
+                                _state = stateEASetSegment;
+                            break;
+                        case 0x40: fetch(stateEAByte, false); break;
+                        case 0x80: fetch(stateEAWord, true); break;
                     }
                     break;
                 case stateEAOffset:
@@ -918,12 +920,12 @@ private:
                     _state = stateEASetSegment;
                     break;
                 case stateEASetSegment:
-                {
-                    static int segments[8] = {3, 3, 2, 2, 3, 3, 2, 3};
-                    _segment = segments[_modRM & 7];
-                }
-                _state = _afterEA;
-                break;
+                    {
+                        static int segments[8] = {3, 3, 2, 2, 3, 3, 2, 3};
+                        _segment = segments[_modRM & 7];
+                    }
+                    _state = _afterEA;
+                    break;
 
                 case stateEAIO:
                     if (_useMemory)
@@ -1032,22 +1034,22 @@ private:
                     _state = stateDA;
                     break;
                 case stateDAS:
-                {
-                    UInt8 t = al();
-                    if (af() || ((al() & 0xf) > 9)) {
-                        _data = al() - 6;
-                        al() = _data;
-                        setAF(true);
-                        if ((_data & 0x100) != 0)
+                    {
+                        UInt8 t = al();
+                        if (af() || ((al() & 0xf) > 9)) {
+                            _data = al() - 6;
+                            al() = _data;
+                            setAF(true);
+                            if ((_data & 0x100) != 0)
+                                setCF(true);
+                        }
+                        if (cf() || t > 0x9f) {
+                            al() -= 0x60;
                             setCF(true);
+                        }
                     }
-                    if (cf() || t > 0x9f) {
-                        al() -= 0x60;
-                        setCF(true);
-                    }
-                }
-                _state = stateDA;
-                break;
+                    _state = stateDA;
+                    break;
                 case stateDA:
                     _wordSize = false;
                     _data = al();
@@ -1110,24 +1112,24 @@ private:
 
                 case stateJCond: fetch(stateJCond2, false); break;
                 case stateJCond2:
-                {
-                    bool jump;
-                    switch (_opcode & 0x0e) {
-                    case 0x00: jump =  of(); break;
-                    case 0x02: jump =  cf(); break;
-                    case 0x04: jump =  zf(); break;
-                    case 0x06: jump =  cf() || zf(); break;
-                    case 0x08: jump =  sf(); break;
-                    case 0x0a: jump =  pf(); break;
-                    case 0x0c: jump = (sf() != of()); break;
-                    case 0x0e: jump = (sf() != of()) || zf(); break;
+                    {
+                        bool jump;
+                        switch (_opcode & 0x0e) {
+                        case 0x00: jump =  of(); break;
+                        case 0x02: jump =  cf(); break;
+                        case 0x04: jump =  zf(); break;
+                        case 0x06: jump =  cf() || zf(); break;
+                        case 0x08: jump =  sf(); break;
+                        case 0x0a: jump =  pf(); break;
+                        case 0x0c: jump = (sf() != of()); break;
+                        case 0x0e: jump = (sf() != of()) || zf(); break;
+                        }
+                        if ((_opcode & 1) != 0)
+                            jump = !jump;
+                        if (jump)
+                            jumpShort();
+                        end(jump ? 16 : 4);
                     }
-                    if ((_opcode & 1) != 0)
-                        jump = !jump;
-                    if (jump)
-                        jumpShort();
-                    end(jump ? 16 : 4);
-                }
                 break;
 
                 case stateALURMImm: readEA(stateALURMImm2); break;
@@ -1802,53 +1804,53 @@ private:
                 case stateMisc2:
                     _savedIP = _data;
                     switch (modRMReg()) {
-                    case 0:
-                    case 1:
-                        _destination = _data;
-                        _source = 1;
-                        if (modRMReg() == 0) {
-                            _data = _destination + _source;
-                            setOFAdd();
-                        }
-                        else {
-                            _data = _destination - _source;
-                            setOFSub();
-                        }
-                        doAF();
-                        setPZS();
-                        writeEA(_data, _useMemory ? 7 : 3);
-                        break;
-                    case 2:
-                        _wait = (_useMemory ? 1 : 0);
-                        _state = stateCallCW3;
-                        break;
-                    case 3:
-                        if (_useMemory) {
-                            _address += 2;
-                            _wait = 1;
-                            readEA(stateCallCP3);
-                        }
-                        else
-                            end(0);
-                        break;
-                    case 4:
-                        _wait = (_useMemory ? 8 : 5);
-                        _state = stateJmpCW3;
-                        break;
-                    case 5:
-                        if (_useMemory) {
-                            _address += 2;
-                            _wait = 1;
-                            readEA(stateJmpCP3);
-                        }
-                        else
-                            end(0);
-                        break;
-                    case 6:
-                    case 7:
-                        push(_data, stateEndInstruction);
-                        _wait += (_useMemory ? 2 : 1);
-                        break;
+                        case 0:
+                        case 1:
+                            _destination = _data;
+                            _source = 1;
+                            if (modRMReg() == 0) {
+                                _data = _destination + _source;
+                                setOFAdd();
+                            }
+                            else {
+                                _data = _destination - _source;
+                                setOFSub();
+                            }
+                            doAF();
+                            setPZS();
+                            writeEA(_data, _useMemory ? 7 : 3);
+                            break;
+                        case 2:
+                            _wait = (_useMemory ? 1 : 0);
+                            _state = stateCallCW3;
+                            break;
+                        case 3:
+                            if (_useMemory) {
+                                _address += 2;
+                                _wait = 1;
+                                readEA(stateCallCP3);
+                            }
+                            else
+                                end(0);
+                            break;
+                        case 4:
+                            _wait = (_useMemory ? 8 : 5);
+                            _state = stateJmpCW3;
+                            break;
+                        case 5:
+                            if (_useMemory) {
+                                _address += 2;
+                                _wait = 1;
+                                readEA(stateJmpCP3);
+                            }
+                            else
+                                end(0);
+                            break;
+                        case 6:
+                        case 7:
+                            push(_data, stateEndInstruction);
+                            _wait += (_useMemory ? 2 : 1);
+                            break;
                     }
                     break;
             }

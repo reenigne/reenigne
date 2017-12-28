@@ -3149,8 +3149,30 @@ public:
             File file(inputName, true);
             if (endsIn(inputName, ".cgad"))
                 _data.load(file);
-            else
+            else {
+                static const int regs = -CGAData::registerLogCharactersPerBank;
+                Byte cgaRegistersData[regs] = { 0 };
+                Byte* cgaRegisters = &cgaRegistersData[regs];
+                cgaRegisters[CGAData::registerScanlinesRepeat] = 1;
+                cgaRegisters[CGAData::registerMode] = 0x08;
+                cgaRegisters[CGAData::registerPalette] = 0x00;
+                cgaRegisters[CGAData::registerInterlaceMode] = 2;
+                cgaRegisters[CGAData::registerMaximumScanline] = 1;
+                cgaRegisters[CGAData::registerLogCharactersPerBank] = 12;
+                cgaRegisters[CGAData::registerHorizontalTotal] = 57 - 1;
+                cgaRegisters[CGAData::registerHorizontalDisplayed] = 40;
+                cgaRegisters[CGAData::registerHorizontalSyncPosition] = 45;
+                cgaRegisters[CGAData::registerHorizontalSyncWidth] = 10;
+                cgaRegisters[CGAData::registerVerticalTotal] = 128 - 1;
+                cgaRegisters[CGAData::registerVerticalTotalAdjust] = 6;
+                cgaRegisters[CGAData::registerVerticalDisplayed] = 100;
+                cgaRegisters[CGAData::registerVerticalSyncPosition] = 112;
+                cgaRegisters[CGAData::registerCursorStart] = 6;
+                cgaRegisters[CGAData::registerCursorEnd] = 7;
+                _data.change(0, -regs, regs, &cgaRegistersData[0]);
+                _data.setTotals(912*262, 910, static_cast<int>(910*262.5));
                 _data.loadVRAM(file);
+            }
             matcher.initFromData();
         }
         else
