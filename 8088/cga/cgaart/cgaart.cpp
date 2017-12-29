@@ -1446,6 +1446,8 @@ private:
             _horizontalDisplayed*_verticalDisplayed)
             ++_logCharactersPerBank;
         int horizontalTotal = _horizontalDisplayed + 272/_hdotsPerChar;
+        if ((_mode & 1) != 0 && (horizontalTotal & 1) != 0)
+            ++horizontalTotal;
         int horizontalSyncPosition = _horizontalDisplayed + 80/_hdotsPerChar;
         int totalScanlines = _activeSize.y + 62;
         int verticalTotal = totalScanlines/scanlinesPerRow;
