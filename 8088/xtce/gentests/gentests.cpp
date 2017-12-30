@@ -601,49 +601,172 @@ private:
         cs() = testSegment;
         ss() = testSegment;
         ds() = testSegment;
+
+        int t = 0;  // 0 = Tidle, 1 = T1, 2 = T2, 3 = T3, 4 = T4, 5 = Tw
+        int d = -1;  // -1 = SI, 0 = S0, 1 = S1, 2 = S2, 3 = S3, 4 = S4, 5 = SW
+        Byte queue[4];
+        int queueLength = 0;
+        int lastS = 0;
+
         do {
             simulateCycleAction();
-            String line = String(decimal(_cycle)).alignRight(5) + " ";
-            switch (_busState) {
-                case t1:
-                    line += "T1 " + hex(_busAddress, 5, false) + " ";
-                    break;
-                case t2:
-                    line += "T2 ";
-                    if (_ioInProgress == ioWrite)
-                        line += "M<-" + hex(_busData, 2, false) + " ";
-                    else
-                        line += "      ";
-                    break;
-                case t3: line += "T3       "; break;
-                case tWait: line += "Tw       "; break;
-                case t4:
-                    line += "T4 ";
-                    if (_ioInProgress == ioWrite)
-                        line += "      ";
-                    else
-                        if (_abandonFetch)
-                            line += "----- ";
+
+            char qsc[] = ".IES";
+            char sc[] = "ARWHCrwp";
+            String line = String(hex(_cpu_ad, 5, false)) + " " +
+                codePoint(qsc[_cpu_qs]) + codePoint(sc[_cpu_s]) +
+                (rqgt0 ? "G" : ".") + (ready ? "." : "z") +
+                (test ? "T" : ".") +
+                "  " + hex(address, 5, false) + " " + hex(data, 2, false) +
+                " " + hex(dma, 2, false) + " " + hex(irq, 2, false) + " " +
+                hex(pit, 1, false) + " " + (ior ? "R" : ".") +
+                (iow ? "W" : ".") + (memr ? "r" : ".") +
+                (memw ? "w" : ".") + (iochrdy ? "." : "z") +
+                (aen ? "D" : ".") +
+                (tc ? "T" : ".");
+            line += "  ";
+            if (_cpu_s != 7 && _cpu_s != 3)
+                switch (t) {
+                    case 0:
+                    case 4:
+                        // T1 state occurs after transition out of passive
+                        t = 1;
+                        break;
+                    case 1:
+                        t = 2;
+                        break;
+                    case 2:
+                        t = 3;
+                        break;
+                    case 3:
+                        t = 5;
+                        break;
+                }
+            else
+                switch (t) {
+                    case 4:
+                        d = -1;
+                    case 0:
+                        t = 0;
+                        break;
+                    case 1:
+                    case 2:
+                        t = 6;
+                        break;
+                    case 3:
+                    case 5:
+                        d = -1;
+                        t = 4;
+                        break;
+                }
+            switch (t) {
+                case 0: line += "  "; break;
+                case 1: line += "T1"; break;
+                case 2: line += "T2"; break;
+                case 3: line += "T3"; break;
+                case 4: line += "T4"; break;
+                case 5: line += "Tw"; break;
+                default: line += "!c"; t = 0; break;
+            }
+            line += " ";
+            if (aen)
+                switch (d) {
+                    // This is a bit of a hack since we don't have access
+                    // to the right lines to determine the DMA state
+                    // properly. This probably breaks for memory-to-memory
+                    // copies.
+                    case -1: d = 0; break;
+                    case 0: d = 1; break;
+                    case 1: d = 2; break;
+                    case 2: d = 3; break;
+                    case 3:
+                    case 5:
+                        if ((iow && memr) || (ior && memw))
+                            d = 4;
                         else
-                            line += "M->" + hex(_busData, 2, false) + " ";
-                    break;
-                case tIdle: line += "         "; break;
+                            d = 5;
+                        break;
+                    case 4:
+                        d = -1;
+                }
+            switch (d) {
+                case -1: line += "  "; break;
+                case 0: line += "S0"; break;
+                case 1: line += "S1"; break;
+                case 2: line += "S2"; break;
+                case 3: line += "S3"; break;
+                case 4: line += "S4"; break;
+                case 5: line += "SW"; break;
+                default: line += "!d"; t = 0; break;
             }
-            UInt32 a = codeAddress(_newIP);
-            console.write(String(decimal(_cycle)).alignRight(5) + " " +
-                hex(csQuiet(), 4, false) + ":" +
-                hex(_newIP, 4, false) + " " +
-                _disassembler.disassemble(_newIP) + "\n");
-            line += hex(csQuiet(), 4, false) + ":" + hex(_newIP, 4, false)
-                + " " + _disassembler.disassemble(_newIP);
-            line = line.alignLeft(50);
-            for (int i = 0; i < 8; ++i) {
-                line += _byteRegisters[i].text();
-                line += _wordRegisters[i].text();
-                line += _segmentRegisters[i].text();
+            line += " ";
+            String instruction;
+            if (_cpu_qs != 0) {
+                if (_cpu_qs == 2)
+                    queueLength = 0;
+                else {
+                    Byte b = queue[0];
+                    for (int i = 0; i < 3; ++i)
+                        queue[i] = queue[i + 1];
+                    --queueLength;
+                    if (queueLength < 0) {
+                        line += "!g";
+                        queueLength = 0;
+                    }
+                    instruction = _disassembler.disassemble(b, _cpu_qs == 1);
+                }
             }
-            line += _flags.text();
-            console.write(line + "\n");
+            if (t == 4 || d == 4) {
+                if (t == 4 && d == 4)
+                    line += "!e";
+                String seg;
+                switch (_cpu_ad & 0x30000) {
+                    case 0x00000: seg = "ES "; break;
+                    case 0x10000: seg = "SS "; break;
+                    case 0x20000: seg = "CS "; break;
+                    case 0x30000: seg = "DS "; break;
+                }
+                String type = "-";
+                if (lastS == 0)
+                    line += hex(data, 2, false) + " <-i           ";
+                else {
+                    if (lastS == 4) {
+                        type = "f";
+                        seg = "   ";
+                    }
+                    if (d == 4) {
+                        type = "d";
+                        seg = "   ";
+                    }
+                    line += hex(data, 2, false) + " ";
+                    if (ior || memr)
+                        line += "<-" + type + " ";
+                    else
+                        line += type + "-> ";
+                    if (memr || memw)
+                        line += "[" + seg + hex(address, 5, false) + "]";
+                    else
+                        line += "port[" + hex(address, 4, false) + "]";
+                    if (lastS == 4 && d != 4) {
+                        if (queueLength >= 4)
+                            line += "!f";
+                        else {
+                            queue[queueLength] = data;
+                            ++queueLength;
+                        }
+                    }
+                }
+                line += " ";
+            }
+            else
+                line += "                  ";
+            if (_cpu_qs != 0)
+                line += codePoint(qsc[_cpu_qs]);
+            else
+                line += " ";
+            line += " " + instruction + "\n";
+            lastS = _cpu_s;
+            console.write(line);
 
             //++_cycles;
         } while (true);
@@ -2093,14 +2216,14 @@ private:
     void doALUOperation()
     {
         switch (_aluOperation) {
-        case 0: add(); break;
-        case 1: bitwise(_destination | _source); break;
-        case 2: _source += cf() ? 1 : 0; add(); break;
-        case 3: _source += cf() ? 1 : 0; sub(); break;
-        case 4: test(_destination, _source); break;
-        case 5:
-        case 7: sub(); break;
-        case 6: bitwise(_destination ^ _source); break;
+            case 0: add(); break;
+            case 1: bitwise(_destination | _source); break;
+            case 2: _source += cf() ? 1 : 0; add(); break;
+            case 3: _source += cf() ? 1 : 0; sub(); break;
+            case 4: test(_destination, _source); break;
+            case 5:
+            case 7: sub(); break;
+            case 6: bitwise(_destination ^ _source); break;
         }
     }
     UInt16 signExtend(UInt8 data) { return data + (data < 0x80 ? 0 : 0xff00); }
@@ -2417,6 +2540,43 @@ private:
     Array<bool> _visited;
 
     Disassembler _disassembler;
+    // These represent the CPU and ISA bus pins used to create the sniffer
+    // logs.
+    UInt32 _cpu_ad;
+    // A19/S6        O ADDRESS/STATUS: During T1, these are the four most significant address lines for memory operations. During I/O operations, these lines are LOW. During memory and I/O operations, status information is available on these lines during T2, T3, Tw, and T4. S6 is always low.
+    // A18/S5        O The status of the interrupt enable flag bit (S5) is updated at the beginning of each clock cycle.
+    // A17/S4        O  S4*2+S3 0 = Alternate Data, 1 = Stack, 2 = Code or None, 3 = Data
+    // A16/S3        O
+    // A15..A8       O ADDRESS BUS: These lines provide address bits 8 through 15 for the entire bus cycle (T1±T4). These lines do not have to be latched by ALE to remain valid. A15±A8 are active HIGH and float to 3-state OFF during interrupt acknowledge and local bus ``hold acknowledge''.
+    // AD7..AD0     IO ADDRESS DATA BUS: These lines constitute the time multiplexed memory/IO address (T1) and data (T2, T3, Tw, T4) bus. These lines are active HIGH and float to 3-state OFF during interrupt acknowledge and local bus ``hold acknowledge''.
+    UInt8 _cpu_qs;
+    // QS0           O QUEUE STATUS: provide status to allow external tracking of the internal 8088 instruction queue. The queue status is valid during the CLK cycle after which the queue operation is performed.
+    // QS1           0 = No operation, 1 = First Byte of Opcode from Queue, 2 = Empty the Queue, 3 = Subsequent Byte from Queue
+    UInt8 _cpu_s;
+    // -S0           O STATUS: is active during clock high of T4, T1, and T2, and is returned to the passive state (1,1,1) during T3 or during Tw when READY is HIGH. This status is used by the 8288 bus controller to generate all memory and I/O access control signals. Any change by S2, S1, or S0 during T4 is used to indicate the beginning of a bus cycle, and the return to the passive state in T3 and Tw is used to indicate the end of a bus cycle. These signals float to 3-state OFF during ``hold acknowledge''. During the first clock cycle after RESET becomes active, these signals are active HIGH. After this first clock, they float to 3-state OFF.
+    // -S1           0 = Interrupt Acknowledge, 1 = Read I/O Port, 2 = Write I/O Port, 3 = Halt, 4 = Code Access, 5 = Read Memory, 6 = Write Memory, 7 = Passive
+    // -S2
+    bool rqgt0;    // -RQ/-GT0 !87 IO REQUEST/GRANT: pins are used by other local bus masters to force the processor to release the local bus at the end of the processor's current bus cycle. Each pin is bidirectional with RQ/GT0 having higher priority than RQ/GT1. RQ/GT has an internal pull-up resistor, so may be left unconnected.
+    bool ready;    // READY        I  READY: is the acknowledgement from the addressed memory or I/O device that it will complete the data transfer. The RDY signal from memory or I/O is synchronized by the 8284 clock generator to form READY. This signal is active HIGH. The 8088 READY input is not synchronized. Correct operation is not guaranteed if the set up and hold times are not met.
+    bool test;     // -TEST        I  TEST: input is examined by the ``wait for test'' instruction. If the TEST input is LOW, execution continues, otherwise the processor waits in an ``idle'' state. This input is synchronized internally during each clock cycle on the leading edge of CLK.
+    UInt32 address;
+    // +A19..+A0      O Address bits: These lines are used to address memory and I/O devices within the system. These lines are generated by either the processor or DMA controller.
+    UInt8 data;
+    // +D7..+D0      IO Data bits: These lines provide data bus bits 0 to 7 for the processor, memory, and I/O devices.
+    UInt8 dma;
+    // +DRQ0 JP6/1 == U28.19 == U73.9
+    // +DRQ1..+DRQ3  I  DMA Request: These lines are asynchronous channel requests used by peripheral devices to gain DMA service. They are prioritized with DRQ3 being the lowest and DRQl being the highest. A request is generated by bringing a DRQ line to an active level (high). A DRQ line must be held high until the corresponding DACK line goes active.
+    // -DACK0..-DACK3 O -DMA Acknowledge: These lines are used to acknowledge DMA requests (DRQ1-DRQ3) and to refresh system dynamic memory (DACK0). They are active low.
+    UInt8 irq;
+    // +IRQ2..+IRQ7  I  Interrupt Request lines: These lines are used to signal the processor that an I/O device requires attention. An Interrupt Request is generated by raising an IRQ line (low to high) and holding it high until it is acknowledged by the processor (interrupt service routine).
+    UInt8 pit;     // clock, gate, output
+    bool ior;      // -IOR         O -I/O Read Command: This command line instructs an I/O device to drive its data onto the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool iow;      // -IOW         O -I/O Write Command: This command line instructs an I/O device to read the data on the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool memr;     // -MEMR        O Memory Read Command: This command line instructs the memory to drive its data onto the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool memw;     // -MEMW        O Memory Write Command: This command line instructs the memory to store the data present on the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool iochrdy;  // +I/O CH RDY I  I/O Channel Ready: This line, normally high (ready), is pulled low (not ready) by a memory or I/O device to lengthen I/O or memory cycles. It allows slower devices to attach to the I/O channel with a minimum of difficulty. Any slow device using this line should drive it low immediately upon detecting a valid address and a read or write command. This line should never be held low longer than 10 clock cycles. Machine cycles (I/O or memory) are extended by an integral number of CLK cycles (210 ns).
+    bool aen;      // +AEN         O Address Enable: This line is used to de-gate the processor and other devices from the I/O channel to allow DMA transfers to take place. When this line is active (high), the DMA controller has control of the address bus, data bus, read command lines (memory and I/O), and the write command lines (memory and I/O).
+    bool tc;       // +T/C         O Terminal Count: This line provides a pulse when the terminal count for any DMA channel is reached. This signal is active high.
 };
 
 class Program : public ProgramBase
