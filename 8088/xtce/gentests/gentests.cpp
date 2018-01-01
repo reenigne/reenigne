@@ -619,8 +619,39 @@ private:
                     _bus_address = _cpu_ad;
                     break;
                 case t3:
+                    _cpu_ad &= 0xcffff;
+                    switch (_busSegment) {
+                        case 0:  // ES
+                            break;
+                        case 1:  // CS or none
+                            _cpu_ad |= 0x20000;
+                            break;
+                        case 2:  // SS
+                            _cpu_ad |= 0x10000;
+                            break;
+                        case 3:  // DS
+                            _cpu_ad |= 0x30000;
+                            break;
+                    }
+
+                    if (_ioInProgress == ioWrite) {
+                        _cpu_ad = (_cpu_ad & 0xfff00) | _busData;
+                        _bus_data = _busData;
+                    }
+                    break;
+                case t4:
+                    if (_ioInProgress != ioWrite) {
+                        _cpu_ad = (_cpu_ad & 0xfff00) | _busData;
+                        _bus_data = _busData;
+                    }
+                    break;
+
+
+                        
             }
-            _cpu_ad = _busAddress;
+            if (_busState != t2)
+                _cpu_ad = (_cpu_ad & 0x3ffff) | (intf() ? 0x40000 : 0);
+
             _cpu_qs = 0;
             _cpu_s = 0;
             _cpu_test = false;
@@ -815,6 +846,7 @@ private:
                         int segment = _segment;
                         if (_segmentOverride != -1)
                             segment = _segmentOverride;
+                        _busSegment = segment;
                         _busAddress = physicalAddress(segment, _address);
                         //if (_usePortSpace) {
                         //    if (_ioInProgress == ioWrite)
@@ -2527,6 +2559,7 @@ private:
     UInt8 _prefetched;
     int _segment;
     int _segmentOverride;
+    int _busSegment;
     UInt16 _prefetchAddress;
     IOType _ioType;
     IOType _ioRequested;
