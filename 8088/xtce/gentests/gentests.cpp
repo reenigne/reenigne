@@ -601,12 +601,16 @@ private:
         cs() = testSegment;
         ss() = testSegment;
         ds() = testSegment;
+        _state = stateBegin;
+        _busState = t1;
 
         int t = 0;  // 0 = Tidle, 1 = T1, 2 = T2, 3 = T3, 4 = T4, 5 = Tw
         int d = -1;  // -1 = SI, 0 = S0, 1 = S1, 2 = S2, 3 = S3, 4 = S4, 5 = SW
         Byte queue[4];
         int queueLength = 0;
         int lastS = 0;
+        _pitCycle = 0;
+        _ready = true;
 
         do {
             simulateCycleAction();
@@ -652,23 +656,15 @@ private:
             if (_busState != t2)
                 _cpu_ad = (_cpu_ad & 0x3ffff) | (intf() ? 0x40000 : 0);
 
-            _cpu_qs = 0;
-            _cpu_s = 0;
-            _cpu_test = false;
-            _cpu_ready = true;
-            _cpu_test = false;
-            _bus_address = _busAddress;
-            _bus_data = _busData;
-            _bus_dma = 0;
-            _bus_irq = 0;
-            _bus_pit = 0;
-            _bus_ior = false;
-            _bus_iow = false;
-            _bus_memr = false;
-            _bus_memw = false;
-            _bus_iochrdy = true;
-            _bus_aen = false;
-            _bus_tc = false;
+            _cpu_rqgt0 = false;  // Used by 8087 for bus mastering, NYI
+            _cpu_ready = true;   // Used for DMA and wait states, NYI
+            _cpu_test = false;   // Used by 8087 for synchronization, NYI
+            _bus_dma = 0;        // NYI
+            _bus_irq = 0xfc;     // NYI
+            _bus_pit = _pitCycle < 2 ? 4 : 5;
+            _bus_iochrdy = true; // Used for wait states, NYI
+            _bus_aen = false;    // Used for DMA, NYI
+            _bus_tc = false;     // Used for DMA, NYI
 
             char qsc[] = ".IES";
             char sc[] = "ARWHCrwp";
@@ -829,10 +825,12 @@ private:
             console.write(line);
 
             //++_cycles;
+            _pitCycle = (_pitCycle + 1) & 3;
         } while (_ip != _stopIP);
     }
     void simulateCycleAction()
     {
+        _cpu_qs = 0;
         bool busDone;
         do {
             busDone = true;
@@ -864,6 +862,10 @@ private:
                         //}
                     }
                     _busState = t2;
+                    _bus_ior = false;
+                    _bus_iow = false;
+                    _bus_memr = false;
+                    _bus_memw = false;
                     break;
                 case t2:
                     if (_ioInProgress == ioWrite) {
@@ -893,6 +895,18 @@ private:
                             _ram[_busAddress] = _busData;
                     }
                     _busState = t3;
+                    if (_usePortSpace) {
+                        if (_ioInProgress == ioWrite)
+                            _bus_iow = true;
+                        else
+                            _bus_ior = true;
+                    }
+                    else {
+                        if (_ioInProgress == ioWrite)
+                            _bus_memw = true;
+                        else
+                            _bus_memr = true;
+                    }
                     break;
                 case t3:
                     _busState = tWait;
@@ -902,12 +916,14 @@ private:
                     if (!_ready)
                         break;
                     _busState = t4;
+                    _cpu_s = 7;
                     if (_ioInProgress == ioInstructionFetch) {
                         if (_abandonFetch)
                             break;
-                        _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
-                            _ram[_busAddress];
+                        _busData = _ram[_busAddress];
                             //_bus->readMemory(_tick);
+                        _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
+                            _busData;
                         ++_prefetched;
                         ++_prefetchAddress;
                         completeInstructionFetch();
@@ -959,7 +975,27 @@ private:
                         _ioInProgress = ioInstructionFetch;
                         _busState = t1;
                     }
+                    if (_busState == t1) {
+                        switch (_ioInProgress) {
+                            case ioRead:
+                                _cpu_s = _usePortSpace ? 1 : 5;
+                                break;
+                            case ioWrite:
+                                _cpu_s = _usePortSpace ? 2 : 6;
+                                break;
+                            case ioInterruptAcknowledge:
+                                _cpu_s = 0;
+                                break;
+                            case ioInstructionFetch:
+                                _cpu_s = 4;
+                                break;
+                        }
+                    }
                     busDone = true;
+                    _bus_ior = false;
+                    _bus_iow = false;
+                    _bus_memr = false;
+                    _bus_memw = false;
                     break;
             }
         } while (!busDone);
@@ -975,6 +1011,7 @@ private:
                 case stateBegin: fetch(stateDecodeOpcode, false); break;
                 case stateDecodeOpcode:
                     {
+                        _cpu_qs = 1;
                         _opcode = _data;
                         _wordSize = ((_opcode & 1) != 0);
                         _sourceIsRM = ((_opcode & 2) != 0);
@@ -1840,6 +1877,7 @@ private:
                     break;
                 case stateHlt:
                     _wait = 1;
+                    _cpu_s = 3;
                     _state = stateHalted;
                     break;
                 case stateHalted:
@@ -2497,6 +2535,7 @@ private:
         _ip = value;
         _abandonFetch = true;
         _prefetched = 0;
+        _cpu_qs = 2;
         _prefetchAddress = _ip;
     }
     UInt32 physicalAddress(UInt16 segment, UInt16 offset)
@@ -2508,6 +2547,7 @@ private:
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
         _prefetchOffset = (_prefetchOffset + 1) & 3;
         --_prefetched;
+        _cpu_qs = 3;
         return byte;
     }
     void completeInstructionFetch()
@@ -2639,6 +2679,7 @@ private:
     bool _bus_iochrdy;  // +I/O CH RDY I  I/O Channel Ready: This line, normally high (ready), is pulled low (not ready) by a memory or I/O device to lengthen I/O or memory cycles. It allows slower devices to attach to the I/O channel with a minimum of difficulty. Any slow device using this line should drive it low immediately upon detecting a valid address and a read or write command. This line should never be held low longer than 10 clock cycles. Machine cycles (I/O or memory) are extended by an integral number of CLK cycles (210 ns).
     bool _bus_aen;      // +AEN         O Address Enable: This line is used to de-gate the processor and other devices from the I/O channel to allow DMA transfers to take place. When this line is active (high), the DMA controller has control of the address bus, data bus, read command lines (memory and I/O), and the write command lines (memory and I/O).
     bool _bus_tc;       // +T/C         O Terminal Count: This line provides a pulse when the terminal count for any DMA channel is reached. This signal is active high.
+    int _pitCycle;
 };
 
 class Program : public ProgramBase
