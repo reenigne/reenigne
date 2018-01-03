@@ -368,6 +368,7 @@ class Program : public ProgramBase
         }
 
         int t = 0;  // 0 = Tidle, 1 = T1, 2 = T2, 3 = T3, 4 = T4, 5 = Tw
+        int tNext = 0;
         int d = -1;  // -1 = SI, 0 = S0, 1 = S1, 2 = S2, 3 = S3, 4 = S4, 5 = SW
 
         Byte queue[4];
@@ -533,20 +534,20 @@ class Program : public ProgramBase
 
                 o += "  ";
                 if (s != 7 && s != 3)
-                    switch (t) {
+                    switch (tNext) {
                         case 0:
                         case 4:
                             // T1 state occurs after transition out of passive
-                            t = 1;
+                            tNext = 1;
                             break;
                         case 1:
-                            t = 2;
+                            tNext = 2;
                             break;
                         case 2:
-                            t = 3;
+                            tNext = 3;
                             break;
                         case 3:
-                            t = 5;
+                            tNext = 5;
                             break;
                     }
                 else
@@ -554,16 +555,16 @@ class Program : public ProgramBase
                         case 4:
                             d = -1;
                         case 0:
-                            t = 0;
+                            tNext = 0;
                             break;
                         case 1:
                         case 2:
-                            t = 6;
+                            tNext = 6;
                             break;
                         case 3:
                         case 5:
                             d = -1;
-                            t = 4;
+                            tNext = 4;
                             break;
                     }
                 switch (t) {
@@ -573,7 +574,7 @@ class Program : public ProgramBase
                     case 3: o += "T3"; break;
                     case 4: o += "T4"; break;
                     case 5: o += "Tw"; break;
-                    default: o += "!c"; t = 0; break;
+                    default: o += "!c"; tNext = 0; break;
                 }
                 o += " ";
                 if (aen)
@@ -623,8 +624,8 @@ class Program : public ProgramBase
                         instruction = disassembler.disassemble(b, qs == 1);
                     }
                 }
-                if (t == 4 || d == 4) {
-                    if (t == 4 && d == 4)
+                if (t == 3 || d == 4) {
+                    if (t == 3 && d == 4)
                         o += "!e";
                     String seg;
                     switch (cpu & 0x30000) {
@@ -673,6 +674,7 @@ class Program : public ProgramBase
                     o += " ";
                 o += " " + instruction + "\n";
                 lastS = s;
+                t = tNext;
             }
         File(_arguments[2], true).save(o);
     }
