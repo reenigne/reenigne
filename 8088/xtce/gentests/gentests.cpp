@@ -552,6 +552,252 @@ private:
     int _lastOffset;
 };
 
+class SnifferDecoder
+{
+public:
+    void reset()
+    {
+        _cpu_rqgt0 = false;  // Used by 8087 for bus mastering, NYI
+        _cpu_ready = true;   // Used for DMA and wait states, NYI
+        _cpu_test = false;   // Used by 8087 for synchronization, NYI
+        _bus_dma = 0;        // NYI
+        _bus_irq = 0xfc;     // NYI
+        _bus_iochrdy = true; // Used for wait states, NYI
+        _bus_aen = false;    // Used for DMA, NYI
+        _bus_tc = false;     // Used for DMA, NYI
+
+        _t = 0;  
+        _tNext = 0;
+        _d = -1;  
+        _queueLength = 0;
+        _lastS = 0;
+        _pitCycle = 0;
+    }
+    String getLine()
+    {
+        _bus_pit = (_pitCycle & 3) < 2 ? 4 : 5;
+
+        static const char qsc[] = ".IES";
+        static const char sc[] = "ARWHCrwp";
+        String line = String(hex(_cpu_ad, 5, false)) + " " +
+            codePoint(qsc[_cpu_qs]) + codePoint(sc[_cpu_s]) +
+            (_cpu_rqgt0 ? "G" : ".") + (_cpu_ready ? "." : "z") +
+            (_cpu_test ? "T" : ".") +
+            "  " + hex(_bus_address, 5, false) + " " +
+            hex(_bus_data, 2, false) + " " + hex(_bus_dma, 2, false) +
+            " " + hex(_bus_irq, 2, false) + " " +
+            hex(_bus_pit, 1, false) + " " + (_bus_ior ? "R" : ".") +
+            (_bus_iow ? "W" : ".") + (_bus_memr ? "r" : ".") +
+            (_bus_memw ? "w" : ".") + (_bus_iochrdy ? "." : "z") +
+            (_bus_aen ? "D" : ".") +
+            (_bus_tc ? "T" : ".");
+        line += "  ";
+        if (_cpu_s != 7 && _cpu_s != 3)
+            switch (_tNext) {
+                case 0:
+                case 4:
+                    // T1 state occurs after transition out of passive
+                    _tNext = 1;
+                    break;
+                case 1:
+                    _tNext = 2;
+                    break;
+                case 2:
+                    _tNext = 3;
+                    break;
+                case 3:
+                    _tNext = 5;
+                    break;
+            }
+        else
+            switch (_t) {
+                case 4:
+                    _d = -1;
+                case 0:
+                    _tNext = 0;
+                    break;
+                case 1:
+                case 2:
+                    _tNext = 6;
+                    break;
+                case 3:
+                case 5:
+                    _d = -1;
+                    _tNext = 4;
+                    break;
+            }
+        switch (_t) {
+            case 0: line += "  "; break;
+            case 1: line += "T1"; break;
+            case 2: line += "T2"; break;
+            case 3: line += "T3"; break;
+            case 4: line += "T4"; break;
+            case 5: line += "Tw"; break;
+            default: line += "!c"; _tNext = 0; break;
+        }
+        line += " ";
+        if (_bus_aen)
+            switch (_d) {
+                // This is a bit of a hack since we don't have access
+                // to the right lines to determine the DMA state
+                // properly. This probably breaks for memory-to-memory
+                // copies.
+                case -1: _d = 0; break;
+                case 0: _d = 1; break;
+                case 1: _d = 2; break;
+                case 2: _d = 3; break;
+                case 3:
+                case 5:
+                    if ((_bus_iow && _bus_memr) || (_bus_ior && _bus_memw))
+                        _d = 4;
+                    else
+                        _d = 5;
+                    break;
+                case 4:
+                    _d = -1;
+            }
+        switch (_d) {
+            case -1: line += "  "; break;
+            case 0: line += "S0"; break;
+            case 1: line += "S1"; break;
+            case 2: line += "S2"; break;
+            case 3: line += "S3"; break;
+            case 4: line += "S4"; break;
+            case 5: line += "SW"; break;
+            default: line += "!d"; _t = 0; break;
+        }
+        line += " ";
+        String instruction;
+        if (_cpu_qs != 0) {
+            if (_cpu_qs == 2)
+                _queueLength = 0;
+            else {
+                Byte b = _queue[0];
+                for (int i = 0; i < 3; ++i)
+                    _queue[i] = _queue[i + 1];
+                --_queueLength;
+                if (_queueLength < 0) {
+                    line += "!g";
+                    _queueLength = 0;
+                }
+                instruction = _disassembler.disassemble(b, _cpu_qs == 1);
+            }
+        }
+        if (_tNext == 4 || _d == 4) {
+            if (_tNext == 4 && _d == 4)
+                line += "!e";
+            String seg;
+            switch (_cpu_ad & 0x30000) {
+                case 0x00000: seg = "ES "; break;
+                case 0x10000: seg = "SS "; break;
+                case 0x20000: seg = "CS "; break;
+                case 0x30000: seg = "DS "; break;
+            }
+            String type = "-";
+            if (_lastS == 0)
+                line += hex(_bus_data, 2, false) + " <-i           ";
+            else {
+                if (_lastS == 4) {
+                    type = "f";
+                    seg = "   ";
+                }
+                if (_d == 4) {
+                    type = "d";
+                    seg = "   ";
+                }
+                line += hex(_bus_data, 2, false) + " ";
+                if (_bus_ior || _bus_memr)
+                    line += "<-" + type + " ";
+                else
+                    line += type + "-> ";
+                if (_bus_memr || _bus_memw)
+                    line += "[" + seg + hex(_bus_address, 5, false) + "]";
+                else
+                    line += "port[" + hex(_bus_address, 4, false) + "]";
+                if (_lastS == 4 && _d != 4) {
+                    if (_queueLength >= 4)
+                        line += "!f";
+                    else {
+                        _queue[_queueLength] = _bus_data;
+                        ++_queueLength;
+                    }
+                }
+            }
+            line += " ";
+        }
+        else
+            line += "                  ";
+        if (_cpu_qs != 0)
+            line += codePoint(qsc[_cpu_qs]);
+        else
+            line += " ";
+        line += " " + instruction + "\n";
+        _lastS = _cpu_s;
+        _t = _tNext;
+        if (_t == 4 || _d == 4) {
+            _bus_ior = false;
+            _bus_iow = false;
+            _bus_memr = false;
+            _bus_memw = false;
+        }
+        ++_pitCycle;
+        _cpu_qs = 0;
+        return line;
+    }
+    void queueOperation(int qs) { _cpu_qs = qs; }
+    void setStatus(int s) { _cpu_s = s; }
+private:
+    Disassembler _disassembler;
+
+    // Internal variables that we use to keep track of what's going on in order
+    // to be able to print useful logs.
+    int _t;  // 0 = Tidle, 1 = T1, 2 = T2, 3 = T3, 4 = T4, 5 = Tw
+    int _tNext;
+    int _d;  // -1 = SI, 0 = S0, 1 = S1, 2 = S2, 3 = S3, 4 = S4, 5 = SW
+    Byte _queue[4];
+    int _queueLength;
+    int _lastS;
+    int _pitCycle;
+
+    // These represent the CPU and ISA bus pins used to create the sniffer
+    // logs.
+    UInt32 _cpu_ad;
+    // A19/S6        O ADDRESS/STATUS: During T1, these are the four most significant address lines for memory operations. During I/O operations, these lines are LOW. During memory and I/O operations, status information is available on these lines during T2, T3, Tw, and T4. S6 is always low.
+    // A18/S5        O The status of the interrupt enable flag bit (S5) is updated at the beginning of each clock cycle.
+    // A17/S4        O  S4*2+S3 0 = Alternate Data, 1 = Stack, 2 = Code or None, 3 = Data
+    // A16/S3        O
+    // A15..A8       O ADDRESS BUS: These lines provide address bits 8 through 15 for the entire bus cycle (T1±T4). These lines do not have to be latched by ALE to remain valid. A15±A8 are active HIGH and float to 3-state OFF during interrupt acknowledge and local bus ``hold acknowledge''.
+    // AD7..AD0     IO ADDRESS DATA BUS: These lines constitute the time multiplexed memory/IO address (T1) and data (T2, T3, Tw, T4) bus. These lines are active HIGH and float to 3-state OFF during interrupt acknowledge and local bus ``hold acknowledge''.
+    UInt8 _cpu_qs;
+    // QS0           O QUEUE STATUS: provide status to allow external tracking of the internal 8088 instruction queue. The queue status is valid during the CLK cycle after which the queue operation is performed.
+    // QS1           0 = No operation, 1 = First Byte of Opcode from Queue, 2 = Empty the Queue, 3 = Subsequent Byte from Queue
+    UInt8 _cpu_s;
+    // -S0           O STATUS: is active during clock high of T4, T1, and T2, and is returned to the passive state (1,1,1) during T3 or during Tw when READY is HIGH. This status is used by the 8288 bus controller to generate all memory and I/O access control signals. Any change by S2, S1, or S0 during T4 is used to indicate the beginning of a bus cycle, and the return to the passive state in T3 and Tw is used to indicate the end of a bus cycle. These signals float to 3-state OFF during ``hold acknowledge''. During the first clock cycle after RESET becomes active, these signals are active HIGH. After this first clock, they float to 3-state OFF.
+    // -S1           0 = Interrupt Acknowledge, 1 = Read I/O Port, 2 = Write I/O Port, 3 = Halt, 4 = Code Access, 5 = Read Memory, 6 = Write Memory, 7 = Passive
+    // -S2
+    bool _cpu_rqgt0;    // -RQ/-GT0 !87 IO REQUEST/GRANT: pins are used by other local bus masters to force the processor to release the local bus at the end of the processor's current bus cycle. Each pin is bidirectional with RQ/GT0 having higher priority than RQ/GT1. RQ/GT has an internal pull-up resistor, so may be left unconnected.
+    bool _cpu_ready;    // READY        I  READY: is the acknowledgement from the addressed memory or I/O device that it will complete the data transfer. The RDY signal from memory or I/O is synchronized by the 8284 clock generator to form READY. This signal is active HIGH. The 8088 READY input is not synchronized. Correct operation is not guaranteed if the set up and hold times are not met.
+    bool _cpu_test;     // -TEST        I  TEST: input is examined by the ``wait for test'' instruction. If the TEST input is LOW, execution continues, otherwise the processor waits in an ``idle'' state. This input is synchronized internally during each clock cycle on the leading edge of CLK.
+    UInt32 _bus_address;
+    // +A19..+A0      O Address bits: These lines are used to address memory and I/O devices within the system. These lines are generated by either the processor or DMA controller.
+    UInt8 _bus_data;
+    // +D7..+D0      IO Data bits: These lines provide data bus bits 0 to 7 for the processor, memory, and I/O devices.
+    UInt8 _bus_dma;
+    // +DRQ0 JP6/1 == U28.19 == U73.9
+    // +DRQ1..+DRQ3  I  DMA Request: These lines are asynchronous channel requests used by peripheral devices to gain DMA service. They are prioritized with DRQ3 being the lowest and DRQl being the highest. A request is generated by bringing a DRQ line to an active level (high). A DRQ line must be held high until the corresponding DACK line goes active.
+    // -DACK0..-DACK3 O -DMA Acknowledge: These lines are used to acknowledge DMA requests (DRQ1-DRQ3) and to refresh system dynamic memory (DACK0). They are active low.
+    UInt8 _bus_irq;
+    // +IRQ2..+IRQ7  I  Interrupt Request lines: These lines are used to signal the processor that an I/O device requires attention. An Interrupt Request is generated by raising an IRQ line (low to high) and holding it high until it is acknowledged by the processor (interrupt service routine).
+    UInt8 _bus_pit;     // clock, gate, output
+    bool _bus_ior;      // -IOR         O -I/O Read Command: This command line instructs an I/O device to drive its data onto the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool _bus_iow;      // -IOW         O -I/O Write Command: This command line instructs an I/O device to read the data on the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool _bus_memr;     // -MEMR        O Memory Read Command: This command line instructs the memory to drive its data onto the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool _bus_memw;     // -MEMW        O Memory Write Command: This command line instructs the memory to store the data present on the data bus. It may be driven by the processor or the DMA controller. This signal is active low.
+    bool _bus_iochrdy;  // +I/O CH RDY I  I/O Channel Ready: This line, normally high (ready), is pulled low (not ready) by a memory or I/O device to lengthen I/O or memory cycles. It allows slower devices to attach to the I/O channel with a minimum of difficulty. Any slow device using this line should drive it low immediately upon detecting a valid address and a read or write command. This line should never be held low longer than 10 clock cycles. Machine cycles (I/O or memory) are extended by an integral number of CLK cycles (210 ns).
+    bool _bus_aen;      // +AEN         O Address Enable: This line is used to de-gate the processor and other devices from the I/O channel to allow DMA transfers to take place. When this line is active (high), the DMA controller has control of the address bus, data bus, read command lines (memory and I/O), and the write command lines (memory and I/O).
+    bool _bus_tc;       // +T/C         O Terminal Count: This line provides a pulse when the terminal count for any DMA channel is reached. This signal is active high.
+};
+
 class Emulator
 {
 public:
@@ -586,7 +832,7 @@ private:
     {
         UInt16 testSegment = 0x10a8;
 
-        _cycles = 0;
+        _cycle = 0;
         Byte* stopP = _test.outputCode(&_ram[testSegment << 4]);
         _stopIP = stopP - &_ram[(testSegment << 4) + 2];
         ax() = 0;
@@ -601,161 +847,86 @@ private:
         cs() = testSegment;
         ss() = testSegment;
         ds() = testSegment;
-        _busState = t1;
+        _busState = tIdle;
         _queueCycle = 0;
+        _ready = true;
+        _ioInProgress = ioNone;
 
         do {
             executeOneInstruction();
-        } while (_ip != _stopIP && _cycles < 2048);
+        } while (_ip != _stopIP && _cycle < 2048);
     }
     void wait(int cycles)
     {
         do {
-            _cpu_qs = 0;
-            bool busDone;
-            do {
-                busDone = true;
-                switch (_busState) {
-                    case t1:
-                        if (_ioInProgress == ioInstructionFetch) {
-                            _busAddress = physicalAddress(1, _prefetchAddress);
-                            //_bus->setAddressReadMemory(_tick, _busAddress);
-                        }
-                        else {
-                            int segment = _segment;
-                            if (_segmentOverride != -1)
-                                segment = _segmentOverride;
-                            _busSegment = segment;
-                            _busAddress = physicalAddress(segment, _address);
-                            //if (_usePortSpace) {
-                            //    if (_ioInProgress == ioWrite)
-                            //        _bus->setAddressWriteIO(_tick, _busAddress);
-                            //    else
-                            //        _bus->setAddressReadIO(_tick, _busAddress);
-                            //}
-                            //else {
-                            //    if (_ioInProgress == ioWrite) {
-                            //        _bus->setAddressWriteMemory(_tick,
-                            //            _busAddress);
-                            //    }
-                            //    else
-                            //        _bus->setAddressReadMemory(_tick, _busAddress);
-                            //}
-                        }
-                        _busState = t2;
-                        _bus_ior = false;
-                        _bus_iow = false;
-                        _bus_memr = false;
-                        _bus_memw = false;
-                        break;
-                    case t2:
-                        if (_ioInProgress == ioWrite) {
-                            _ioRequested = ioNone;
-                            switch (_byte) {
-                            case ioSingleByte:
-                                _busData = _data;
-                                _state = _afterIO;
-                                break;
-                            case ioWordFirst:
-                                _busData = _data;
-                                _ioInProgress = ioWrite;
-                                _byte = ioWordSecond;
-                                ++_address;
-                                break;
-                            case ioWordSecond:
-                                _busData = _data >> 8;
-                                _state = _afterIO;
-                                _byte = ioSingleByte;
-                                break;
-                            }
-                            //if (_usePortSpace)
-                            //    _bus->writeIO(_tick, _busData);
-                            //else
-                            //    _bus->writeMemory(_tick, _busData);
-                            if (!_usePortSpace)
-                                _ram[_busAddress] = _busData;
-                        }
-                        _busState = t3;
-                        if (_usePortSpace) {
-                            if (_ioInProgress == ioWrite)
-                                _bus_iow = true;
-                            else
-                                _bus_ior = true;
-                        }
-                        else {
-                            if (_ioInProgress == ioWrite)
-                                _bus_memw = true;
-                            else
-                                _bus_memr = true;
-                        }
-                        break;
-                    case t3:
-                        _busState = tWait;
-                        busDone = false;
-                        break;
-                    case tWait:
-                        if (!_ready)
-                            break;
-                        _busState = t4;
-                        _cpu_s = 7;
-                        if (_ioInProgress == ioInstructionFetch) {
-                            if (_abandonFetch)
-                                break;
-                            _busData = _ram[_busAddress];
-                            //_bus->readMemory(_tick);
-                            _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
-                                _busData;
-                            _queueCycle = 3;
-                            break;
-                        }
+            switch (_busState) {
+                case t1:
+                    if (_ioInProgress == ioInstructionFetch)
+                        _busAddress = physicalAddress(1, _prefetchAddress);
+                    else {
+                        int segment = _segment;
+                        if (_segmentOverride != -1)
+                            segment = _segmentOverride;
+                        _busSegment = segment;
+                        _busAddress = physicalAddress(segment, _address);
+                    }
+                    _busState = t2;
+                    break;
+                case t2:
+                    if (_ioInProgress == ioWrite) {
+                        if (!_usePortSpace)
+                            _ram[_busAddress] = _busData;
+                    }
+                    _busState = tWait;
+                    if (_usePortSpace) {
                         if (_ioInProgress == ioWrite)
-                            break;
-                        if (_ioInProgress == ioInterruptAcknowledge)
-                            _data = 8; //_pic->readAcknowledgeByte(_tick);
+                            _bus_iow = true;
                         else
-                            if (_usePortSpace)
-                                _busData = 0xff; //_bus->readIO(_tick);
-                            else
-                                _busData = _ram[_busAddress]; //_bus->readMemory(_tick);
-                        _ioRequested = ioNone;
-                        switch (_byte) {
-                        case ioSingleByte:
-                            _data = _busData;
-                            _state = _afterIO;
-                            break;
-                        case ioWordFirst:
-                            _data = _busData;
-                            _ioInProgress = ioRead;
-                            _byte = ioWordSecond;
-                            ++_address;
-                            break;
-                        case ioWordSecond:
-                            _data |= static_cast<UInt16>(_busData) << 8;
-                            _state = _afterIO;
-                            _byte = ioSingleByte;
-                            break;
-                        }
-                        break;
-                    case t4:
-                        _busState = tIdle;
-                        busDone = false;
-                        break;
-                    case tIdle:
-                        if (_byte == ioWordSecond)
-                            _busState = t1;
+                            _bus_ior = true;
+                    }
+                    else {
+                        if (_ioInProgress == ioWrite)
+                            _bus_memw = true;
                         else
-                            _ioInProgress = ioNone;
-                        _abandonFetch = false;
-                        if (_ioInProgress == ioNone && _ioRequested != ioNone) {
-                            _ioInProgress = _ioRequested;
-                            _busState = t1;
-                        }
-                        if (_ioInProgress == ioNone && _prefetched < 4) {
-                            _ioInProgress = ioInstructionFetch;
-                            _busState = t1;
-                        }
-                        if (_busState == t1) {
-                            switch (_ioInProgress) {
+                            _bus_memr = true;
+                    }
+                    break;
+                case tWait:
+                    if (!_ready)
+                        break;
+                    _busState = tIdle;
+                    _ioInProgress = ioNone;
+                    _cpu_s = 7;
+                    if (_ioInProgress == ioInstructionFetch) {
+                        if (_abandonFetch)
+                            break;
+                        _busData = _ram[_busAddress];
+                        _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
+                            _busData;
+                        _queueCycle = 3;
+                        break;
+                    }
+                    if (_ioInProgress == ioWrite)
+                        break;
+                    if (_ioInProgress == ioInterruptAcknowledge)
+                        _data = 8;
+                    else
+                        if (_usePortSpace)
+                            _busData = 0xff;
+                        else
+                            _busData = _ram[_busAddress];
+                    break;
+                case tIdle:
+                    if (_ioInProgress == ioNone && _prefetched < 4) {
+                        _ioInProgress = ioRead;
+                        _busState = t1;
+                    }
+                    if (_ioInProgress != ioNone) {
+                        _busState = t1;
+                    }
+
+                    if (_busState == t1) {
+                        switch (_ioInProgress) {
                             case ioRead:
                                 _cpu_s = _usePortSpace ? 1 : 5;
                                 break;
@@ -768,16 +939,10 @@ private:
                             case ioInstructionFetch:
                                 _cpu_s = 4;
                                 break;
-                            }
                         }
-                        busDone = true;
-                        _bus_ior = false;
-                        _bus_iow = false;
-                        _bus_memr = false;
-                        _bus_memw = false;
-                        break;
-                }
-            } while (!busDone);
+                    }
+                    break;
+            }
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0) {
@@ -825,195 +990,58 @@ private:
             if (_busState != t2)
                 _cpu_ad = (_cpu_ad & 0x3ffff) | (intf() ? 0x40000 : 0);
 
-            _cpu_rqgt0 = false;  // Used by 8087 for bus mastering, NYI
-            _cpu_ready = true;   // Used for DMA and wait states, NYI
-            _cpu_test = false;   // Used by 8087 for synchronization, NYI
-            _bus_dma = 0;        // NYI
-            _bus_irq = 0xfc;     // NYI
-            _bus_pit = (_cycles & 3) < 2 ? 4 : 5;
-            _bus_iochrdy = true; // Used for wait states, NYI
-            _bus_aen = false;    // Used for DMA, NYI
-            _bus_tc = false;     // Used for DMA, NYI
+            String line = _snifferDecoder.getLine();
 
-            char qsc[] = ".IES";
-            char sc[] = "ARWHCrwp";
-            String line = String(hex(_cpu_ad, 5, false)) + " " +
-                codePoint(qsc[_cpu_qs]) + codePoint(sc[_cpu_s]) +
-                (_cpu_rqgt0 ? "G" : ".") + (_cpu_ready ? "." : "z") +
-                (_cpu_test ? "T" : ".") +
-                "  " + hex(_bus_address, 5, false) + " " +
-                hex(_bus_data, 2, false) + " " + hex(_bus_dma, 2, false) +
-                " " + hex(_bus_irq, 2, false) + " " +
-                hex(_bus_pit, 1, false) + " " + (_bus_ior ? "R" : ".") +
-                (_bus_iow ? "W" : ".") + (_bus_memr ? "r" : ".") +
-                (_bus_memw ? "w" : ".") + (_bus_iochrdy ? "." : "z") +
-                (_bus_aen ? "D" : ".") +
-                (_bus_tc ? "T" : ".");
-            line += "  ";
-            if (s != 7 && s != 3)
-                switch (tNext) {
-                    case 0:
-                    case 4:
-                        // T1 state occurs after transition out of passive
-                        tNext = 1;
-                        break;
-                    case 1:
-                        tNext = 2;
-                        break;
-                    case 2:
-                        tNext = 3;
-                        break;
-                    case 3:
-                        tNext = 5;
-                        break;
-                }
-            else
-                switch (t) {
-                    case 4:
-                        d = -1;
-                    case 0:
-                        tNext = 0;
-                        break;
-                    case 1:
-                    case 2:
-                        tNext = 6;
-                        break;
-                    case 3:
-                    case 5:
-                        d = -1;
-                        tNext = 4;
-                        break;
-                }
-            switch (t) {
-                case 0: line += "  "; break;
-                case 1: line += "T1"; break;
-                case 2: line += "T2"; break;
-                case 3: line += "T3"; break;
-                case 4: line += "T4"; break;
-                case 5: line += "Tw"; break;
-                default: line += "!c"; tNext = 0; break;
-            }
-            line += " ";
-            if (_bus_aen)
-                switch (d) {
-                    // This is a bit of a hack since we don't have access
-                    // to the right lines to determine the DMA state
-                    // properly. This probably breaks for memory-to-memory
-                    // copies.
-                    case -1: d = 0; break;
-                    case 0: d = 1; break;
-                    case 1: d = 2; break;
-                    case 2: d = 3; break;
-                    case 3:
-                    case 5:
-                        if ((_bus_iow && _bus_memr) || (_bus_ior && _bus_memw))
-                            d = 4;
-                        else
-                            d = 5;
-                        break;
-                    case 4:
-                        d = -1;
-                }
-            switch (d) {
-                case -1: line += "  "; break;
-                case 0: line += "S0"; break;
-                case 1: line += "S1"; break;
-                case 2: line += "S2"; break;
-                case 3: line += "S3"; break;
-                case 4: line += "S4"; break;
-                case 5: line += "SW"; break;
-                default: line += "!d"; t = 0; break;
-            }
-            line += " ";
-            String instruction;
-            if (_cpu_qs != 0) {
-                if (_cpu_qs == 2)
-                    queueLength = 0;
-                else {
-                    Byte b = queue[0];
-                    for (int i = 0; i < 3; ++i)
-                        queue[i] = queue[i + 1];
-                    --queueLength;
-                    if (queueLength < 0) {
-                        line += "!g";
-                        queueLength = 0;
-                    }
-                    instruction = _disassembler.disassemble(b, _cpu_qs == 1);
-                }
-            }
-            if (tNext == 4 || d == 4) {
-                if (tNext == 4 && d == 4)
-                    line += "!e";
-                String seg;
-                switch (_cpu_ad & 0x30000) {
-                    case 0x00000: seg = "ES "; break;
-                    case 0x10000: seg = "SS "; break;
-                    case 0x20000: seg = "CS "; break;
-                    case 0x30000: seg = "DS "; break;
-                }
-                String type = "-";
-                if (lastS == 0)
-                    line += hex(_bus_data, 2, false) + " <-i           ";
-                else {
-                    if (lastS == 4) {
-                        type = "f";
-                        seg = "   ";
-                    }
-                    if (d == 4) {
-                        type = "d";
-                        seg = "   ";
-                    }
-                    line += hex(_bus_data, 2, false) + " ";
-                    if (_bus_ior || _bus_memr)
-                        line += "<-" + type + " ";
-                    else
-                        line += type + "-> ";
-                    if (_bus_memr || _bus_memw)
-                        line += "[" + seg + hex(_bus_address, 5, false) + "]";
-                    else
-                        line += "port[" + hex(_bus_address, 4, false) + "]";
-                    if (lastS == 4 && d != 4) {
-                        if (queueLength >= 4)
-                            line += "!f";
-                        else {
-                            queue[queueLength] = _bus_data;
-                            ++queueLength;
-                        }
-                    }
-                }
-                line += " ";
-            }
-            else
-                line += "                  ";
-            if (_cpu_qs != 0)
-                line += codePoint(qsc[_cpu_qs]);
-            else
-                line += " ";
-            line += " " + instruction + "\n";
-            lastS = _cpu_s;
-            t = tNext;
             console.write(line);
 
-            //++_cycles;
-            _pitCycle = (_pitCycle + 1) & 3;
+            ++_cycle;
             --cycles;
         } while (cycles > 0);
     }
+    enum IOType
+    {
+        ioNone,
+        ioRead,
+        ioWrite,
+        ioInstructionFetch,
+        ioInterruptAcknowledge
+    };
+    Byte busAccess(bool usePortSpace, int segment, UInt16 address, UInt8 data,
+        IOType type)
+    {
+        while (_ioInProgress != ioNone)
+            wait(1);
+
+        _usePortSpace = usePortSpace;
+        _busSegment = segment;
+        _busAddress = physicalAddress(segment, address);
+        _busData = data;
+        _ioInProgress = type;
+
+        while (_ioInProgress != ioNone)
+            wait(1);
+
+        return _busData;
+    }
+
     Byte fetchInstructionByte()
     {
+        // Always wait at least one cycle so we don't fetch more than one byte
+        // from the queue per cycle.
         do
             wait(1);
         while (_prefetched == 0);
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
         _prefetchOffset = (_prefetchOffset + 1) & 3;
         --_prefetched;
-        _cpu_qs = 3;
+        _snifferDecoder.queueOperation(3);
         return byte;
     }
 
     void executeOneInstruction()
     {
         Byte opcode = fetchInstructionByte();
+        _snifferDecoder.queueOperation(1);
         switch (opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
             case 0x08: case 0x09: case 0x0a: case 0x0b: 
@@ -1271,9 +1299,146 @@ private:
     bool _logging;
     Test _test;
     String _log;
-    int _cycles;
+    int _cycle;
     Array<Byte> _ram;
     int _stopIP;
+
+    enum BusState
+    {
+        t1,
+        t2,
+        tWait,
+        tIdle
+    };
+
+    template<class U> class Register
+    {
+    public:
+        void init(String name, U* data)
+        {
+            _name = name;
+            _data = data;
+            _read = false;
+            _written = false;
+        }
+        const U& operator=(U value)
+        {
+            *_data = value;
+            _writtenValue = value;
+            _written = true;
+            return *_data;
+        }
+        operator U()
+        {
+            if (!_read && !_written) {
+                _read = true;
+                _readValue = *_data;
+            }
+            return *_data;
+        }
+        const U& operator+=(U value)
+        {
+            return operator=(operator U() + value);
+        }
+        const U& operator-=(U value)
+        {
+            return operator=(operator U() - value);
+        }
+        const U& operator%=(U value)
+        {
+            return operator=(operator U() % value);
+        }
+        const U& operator&=(U value)
+        {
+            return operator=(operator U() & value);
+        }
+        const U& operator^=(U value)
+        {
+            return operator=(operator U() ^ value);
+        }
+        U operator-() const { return -operator U(); }
+        void operator++() { operator=(operator U() + 1); }
+        void operator--() { operator=(operator U() - 1); }
+        String text()
+        {
+            String text;
+            if (_read) {
+                text = hex(_readValue, sizeof(U)==1 ? 2 : 4, false) + "<-" +
+                    _name + "  ";
+                _read = false;
+            }
+            if (_written) {
+                text += _name + "<-" +
+                    hex(_writtenValue, sizeof(U)==1 ? 2 : 4, false) + "  ";
+                _written = false;
+            }
+            return text;
+        }
+    protected:
+        String _name;
+        U* _data;
+        bool _read;
+        bool _written;
+        U _readValue;
+        U _writtenValue;
+    };
+    class FlagsRegister : public Register<UInt16>
+    {
+    public:
+        UInt32 operator=(UInt32 value)
+        {
+            Register<UInt16>::operator=(value);
+            return Register<UInt16>::operator UInt16();
+        }
+        String text()
+        {
+            String text;
+            if (this->_read) {
+                text = flags(this->_readValue) + "<-" + this->_name + "  ";
+                this->_read = false;
+            }
+            if (this->_written) {
+                text += this->_name + "<-" + flags(this->_writtenValue) + "  ";
+                this->_written = false;
+            }
+            return text;
+        }
+    private:
+        String flags(UInt16 value) const
+        {
+            return String(value & 0x800 ? "O" : "p") +
+                String(value & 0x400 ? "D" : "d") +
+                String(value & 0x200 ? "I" : "i") +
+                String(value & 0x100 ? "T" : "t") +
+                String(value & 0x80 ? "S" : "s") +
+                String(value & 0x40 ? "Z" : "z") +
+                String(value & 0x10 ? "A" : "a") +
+                String(value & 4 ? "P" : "p") +
+                String(value & 1 ? "C" : "c");
+        }
+    };
+    UInt32 physicalAddress(UInt16 segment, UInt16 offset)
+    {
+        return ((_segmentRegisterData[segment] << 4) + offset) & 0xfffff;
+    }
+
+    //Register<UInt16>& rw() { return _wordRegisters[_opcode & 7]; }
+    Register<UInt16>& ax() { return _wordRegisters[0]; }
+    Register<UInt16>& cx() { return _wordRegisters[1]; }
+    Register<UInt16>& dx() { return _wordRegisters[2]; }
+    Register<UInt16>& bx() { return _wordRegisters[3]; }
+    Register<UInt16>& sp() { return _wordRegisters[4]; }
+    Register<UInt16>& bp() { return _wordRegisters[5]; }
+    Register<UInt16>& si() { return _wordRegisters[6]; }
+    Register<UInt16>& di() { return _wordRegisters[7]; }
+    //Register<UInt8>& rb() { return _byteRegisters[_opcode & 7]; }
+    Register<UInt8>& al() { return _byteRegisters[0]; }
+    Register<UInt8>& cl() { return _byteRegisters[1]; }
+    Register<UInt8>& ah() { return _byteRegisters[4]; }
+    Register<UInt16>& es() { return _segmentRegisters[0]; }
+    Register<UInt16>& cs() { return _segmentRegisters[1]; }
+    Register<UInt16>& ss() { return _segmentRegisters[2]; }
+    Register<UInt16>& ds() { return _segmentRegisters[3]; }
 
     Register<UInt16> _wordRegisters[8];
     Register<UInt8> _byteRegisters[8];
@@ -1295,17 +1460,25 @@ private:
     //  11: OF = signed overflow?
     FlagsRegister _flags;
     UInt16 _ip;
+
     UInt8 _prefetchQueue[4];
     UInt8 _prefetchOffset;
     UInt8 _prefetched;
+    UInt16 _prefetchAddress;
+    BusState _busState;
 
-    Disassembler _disassembler;
-    // These represent the CPU and ISA bus pins used to create the sniffer
-    // logs.
-    UInt8 _cpu_qs;
-    // QS0           O QUEUE STATUS: provide status to allow external tracking of the internal 8088 instruction queue. The queue status is valid during the CLK cycle after which the queue operation is performed.
-    // QS1           0 = No operation, 1 = First Byte of Opcode from Queue, 2 = Empty the Queue, 3 = Subsequent Byte from Queue
+    IOType _ioInProgress;
+    UInt32 _busAddress;
+    UInt8 _busData;
+    //int _segment;
+    //int _segmentOverride;
+    int _busSegment;
+    bool _usePortSpace;
 
+    bool _ready;
+    int _queueCycle;
+
+    SnifferDecoder _snifferDecoder;
 };
 
 class Program : public ProgramBase
