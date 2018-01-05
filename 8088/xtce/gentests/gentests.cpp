@@ -746,6 +746,27 @@ public:
     }
     void queueOperation(int qs) { _cpu_qs = qs; }
     void setStatus(int s) { _cpu_s = s; }
+    void setStatusHigh(int segment)
+    {
+        _cpu_ad &= 0xcffff;
+        switch (segment) {
+            case 0:  // ES
+                break;
+            case 1:  // CS or none
+                _cpu_ad |= 0x20000;
+                break;
+            case 2:  // SS
+                _cpu_ad |= 0x10000;
+                break;
+            case 3:  // DS
+                _cpu_ad |= 0x30000;
+                break;
+        }
+    }
+    void setInterruptFlag(bool intf)
+    {
+        _cpu_ad = (_cpu_ad & 0xbffff) | (intf ? 0x40000 : 0);
+    }
 private:
     Disassembler _disassembler;
 
@@ -859,8 +880,12 @@ private:
     void wait(int cycles)
     {
         do {
+            _snifferDecoder.setInterruptFlag(intf());
             switch (_busState) {
                 case t1:
+                    _snifferDecoder.setStatusHigh(_busSegment);
+
+
                     if (_ioInProgress == ioInstructionFetch)
                         _busAddress = physicalAddress(1, _prefetchAddress);
                     else {
@@ -960,20 +985,6 @@ private:
                     _bus_address = _cpu_ad;
                     break;
                 case t3:
-                    _cpu_ad &= 0xcffff;
-                    switch (_busSegment) {
-                        case 0:  // ES
-                            break;
-                        case 1:  // CS or none
-                            _cpu_ad |= 0x20000;
-                            break;
-                        case 2:  // SS
-                            _cpu_ad |= 0x10000;
-                            break;
-                        case 3:  // DS
-                            _cpu_ad |= 0x30000;
-                            break;
-                    }
 
                     if (_ioInProgress == ioWrite) {
                         _cpu_ad = (_cpu_ad & 0xfff00) | _busData;
@@ -1439,6 +1450,127 @@ private:
     Register<UInt16>& cs() { return _segmentRegisters[1]; }
     Register<UInt16>& ss() { return _segmentRegisters[2]; }
     Register<UInt16>& ds() { return _segmentRegisters[3]; }
+
+    //bool cf() { return (_flags & 1) != 0; }
+    //void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
+    //bool pf() { return (_flags & 4) != 0; }
+    //void setPF()
+    //{
+    //    static UInt8 table[0x100] = {
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4};
+    //    _flags = (_flags & ~4) | table[_data & 0xff];
+    //}
+    //bool af() { return (_flags & 0x10) != 0; }
+    //void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
+    //bool zf() { return (_flags & 0x40) != 0; }
+    //void setZF()
+    //{
+    //    _flags = (_flags & ~0x40) |
+    //        ((_data & (!_wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
+    //}
+    //bool sf() { return (_flags & 0x80) != 0; }
+    //void setSF()
+    //{
+    //    _flags = (_flags & ~0x80) |
+    //        ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0);
+    //}
+    //bool tf() { return (_flags & 0x100) != 0; }
+    //void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
+    bool intf() { return (_flags & 0x200) != 0; }
+    //void setIF(bool intf) { _flags = (_flags & ~0x200) | (intf ? 0x200 : 0); }
+    //bool df() { return (_flags & 0x400) != 0; }
+    //void setDF(bool df) { _flags = (_flags & ~0x400) | (df ? 0x400 : 0); }
+    //bool of() { return (_flags & 0x800) != 0; }
+    //void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
+    //int modRMReg() { return (_modRM >> 3) & 7; }
+    //Register<UInt16>& modRMRW() { return _wordRegisters[modRMReg()]; }
+    //Register<UInt8>& modRMRB() { return _byteRegisters[modRMReg()]; }
+    //UInt16 getReg()
+    //{
+    //    if (!_wordSize)
+    //        return static_cast<UInt8>(modRMRB());
+    //    return modRMRW();
+    //}
+    //UInt16 getAccum()
+    //{
+    //    if (!_wordSize)
+    //        return static_cast<UInt8>(al());
+    //    return ax();
+    //}
+    //void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
+    //void setReg(UInt16 value)
+    //{
+    //    if (!_wordSize)
+    //        modRMRB() = static_cast<UInt8>(value);
+    //    else
+    //        modRMRW() = value;
+    //}
+    //void initIO(State nextState, IOType ioType, bool wordSize)
+    //{
+    //    _state = stateWaitingForBIU;
+    //    _afterIO = nextState;
+    //    _ioRequested = ioType;
+    //    _byte = (!wordSize ? ioSingleByte : ioWordFirst);
+    //}
+    //UInt16 getIP() { return _ip; }
+    //void setIP(UInt16 value)
+    //{
+    //    _ip = value;
+    //    _abandonFetch = true;
+    //    _prefetched = 0;
+    //    _cpu_qs = 2;
+    //    _prefetchAddress = _ip;
+    //}
+    //UInt32 physicalAddress(UInt16 segment, UInt16 offset)
+    //{
+    //    return ((_segmentRegisterData[segment] << 4) + offset) & 0xfffff;
+    //}
+    //UInt8 getInstructionByte()
+    //{
+    //    UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
+    //    _prefetchOffset = (_prefetchOffset + 1) & 3;
+    //    --_prefetched;
+    //    _cpu_qs = 3;
+    //    return byte;
+    //}
+    //void completeInstructionFetch()
+    //{
+    //    if (_ioRequested != ioInstructionFetch)
+    //        return;
+    //    if (_byte == ioSingleByte) {
+    //        if (_prefetched > 0) {
+    //            _ioRequested = ioNone;
+    //            _data = getInstructionByte();
+    //            _state = _afterIO;
+    //            ++_ip;
+    //        }
+    //    }
+    //    else {
+    //        if (_prefetched > 1) {
+    //            _data = getInstructionByte();
+    //            _data |= static_cast<UInt16>(getInstructionByte()) << 8;
+    //            _ioRequested = ioNone;
+    //            _state = _afterIO;
+    //            _ip += 2;
+    //        }
+    //    }
+    //}
+    //UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
 
     Register<UInt16> _wordRegisters[8];
     Register<UInt8> _byteRegisters[8];
