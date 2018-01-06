@@ -572,6 +572,7 @@ public:
         _queueLength = 0;
         _lastS = 0;
         _pitCycle = 0;
+        _cpu_s = 7;
     }
     String getLine()
     {
@@ -762,10 +763,31 @@ public:
                 _cpu_ad |= 0x30000;
                 break;
         }
+        _bus_data = 0xff;  // Sometimes 0xfd?
     }
     void setInterruptFlag(bool intf)
     {
         _cpu_ad = (_cpu_ad & 0xbffff) | (intf ? 0x40000 : 0);
+    }
+    void setBusOperation(int s)
+    {
+        switch (s) {
+            case 1: _bus_ior = true; break;
+            case 2: _bus_iow = true; break;
+            case 4:
+            case 5: _bus_memr = true; break;
+            case 6: _bus_memw = true; break;
+        }
+    }
+    void setData(Byte data)
+    {
+        _cpu_ad = (_cpu_ad & 0xfff00) | data;
+        _bus_data = data;
+    }
+    void setAddress(UInt32 address)
+    {
+        _cpu_ad = address;
+        _bus_address = address;
     }
 private:
     Disassembler _disassembler;
@@ -871,7 +893,9 @@ private:
         _busState = tIdle;
         _queueCycle = 0;
         _ready = true;
-        _ioInProgress = ioNone;
+        _ioInProgress = ioPassive;
+        _ioNext = ioPassive;
+        _snifferDecoder.reset();
 
         do {
             executeOneInstruction();
@@ -881,160 +905,113 @@ private:
     {
         do {
             _snifferDecoder.setInterruptFlag(intf());
+            if (_cyclesToNextIO > 0)
+                --_cyclesToNextIO;
+            bool write = _ioInProgress == ioWriteMemory ||
+                _ioInProgress == ioWritePort;
             switch (_busState) {
                 case t1:
                     _snifferDecoder.setStatusHigh(_busSegment);
-
-
-                    if (_ioInProgress == ioInstructionFetch)
-                        _busAddress = physicalAddress(1, _prefetchAddress);
-                    else {
-                        int segment = _segment;
-                        if (_segmentOverride != -1)
-                            segment = _segmentOverride;
-                        _busSegment = segment;
-                        _busAddress = physicalAddress(segment, _address);
-                    }
+                    _snifferDecoder.setBusOperation((int)_ioInProgress);
+                    if (write)
+                        _snifferDecoder.setData(_busData);
                     _busState = t2;
                     break;
                 case t2:
-                    if (_ioInProgress == ioWrite) {
-                        if (!_usePortSpace)
-                            _ram[_busAddress] = _busData;
-                    }
-                    _busState = tWait;
-                    if (_usePortSpace) {
-                        if (_ioInProgress == ioWrite)
-                            _bus_iow = true;
-                        else
-                            _bus_ior = true;
-                    }
-                    else {
-                        if (_ioInProgress == ioWrite)
-                            _bus_memw = true;
-                        else
-                            _bus_memr = true;
-                    }
-                    break;
-                case tWait:
-                    if (!_ready)
-                        break;
-                    _busState = tIdle;
-                    _ioInProgress = ioNone;
-                    _cpu_s = 7;
-                    if (_ioInProgress == ioInstructionFetch) {
-                        if (_abandonFetch)
+                    _snifferDecoder.setStatus((int)ioPassive);
+                    // TODO: Need to handle wait states
+                    switch (_ioInProgress) {
+                        case ioInterruptAcknowledge:
+                            _busData = 8;
                             break;
-                        _busData = _ram[_busAddress];
-                        _prefetchQueue[(_prefetchOffset + _prefetched) & 3] =
-                            _busData;
-                        _queueCycle = 3;
-                        break;
-                    }
-                    if (_ioInProgress == ioWrite)
-                        break;
-                    if (_ioInProgress == ioInterruptAcknowledge)
-                        _data = 8;
-                    else
-                        if (_usePortSpace)
+                        case ioReadPort:
                             _busData = 0xff;
-                        else
+                            break;
+                        case ioReadMemory:
                             _busData = _ram[_busAddress];
-                    break;
-                case tIdle:
-                    if (_ioInProgress == ioNone && _prefetched < 4) {
-                        _ioInProgress = ioRead;
-                        _busState = t1;
+                            break;
+                        case ioCodeAccess:
+                            if (_ioInProgress == ioCodeAccess) {
+                                _prefetchQueue[
+                                    (_prefetchOffset + _prefetched) & 3] =
+                                    _busData;
+                                ++_prefetchAddress;
+                            }
+                            break;
                     }
-                    if (_ioInProgress != ioNone) {
-                        _busState = t1;
-                    }
-
-                    if (_busState == t1) {
-                        switch (_ioInProgress) {
-                            case ioRead:
-                                _cpu_s = _usePortSpace ? 1 : 5;
-                                break;
-                            case ioWrite:
-                                _cpu_s = _usePortSpace ? 2 : 6;
-                                break;
-                            case ioInterruptAcknowledge:
-                                _cpu_s = 0;
-                                break;
-                            case ioInstructionFetch:
-                                _cpu_s = 4;
-                                break;
-                        }
-                    }
-                    break;
-            }
-            if (_queueCycle > 0) {
-                --_queueCycle;
-                if (_queueCycle == 0) {
-                    ++_prefetched;
-                    ++_prefetchAddress;
-                    completeInstructionFetch();
-                }
-            }
-
-            switch (_busState) {
-                case t1:
-                    break;
-                case t2:
-                    _cpu_ad = _busAddress;
-                    _bus_address = _cpu_ad;
+                    if (!write)
+                        _snifferDecoder.setData(_busData);
+                    _busState = t3;
                     break;
                 case t3:
-
-                    if (_ioInProgress == ioWrite) {
-                        _cpu_ad = (_cpu_ad & 0xfff00) | _busData;
-                        _bus_data = _busData;
+                    switch (_ioInProgress) {
+                        case ioWritePort:
+                            break;
+                        case ioWriteMemory:
+                            _ram[_busAddress] = _busData;
+                            break;
                     }
+                    // Fall through
+                case tWait:
+                    _busState = tWait;
+                    if (!_ready)
+                        break;
+                    _busState = t4;
+                    _cyclesToNextIO = 1;
                     break;
                 case t4:
-                    if (_ioInProgress != ioWrite) {
-                        _cpu_ad = (_cpu_ad & 0xfff00) | _busData;
-                        _bus_data = _busData;
+                case tIdle:
+                    _busState = tIdle;
+                    if (_ioNext == ioPassive && _prefetched < 4) {
+                        _ioNext = ioCodeAccess;
+                        _busAddress = physicalAddress(1, _prefetchAddress);
+                    }
+                    _ioInProgress = _ioNext;
+                    _ioNext = ioPassive;
+                    if (_ioInProgress != ioPassive) {
+                        _busState = t1;
+                        _snifferDecoder.setAddress(_busAddress);
                     }
                     break;
             }
-            if (_busState != t2)
-                _cpu_ad = (_cpu_ad & 0x3ffff) | (intf() ? 0x40000 : 0);
-
+            if (_cyclesToNextIO == 1)
+                _snifferDecoder.setStatus((int)_ioNext);
+            if (_queueCycle > 0) {
+                --_queueCycle;
+                if (_queueCycle == 0)
+                    ++_prefetched;
+            }
             String line = _snifferDecoder.getLine();
-
             console.write(line);
-
             ++_cycle;
             --cycles;
         } while (cycles > 0);
     }
     enum IOType
     {
-        ioNone,
-        ioRead,
-        ioWrite,
-        ioInstructionFetch,
-        ioInterruptAcknowledge
+        ioInterruptAcknowledge = 0,
+        ioReadPort = 1,
+        ioWritePort = 2,
+        ioHalt = 3,
+        ioCodeAccess = 4,
+        ioReadMemory = 5,
+        ioWriteMemory = 6,
+        ioPassive = 7
     };
-    Byte busAccess(bool usePortSpace, int segment, UInt16 address, UInt8 data,
-        IOType type)
+    Byte busAccess(IOType type)
     {
-        while (_ioInProgress != ioNone)
+        while (_ioInProgress != t4 && _ioInProgress != tIdle)
             wait(1);
 
-        _usePortSpace = usePortSpace;
-        _busSegment = segment;
-        _busAddress = physicalAddress(segment, address);
-        _busData = data;
-        _ioInProgress = type;
-
-        while (_ioInProgress != ioNone)
+        _busSegment = _segment;
+        _busAddress = physicalAddress(_segment, _address);
+        _busData = _data;
+        _ioNext = type;
+        do
             wait(1);
-
+        while (_ioInProgress != t4 && _ioInProgress != tIdle);
         return _busData;
     }
-
     Byte fetchInstructionByte()
     {
         // Always wait at least one cycle so we don't fetch more than one byte
@@ -1048,12 +1025,87 @@ private:
         _snifferDecoder.queueOperation(3);
         return byte;
     }
+    Word fetchInstructionWord()
+    {
+        Byte low = fetchInstructionByte();
+        return (fetchInstructionByte() << 8) | low;
+    }
+    void initEA()
+    {
+        _modRM = fetchInstructionByte();
+        if ((_modRM & 0xc0) == 0xc0) {
+            _useMemory = false;
+            _address = _modRM & 7;
+            return;
+        }
+        _useMemory = true;
+        switch (_modRM & 7) {
+            case 0: wait(7); _address = bx() + si(); break;
+            case 1: wait(8); _address = bx() + di(); break;
+            case 2: wait(8); _address = bp() + si(); break;
+            case 3: wait(7); _address = bp() + di(); break;
+            case 4: wait(5); _address =        si(); break;
+            case 5: wait(5); _address =        di(); break;
+            case 6: wait(5); _address = bp();        break;
+            case 7: wait(5); _address = bx();        break;
+        }
+        static int segments[8] = {3, 3, 2, 2, 3, 3, 2, 3};
+        _segment = segments[_modRM & 7];
+        switch (_modRM & 0xc0) {
+            case 0x00:
+                if ((_modRM & 7) == 6) {
+                    _address = fetchInstructionWord();
+                    _segment = 3;
+                }
+                break;
+            case 0x40:
+                _address += signExtend(fetchInstructionByte());
+                break;
+            case 0x80:
+                _address += fetchInstructionWord();
+                break;
+        }
+    }
+    void readEA()
+    {
+        initEA();
+        if (_useMemory) {
+            _data = busAccess(ioReadMemory);
+            if (_wordSize)
+                _data |= (busAccess(ioReadMemory) << 8);
+            return;
+        }
+        if (!_wordSize)
+            _data = _byteRegisters[_address];
+        else
+            _data = _wordRegisters[_address];
+    }
+    void writeEA(UInt16 data, int w = 0)
+    {
+        _data = data;
+        wait(w);
+        if (_useMemory) {
+            busAccess(ioWriteMemory);
+            if (_wordSize) {
+                _data = data >> 8;
+                busAccess(ioWriteMemory);
+            }
+            return;
+        }
+        if (!_wordSize)
+            _byteRegisters[_address] = _data;
+        else
+            _wordRegisters[_address] = _data;
+    }
 
     void executeOneInstruction()
     {
-        Byte opcode = fetchInstructionByte();
+        _opcode = fetchInstructionByte();
         _snifferDecoder.queueOperation(1);
-        switch (opcode) {
+        _wordSize = ((_opcode & 1) != 0);
+        _snifferDecoder.queueOperation(1);
+        _sourceIsRM = ((_opcode & 2) != 0);
+        switch (_opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
             case 0x08: case 0x09: case 0x0a: case 0x0b: 
             case 0x10: case 0x11: case 0x12: case 0x13:
@@ -1075,7 +1127,7 @@ private:
                 }
                 if (_useMemory)
                     wait(2);
-                _aluOperation = (opcode >> 3) & 7;
+                _aluOperation = (_opcode >> 3) & 7;
                 doALUOperation();
                 if (_aluOperation != 7) {
                     if (!_sourceIsRM)
@@ -1318,10 +1370,51 @@ private:
     {
         t1,
         t2,
+        t3,
         tWait,
+        t4,
         tIdle
     };
 
+    void test(UInt16 destination, UInt16 source)
+    {
+        _destination = destination;
+        _source = source;
+        bitwise(_destination & _source);
+    }
+    void clearCA() { setCF(false); setAF(false); }
+    void clearCAO() { clearCA(); setOF(false); }
+    void setPZS() { setPF(); setZF(); setSF(); }
+    void bitwise(UInt16 data) { _data = data; clearCAO(); setPZS(); }
+    void doAF() { setAF(((_data ^ _source ^ _destination) & 0x10) != 0); }
+    void doCF() { setCF((_data & (!_wordSize ? 0x100 : 0x10000)) != 0); }
+    void setCAPZS() { setPZS(); doAF(); doCF(); }
+    void setOFAdd()
+    {
+        UInt16 t = (_data ^ _source) & (_data ^ _destination);
+        setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
+    }
+    void add() { _data = _destination + _source; setCAPZS(); setOFAdd(); }
+    void setOFSub()
+    {
+        UInt16 t = (_destination ^ _source) & (_data ^ _destination);
+        setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
+    }
+    void sub() { _data = _destination - _source; setCAPZS(); setOFSub(); }
+    void doALUOperation()
+    {
+        switch (_aluOperation) {
+            case 0: add(); break;
+            case 1: bitwise(_destination | _source); break;
+            case 2: _source += cf() ? 1 : 0; add(); break;
+            case 3: _source += cf() ? 1 : 0; sub(); break;
+            case 4: test(_destination, _source); break;
+            case 5:
+            case 7: sub(); break;
+            case 6: bitwise(_destination ^ _source); break;
+        }
+    }
+    UInt16 signExtend(UInt8 data) { return data + (data < 0x80 ? 0 : 0xff00); }
     template<class U> class Register
     {
     public:
@@ -1451,44 +1544,44 @@ private:
     Register<UInt16>& ss() { return _segmentRegisters[2]; }
     Register<UInt16>& ds() { return _segmentRegisters[3]; }
 
-    //bool cf() { return (_flags & 1) != 0; }
-    //void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
+    bool cf() { return (_flags & 1) != 0; }
+    void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
     //bool pf() { return (_flags & 4) != 0; }
-    //void setPF()
-    //{
-    //    static UInt8 table[0x100] = {
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
-    //        4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4};
-    //    _flags = (_flags & ~4) | table[_data & 0xff];
-    //}
+    void setPF()
+    {
+        static UInt8 table[0x100] = {
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
+            4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4};
+        _flags = (_flags & ~4) | table[_data & 0xff];
+    }
     //bool af() { return (_flags & 0x10) != 0; }
-    //void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
+    void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
     //bool zf() { return (_flags & 0x40) != 0; }
-    //void setZF()
-    //{
-    //    _flags = (_flags & ~0x40) |
-    //        ((_data & (!_wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
-    //}
+    void setZF()
+    {
+        _flags = (_flags & ~0x40) |
+            ((_data & (!_wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
+    }
     //bool sf() { return (_flags & 0x80) != 0; }
-    //void setSF()
-    //{
-    //    _flags = (_flags & ~0x80) |
-    //        ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0);
-    //}
+    void setSF()
+    {
+        _flags = (_flags & ~0x80) |
+            ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0);
+    }
     //bool tf() { return (_flags & 0x100) != 0; }
     //void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
     bool intf() { return (_flags & 0x200) != 0; }
@@ -1496,16 +1589,16 @@ private:
     //bool df() { return (_flags & 0x400) != 0; }
     //void setDF(bool df) { _flags = (_flags & ~0x400) | (df ? 0x400 : 0); }
     //bool of() { return (_flags & 0x800) != 0; }
-    //void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
-    //int modRMReg() { return (_modRM >> 3) & 7; }
-    //Register<UInt16>& modRMRW() { return _wordRegisters[modRMReg()]; }
-    //Register<UInt8>& modRMRB() { return _byteRegisters[modRMReg()]; }
-    //UInt16 getReg()
-    //{
-    //    if (!_wordSize)
-    //        return static_cast<UInt8>(modRMRB());
-    //    return modRMRW();
-    //}
+    void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
+    int modRMReg() { return (_modRM >> 3) & 7; }
+    Register<UInt16>& modRMRW() { return _wordRegisters[modRMReg()]; }
+    Register<UInt8>& modRMRB() { return _byteRegisters[modRMReg()]; }
+    UInt16 getReg()
+    {
+        if (!_wordSize)
+            return static_cast<UInt8>(modRMRB());
+        return modRMRW();
+    }
     //UInt16 getAccum()
     //{
     //    if (!_wordSize)
@@ -1513,13 +1606,13 @@ private:
     //    return ax();
     //}
     //void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
-    //void setReg(UInt16 value)
-    //{
-    //    if (!_wordSize)
-    //        modRMRB() = static_cast<UInt8>(value);
-    //    else
-    //        modRMRW() = value;
-    //}
+    void setReg(UInt16 value)
+    {
+        if (!_wordSize)
+            modRMRB() = static_cast<UInt8>(value);
+        else
+            modRMRW() = value;
+    }
     //void initIO(State nextState, IOType ioType, bool wordSize)
     //{
     //    _state = stateWaitingForBIU;
@@ -1593,19 +1686,33 @@ private:
     FlagsRegister _flags;
     UInt16 _ip;
 
+    UInt8 _opcode;
+    UInt8 _modRM;
+    UInt32 _data;
+    UInt32 _source;
+    UInt32 _destination;
+    UInt32 _remainder;
+    UInt16 _address;
+    bool _useMemory;
+    bool _wordSize;
+    int _aluOperation;
+    bool _sourceIsRM;
+    int _rep;
+    int _segment;
+
     UInt8 _prefetchQueue[4];
     UInt8 _prefetchOffset;
     UInt8 _prefetched;
     UInt16 _prefetchAddress;
     BusState _busState;
+    IOType _ioNext;
+    int _cyclesToNextIO;
 
     IOType _ioInProgress;
     UInt32 _busAddress;
     UInt8 _busData;
-    //int _segment;
     //int _segmentOverride;
     int _busSegment;
-    bool _usePortSpace;
 
     bool _ready;
     int _queueCycle;
