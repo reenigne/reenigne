@@ -896,6 +896,8 @@ private:
         _ioInProgress = ioPassive;
         _ioNext = ioPassive;
         _snifferDecoder.reset();
+        _prefetchedAvailable = false;
+        _prefetchedRemove = false;
 
         do {
             executeOneInstruction();
@@ -931,12 +933,13 @@ private:
                             _busData = _ram[_busAddress];
                             break;
                         case ioCodeAccess:
-                            if (_ioInProgress == ioCodeAccess) {
-                                _prefetchQueue[
-                                    (_prefetchOffset + _prefetched) & 3] =
-                                    _busData;
-                                ++_prefetchAddress;
-                            }
+                            _busData = _ram[_busAddress];
+                            _prefetchQueue[
+                                (_prefetchOffset + _prefetched) & 3] =
+                                _busData;
+                            ++_prefetchAddress;
+                            ++_prefetched;
+                            _queueCycle = 3;
                             break;
                     }
                     if (!write)
@@ -957,15 +960,10 @@ private:
                     if (!_ready)
                         break;
                     _busState = t4;
-                    _cyclesToNextIO = 1;
                     break;
                 case t4:
                 case tIdle:
                     _busState = tIdle;
-                    if (_ioNext == ioPassive && _prefetched < 4) {
-                        _ioNext = ioCodeAccess;
-                        _busAddress = physicalAddress(1, _prefetchAddress);
-                    }
                     _ioInProgress = _ioNext;
                     _ioNext = ioPassive;
                     if (_ioInProgress != ioPassive) {
@@ -974,12 +972,25 @@ private:
                     }
                     break;
             }
+            if (_busState == t4 || _busState == tIdle) {
+                if (_ioNext == ioPassive && _prefetched < 4) {
+                    _ioNext = ioCodeAccess;
+                    _busAddress = physicalAddress(1, _prefetchAddress);
+                    _busSegment = 1;
+                }
+                if (_cyclesToNextIO == 0 && _ioNext != ioPassive)
+                    _cyclesToNextIO = 1;
+            }
             if (_cyclesToNextIO == 1)
                 _snifferDecoder.setStatus((int)_ioNext);
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0)
-                    ++_prefetched;
+                    _prefetchedAvailable = true;
+            }
+            if (_prefetchedRemove) {
+                --_prefetched;
+                _prefetchedRemove = false;
             }
             String line = _snifferDecoder.getLine();
             console.write(line);
@@ -1000,7 +1011,7 @@ private:
     };
     Byte busAccess(IOType type)
     {
-        while (_ioInProgress != t4 && _ioInProgress != tIdle)
+        while (_busState != t4 && _busState != tIdle)
             wait(1);
 
         _busSegment = _segment;
@@ -1009,7 +1020,7 @@ private:
         _ioNext = type;
         do
             wait(1);
-        while (_ioInProgress != t4 && _ioInProgress != tIdle);
+        while (_busState != t4 && _busState != tIdle);
         return _busData;
     }
     Byte fetchInstructionByte()
@@ -1021,7 +1032,9 @@ private:
         while (_prefetched == 0);
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
         _prefetchOffset = (_prefetchOffset + 1) & 3;
-        --_prefetched;
+        _prefetchedRemove = true;
+        if (_prefetched == 0)
+            _prefetchedAvailable = false;
         _snifferDecoder.queueOperation(3);
         return byte;
     }
@@ -1029,6 +1042,12 @@ private:
     {
         Byte low = fetchInstructionByte();
         return (fetchInstructionByte() << 8) | low;
+    }
+    Word fetchInstruction()
+    {
+        if (_wordSize)
+            return fetchInstructionWord();
+        return fetchInstructionByte();
     }
     void initEA()
     {
@@ -1041,13 +1060,15 @@ private:
         _useMemory = true;
         switch (_modRM & 7) {
             case 0: wait(7); _address = bx() + si(); break;
-            case 1: wait(8); _address = bx() + di(); break;
-            case 2: wait(8); _address = bp() + si(); break;
-            case 3: wait(7); _address = bp() + di(); break;
-            case 4: wait(5); _address =        si(); break;
-            case 5: wait(5); _address =        di(); break;
-            case 6: wait(5); _address = bp();        break;
-            case 7: wait(5); _address = bx();        break;
+            //case 1: wait(8); _address = bx() + di(); break;
+            //case 2: wait(8); _address = bp() + si(); break;
+            //case 3: wait(7); _address = bp() + di(); break;
+            //case 4: wait(5); _address =        si(); break;
+            //case 5: wait(5); _address =        di(); break;
+            //case 6: wait(5); _address = bp();        break;
+            //case 7: wait(5); _address = bx();        break;
+            default:
+                throw Exception("Not yet implemented.");
         }
         static int segments[8] = {3, 3, 2, 2, 3, 3, 2, 3};
         _segment = segments[_modRM & 7];
@@ -1101,7 +1122,6 @@ private:
     void executeOneInstruction()
     {
         _opcode = fetchInstructionByte();
-        _snifferDecoder.queueOperation(1);
         _wordSize = ((_opcode & 1) != 0);
         _snifferDecoder.queueOperation(1);
         _sourceIsRM = ((_opcode & 2) != 0);
@@ -1140,42 +1160,42 @@ private:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
             case 0x24: case 0x25: case 0x2c: case 0x2d:
             case 0x34: case 0x35: case 0x3c: case 0x3d: // alu A, imm
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x06: case 0x0e: case 0x16: case 0x1e: // POP segreg
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x07: case 0x0f: case 0x17: case 0x1f: // PUSH segreg
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e: // segreg:
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x27: // DAA
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x2f: // DAS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x37: // AAA
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x3f: // AAS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x40: case 0x41: case 0x42: case 0x43:
             case 0x44: case 0x45: case 0x46: case 0x47:
             case 0x48: case 0x49: case 0x4a: case 0x4b:
             case 0x4c: case 0x4d: case 0x4e: case 0x4f: // INCDEC rw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x50: case 0x51: case 0x52: case 0x53:
             case 0x54: case 0x55: case 0x56: case 0x57: // PUSH rw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x60: case 0x61: case 0x62: case 0x63:
             case 0x64: case 0x65: case 0x66: case 0x67:
@@ -1185,176 +1205,309 @@ private:
             case 0x74: case 0x75: case 0x76: case 0x77:
             case 0x78: case 0x79: case 0x7a: case 0x7b:
             case 0x7c: case 0x7d: case 0x7e: case 0x7f: // Jcond cb
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x80: case 0x81: case 0x82: case 0x83: // alu rm, imm
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x84: case 0x85: // TEST rm, reg
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x86: case 0x87: // XCHG rm, reg
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x88: case 0x89: case 0x8a: case 0x8b: // MOV rm, reg
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x8c: // MOV rmw, segreg
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x8d: // LEA rw, rmw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x8e: // MOV segreg, rmw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x8f: // POP rmw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x90: case 0x91: case 0x92: case 0x93:
             case 0x94: case 0x95: case 0x96: case 0x97: // XCHG AX, rw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x98: // CBW
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x99: // CWD
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x9a: // CALL cp
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x9b: // WAIT
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x9c: // PUSHF
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x9d: // POPF
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x9e: // SAHF
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0x9f: // LAHF
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xa0: case 0xa1: // MOV A, [iw]
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xa2: case 0xa3: // MOV [iw], A
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xa4: case 0xa5: // MOVS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xa6: case 0xa7: // CMPS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xa8: case 0xa9: // TEST A, imm
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xaa: case 0xab: // STOS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xac: case 0xad: // LODS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xae: case 0xaf: // SCAS
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
-            case 0xb4: case 0xb5: case 0xb6: case 0xb7:
+            case 0xb4: case 0xb5: case 0xb6: case 0xb7: // MOV rb, ib
+                rb() = fetchInstructionByte();
+                break;
             case 0xb8: case 0xb9: case 0xba: case 0xbb:
-            case 0xbc: case 0xbd: case 0xbe: case 0xbf: // MOV r, imm
-                // TODO
+            case 0xbc: case 0xbd: case 0xbe: case 0xbf: // MOV rw, iw
+                //rw() = fetchInstructionWord();
+                throw Exception("Not yet implemented.");
                 break;
             case 0xc0: case 0xc1: case 0xc2: case 0xc3: 
             case 0xc8: case 0xc9: case 0xca: case 0xcb: // RET
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xc4: case 0xc5: // LsS rw, rmd
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xc6: case 0xc7: // MOV rm, imm
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xcc: // INT 3
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xcd: // INT
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xce: // INTO
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xcf: // IRET
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xd0: case 0xd1: case 0xd2: case 0xd3: // rot rm
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xd4: // AAM
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xd5: // AAD
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xd6: // SALC
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xd7: // XLATB
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xe0: case 0xe1: case 0xe2: case 0xe3: // loop
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xe4: case 0xe5: case 0xe6: case 0xe7:
             case 0xec: case 0xed: case 0xee: case 0xef: // INOUT
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xe8: // CALL cw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xe9: // JMP cw
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xea: // JMP cp
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xeb: // JMP cb
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xf0: case 0xf1: // LOCK
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xf2: case 0xf3: // REP
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xf4: // HLT
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xf5: // CMC
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xf6: case 0xf7: // math
-                // TODO
+                readEA();
+                if ((modRMReg() & 6) == 0) {
+                    _destination = _data;
+                    _data = fetchInstruction();
+                }
+                switch (modRMReg()) {
+                    case 0:
+                    case 1:  // TEST
+                        //test(_destination, _data);
+                        //end(_useMemory ? 7 : 5);
+                        throw Exception("Not yet implemented.");
+                        break;
+                    case 2:  // NOT
+                        //writeEA(~_data, _useMemory ? 8 : 3);
+                        throw Exception("Not yet implemented.");
+                        break;
+                    case 3:  // NEG
+                        //_source = _data;
+                        //_destination = 0;
+                        //sub();
+                        //writeEA(_data, _useMemory ? 8 : 3);
+                        throw Exception("Not yet implemented.");
+                        break;
+                    case 4:  // MUL
+                    case 5:  // IMUL
+                        _source = _data;
+                        _destination = getAccum();
+                        _data = _destination;
+                        setSF();
+                        setPF();
+                        _data *= _source;
+                        ax() = _data;
+                        if (!_wordSize) {
+                            if (modRMReg() == 4) {
+                                setCF(ah() != 0);
+                                wait(70);
+                            }
+                            else {
+                                throw Exception("Not yet implemented.");
+                                //if ((_source & 0x80) != 0)
+                                //    ah() -= _destination;
+                                //if ((_destination & 0x80) != 0)
+                                //    ah() -= _source;
+                                //setCF(ah() ==
+                                //    ((al() & 0x80) == 0 ? 0 : 0xff));
+                                //wait(80);
+                            }
+                        }
+                        else {
+                            throw Exception("Not yet implemented.");
+                            //if (modRMReg() == 4) {
+                            //    dx() = _data >> 16;
+                            //    _data |= dx();
+                            //    setCF(dx() != 0);
+                            //    wait(118);
+                            //}
+                            //else {
+                            //    dx() = _data >> 16;
+                            //    if ((_source & 0x8000) != 0)
+                            //        dx() -= _destination;
+                            //    if ((_destination & 0x8000) != 0)
+                            //        dx() -= _source;
+                            //    _data |= dx();
+                            //    setCF(dx() ==
+                            //        ((ax() & 0x8000) == 0 ? 0 : 0xffff));
+                            //    wait(128);
+                            //}
+                        }
+                        setZF();
+                        setOF(cf());
+                        if (_useMemory)
+                            wait(2);
+                        break;
+                    case 6:  // DIV
+                    case 7:  // IDIV
+                        throw Exception("Not yet implemented.");
+                        //_source = _data;
+                        //if (_source == 0) {
+                        //    interrupt(0);
+                        //    break;
+                        //}
+                        //if (!_wordSize) {
+                        //    _destination = ax();
+                        //    if (modRMReg() == 6) {
+                        //        div();
+                        //        if (_data > 0xff) {
+                        //            interrupt(0);
+                        //            break;
+                        //        }
+                        //        _wait = 80;
+                        //    }
+                        //    else {
+                        //        _destination = ax();
+                        //        if ((_destination & 0x8000) != 0)
+                        //            _destination |= 0xffff0000;
+                        //        _source = signExtend(_source);
+                        //        div();
+                        //        if (_data > 0x7f && _data < 0xffffff80) {
+                        //            interrupt(0);
+                        //            break;
+                        //        }
+                        //        _wait = 101;
+                        //    }
+                        //    ah() = _remainder;
+                        //    al() = _data;
+                        //}
+                        //else {
+                        //    _destination = (dx() << 16) + ax();
+                        //    div();
+                        //    if (modRMReg() == 6) {
+                        //        if (_data > 0xffff) {
+                        //            interrupt(0);
+                        //            break;
+                        //        }
+                        //        _wait = 144;
+                        //    }
+                        //    else {
+                        //        if (_data > 0x7fff && _data <  0xffff8000) {
+                        //            interrupt(0);
+                        //            break;
+                        //        }
+                        //        _wait = 165;
+                        //    }
+                        //    dx() = _remainder;
+                        //    ax() = _data;
+                        //}
+                        //if (_useMemory)
+                        //    _wait += 2;
+                        //_state = stateEndInstruction;
+                        break;
+                }
                 break;
             case 0xf8: case 0xf9: // CLCSTC
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xfa: case 0xfb: // CLISTI
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xfc: case 0xfd: // CLDSTD
-                // TODO
+                throw Exception("Not yet implemented.");
                 break;
             case 0xfe: case 0xff: // misc
-                // tODO
+                throw Exception("Not yet implemented.");
                 break;
         }
     }
@@ -1405,13 +1558,16 @@ private:
     {
         switch (_aluOperation) {
             case 0: add(); break;
-            case 1: bitwise(_destination | _source); break;
-            case 2: _source += cf() ? 1 : 0; add(); break;
-            case 3: _source += cf() ? 1 : 0; sub(); break;
-            case 4: test(_destination, _source); break;
-            case 5:
-            case 7: sub(); break;
-            case 6: bitwise(_destination ^ _source); break;
+            //case 1: bitwise(_destination | _source); break;
+            //case 2: _source += cf() ? 1 : 0; add(); break;
+            //case 3: _source += cf() ? 1 : 0; sub(); break;
+            //case 4: test(_destination, _source); break;
+            //case 5:
+            //case 7: sub(); break;
+            //case 6: bitwise(_destination ^ _source); break;
+            default:
+                throw Exception("Not yet implemented.");
+
         }
     }
     UInt16 signExtend(UInt8 data) { return data + (data < 0x80 ? 0 : 0xff00); }
@@ -1535,7 +1691,7 @@ private:
     Register<UInt16>& bp() { return _wordRegisters[5]; }
     Register<UInt16>& si() { return _wordRegisters[6]; }
     Register<UInt16>& di() { return _wordRegisters[7]; }
-    //Register<UInt8>& rb() { return _byteRegisters[_opcode & 7]; }
+    Register<UInt8>& rb() { return _byteRegisters[_opcode & 7]; }
     Register<UInt8>& al() { return _byteRegisters[0]; }
     Register<UInt8>& cl() { return _byteRegisters[1]; }
     Register<UInt8>& ah() { return _byteRegisters[4]; }
@@ -1599,12 +1755,12 @@ private:
             return static_cast<UInt8>(modRMRB());
         return modRMRW();
     }
-    //UInt16 getAccum()
-    //{
-    //    if (!_wordSize)
-    //        return static_cast<UInt8>(al());
-    //    return ax();
-    //}
+    UInt16 getAccum()
+    {
+        if (!_wordSize)
+            return static_cast<UInt8>(al());
+        return ax();
+    }
     //void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
     void setReg(UInt16 value)
     {
@@ -1703,6 +1859,8 @@ private:
     UInt8 _prefetchQueue[4];
     UInt8 _prefetchOffset;
     UInt8 _prefetched;
+    bool _prefetchedAvailable;
+    bool _prefetchedRemove;
     UInt16 _prefetchAddress;
     BusState _busState;
     IOType _ioNext;
