@@ -893,13 +893,15 @@ private:
         _busState = tIdle;
         _queueCycle = 0;
         _ready = true;
-        _ioInProgress = ioPassive;
-        _ioNext = ioPassive;
+        _ioInProgress._type = ioPassive;
+        _ioNext = _ioInProgress;
         _snifferDecoder.reset();
         _prefetchedAvailable = false;
         _prefetchedRemove = false;
+        _statusSet = false;
+        _abandonFetch = false;
 
-        do {
+        do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
         } while (_ip != _stopIP && _cycle < 2048);
     }
@@ -907,51 +909,52 @@ private:
     {
         do {
             _snifferDecoder.setInterruptFlag(intf());
-            if (_cyclesToNextIO > 0)
-                --_cyclesToNextIO;
-            bool write = _ioInProgress == ioWriteMemory ||
-                _ioInProgress == ioWritePort;
+            bool write = _ioInProgress._type == ioWriteMemory ||
+                _ioInProgress._type == ioWritePort;
             switch (_busState) {
                 case t1:
-                    _snifferDecoder.setStatusHigh(_busSegment);
-                    _snifferDecoder.setBusOperation((int)_ioInProgress);
+                    _snifferDecoder.setStatusHigh(_ioInProgress._segment);
+                    _snifferDecoder.setBusOperation((int)_ioInProgress._type);
                     if (write)
-                        _snifferDecoder.setData(_busData);
+                        _snifferDecoder.setData(_ioInProgress._data);
                     _busState = t2;
                     break;
                 case t2:
                     _snifferDecoder.setStatus((int)ioPassive);
                     // TODO: Need to handle wait states
-                    switch (_ioInProgress) {
+                    switch (_ioInProgress._type) {
                         case ioInterruptAcknowledge:
-                            _busData = 8;
+                            _ioInProgress._data = 8;
                             break;
                         case ioReadPort:
-                            _busData = 0xff;
+                            _ioInProgress._data = 0xff;
                             break;
                         case ioReadMemory:
-                            _busData = _ram[_busAddress];
+                            _ioInProgress._data = _ram[_ioInProgress._address];
                             break;
                         case ioCodeAccess:
-                            _busData = _ram[_busAddress];
+                            if (_abandonFetch)
+                                break;
+                            _ioInProgress._data = _ram[_ioInProgress._address];
                             _prefetchQueue[
                                 (_prefetchOffset + _prefetched) & 3] =
-                                _busData;
+                                _ioInProgress._data;
                             ++_prefetchAddress;
                             ++_prefetched;
                             _queueCycle = 3;
                             break;
                     }
                     if (!write)
-                        _snifferDecoder.setData(_busData);
+                        _snifferDecoder.setData(_ioInProgress._data);
                     _busState = t3;
                     break;
                 case t3:
-                    switch (_ioInProgress) {
+                    _statusSet = false;
+                    switch (_ioInProgress._type) {
                         case ioWritePort:
                             break;
                         case ioWriteMemory:
-                            _ram[_busAddress] = _busData;
+                            _ram[_ioInProgress._address] = _ioInProgress._data;
                             break;
                     }
                     // Fall through
@@ -964,25 +967,28 @@ private:
                 case t4:
                 case tIdle:
                     _busState = tIdle;
-                    _ioInProgress = _ioNext;
-                    _ioNext = ioPassive;
-                    if (_ioInProgress != ioPassive) {
-                        _busState = t1;
-                        _snifferDecoder.setAddress(_busAddress);
+                    if (_statusSet) {
+                        _ioInProgress = _ioNext;
+                        _ioNext._type = ioPassive;
+                        if (_ioInProgress._type != ioPassive) {
+                            _busState = t1;
+                            _snifferDecoder.setAddress(_ioInProgress._address);
+                        }
                     }
                     break;
             }
-            if (_busState == t4 || _busState == tIdle) {
-                if (_ioNext == ioPassive && _prefetched < 4) {
-                    _ioNext = ioCodeAccess;
-                    _busAddress = physicalAddress(1, _prefetchAddress);
-                    _busSegment = 1;
+            if (!_statusSet) {
+                if (_ioNext._type == ioPassive && _prefetched < 4) {
+                    _abandonFetch = false;
+                    _ioNext._type = ioCodeAccess;
+                    _ioNext._address = physicalAddress(1, _prefetchAddress);
+                    _ioNext._segment = 1;
                 }
-                if (_cyclesToNextIO == 0 && _ioNext != ioPassive)
-                    _cyclesToNextIO = 1;
+                if (_ioNext._type != ioPassive) {
+                    _snifferDecoder.setStatus((int)_ioNext._type);
+                    _statusSet = true;
+                }
             }
-            if (_cyclesToNextIO == 1)
-                _snifferDecoder.setStatus((int)_ioNext);
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0)
@@ -1011,17 +1017,18 @@ private:
     };
     Byte busAccess(IOType type)
     {
-        while (_busState != t4 && _busState != tIdle)
+        while (_ioNext._type != ioPassive)
             wait(1);
 
-        _busSegment = _segment;
-        _busAddress = physicalAddress(_segment, _address);
-        _busData = _data;
-        _ioNext = type;
+        _ioNext._segment = _segment;
+        _ioNext._address = physicalAddress(_segment, _address);
+        _ioNext._data = _data;
+        _ioNext._type = type;
         do
             wait(1);
-        while (_busState != t4 && _busState != tIdle);
-        return _busData;
+        while (_ioNext._type != ioPassive || !(_busState == t4 ||
+            _busState == tIdle));
+        return _ioInProgress._data;
     }
     Byte fetchInstructionByte()
     {
@@ -1036,6 +1043,7 @@ private:
         if (_prefetched == 0)
             _prefetchedAvailable = false;
         _snifferDecoder.queueOperation(3);
+        ++_ip;
         return byte;
     }
     Word fetchInstructionWord()
@@ -1135,7 +1143,7 @@ private:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
                 readEA();
-                wait(3);
+                //wait(3);
                 if (!_sourceIsRM) {
                     _destination = _data;
                     _source = getReg();
@@ -1145,8 +1153,8 @@ private:
                     _destination = getReg();
                     _source = _data;
                 }
-                if (_useMemory)
-                    wait(2);
+                //if (_useMemory)
+                //    wait(2);
                 _aluOperation = (_opcode >> 3) & 7;
                 doALUOperation();
                 if (_aluOperation != 7) {
@@ -1350,7 +1358,10 @@ private:
                 throw Exception("Not yet implemented.");
                 break;
             case 0xeb: // JMP cb
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstructionByte();
+                wait(9);
+                jumpShort();
                 break;
             case 0xf0: case 0xf1: // LOCK
                 throw Exception("Not yet implemented.");
@@ -1529,6 +1540,7 @@ private:
         tIdle
     };
 
+    void jumpShort() { setIP(_ip + signExtend(_data)); }
     void test(UInt16 destination, UInt16 source)
     {
         _destination = destination;
@@ -1777,14 +1789,14 @@ private:
     //    _byte = (!wordSize ? ioSingleByte : ioWordFirst);
     //}
     //UInt16 getIP() { return _ip; }
-    //void setIP(UInt16 value)
-    //{
-    //    _ip = value;
-    //    _abandonFetch = true;
-    //    _prefetched = 0;
-    //    _cpu_qs = 2;
-    //    _prefetchAddress = _ip;
-    //}
+    void setIP(UInt16 value)
+    {
+        _ip = value;
+        _abandonFetch = true;
+        _prefetched = 0;
+        _snifferDecoder.queueOperation(2);
+        _prefetchAddress = _ip;
+    }
     //UInt32 physicalAddress(UInt16 segment, UInt16 offset)
     //{
     //    return ((_segmentRegisterData[segment] << 4) + offset) & 0xfffff;
@@ -1863,14 +1875,21 @@ private:
     bool _prefetchedRemove;
     UInt16 _prefetchAddress;
     BusState _busState;
-    IOType _ioNext;
-    int _cyclesToNextIO;
+    bool _statusSet;
+    bool _abandonFetch;
 
-    IOType _ioInProgress;
-    UInt32 _busAddress;
-    UInt8 _busData;
+    struct IOInformation
+    {
+        IOType _type;
+        UInt32 _address;
+        UInt8 _data;
+        int _segment;
+    };
+
+    IOInformation _ioInProgress;
+    IOInformation _ioNext;
+
     //int _segmentOverride;
-    int _busSegment;
 
     bool _ready;
     int _queueCycle;
