@@ -69,19 +69,36 @@ notDone:
   pop ax         ; The primary measurement will have the lower value, since the counter counts down
   sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
   neg ax         ; Negate to get the positive difference.
+  mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed
 
   inc word[testCaseIndex]
-  mov bl,[si+2]
+  mov bl,[si+3]
   mov bh,0
-  lea si,[si+bx+3]
+  lea si,[si+bx+4]
   mov [testCaseOffset],si
   jmp testLoop
 
 testFailed:
   shr ax,1
   mov [countedCycles],ax
+
+  push si
+  outputHex
+  outputCharacter ' '
+  pop si
+;  push si
+;  mov ax,si
+;  outputHex
+;  outputCharacter ' '
+;  mov ax,ds
+;  outputHex
+;  outputCharacter ' '
+;  pop si
+  mov ax,[si]
+  outputHex
+  outputCharacter 10
 
   mov si,failMessage
   mov cx,5
@@ -164,7 +181,7 @@ doMeasurement:
   mov es,ax
   xor di,di
   mov si,[testCaseOffset]
-  mov bl,[si+1]
+  mov bl,[si+2]
 repeatLoop:
 
   push cx
@@ -185,9 +202,9 @@ doneQueueFiller:
   and cl,0x1f
   mov al,0x90
   rep stosb
-  mov cl,[si+2]
+  mov cl,[si+3]
   push si
-  add si,3
+  add si,4
   rep movsb
   pop si
   mov ax,0x00eb  ; 'jmp ip+0'
@@ -195,6 +212,9 @@ doneQueueFiller:
   pop cx
   loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
+  stosw
+  xor ax,ax
+  stosw
   stosw
 
   safeRefreshOff
@@ -285,7 +305,7 @@ testCases:
 ; Format of testCases:
 ;   2 bytes: total length of testCases data excluding length field
 ;   For each testcase:
-;     1 byte: cycle count
+;     2 bytes: cycle count
 ;     1 byte: queueFiller operation (0 = MUL) * 32 + number of NOPs
 ;     1 byte: number of instruction bytes
 ;     N bytes: instructions

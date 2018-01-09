@@ -208,6 +208,8 @@ public:
         p[1] = 0x00;
         p[2] = 0xcd;
         p[3] = 0xff;
+        for (int i = 0; i < 4; ++i)
+            p[i + 4] = 0;
         return p + 4;
     }
     void write()
@@ -224,10 +226,13 @@ public:
         }
         console.write("}, " + decimal((_queueFiller << 5) + _nops) + "}\n");
     }
+    void setCycles(int cycles) { _cycles = cycles; }
+    int cycles() { return _cycles; }
 private:
     int _queueFiller;
     int _nops;
     AppendableArray<Instruction> _instructions;
+    int _cycles;
 };
 
 class Disassembler
@@ -580,12 +585,21 @@ public:
 
         static const char qsc[] = ".IES";
         static const char sc[] = "ARWHCrwp";
-        String line = String(hex(_cpu_ad, 5, false)) + " " +
+        String line;
+        if (_cpuDataFloating)
+            line = String(hex(_cpu_ad >> 8, 3, false)) + "??";
+        else
+            line = String(hex(_cpu_ad, 5, false));
+        line += " " +
             codePoint(qsc[_cpu_qs]) + codePoint(sc[_cpu_s]) +
             (_cpu_rqgt0 ? "G" : ".") + (_cpu_ready ? "." : "z") +
             (_cpu_test ? "T" : ".") +
-            "  " + hex(_bus_address, 5, false) + " " +
-            hex(_bus_data, 2, false) + " " + hex(_bus_dma, 2, false) +
+            "  " + hex(_bus_address, 5, false) + " ";
+        if (_isaDataFloating)
+            line += "??";
+        else
+            line += hex(_bus_data, 2, false);
+        line += " " + hex(_bus_dma, 2, false) +
             " " + hex(_bus_irq, 2, false) + " " +
             hex(_bus_pit, 1, false) + " " + (_bus_ior ? "R" : ".") +
             (_bus_iow ? "W" : ".") + (_bus_memr ? "r" : ".") +
@@ -763,7 +777,7 @@ public:
                 _cpu_ad |= 0x30000;
                 break;
         }
-        _bus_data = 0xff;  // Sometimes 0xfd?
+        setBusFloating();
     }
     void setInterruptFlag(bool intf)
     {
@@ -783,11 +797,19 @@ public:
     {
         _cpu_ad = (_cpu_ad & 0xfff00) | data;
         _bus_data = data;
+        _cpuDataFloating = false;
+        _isaDataFloating = false;
     }
     void setAddress(UInt32 address)
     {
         _cpu_ad = address;
         _bus_address = address;
+        _cpuDataFloating = false;
+    }
+    void setBusFloating()
+    {
+        _cpuDataFloating = true;
+        _isaDataFloating = true;
     }
 private:
     Disassembler _disassembler;
@@ -839,6 +861,8 @@ private:
     bool _bus_iochrdy;  // +I/O CH RDY I  I/O Channel Ready: This line, normally high (ready), is pulled low (not ready) by a memory or I/O device to lengthen I/O or memory cycles. It allows slower devices to attach to the I/O channel with a minimum of difficulty. Any slow device using this line should drive it low immediately upon detecting a valid address and a read or write command. This line should never be held low longer than 10 clock cycles. Machine cycles (I/O or memory) are extended by an integral number of CLK cycles (210 ns).
     bool _bus_aen;      // +AEN         O Address Enable: This line is used to de-gate the processor and other devices from the I/O channel to allow DMA transfers to take place. When this line is active (high), the DMA controller has control of the address bus, data bus, read command lines (memory and I/O), and the write command lines (memory and I/O).
     bool _bus_tc;       // +T/C         O Terminal Count: This line provides a pulse when the terminal count for any DMA channel is reached. This signal is active high.
+    bool _cpuDataFloating;
+    bool _isaDataFloating;
 };
 
 class Emulator
@@ -866,9 +890,12 @@ public:
     }
     int expected(Test test)
     {
+        _logging = false;
         _test = test;
-        run();
-        return 0; //_cycles * 2;
+        try {
+            run();
+        } catch (...) { }
+        return _cycle;
     }
 private:
     void run()
@@ -896,10 +923,12 @@ private:
         _ioInProgress._type = ioPassive;
         _ioNext = _ioInProgress;
         _snifferDecoder.reset();
+        _prefetched = 0;
         _prefetchedAvailable = false;
         _prefetchedRemove = false;
         _statusSet = false;
-        _abandonFetch = false;
+        _prefetching = true;
+        _logSkip = 3;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
@@ -933,8 +962,6 @@ private:
                             _ioInProgress._data = _ram[_ioInProgress._address];
                             break;
                         case ioCodeAccess:
-                            if (_abandonFetch)
-                                break;
                             _ioInProgress._data = _ram[_ioInProgress._address];
                             _prefetchQueue[
                                 (_prefetchOffset + _prefetched) & 3] =
@@ -965,21 +992,26 @@ private:
                     _busState = t4;
                     break;
                 case t4:
-                case tIdle:
+                    _busState = tFirstIdle;
+                    break;
+                case tFirstIdle:
                     _busState = tIdle;
-                    if (_statusSet) {
-                        _ioInProgress = _ioNext;
-                        _ioNext._type = ioPassive;
-                        if (_ioInProgress._type != ioPassive) {
-                            _busState = t1;
-                            _snifferDecoder.setAddress(_ioInProgress._address);
-                        }
-                    }
                     break;
             }
-            if (!_statusSet) {
-                if (_ioNext._type == ioPassive && _prefetched < 4) {
-                    _abandonFetch = false;
+            if (_busState == tFirstIdle || _busState == tIdle) {
+                _snifferDecoder.setBusFloating();
+                if (_statusSet) {
+                    _ioInProgress = _ioNext;
+                    _ioNext._type = ioPassive;
+                    if (_ioInProgress._type != ioPassive) {
+                        _busState = t1;
+                        _snifferDecoder.setAddress(_ioInProgress._address);
+                    }
+                }
+            }
+            if (!_statusSet && _busState != tFirstIdle) {
+                if (_ioNext._type == ioPassive && _prefetched < 4 &&
+                    _prefetching) {
                     _ioNext._type = ioCodeAccess;
                     _ioNext._address = physicalAddress(1, _prefetchAddress);
                     _ioNext._segment = 1;
@@ -996,10 +1028,16 @@ private:
             }
             if (_prefetchedRemove) {
                 --_prefetched;
+                _prefetchOffset = (_prefetchOffset + 1) & 3;
                 _prefetchedRemove = false;
             }
-            String line = _snifferDecoder.getLine();
-            console.write(line);
+            if (_logging) {
+                String l = _snifferDecoder.getLine();
+                if (_logSkip > 0)
+                    --_logSkip;
+                else
+                    _log += l;
+            }
             ++_cycle;
             --cycles;
         } while (cycles > 0);
@@ -1024,10 +1062,16 @@ private:
         _ioNext._address = physicalAddress(_segment, _address);
         _ioNext._data = _data;
         _ioNext._type = type;
-        do
+        bool done;
+        do {
             wait(1);
-        while (_ioNext._type != ioPassive || !(_busState == t4 ||
-            _busState == tIdle));
+            if (type == ioWriteMemory || type == ioWritePort)
+                done = (_busState != t1);
+            else {
+                done = (_busState != t1 && _busState != t2 && _busState != t3
+                    && _busState != tWait);
+            }
+        } while (_ioNext._type != ioPassive || !done);
         return _ioInProgress._data;
     }
     Byte fetchInstructionByte()
@@ -1036,11 +1080,10 @@ private:
         // from the queue per cycle.
         do
             wait(1);
-        while (_prefetched == 0);
+        while (_prefetched == 0 || !_prefetchedAvailable);
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
-        _prefetchOffset = (_prefetchOffset + 1) & 3;
         _prefetchedRemove = true;
-        if (_prefetched == 0)
+        if (_prefetched == 1)
             _prefetchedAvailable = false;
         _snifferDecoder.queueOperation(3);
         ++_ip;
@@ -1143,7 +1186,7 @@ private:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
                 readEA();
-                //wait(3);
+                wait(2);
                 if (!_sourceIsRM) {
                     _destination = _data;
                     _source = getReg();
@@ -1360,8 +1403,11 @@ private:
             case 0xeb: // JMP cb
                 wait(1);
                 _data = fetchInstructionByte();
-                wait(9);
+                wait(1);
+                _prefetching = false;
+                wait(8);
                 jumpShort();
+                _prefetching = true;
                 break;
             case 0xf0: case 0xf1: // LOCK
                 throw Exception("Not yet implemented.");
@@ -1411,7 +1457,7 @@ private:
                         if (!_wordSize) {
                             if (modRMReg() == 4) {
                                 setCF(ah() != 0);
-                                wait(70);
+                                wait(68);
                             }
                             else {
                                 throw Exception("Not yet implemented.");
@@ -1526,6 +1572,7 @@ private:
     bool _logging;
     Test _test;
     String _log;
+    int _logSkip;
     int _cycle;
     Array<Byte> _ram;
     int _stopIP;
@@ -1537,6 +1584,7 @@ private:
         t3,
         tWait,
         t4,
+        tFirstIdle,
         tIdle
     };
 
@@ -1792,7 +1840,6 @@ private:
     void setIP(UInt16 value)
     {
         _ip = value;
-        _abandonFetch = true;
         _prefetched = 0;
         _snifferDecoder.queueOperation(2);
         _prefetchAddress = _ip;
@@ -1876,7 +1923,7 @@ private:
     UInt16 _prefetchAddress;
     BusState _busState;
     bool _statusSet;
-    bool _abandonFetch;
+    bool _prefetching;
 
     struct IOInformation
     {
@@ -1930,7 +1977,7 @@ public:
             int totalLength = 0;
             int newNextTest = _tests.count();
             for (int i = nextTest; i < _tests.count(); ++i) {
-                int nl = totalLength + _tests[i].length() + 3;
+                int nl = totalLength + _tests[i].length() + 4;
                 if (nl > availableLength) {
                     newNextTest = i;
                     break;
@@ -1945,10 +1992,17 @@ public:
             for (int i = nextTest; i < newNextTest; ++i) {
                 Emulator emulator;
                 int cycles = emulator.expected(_tests[i]);
-                *p = cycles;
-                ++p;
+                _tests[i].setCycles(cycles);
+                cycles += 1;
+                cycles *= 2;
+                //cycles = 0;
+                p[0] = cycles;
+                p[1] = cycles >> 8;
+                p += 2;
                 _tests[i].output(p);
-                p += _tests[i].length();
+                p += _tests[i].length() + 2;
+                if (i % 10 == 0)
+                    printf(".");
             }
 
             {
@@ -1987,6 +2041,38 @@ public:
                     console.write(decimal(n) + "\n");
                     _tests[n].write();
 
+                    Emulator emulator;
+                    String expected = emulator.log(_tests[n + nextTest]);
+                    String expected1;
+
+                    String observed;
+                    CharacterSource e(expected);
+                    int skipLines = 4;
+                    do {
+                        int oc = s.get();
+                        if (oc == -1)
+                            break;
+                        if (oc == '\n')
+                            --skipLines;
+                    } while (skipLines > 0);
+
+                    int c = _tests[n].cycles() - 5;
+                    int line = 0;
+                    do {
+                        int ec = e.get();
+                        int oc = s.get();
+                        if (ec == '?' && oc != -1)
+                            oc = '?';
+                        if (line < c) {
+                            observed += codePoint(oc);
+                            expected1 += codePoint(ec);
+                        }
+                        if (ec == '\n')
+                            ++line;
+                        if (ec != oc || ec == -1)
+                            break;
+                    } while (true);
+
                     CharacterSource s2(s);
                     CharacterSource oldS2(s2);
                     do {
@@ -1997,11 +2083,13 @@ public:
                             throw Exception("runtests didn't end properly");
                         oldS2 = s2;
                     } while (true);
-                    String observed = s.subString(s.offset(), oldS2.offset());
+                    if (line < c) {
+                        expected1 += e.subString(e.offset(), e.length());
+                        observed += s.subString(s.offset(), oldS2.offset());
+                    }
+
+                    File("expected.txt").openWrite().write(expected1);
                     File("observed.txt").openWrite().write(observed);
-                    Emulator emulator;
-                    String expected = emulator.log(_tests[n + nextTest]);
-                    File("expected.txt").openWrite().write(expected);
 
                     PROCESS_INFORMATION pi;
                     ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
@@ -2013,8 +2101,8 @@ public:
                     NullTerminatedWideString data(
                         String("windiff observed.txt expected.txt"));
 
-                    IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
-                        NULL, NULL, &si, &pi) != 0);
+                    IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
+                        0, NULL, NULL, &si, &pi) != 0);
                     break;
                 }
                 if (parse(&s, "PASS"))
