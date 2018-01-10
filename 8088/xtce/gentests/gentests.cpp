@@ -929,6 +929,7 @@ private:
         _statusSet = false;
         _prefetching = true;
         _logSkip = 3;
+        _synchronousDone = true;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
@@ -936,7 +937,7 @@ private:
     }
     void wait(int cycles)
     {
-        do {
+        while (cycles > 0) {
             _snifferDecoder.setInterruptFlag(intf());
             bool write = _ioInProgress._type == ioWriteMemory ||
                 _ioInProgress._type == ioWritePort;
@@ -944,8 +945,10 @@ private:
                 case t1:
                     _snifferDecoder.setStatusHigh(_ioInProgress._segment);
                     _snifferDecoder.setBusOperation((int)_ioInProgress._type);
-                    if (write)
+                    if (write) {
                         _snifferDecoder.setData(_ioInProgress._data);
+                        _synchronousDone = true;
+                    }
                     _busState = t2;
                     break;
                 case t2:
@@ -992,6 +995,8 @@ private:
                     _busState = t4;
                     break;
                 case t4:
+                    if (_ioInProgress._type != ioCodeAccess)
+                        _synchronousDone = true;
                     _busState = tFirstIdle;
                     break;
                 case tFirstIdle:
@@ -1040,7 +1045,7 @@ private:
             }
             ++_cycle;
             --cycles;
-        } while (cycles > 0);
+        }
     }
     enum IOType
     {
@@ -1062,16 +1067,10 @@ private:
         _ioNext._address = physicalAddress(_segment, _address);
         _ioNext._data = _data;
         _ioNext._type = type;
-        bool done;
+        _synchronousDone = false;
         do {
             wait(1);
-            if (type == ioWriteMemory || type == ioWritePort)
-                done = (_busState != t1);
-            else {
-                done = (_busState != t1 && _busState != t2 && _busState != t3
-                    && _busState != tWait);
-            }
-        } while (_ioNext._type != ioPassive || !done);
+        } while (!_synchronousDone);
         return _ioInProgress._data;
     }
     Byte fetchInstructionByte()
@@ -1109,18 +1108,20 @@ private:
             return;
         }
         _useMemory = true;
+        int w = 2;
         switch (_modRM & 7) {
-            case 0: wait(7); _address = bx() + si(); break;
-            //case 1: wait(8); _address = bx() + di(); break;
-            //case 2: wait(8); _address = bp() + si(); break;
-            //case 3: wait(7); _address = bp() + di(); break;
-            //case 4: wait(5); _address =        si(); break;
-            //case 5: wait(5); _address =        di(); break;
-            //case 6: wait(5); _address = bp();        break;
-            //case 7: wait(5); _address = bx();        break;
+            case 0: w = 4; _address = bx() + si(); break;
+            case 1: w = 5; _address = bx() + di(); break;
+            case 2: w = 5; _address = bp() + si(); break;
+            case 3: w = 4; _address = bp() + di(); break;
+            case 4:        _address =        si(); break;
+            case 5:        _address =        di(); break;
+            case 6:        _address = bp();        break;
+            case 7:        _address = bx();        break;
             default:
                 throw Exception("Not yet implemented.");
         }
+        wait(1);
         static int segments[8] = {3, 3, 2, 2, 3, 3, 2, 3};
         _segment = segments[_modRM & 7];
         switch (_modRM & 0xc0) {
@@ -1128,15 +1129,22 @@ private:
                 if ((_modRM & 7) == 6) {
                     _address = fetchInstructionWord();
                     _segment = 3;
+                    w = 0;
                 }
                 break;
             case 0x40:
+                wait(w);
                 _address += signExtend(fetchInstructionByte());
+                w = 3;
                 break;
             case 0x80:
                 _address += fetchInstructionWord();
                 break;
         }
+        wait(w);
+        _prefetching = false;
+        wait(2);
+        _prefetching = true;
     }
     void readEA()
     {
@@ -1186,7 +1194,7 @@ private:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
                 readEA();
-                wait(2);
+                //wait(2);
                 if (!_sourceIsRM) {
                     _destination = _data;
                     _source = getReg();
@@ -1196,8 +1204,11 @@ private:
                     _destination = getReg();
                     _source = _data;
                 }
-                //if (_useMemory)
-                //    wait(2);
+                if (_useMemory) {
+                    //_prefetching = false;
+                    wait(2);
+                    //_prefetching = true;
+                }
                 _aluOperation = (_opcode >> 3) & 7;
                 doALUOperation();
                 if (_aluOperation != 7) {
@@ -1405,7 +1416,9 @@ private:
                 _data = fetchInstructionByte();
                 wait(1);
                 _prefetching = false;
-                wait(8);
+                while (_busState != tIdle || _ioNext._type != ioPassive)
+                    wait(1);
+                wait(2);
                 jumpShort();
                 _prefetching = true;
                 break;
@@ -1935,6 +1948,7 @@ private:
 
     IOInformation _ioInProgress;
     IOInformation _ioNext;
+    bool _synchronousDone;
 
     //int _segmentOverride;
 
@@ -1976,7 +1990,8 @@ public:
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
-            for (int i = nextTest; i < _tests.count(); ++i) {
+            newNextTest = 20;
+            for (int i = nextTest; i < newNextTest; ++i) {
                 int nl = totalLength + _tests[i].length() + 4;
                 if (nl > availableLength) {
                     newNextTest = i;
@@ -2058,35 +2073,40 @@ public:
 
                     int c = _tests[n].cycles() - 5;
                     int line = 0;
+                    int column = 1;
+
                     do {
                         int ec = e.get();
-                        int oc = s.get();
-                        if (ec == '?' && oc != -1)
-                            oc = '?';
-                        if (line < c) {
-                            observed += codePoint(oc);
-                            expected1 += codePoint(ec);
+                        if (ec == -1)
+                            break;
+                        ++column;
+                        if ((column >= 7 && column < 20) || column >= 23) {
+                            if (line < c)
+                                expected1 += codePoint(ec);
                         }
-                        if (ec == '\n')
+                        if (ec == '\n') {
                             ++line;
-                        if (ec != oc || ec == -1)
-                            break;
+                            column = 1;
+                        }
                     } while (true);
-
-                    CharacterSource s2(s);
-                    CharacterSource oldS2(s2);
+                    line = 0;
+                    column = 1;
                     do {
-                        if (parse(&s2, "Program ended normally."))
+                        int oc = s.get();
+                        if (oc == -1)
                             break;
-                        int c = s2.get();
-                        if (c == -1)
-                            throw Exception("runtests didn't end properly");
-                        oldS2 = s2;
+                        ++column;
+                        if ((column >= 7 && column < 20) || column >= 23) {
+                            if (line < c)
+                                observed += codePoint(oc);
+                        }
+                        if (oc == '\n') {
+                            ++line;
+                            if (column == 1)
+                                break;
+                            column = 1;
+                        }
                     } while (true);
-                    if (line < c) {
-                        expected1 += e.subString(e.offset(), e.length());
-                        observed += s.subString(s.offset(), oldS2.offset());
-                    }
 
                     File("expected.txt").openWrite().write(expected1);
                     File("observed.txt").openWrite().write(observed);
@@ -2103,7 +2123,8 @@ public:
 
                     IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
                         0, NULL, NULL, &si, &pi) != 0);
-                    break;
+
+                    exit(1);
                 }
                 if (parse(&s, "PASS"))
                     break;

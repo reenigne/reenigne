@@ -85,69 +85,20 @@ testFailed:
   mov [countedCycles],ax
 
   push si
-  outputHex
+  mov si,ax
+  call outputDecimal
   outputCharacter ' '
   pop si
-;  push si
-;  mov ax,si
-;  outputHex
-;  outputCharacter ' '
-;  mov ax,ds
-;  outputHex
-;  outputCharacter ' '
-;  pop si
-  mov ax,[si]
-  outputHex
+  mov si,[si]
+  shr si,1
+  call outputDecimal
   outputCharacter 10
 
   mov si,failMessage
   mov cx,5
   outputString
   mov si,[testCaseIndex]
-
-  mov bx,10000
-  cmp si,bx
-  jl no1e4
-  mov ax,si
-  div bx
-  mov si,dx
-  add al,'0'
-  outputCharacter
-no1e4:
-
-  mov bx,1000
-  cmp si,bx
-  jl no1e3
-  mov ax,si
-  div bx
-  mov si,dx
-  add al,'0'
-  outputCharacter
-no1e3:
-
-  mov bx,100
-  cmp si,bx
-  jl no1e2
-  mov ax,si
-  div bx
-  mov si,dx
-  add al,'0'
-  outputCharacter
-no1e2:
-
-  mov bx,10
-  cmp si,bx
-  jl no1e1
-  mov ax,si
-  div bx
-  mov si,dx
-  add al,'0'
-  outputCharacter
-no1e1:
-
-  mov ax,si
-  add al,'0'
-  outputCharacter
+  call outputDecimal
 
   outputCharacter 10
 
@@ -285,6 +236,62 @@ interruptFF:
   mov ds,ax
   ret
 
+
+outputDecimal:
+;  push si
+;  mov ax,si
+;  outputHex
+;  outputCharacter ':'
+;  pop si
+  mov bx,10000
+  cmp si,bx
+  jb no1e4
+  mov ax,si
+  xor dx,dx
+  div bx
+  mov si,dx
+  add al,'0'
+;    outputHex
+  outputCharacter
+no1e4:
+  mov bx,1000
+  cmp si,bx
+  jb no1e3
+  mov ax,si
+  xor dx,dx
+  div bx
+  mov si,dx
+  add al,'0'
+;    outputHex
+  outputCharacter
+no1e3:
+  mov bx,100
+  cmp si,bx
+  jb no1e2
+  mov ax,si
+  xor dx,dx
+  div bx
+  mov si,dx
+  add al,'0'
+;    outputHex
+  outputCharacter
+no1e2:
+  mov bx,10
+  cmp si,bx
+  jb no1e1
+  mov ax,si
+  xor dx,dx
+  div bx
+  mov si,dx
+  add al,'0'
+;    outputHex
+  outputCharacter
+no1e1:
+  mov ax,si
+  add al,'0'
+;    outputHex
+  outputCharacter
+  ret
 
 
 failMessage: db "FAIL "
