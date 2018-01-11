@@ -81,25 +81,28 @@ notDone:
   jmp testLoop
 
 testFailed:
+  push ax
   shr ax,1
   mov [countedCycles],ax
 
+  mov ax,[testCaseIndex]
+  outputHex
+  outputCharacter ' '
+
   outputCharacter 'o'
-  push si
-  mov si,ax
+  pop ax
   call outputDecimal
   outputCharacter ' '
-  pop si
-  mov si,[si]
-  shr si,1
   outputCharacter 'e'
+  mov si,[testCaseOffset]
+  mov ax,[si]
   call outputDecimal
   outputCharacter 10
 
   mov si,failMessage
   mov cx,5
   outputString
-  mov si,[testCaseIndex]
+  mov ax,[testCaseIndex]
   call outputDecimal
 
   outputCharacter 10
@@ -247,47 +250,48 @@ interruptFF:
 
 
 outputDecimal:
+  cmp ax,10000
+  jae .d5
+  cmp ax,1000
+  jae .d4
+  cmp ax,100
+  jae .d3
+  cmp ax,10
+  jae .d2
+  jmp .d1
+.d5:
   mov bx,10000
-  cmp si,bx
-  jb no1e4
-  mov ax,si
   xor dx,dx
   div bx
-  mov si,dx
   add al,'0'
+  push dx
   outputCharacter
-no1e4:
+  pop ax
+.d4:
   mov bx,1000
-  cmp si,bx
-  jb no1e3
-  mov ax,si
   xor dx,dx
   div bx
-  mov si,dx
   add al,'0'
+  push dx
   outputCharacter
-no1e3:
+  pop ax
+.d3:
   mov bx,100
-  cmp si,bx
-  jb no1e2
-  mov ax,si
   xor dx,dx
   div bx
-  mov si,dx
   add al,'0'
+  push dx
   outputCharacter
-no1e2:
-  mov bx,10
-  cmp si,bx
-  jb no1e1
-  mov ax,si
-  xor dx,dx
-  div bx
-  mov si,dx
+  pop ax
+.d2:
+  mov bl,10
+  div bl
   add al,'0'
+  push ax
   outputCharacter
-no1e1:
-  mov ax,si
+  pop ax
+  mov al,ah
+.d1:
   add al,'0'
   outputCharacter
   ret

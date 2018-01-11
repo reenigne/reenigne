@@ -922,9 +922,10 @@ private:
         _ready = true;
         _ioInProgress._type = ioPassive;
         _ioNext = _ioInProgress;
+        _lastIO = ioPassive;
         _snifferDecoder.reset();
-        _prefetched = 0;
-        _prefetchedAvailable = false;
+        _prefetchedEU = 0;
+        _prefetchedBIU = 0;
         _prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
@@ -967,10 +968,10 @@ private:
                         case ioCodeAccess:
                             _ioInProgress._data = _ram[_ioInProgress._address];
                             _prefetchQueue[
-                                (_prefetchOffset + _prefetched) & 3] =
+                                (_prefetchOffset + _prefetchedBIU) & 3] =
                                 _ioInProgress._data;
                             ++_prefetchAddress;
-                            ++_prefetched;
+                            ++_prefetchedBIU;
                             _queueCycle = 3;
                             break;
                     }
@@ -1002,6 +1003,9 @@ private:
                 case tFirstIdle:
                     _busState = tIdle;
                     break;
+                case tIdle:
+                    _lastIO = ioPassive;
+                    break;
             }
             if (_busState == tFirstIdle || _busState == tIdle) {
                 _snifferDecoder.setBusFloating();
@@ -1010,13 +1014,14 @@ private:
                     _ioNext._type = ioPassive;
                     if (_ioInProgress._type != ioPassive) {
                         _busState = t1;
+                        _lastIO = _ioInProgress._type;
                         _snifferDecoder.setAddress(_ioInProgress._address);
                     }
                 }
             }
             if (!_statusSet && _busState != tFirstIdle) {
-                if (_ioNext._type == ioPassive && _prefetched < 4 &&
-                    _prefetching) {
+                if (_ioNext._type == ioPassive && _prefetchedBIU < 4 &&
+                    _prefetching && (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait)) {
                     _ioNext._type = ioCodeAccess;
                     _ioNext._address = physicalAddress(1, _prefetchAddress);
                     _ioNext._segment = 1;
@@ -1029,10 +1034,10 @@ private:
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0)
-                    _prefetchedAvailable = true;
+                    ++_prefetchedEU;
             }
             if (_prefetchedRemove) {
-                --_prefetched;
+                --_prefetchedBIU;
                 _prefetchOffset = (_prefetchOffset + 1) & 3;
                 _prefetchedRemove = false;
             }
@@ -1105,11 +1110,10 @@ private:
         // from the queue per cycle.
         do
             wait(1);
-        while (_prefetched == 0 || !_prefetchedAvailable);
+        while (_prefetchedEU == 0);
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
         _prefetchedRemove = true;
-        if (_prefetched == 1)
-            _prefetchedAvailable = false;
+        --_prefetchedEU;
         _snifferDecoder.queueOperation(3);
         ++_ip;
         return byte;
@@ -1155,7 +1159,7 @@ private:
                 if ((_modRM & 7) == 6) {
                     _address = fetchInstructionWord();
                     _segment = 3;
-                    w = 0;
+                    w = 1;
                 }
                 break;
             case 0x40:
@@ -1228,7 +1232,9 @@ private:
                 if (!_sourceIsRM) {
                     _destination = _data;
                     _source = getReg();
-                    wait(3);
+                    if (_useMemory)
+                        wait(2);
+                    wait(1);
                 }
                 else {
                     _destination = getReg();
@@ -1886,7 +1892,8 @@ private:
     void setIP(UInt16 value)
     {
         _ip = value;
-        _prefetched = 0;
+        _prefetchedEU = 0;
+        _prefetchedBIU = 0;
         _snifferDecoder.queueOperation(2);
         _prefetchAddress = _ip;
     }
@@ -1963,8 +1970,8 @@ private:
 
     UInt8 _prefetchQueue[4];
     UInt8 _prefetchOffset;
-    UInt8 _prefetched;
-    bool _prefetchedAvailable;
+    UInt8 _prefetchedEU;
+    UInt8 _prefetchedBIU;
     bool _prefetchedRemove;
     UInt16 _prefetchAddress;
     BusState _busState;
@@ -1982,6 +1989,7 @@ private:
     IOInformation _ioInProgress;
     IOInformation _ioNext;
     bool _synchronousDone;
+    IOType _lastIO;
 
     //int _segmentOverride;
 
@@ -2023,7 +2031,7 @@ public:
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
-            newNextTest = 80;
+            newNextTest = 1280;
             for (int i = nextTest; i < newNextTest; ++i) {
                 int nl = totalLength + _tests[i].length() + 4;
                 if (nl > availableLength) {
@@ -2114,7 +2122,7 @@ public:
                             break;
                         ++column;
                         if ((column >= 7 && column < 20) || column >= 23) {
-                            if (line < c)
+                            //if (line < c)
                                 expected1 += codePoint(ec);
                         }
                         if (ec == '\n') {
@@ -2130,7 +2138,7 @@ public:
                             break;
                         ++column;
                         if ((column >= 7 && column < 20) || column >= 23) {
-                            if (line < c)
+                            //if (line < c)
                                 observed += codePoint(oc);
                         }
                         if (oc == '\n') {

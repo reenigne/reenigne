@@ -2,7 +2,7 @@
 
 FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
-REFRESH      EQU 19   ; Refresh period in cycles, or 0 to disable
+REFRESH      EQU 0;19   ; Refresh period in cycles, or 0 to disable
 
   cli
   mov ax,cs
@@ -84,7 +84,7 @@ loopTop:
 ;  mov ax,0xb800
 ;  mov ds,ax
 ;  mov ax,[0]
-   lockstep 1
+;   lockstep 1
 
   mov ax,0x8000
   mov ds,ax
@@ -177,6 +177,17 @@ lut: db 0x88,8
 
 
 testRoutine:
+  %rep 40
+    mov al,0
+    out 0x43,al
+    in al,0x40
+    in al,0x40
+  %endrep
+;  times 146 in al,0x40
+  ret
+
+
+
   mov [cs:savedSP],sp
 
   mov ax,0xaa
