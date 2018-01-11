@@ -1073,6 +1073,32 @@ private:
         } while (!_synchronousDone);
         return _ioInProgress._data;
     }
+    Word busReadWord(IOType type)
+    {
+        while (_ioNext._type != ioPassive)
+            wait(1);
+
+        _ioNext._segment = _segment;
+        _ioNext._address = physicalAddress(_segment, _address);
+        _ioNext._data = _data;
+        _ioNext._type = type;
+        _synchronousDone = false;
+        do {
+            wait(1);
+        } while (_ioNext._type != ioPassive);
+        _ioNext._address = physicalAddress(_segment, _address + 1);
+        _ioNext._data = _data;
+        _ioNext._type = type;
+        do {
+            wait(1);
+        } while (!_synchronousDone);
+        Word result = _ioInProgress._data;
+        _synchronousDone = false;
+        do {
+            wait(1);
+        } while (!_synchronousDone);
+        return result | (_ioInProgress._data << 8);
+    }
     Byte fetchInstructionByte()
     {
         // Always wait at least one cycle so we don't fetch more than one byte
@@ -1138,7 +1164,9 @@ private:
                 w = 3;
                 break;
             case 0x80:
+                wait(w);
                 _address += fetchInstructionWord();
+                w = 2;
                 break;
         }
         wait(w);
@@ -1150,9 +1178,10 @@ private:
     {
         initEA();
         if (_useMemory) {
-            _data = busAccess(ioReadMemory);
             if (_wordSize)
-                _data |= (busAccess(ioReadMemory) << 8);
+                _data = busReadWord(ioReadMemory);
+            else
+                _data = busAccess(ioReadMemory);
             return;
         }
         if (!_wordSize)
@@ -1168,7 +1197,9 @@ private:
             busAccess(ioWriteMemory);
             if (_wordSize) {
                 _data = data >> 8;
+                ++_address;
                 busAccess(ioWriteMemory);
+                wait(1);
             }
             return;
         }
@@ -1194,7 +1225,6 @@ private:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
                 readEA();
-                //wait(2);
                 if (!_sourceIsRM) {
                     _destination = _data;
                     _source = getReg();
@@ -1205,9 +1235,9 @@ private:
                     _source = _data;
                 }
                 if (_useMemory) {
-                    //_prefetching = false;
-                    wait(2);
-                    //_prefetching = true;
+                    if (!_sourceIsRM)
+                        wait(1);
+                    wait(1);
                 }
                 _aluOperation = (_opcode >> 3) & 7;
                 doALUOperation();
@@ -1295,7 +1325,10 @@ private:
                 break;
             case 0x90: case 0x91: case 0x92: case 0x93:
             case 0x94: case 0x95: case 0x96: case 0x97: // XCHG AX, rw
-                throw Exception("Not yet implemented.");
+                _data = rw();
+                rw() = ax();
+                ax() = _data;
+                wait(2);
                 break;
             case 0x98: // CBW
                 throw Exception("Not yet implemented.");
@@ -1755,7 +1788,7 @@ private:
         return ((_segmentRegisterData[segment] << 4) + offset) & 0xfffff;
     }
 
-    //Register<UInt16>& rw() { return _wordRegisters[_opcode & 7]; }
+    Register<UInt16>& rw() { return _wordRegisters[_opcode & 7]; }
     Register<UInt16>& ax() { return _wordRegisters[0]; }
     Register<UInt16>& cx() { return _wordRegisters[1]; }
     Register<UInt16>& dx() { return _wordRegisters[2]; }
@@ -1990,7 +2023,7 @@ public:
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
-            newNextTest = 20;
+            newNextTest = 80;
             for (int i = nextTest; i < newNextTest; ++i) {
                 int nl = totalLength + _tests[i].length() + 4;
                 if (nl > availableLength) {
@@ -2142,9 +2175,11 @@ public:
 private:
     void addTest(Instruction i)
     {
-        Test t;
-        t.addInstruction(i);
-        _tests.append(t);
+        for (int nops = 0; nops < 20; ++nops) {
+            Test t(0, nops);
+            t.addInstruction(i);
+            _tests.append(t);
+        }
     }
     bool parse(CharacterSource* s, String m)
     {

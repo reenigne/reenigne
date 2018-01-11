@@ -84,6 +84,7 @@ testFailed:
   shr ax,1
   mov [countedCycles],ax
 
+  outputCharacter 'o'
   push si
   mov si,ax
   call outputDecimal
@@ -91,6 +92,7 @@ testFailed:
   pop si
   mov si,[si]
   shr si,1
+  outputCharacter 'e'
   call outputDecimal
   outputCharacter 10
 
@@ -110,6 +112,7 @@ testFailed:
 loopTop:
   mov [savedCX],cx
   mov cx,1
+;    mov word[countedCycles],2047
   call doMeasurement
 
   mov ax,[countedCycles]
@@ -187,10 +190,9 @@ doneQueueFiller:
   outputByte
   mov si,[cs:testCaseOffset]
   mov dx,[cs:countedCycles]
-;  dec dx
   outputByte
   outputByte
-  mov dx,714
+  mov dx,714  ; 6
   outputByte
   outputByte
 
@@ -201,6 +203,11 @@ doneQueueFiller:
   mov ds,ax
   mov es,ax
   mov ss,ax
+
+;  mov al,0
+;  out 0x43,al
+;  in al,0x40
+;  in al,0x40
 
   xor ax,ax
   mov dx,ax
@@ -222,6 +229,8 @@ irq0:
   iret
 
 interruptFF:
+  mov al,0
+  out 0x43,al
   in al,0x40
   mov bl,al
   in al,0x40
@@ -238,11 +247,6 @@ interruptFF:
 
 
 outputDecimal:
-;  push si
-;  mov ax,si
-;  outputHex
-;  outputCharacter ':'
-;  pop si
   mov bx,10000
   cmp si,bx
   jb no1e4
@@ -251,7 +255,6 @@ outputDecimal:
   div bx
   mov si,dx
   add al,'0'
-;    outputHex
   outputCharacter
 no1e4:
   mov bx,1000
@@ -262,7 +265,6 @@ no1e4:
   div bx
   mov si,dx
   add al,'0'
-;    outputHex
   outputCharacter
 no1e3:
   mov bx,100
@@ -273,7 +275,6 @@ no1e3:
   div bx
   mov si,dx
   add al,'0'
-;    outputHex
   outputCharacter
 no1e2:
   mov bx,10
@@ -284,12 +285,10 @@ no1e2:
   div bx
   mov si,dx
   add al,'0'
-;    outputHex
   outputCharacter
 no1e1:
   mov ax,si
   add al,'0'
-;    outputHex
   outputCharacter
   ret
 
