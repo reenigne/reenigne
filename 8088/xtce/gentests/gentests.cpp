@@ -1,15 +1,17 @@
 #include "alfe/main.h"
 #include "alfe/space.h"
 
+static const UInt16 testSegment = 0x10a8;
+
 class Instruction
 {
 public:
     Instruction() { }
     Instruction(Byte opcode, Byte modrm = 0, Word offset = 0,
         Word immediate = 0)
-      : _opcode(opcode), _modrm(modrm), _offset(offset), _immediate(immediate)
-    {
-    }
+      : _opcode(opcode), _modrm(modrm), _offset(offset), _immediate(immediate),
+        _address(0)
+    { }
     bool hasModrm()
     {
         static const Byte hasModrmTable[] = {
@@ -125,6 +127,8 @@ public:
         }
         int l = immediateBytes();
         if (l > 0) {
+            if (_opcode == 0x9a) // CALL cp
+                _immediate = _address + 5;
             *p = _immediate;
             if (l > 1) {
                 p[1] = _immediate >> 8;
@@ -145,8 +149,10 @@ public:
         console.write("{" + hex(_opcode, 2) + ", " + hex(_modrm, 2) + ", " +
             hex(_offset, 4) + ", " + hex(_immediate) + "}");
     }
+    void setAddress(DWord address) { _address = address; }
     
 private:
+    DWord _address;
     Byte _opcode;
     Byte _modrm;
     Word _offset;
@@ -157,9 +163,13 @@ class Test
 {
 public:
     Test(int queueFiller = 0, int nops = 0)
-      : _queueFiller(queueFiller), _nops(nops) { }
+      : _queueFiller(queueFiller), _nops(nops),
+        _address((testSegment << 16) + 4 + nops)
+    { }
     void addInstruction(Instruction instruction)
     {
+        instruction.setAddress(_address);
+        _address += instruction.length();
         _instructions.append(instruction);
     }
     int length()
@@ -229,9 +239,11 @@ public:
     void setCycles(int cycles) { _cycles = cycles; }
     int cycles() { return _cycles; }
 private:
+    UInt32 _address;
     int _queueFiller;
     int _nops;
     AppendableArray<Instruction> _instructions;
+    AppendableArray<Byte> _relocs;
     int _cycles;
 };
 
@@ -576,7 +588,7 @@ public:
         _d = -1;  
         _queueLength = 0;
         _lastS = 0;
-        _pitCycle = 0;
+        _pitCycle = 2;
         _cpu_s = 7;
     }
     String getLine()
@@ -900,8 +912,6 @@ public:
 private:
     void run()
     {
-        UInt16 testSegment = 0x10a8;
-
         _cycle = 0;
         Byte* stopP = _test.outputCode(&_ram[testSegment << 4]);
         _stopIP = stopP - &_ram[(testSegment << 4) + 2];
@@ -909,7 +919,7 @@ private:
         cx() = 0;
         dx() = 0;
         bx() = 0;
-        sp() = 0;
+        sp() = -18;
         bp() = 0;
         si() = 0;
         di() = 0;
@@ -929,8 +939,14 @@ private:
         _prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
+        _log = "";
         _logSkip = 3;
         _synchronousDone = true;
+        _ip = 0;
+        _segmentOverride = -1;
+        _prefetchAddress = 0;
+        for (int i = 0; i < 9; ++i)
+            *(Word*)(&_ram[i*2 + 0x10000 - 18]) = 0x10a8;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
@@ -975,6 +991,8 @@ private:
                             _queueCycle = 3;
                             break;
                     }
+                    if (_ioInProgress._type != ioCodeAccess)  // This happens at the last Tw/T3 state
+                        _synchronousDone = true;
                     if (!write)
                         _snifferDecoder.setData(_ioInProgress._data);
                     _busState = t3;
@@ -996,8 +1014,6 @@ private:
                     _busState = t4;
                     break;
                 case t4:
-                    if (_ioInProgress._type != ioCodeAccess)
-                        _synchronousDone = true;
                     _busState = tFirstIdle;
                     break;
                 case tFirstIdle:
@@ -1063,15 +1079,20 @@ private:
         ioWriteMemory = 6,
         ioPassive = 7
     };
+    void initIO(IOType type, UInt32 address)
+    {
+        _ioNext._segment = _segment;
+        if (_segmentOverride != -1)
+            _ioNext._segment = _segmentOverride;
+        _ioNext._address = physicalAddress(_ioNext._segment, address);
+        _ioNext._data = _data;
+        _ioNext._type = type;
+    }
     Byte busAccess(IOType type)
     {
         while (_ioNext._type != ioPassive)
             wait(1);
-
-        _ioNext._segment = _segment;
-        _ioNext._address = physicalAddress(_segment, _address);
-        _ioNext._data = _data;
-        _ioNext._type = type;
+        initIO(type, _address);
         _synchronousDone = false;
         do {
             wait(1);
@@ -1082,18 +1103,12 @@ private:
     {
         while (_ioNext._type != ioPassive)
             wait(1);
-
-        _ioNext._segment = _segment;
-        _ioNext._address = physicalAddress(_segment, _address);
-        _ioNext._data = _data;
-        _ioNext._type = type;
+        initIO(type, _address);
         _synchronousDone = false;
         do {
             wait(1);
         } while (_ioNext._type != ioPassive);
-        _ioNext._address = physicalAddress(_segment, _address + 1);
-        _ioNext._data = _data;
-        _ioNext._type = type;
+        initIO(type, _address + 1);
         do {
             wait(1);
         } while (!_synchronousDone);
@@ -1103,6 +1118,14 @@ private:
             wait(1);
         } while (!_synchronousDone);
         return result | (_ioInProgress._data << 8);
+    }
+    void busWriteWord(IOType type)
+    {
+        busAccess(ioWriteMemory);
+        _data >>= 8;
+        ++_address;
+        busAccess(ioWriteMemory);
+        wait(3);
     }
     Byte fetchInstructionByte()
     {
@@ -1174,14 +1197,14 @@ private:
                 break;
         }
         wait(w);
-        _prefetching = false;
-        wait(2);
-        _prefetching = true;
     }
     void readEA()
     {
         initEA();
         if (_useMemory) {
+            _prefetching = false;
+            wait(2);
+            _prefetching = true;
             if (_wordSize)
                 _data = busReadWord(ioReadMemory);
             else
@@ -1198,13 +1221,10 @@ private:
         _data = data;
         wait(w);
         if (_useMemory) {
-            busAccess(ioWriteMemory);
-            if (_wordSize) {
-                _data = data >> 8;
-                ++_address;
+            if (_wordSize)
+                busWriteWord(ioWriteMemory);
+            else
                 busAccess(ioWriteMemory);
-                wait(1);
-            }
             return;
         }
         if (!_wordSize)
@@ -1219,6 +1239,7 @@ private:
         _wordSize = ((_opcode & 1) != 0);
         _snifferDecoder.queueOperation(1);
         _sourceIsRM = ((_opcode & 2) != 0);
+        bool completed = true;
         switch (_opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
             case 0x08: case 0x09: case 0x0a: case 0x0b: 
@@ -1229,27 +1250,25 @@ private:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
                 readEA();
+                _aluOperation = (_opcode >> 3) & 7;
                 if (!_sourceIsRM) {
                     _destination = _data;
                     _source = getReg();
-                    if (_useMemory)
-                        wait(2);
-                    wait(1);
                 }
                 else {
                     _destination = getReg();
                     _source = _data;
                 }
-                if (_useMemory) {
-                    if (!_sourceIsRM)
-                        wait(1);
-                    wait(1);
-                }
-                _aluOperation = (_opcode >> 3) & 7;
+                if (_useMemory)
+                    wait(2);
+                wait(1);
                 doALUOperation();
                 if (_aluOperation != 7) {
-                    if (!_sourceIsRM)
-                        writeEA(_data, 0);
+                    if (!_sourceIsRM) {
+                        if (_useMemory)
+                            wait(4);
+                        writeEA(_data);
+                    }
                     else
                         setReg(_data);
                 }
@@ -1258,42 +1277,105 @@ private:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
             case 0x24: case 0x25: case 0x2c: case 0x2d:
             case 0x34: case 0x35: case 0x3c: case 0x3d: // alu A, imm
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstruction();
+                _destination = getAccum();
+                _source = _data;
+                _aluOperation = (_opcode >> 3) & 7;
+                doALUOperation();
+                if (_aluOperation != 7)
+                    setAccum();
+                wait(1);
                 break;
-            case 0x06: case 0x0e: case 0x16: case 0x1e: // POP segreg
-                throw Exception("Not yet implemented.");
+            case 0x06: case 0x0e: case 0x16: case 0x1e: // PUSH segreg
+                push(_segmentRegisters[_opcode >> 3]);
                 break;
-            case 0x07: case 0x0f: case 0x17: case 0x1f: // PUSH segreg
-                throw Exception("Not yet implemented.");
+            case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+                _segmentRegisters[_opcode >> 3] = pop();
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e: // segreg:
-                throw Exception("Not yet implemented.");
+                _segmentOverride = (_opcode >> 3) & 3;
+                completed = false;
+                wait(1);
                 break;
             case 0x27: // DAA
-                throw Exception("Not yet implemented.");
+                if (af() || (al() & 0x0f) > 9) {
+                    _data = al() + 6;
+                    al() = _data;
+                    setAF(true);
+                    if ((_data & 0x100) != 0)
+                        setCF(true);
+                }
+                if (cf() || al() > 0x9f) {
+                    al() += 0x60;
+                    setCF(true);
+                }
+                da();
                 break;
             case 0x2f: // DAS
-                throw Exception("Not yet implemented.");
+                {
+                    UInt8 t = al();
+                    if (af() || ((al() & 0xf) > 9)) {
+                        _data = al() - 6;
+                        al() = _data;
+                        setAF(true);
+                        if ((_data & 0x100) != 0)
+                            setCF(true);
+                    }
+                    if (cf() || t > 0x9f) {
+                        al() -= 0x60;
+                        setCF(true);
+                    }
+                }
+                da();
                 break;
             case 0x37: // AAA
-                throw Exception("Not yet implemented.");
+                if (af() || ((al() & 0xf) > 9)) {
+                    al() += 6;
+                    ++ah();
+                    setCA();
+                }
+                else
+                    clearCA();
+                aa();
                 break;
             case 0x3f: // AAS
-                throw Exception("Not yet implemented.");
+                if (af() || ((al() & 0xf) > 9)) {
+                    al() -= 6;
+                    --ah();
+                    setCA();
+                }
+                else
+                    clearCA();
+                aa();
                 break;
             case 0x40: case 0x41: case 0x42: case 0x43:
             case 0x44: case 0x45: case 0x46: case 0x47:
             case 0x48: case 0x49: case 0x4a: case 0x4b:
             case 0x4c: case 0x4d: case 0x4e: case 0x4f: // INCDEC rw
-                throw Exception("Not yet implemented.");
+                _destination = rw();
+                _source = 1;
+                _wordSize = true;
+                if ((_opcode & 8) == 0) {
+                    _data = _destination + _source;
+                    setOFAdd();
+                }
+                else {
+                    _data = _destination - _source;
+                    setOFSub();
+                }
+                doAF();
+                setPZS();
+                rw() = _data;
+                wait(1);
                 break;
             case 0x50: case 0x51: case 0x52: case 0x53:
             case 0x54: case 0x55: case 0x56: case 0x57: // PUSH rw
-                throw Exception("Not yet implemented.");
+                push(rw());
                 break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                throw Exception("Not yet implemented.");
+                rw() = pop();
                 break;
             case 0x60: case 0x61: case 0x62: case 0x63:
             case 0x64: case 0x65: case 0x66: case 0x67:
@@ -1303,31 +1385,133 @@ private:
             case 0x74: case 0x75: case 0x76: case 0x77:
             case 0x78: case 0x79: case 0x7a: case 0x7b:
             case 0x7c: case 0x7d: case 0x7e: case 0x7f: // Jcond cb
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstructionByte();
+                {
+                    bool jump;
+                    switch (_opcode & 0x0e) {
+                        case 0x00: jump =  of(); break;
+                        case 0x02: jump =  cf(); break;
+                        case 0x04: jump =  zf(); break;
+                        case 0x06: jump =  cf() || zf(); break;
+                        case 0x08: jump =  sf(); break;
+                        case 0x0a: jump =  pf(); break;
+                        case 0x0c: jump = (sf() != of()); break;
+                        case 0x0e: jump = (sf() != of()) || zf(); break;
+                    }
+                    if ((_opcode & 1) != 0)
+                        jump = !jump;
+                    if (jump) {
+                        wait(1);
+                        jumpShort();
+                        // TODO: Put the following two lines into jumpShort() if JMP has them
+                        wait(1);
+                        _prefetching = true;
+                    }
+                    wait(1);
+                }
                 break;
             case 0x80: case 0x81: case 0x82: case 0x83: // alu rm, imm
-                throw Exception("Not yet implemented.");
+                readEA();
+                _destination = _data;
+                if (_useMemory)
+                    wait(2);
+                if (_opcode == 0x81)
+                    _source = fetchInstructionWord();
+                else
+                    _source = signExtend(fetchInstructionByte());
+                _aluOperation = modRMReg();
+                doALUOperation();
+                if (_useMemory) {
+                    wait(2);
+                    if (_aluOperation != 7) {
+                        _prefetching = false;
+                        wait(1);
+                        _prefetching = true;
+                        wait(1);
+                    }
+                }
+                else
+                    wait(3);
+                if (_aluOperation != 7)
+                    writeEA(_data);
                 break;
             case 0x84: case 0x85: // TEST rm, reg
-                throw Exception("Not yet implemented.");
+                readEA();
+                test(_data, getReg());
+                if (_useMemory)
+                    wait(2);
+                wait(1);
                 break;
             case 0x86: case 0x87: // XCHG rm, reg
-                throw Exception("Not yet implemented.");
+                readEA();
+                _source = getReg();
+                setReg(_data);
+                wait(2);
+                if (_useMemory)
+                    wait(6);
+                writeEA(_source);
                 break;
-            case 0x88: case 0x89: case 0x8a: case 0x8b: // MOV rm, reg
-                throw Exception("Not yet implemented.");
+            case 0x88: case 0x89: // MOV rm, reg
+                initEA();
+                if (_useMemory) {
+                    wait(4);
+                    _prefetching = false;
+                    wait(2);
+                    _prefetching = true;
+                }
+                writeEA(getReg());
+                break;
+            case 0x8a: case 0x8b: // MOV reg, rm
+                readEA();
+                setReg(_data);
+                if (_useMemory)
+                    wait(2);
                 break;
             case 0x8c: // MOV rmw, segreg
-                throw Exception("Not yet implemented.");
+                _wordSize = true;
+                initEA();
+                if (_useMemory) {
+                    wait(3);
+                    _prefetching = false;
+                    wait(2);
+                    _prefetching = true;
+                }
+                writeEA(_segmentRegisters[modRMReg() & 3]);
                 break;
             case 0x8d: // LEA rw, rmw
-                throw Exception("Not yet implemented.");
+                initEA();
+                setReg(_address);
+                if (_useMemory)
+                    wait(2);
                 break;
             case 0x8e: // MOV segreg, rmw
-                throw Exception("Not yet implemented.");
+                _wordSize = true;
+                readEA();
+                _segmentRegisters[modRMReg() & 3] = _data;
+                if (_useMemory)
+                    wait(2);
                 break;
             case 0x8f: // POP rmw
-                throw Exception("Not yet implemented.");
+                initEA();
+                if (_useMemory) {
+                    //_prefetching = false;
+                    wait(2);
+                    //_prefetching = true;
+                }
+                _source = _address;
+                _data = pop();
+                _address = _source;
+                //if (_useMemory)
+                //    wait(5);
+                wait(1);
+                if (_useMemory) {
+                    wait(2);
+                    _prefetching = false;
+                    wait(2);
+                    _prefetching = true;
+                }
+                writeEA(_data);
                 break;
             case 0x90: case 0x91: case 0x92: case 0x93:
             case 0x94: case 0x95: case 0x96: case 0x97: // XCHG AX, rw
@@ -1337,10 +1521,12 @@ private:
                 wait(2);
                 break;
             case 0x98: // CBW
-                throw Exception("Not yet implemented.");
+                ax() = signExtend(al());
+                wait(1);
                 break;
             case 0x99: // CWD
-                throw Exception("Not yet implemented.");
+                dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff);
+                wait(4);
                 break;
             case 0x9a: // CALL cp
                 throw Exception("Not yet implemented.");
@@ -1453,11 +1639,6 @@ private:
             case 0xeb: // JMP cb
                 wait(1);
                 _data = fetchInstructionByte();
-                wait(1);
-                _prefetching = false;
-                while (_busState != tIdle || _ioNext._type != ioPassive)
-                    wait(1);
-                wait(2);
                 jumpShort();
                 _prefetching = true;
                 break;
@@ -1619,6 +1800,21 @@ private:
                 throw Exception("Not yet implemented.");
                 break;
         }
+        if (completed) {
+            _segmentOverride = -1;
+            _rep = 0;
+            // TODO: check interrupts. After REP iterations but not prefixes?
+            //if (_nmiRequested) {
+            //    _nmiRequested = false;
+            //    interrupt(2);
+            //}
+            //if (intf() && _interruptRequested) {
+            //    initIO(stateHardwareInt, ioInterruptAcknowledge,
+            //        false);
+            //    _interruptRequested = false;
+            //    _wait = 1;
+            //}
+        }
     }
 
     bool _logging;
@@ -1640,13 +1836,133 @@ private:
         tIdle
     };
 
-    void jumpShort() { setIP(_ip + signExtend(_data)); }
+    void da()
+    {
+        _wordSize = false;
+        _data = al();
+        setPZS();
+        wait(3);
+    }
+    void aa()
+    {
+        al() &= 0x0f;
+        wait(8);
+    }
+    //void div()
+    //{
+    //    bool negative = false;
+    //    bool dividendNegative = false;
+    //    if (modRMReg() == 7) {
+    //        if ((_destination & 0x80000000) != 0) {
+    //            _destination =
+    //                static_cast<UInt32>(-static_cast<SInt32>(_destination));
+    //            negative = !negative;
+    //            dividendNegative = true;
+    //        }
+    //        if ((_source & 0x8000) != 0) {
+    //            _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
+    //                & 0xffff;
+    //            negative = !negative;
+    //        }
+    //    }
+    //    _data = _destination / _source;
+    //    UInt32 product = _data * _source;
+    //    // ISO C++ 2003 does not specify a rounding mode, but the x86 always
+    //    // rounds towards zero.
+    //    if (product > _destination) {
+    //        --_data;
+    //        product -= _source;
+    //    }
+    //    _remainder = _destination - product;
+    //    if (negative)
+    //        _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
+    //    if (dividendNegative)
+    //        _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
+    //}
+    void jumpShort()
+    {
+        wait(1);
+        _prefetching = false;
+        wait(3);
+        while (_busState != tIdle || _ioNext._type != ioPassive)
+            wait(1);
+        wait(2);
+        setIP(_ip + signExtend(_data));
+    }
+    //void interrupt(UInt8 number)
+    //{
+    //    _data = number;
+    //    _state = stateIntAction;
+    //}
     void test(UInt16 destination, UInt16 source)
     {
         _destination = destination;
         _source = source;
         bitwise(_destination & _source);
     }
+    //int stringIncrement()
+    //{
+    //    int r = (_wordSize ? 2 : 1);
+    //    return !df() ? r : -r;
+    //}
+    //void lodS(State state)
+    //{
+    //    _address = si();
+    //    si() += stringIncrement();
+    //    _segment = 3;
+    //    initIO(state, ioRead, _wordSize);
+    //}
+    //void lodDIS(State state)
+    //{
+    //    _address = di();
+    //    di() += stringIncrement();
+    //    _segment = 0;
+    //    initIO(state, ioRead, _wordSize);
+    //}
+    //void stoS(State state)
+    //{
+    //    _address = di();
+    //    di() += stringIncrement();
+    //    _segment = 0;
+    //    initIO(state, ioWrite, _wordSize);
+    //}
+    //bool repCheck()
+    //{
+    //    if (_rep != 0 && cx() == 0) {
+    //        _state = stateRepAction;
+    //        return false;
+    //    }
+    //    return true;
+    //}
+    void push(UInt16 data)
+    {
+        wait(4);
+        _prefetching = false;
+        wait(2);
+        _prefetching = true;
+        _data = data;
+        sp() -= 2;
+        _address = sp();
+        _segment = 2;
+        busWriteWord(ioWriteMemory);
+        wait(1);
+    }
+    Word pop()
+    {
+        wait(1);
+        _prefetching = false;
+        wait(2);
+        _prefetching = true;
+        return pop2();
+    }
+    Word pop2()
+    {
+        _address = sp();
+        sp() += 2;
+        _segment = 2;
+        return busReadWord(ioReadMemory);
+    }
+    void setCA() { setCF(true); setAF(true); }
     void clearCA() { setCF(false); setAF(false); }
     void clearCAO() { clearCA(); setOF(false); }
     void setPZS() { setPF(); setZF(); setSF(); }
@@ -1666,17 +1982,21 @@ private:
         setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
     }
     void sub() { _data = _destination - _source; setCAPZS(); setOFSub(); }
+    //void setOFRotate()
+    //{
+    //    setOF(((_data ^ _destination) & (!_wordSize ? 0x80 : 0x8000)) != 0);
+    //}
     void doALUOperation()
     {
         switch (_aluOperation) {
             case 0: add(); break;
-            //case 1: bitwise(_destination | _source); break;
-            //case 2: _source += cf() ? 1 : 0; add(); break;
-            //case 3: _source += cf() ? 1 : 0; sub(); break;
-            //case 4: test(_destination, _source); break;
-            //case 5:
-            //case 7: sub(); break;
-            //case 6: bitwise(_destination ^ _source); break;
+            case 1: bitwise(_destination | _source); break;
+            case 2: _source += cf() ? 1 : 0; add(); break;
+            case 3: _source += cf() ? 1 : 0; sub(); break;
+            case 4: test(_destination, _source); break;
+            case 5:
+            case 7: sub(); break;
+            case 6: bitwise(_destination ^ _source); break;
             default:
                 throw Exception("Not yet implemented.");
 
@@ -1814,7 +2134,7 @@ private:
 
     bool cf() { return (_flags & 1) != 0; }
     void setCF(bool cf) { _flags = (_flags & ~1) | (cf ? 1 : 0); }
-    //bool pf() { return (_flags & 4) != 0; }
+    bool pf() { return (_flags & 4) != 0; }
     void setPF()
     {
         static UInt8 table[0x100] = {
@@ -1836,15 +2156,15 @@ private:
             4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4};
         _flags = (_flags & ~4) | table[_data & 0xff];
     }
-    //bool af() { return (_flags & 0x10) != 0; }
+    bool af() { return (_flags & 0x10) != 0; }
     void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
-    //bool zf() { return (_flags & 0x40) != 0; }
+    bool zf() { return (_flags & 0x40) != 0; }
     void setZF()
     {
         _flags = (_flags & ~0x40) |
             ((_data & (!_wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
     }
-    //bool sf() { return (_flags & 0x80) != 0; }
+    bool sf() { return (_flags & 0x80) != 0; }
     void setSF()
     {
         _flags = (_flags & ~0x80) |
@@ -1856,7 +2176,7 @@ private:
     //void setIF(bool intf) { _flags = (_flags & ~0x200) | (intf ? 0x200 : 0); }
     //bool df() { return (_flags & 0x400) != 0; }
     //void setDF(bool df) { _flags = (_flags & ~0x400) | (df ? 0x400 : 0); }
-    //bool of() { return (_flags & 0x800) != 0; }
+    bool of() { return (_flags & 0x800) != 0; }
     void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
     int modRMReg() { return (_modRM >> 3) & 7; }
     Register<UInt16>& modRMRW() { return _wordRegisters[modRMReg()]; }
@@ -1873,7 +2193,7 @@ private:
             return static_cast<UInt8>(al());
         return ax();
     }
-    //void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
+    void setAccum() { if (!_wordSize) al() = _data; else ax() = _data; }
     void setReg(UInt16 value)
     {
         if (!_wordSize)
@@ -1881,14 +2201,6 @@ private:
         else
             modRMRW() = value;
     }
-    //void initIO(State nextState, IOType ioType, bool wordSize)
-    //{
-    //    _state = stateWaitingForBIU;
-    //    _afterIO = nextState;
-    //    _ioRequested = ioType;
-    //    _byte = (!wordSize ? ioSingleByte : ioWordFirst);
-    //}
-    //UInt16 getIP() { return _ip; }
     void setIP(UInt16 value)
     {
         _ip = value;
@@ -1897,41 +2209,6 @@ private:
         _snifferDecoder.queueOperation(2);
         _prefetchAddress = _ip;
     }
-    //UInt32 physicalAddress(UInt16 segment, UInt16 offset)
-    //{
-    //    return ((_segmentRegisterData[segment] << 4) + offset) & 0xfffff;
-    //}
-    //UInt8 getInstructionByte()
-    //{
-    //    UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
-    //    _prefetchOffset = (_prefetchOffset + 1) & 3;
-    //    --_prefetched;
-    //    _cpu_qs = 3;
-    //    return byte;
-    //}
-    //void completeInstructionFetch()
-    //{
-    //    if (_ioRequested != ioInstructionFetch)
-    //        return;
-    //    if (_byte == ioSingleByte) {
-    //        if (_prefetched > 0) {
-    //            _ioRequested = ioNone;
-    //            _data = getInstructionByte();
-    //            _state = _afterIO;
-    //            ++_ip;
-    //        }
-    //    }
-    //    else {
-    //        if (_prefetched > 1) {
-    //            _data = getInstructionByte();
-    //            _data |= static_cast<UInt16>(getInstructionByte()) << 8;
-    //            _ioRequested = ioNone;
-    //            _state = _afterIO;
-    //            _ip += 2;
-    //        }
-    //    }
-    //}
-    //UInt32 codeAddress(UInt16 offset) { return physicalAddress(1, offset); }
 
     Register<UInt16> _wordRegisters[8];
     Register<UInt8> _byteRegisters[8];
@@ -1991,7 +2268,7 @@ private:
     bool _synchronousDone;
     IOType _lastIO;
 
-    //int _segmentOverride;
+    int _segmentOverride;
 
     bool _ready;
     int _queueCycle;
@@ -2026,19 +2303,50 @@ public:
                 addTest(instruction);
         }
 
+        _cache.allocate(_tests.count());
+        _cacheHighWaterMark = 0;
+        {
+            File f(String("cache.dat"));
+            auto s = f.tryOpenRead();
+            if (s.valid()) {
+                UInt64 size = s.size();
+                if (size > _tests.count()*2)
+                    throw Exception("Cache file too large!");
+                s.read(reinterpret_cast<Byte*>(&_cache[0]), (int)size);
+                _cacheHighWaterMark = static_cast<int>(size)/2;
+            }
+        }
+
+        Emulator emulator;
+
         int nextTest = 0;
         int availableLength = 0xff00 - testProgram.count();
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
-            newNextTest = 1280;
             for (int i = nextTest; i < newNextTest; ++i) {
                 int nl = totalLength + _tests[i].length() + 4;
-                if (nl > availableLength) {
-                    newNextTest = i;
-                    break;
+                int cycles = emulator.expected(_tests[i]);
+                _tests[i].setCycles(cycles);
+                bool useTest = true;
+                if (i < _cacheHighWaterMark)
+                    useTest = cycles != _cache[i];
+                if (useTest) {
+                    if (nl > availableLength) {
+                        newNextTest = i;
+                        break;
+                    }
+                    totalLength = nl;
+                    if (i < _cacheHighWaterMark) {
+                        // This test will fail. Just run the one to get a
+                        // sniffer log.
+                        nextTest = i;
+                        newNextTest = i + 1;
+                        break;
+                    }
                 }
-                totalLength = nl;
+                else
+                    nextTest = i + 1;
             }
             Array<Byte> output(totalLength + 2);
             Byte* p = &output[0];
@@ -2046,12 +2354,7 @@ public:
             p[1] = totalLength >> 8;
             p += 2;
             for (int i = nextTest; i < newNextTest; ++i) {
-                Emulator emulator;
-                int cycles = emulator.expected(_tests[i]);
-                _tests[i].setCycles(cycles);
-                cycles += 1;
-                cycles *= 2;
-                //cycles = 0;
+                int cycles = (_tests[i].cycles() + 1) * 2;
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
@@ -2096,9 +2399,9 @@ public:
 
                     console.write(decimal(n) + "\n");
                     _tests[n].write();
+                    dumpCache(n);
 
-                    Emulator emulator;
-                    String expected = emulator.log(_tests[n + nextTest]);
+                    String expected = emulator.log(_tests[n]);
                     String expected1;
 
                     String observed;
@@ -2160,7 +2463,7 @@ public:
                     si.cb = sizeof(STARTUPINFO);
 
                     NullTerminatedWideString data(
-                        String("windiff observed.txt expected.txt"));
+                        String("q observed.txt expected.txt"));
 
                     IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
                         0, NULL, NULL, &si, &pi) != 0);
@@ -2179,6 +2482,7 @@ public:
                 break;
 
         } while (true);
+        dumpCache(_tests.count());
     }
 private:
     void addTest(Instruction i)
@@ -2204,6 +2508,19 @@ private:
                 return false;
         } while (true);
     }
+    void dumpCache(int n)
+    {
+        if (_cacheHighWaterMark > n)
+            return;
+        for (int i = _cacheHighWaterMark; i < n; ++i)
+            _cache[i] = _tests[i].cycles();
+        _cacheHighWaterMark = n;
+        File(String("cache.dat")).
+            save(reinterpret_cast<const Byte*>(&_cache[0]), n*2);
+    }
 
     AppendableArray<Test> _tests;
+
+    Array<Word> _cache;
+    int _cacheHighWaterMark = 0;
 };

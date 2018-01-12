@@ -55,11 +55,17 @@ testLoop:
   jb notDone
 
   mov si,passMessage
-  mov cx,4
+  mov cx,5
   outputString
+  mov ax,[testCaseIndex]
+  call outputDecimal
+  outputCharacter 10
 
   complete
 notDone:
+  mov ax,[testCaseIndex]
+  call outputDecimal
+  outputCharacter ' '
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
@@ -77,6 +83,7 @@ notDone:
   mov bl,[si+3]
   mov bh,0
   lea si,[si+bx+4]
+;  mov bl,
   mov [testCaseOffset],si
   jmp testLoop
 
@@ -174,6 +181,25 @@ doneQueueFiller:
   stosw
   stosw
 
+;    push si
+;    push ds
+;    push cx
+;    push ax
+;
+;    mov si,0
+;    mov ax,es
+;    mov ds,ax
+;    mov cx,7
+;.loopTop:
+;    lodsw
+;    outputHex
+;    loop .loopTop
+;
+;    pop ax
+;    pop cx
+;    pop ds
+;    pop si
+
   safeRefreshOff
   writePIT16 0, 2, 2
   writePIT16 0, 2, 100
@@ -195,7 +221,7 @@ doneQueueFiller:
   mov dx,[cs:countedCycles]
   outputByte
   outputByte
-  mov dx,714  ; 6
+  mov dx,714 + 14*9*3  ; 6
   outputByte
   outputByte
 
@@ -207,11 +233,6 @@ doneQueueFiller:
   mov es,ax
   mov ss,ax
 
-;  mov al,0
-;  out 0x43,al
-;  in al,0x40
-;  in al,0x40
-
   xor ax,ax
   mov dx,ax
   mov bx,ax
@@ -222,6 +243,7 @@ doneQueueFiller:
   mov sp,ax
   mov word[cs:testBuffer],0
   mov [cs:testBuffer+2],ds
+  times 9 push ds
   jmp far [cs:testBuffer]
 
 irq0:
@@ -298,7 +320,7 @@ outputDecimal:
 
 
 failMessage: db "FAIL "
-passMessage: db "PASS"
+passMessage: db "PASS "
 
 testCaseIndex: dw 0
 testCaseOffset: dw 0
@@ -319,5 +341,7 @@ testCases:
 ;     1 byte: queueFiller operation (0 = MUL) * 32 + number of NOPs
 ;     1 byte: number of instruction bytes
 ;     N bytes: instructions
+;     1 byte: number of relocs
+;     N bytes: reloc addresses within instruction bytes
 
 
