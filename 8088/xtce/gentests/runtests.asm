@@ -83,7 +83,10 @@ notDone:
   mov bl,[si+3]
   mov bh,0
   lea si,[si+bx+4]
-;  mov bl,
+  mov bl,[si]
+  add si,bx
+  add si,bx
+  inc si
   mov [testCaseOffset],si
   jmp testLoop
 
@@ -146,6 +149,7 @@ doMeasurement:
   xor di,di
   mov si,[testCaseOffset]
   mov bl,[si+2]
+  xor dx,dx
 repeatLoop:
 
   push cx
@@ -167,12 +171,35 @@ doneQueueFiller:
   mov al,0x90
   rep stosb
   mov cl,[si+3]
+  push bx
+  mov bx,di
   push si
   add si,4
   rep movsb
-  pop si
   mov ax,0x00eb  ; 'jmp ip+0'
   stosw
+
+  push di
+  mov cl,[si]
+  inc si
+  jcxz .overLoop
+.loopTop:
+  push bx
+  lodsw
+  mov di,bx
+  mov bl,ah
+  mov bh,0
+  add di,bx
+  mov bl,al
+  add bx,bx
+  call [bx+fixupRoutines]
+  pop bx
+  loop .loopTop
+.overLoop:
+  pop di
+
+  pop si
+  pop bx
   pop cx
   loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
@@ -221,7 +248,7 @@ doneQueueFiller:
   mov dx,[cs:countedCycles]
   outputByte
   outputByte
-  mov dx,714 + 14*9*3  ; 6
+  mov dx,714
   outputByte
   outputByte
 
@@ -243,7 +270,6 @@ doneQueueFiller:
   mov sp,ax
   mov word[cs:testBuffer],0
   mov [cs:testBuffer+2],ds
-  times 9 push ds
   jmp far [cs:testBuffer]
 
 irq0:
@@ -332,6 +358,35 @@ lut: db 0x88,8
 sniffer: dw 0x7000
 countedCycles: dw 1
 
+fixupRoutines:
+  dw pushSegment   ; for (e.g.) "pop cs"
+  dw pushOffset    ; for (e.g.) "ret"
+  dw storeSegment
+  dw storeOffset4  ; for far call/jump
+
+pushSegment:    ; di unused
+  sub dx,2
+  mov bx,dx
+  mov [es:bx],es
+  ret
+
+pushOffset:
+  sub dx,2
+  mov bx,dx
+  mov [es:bx],di
+  ret
+
+storeSegment:
+  mov [es:di],es
+  ret
+
+storeOffset4:
+  lea bx,[di+4]
+  mov [es:di],bx
+  ret
+
+
+
 testCases:
 
 ; Format of testCases:
@@ -341,7 +396,9 @@ testCases:
 ;     1 byte: queueFiller operation (0 = MUL) * 32 + number of NOPs
 ;     1 byte: number of instruction bytes
 ;     N bytes: instructions
-;     1 byte: number of relocs
-;     N bytes: reloc addresses within instruction bytes
+;     1 byte: number of fixups
+;     N entries:
+;       1 byte: fixup type
+;       1 byte: offset of fixup within instruction bytes
 
 

@@ -9,8 +9,7 @@ public:
     Instruction() { }
     Instruction(Byte opcode, Byte modrm = 0, Word offset = 0,
         Word immediate = 0)
-      : _opcode(opcode), _modrm(modrm), _offset(offset), _immediate(immediate),
-        _address(0)
+      : _opcode(opcode), _modrm(modrm), _offset(offset), _immediate(immediate)
     { }
     bool hasModrm()
     {
@@ -127,8 +126,6 @@ public:
         }
         int l = immediateBytes();
         if (l > 0) {
-            if (_opcode == 0x9a) // CALL cp
-                _immediate = _address + 5;
             *p = _immediate;
             if (l > 1) {
                 p[1] = _immediate >> 8;
@@ -149,10 +146,8 @@ public:
         console.write("{" + hex(_opcode, 2) + ", " + hex(_modrm, 2) + ", " +
             hex(_offset, 4) + ", " + hex(_immediate) + "}");
     }
-    void setAddress(DWord address) { _address = address; }
-    
+    Byte opcode() { return _opcode; }
 private:
-    DWord _address;
     Byte _opcode;
     Byte _modrm;
     Word _offset;
@@ -163,29 +158,76 @@ class Test
 {
 public:
     Test(int queueFiller = 0, int nops = 0)
-      : _queueFiller(queueFiller), _nops(nops),
-        _address((testSegment << 16) + 4 + nops)
+      : _queueFiller(queueFiller), _nops(nops), _address(0)
     { }
     void addInstruction(Instruction instruction)
     {
-        instruction.setAddress(_address);
+        Byte opcode = instruction.opcode();
+        switch (opcode) {
+            case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+            case 0x58: case 0x59: case 0x5a: case 0x5b:
+            case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
+            case 0x8f: // POP rmw
+            case 0x9d: // POPF
+                _fixups.append(static_cast<Word>(0x0000));
+                break;
+            case 0x9a: // CALL cp
+            case 0xea: // JMP cp
+                _fixups.append(static_cast<Word>(0x0103));
+                _fixups.append(static_cast<Word>(0x0302));
+                break;
+            case 0xc0: case 0xc2: // RET iw
+                _fixups.append(static_cast<Word>(0x0301));
+                break;
+            case 0xc1: case 0xc3: // RET
+                _fixups.append(static_cast<Word>(0x0101));
+                break;
+            case 0xc8: case 0xca: // RETF iw
+                _fixups.append(static_cast<Word>(0x0000));
+                _fixups.append(static_cast<Word>(0x0301));
+                break;
+            case 0xc9: case 0xcb: // RETF
+                _fixups.append(static_cast<Word>(0x0000));
+                _fixups.append(static_cast<Word>(0x0101));
+                break;
+            case 0xcf: // IRET
+                _fixups.append(static_cast<Word>(0x0000));  // flags
+                _fixups.append(static_cast<Word>(0x0000));
+                _fixups.append(static_cast<Word>(0x0101));
+                break;
+        }
+
         _address += instruction.length();
         _instructions.append(instruction);
     }
-    int length()
+    int codeLength()  // Just the code bytes
     {
         int l = 0;
         for (auto i : _instructions)
             l += i.length();
         return l;
     }
-    void output(Byte* p)
+    int length()  // Entire test
+    {
+        return 4 + codeLength() + 1 + 2*_fixups.count();
+    }
+    void output(Byte* p)       // For the real hardware
     {
         *p = (_queueFiller << 5) + _nops;
         ++p;
-        *p = length();
+        int l = codeLength();
+        *p = l;
         ++p;
         outputBytes(p);
+        p += l;
+        int f = _fixups.count();
+        *p = f;
+        ++p;
+        for (int i = 0; i < f; ++i) {
+            *p = static_cast<Byte>(_fixups[i]);
+            p[1] = _fixups[i] >> 8;
+            p += 2;
+        }
     }
     Byte* outputBytes(Byte* p)
     {
@@ -196,30 +238,61 @@ public:
         }
         return p;
     }
-    Byte* outputCode(Byte* p)
+    Byte* outputCode(Byte* p, Word* newSp)  // For the emulator
     {
+        Byte* pStart = p;
+        Word sp = 0;
+        int ql = 0;
         switch (_queueFiller) {
             case 0:
                 p[0] = 0xb0;
                 p[1] = 0x00;
                 p[2] = 0xf6;
                 p[3] = 0xe0;
-                p += 4;
+                ql = 4;
                 break;
             default:
                 throw Exception("Unknown queue filler.");
         }
+        p += ql;
         for (int i = 0; i < _nops; ++i) {
             *p = 0x90;
             ++p;
         }
+        Word instructionsOffset = ql + _nops;
         p = outputBytes(p);
+        for (int i = 0; i < _fixups.count(); ++i) {
+            Word f = _fixups[i];
+            Word di = instructionsOffset + (f >> 8);
+            switch (f & 0xff) {
+                case 0:  // pushSegment
+                    sp -= 2;
+                    pStart[sp] = (Byte)testSegment;
+                    pStart[sp + 1] = testSegment >> 8;
+                    break;
+                case 1:  // pushOffset
+                    sp -= 2;
+                    pStart[sp] = static_cast<Byte>(di);
+                    pStart[sp + 1] = di >> 8;
+                    break;
+                case 2:  // storeSegment
+                    pStart[di] = (Byte)testSegment;
+                    pStart[di + 1] = testSegment >> 8;
+                    break;
+                case 3:  // storeOffset4
+                    pStart[di] = di + 4;
+                    pStart[di + 1] = (di + 4) >> 8;
+                    break;
+            }
+        }
+
         p[0] = 0xeb;
         p[1] = 0x00;
         p[2] = 0xcd;
         p[3] = 0xff;
         for (int i = 0; i < 4; ++i)
             p[i + 4] = 0;
+        *newSp = sp;
         return p + 4;
     }
     void write()
@@ -243,7 +316,7 @@ private:
     int _queueFiller;
     int _nops;
     AppendableArray<Instruction> _instructions;
-    AppendableArray<Byte> _relocs;
+    AppendableArray<Word> _fixups;
     int _cycles;
 };
 
@@ -330,116 +403,116 @@ private:
             return "J" + conds[opcode() & 0xf] + " " + cb();
         }
         switch (opcode()) {
-        case 0x27: return "DAA";
-        case 0x2f: return "DAS";
-        case 0x37: return "AAA";
-        case 0x3f: return "AAS";
-        case 0x84:
-        case 0x85: return "TEST " + regMemPair();
-        case 0x86:
-        case 0x87: return "XCHG " + regMemPair();
-        case 0x8c:
-            _wordSize = true;
-            return "MOV " + ea() + ", " + segreg(reg());
-        case 0x8d:
-            _doubleWord = true;
-            _wordSize = false;
-            return "LEA " + rw() + ", " + ea();
-        case 0x8e:
-            _wordSize = true;
-            return "MOV " + segreg(reg()) + ", " + ea();
-        case 0x8f: return "POP " + ea();
-        case 0x98: return "CBW";
-        case 0x99: return "CWD";
-        case 0x9a: return "CALL " + cp();
-        case 0x9b: return "WAIT";
-        case 0x9c: return "PUSHF";
-        case 0x9d: return "POPF";
-        case 0x9e: return "SAHF";
-        case 0x9f: return "LAHF";
-        case 0xa0:
-        case 0xa1: return "MOV " + accum() + ", " + size() + "[" + iw() + "]";
-        case 0xa2:
-        case 0xa3: return "MOV " + size() + "[" + iw() + "], " + accum();
-        case 0xa4:
-        case 0xa5: return "MOVS" + size();
-        case 0xa6:
-        case 0xa7: return "CMPS" + size();
-        case 0xa8:
-        case 0xa9: return "TEST " + accum() + ", " + imm();
-        case 0xaa:
-        case 0xab: return "STOS" + size();
-        case 0xac:
-        case 0xad: return "LODS" + size();
-        case 0xae:
-        case 0xaf: return "SCAS" + size();
-        case 0xc0:
-        case 0xc2: return "RET " + iw();
-        case 0xc1:
-        case 0xc3: return "RET";
-        case 0xc4: _doubleWord = true; return "LDS " + rw() + ", " + ea();
-        case 0xc5:
-            _doubleWord = true;
-            _wordSize = false;
-            return "LES " + rw() + ", " + ea();
-        case 0xc6:
-        case 0xc7: return "MOV " + ea() + ", " + imm(true);
-        case 0xc8:
-        case 0xca: return "RETF " + iw();
-        case 0xc9:
-        case 0xcb: return "RETF";
-        case 0xcc: return "INT 3";
-        case 0xcd: return "INT " + ib();
-        case 0xce: return "INTO";
-        case 0xcf: return "IRET";
-        case 0xd4: return "AAM " + ib();
-        case 0xd5: return "AAD " + ib();
-        case 0xd6: return "SALC";
-        case 0xd7: return "XLATB";
-        case 0xe0: return "LOOPNE " + cb();
-        case 0xe1: return "LOOPE " + cb();
-        case 0xe2: return "LOOP " + cb();
-        case 0xe3: return "JCXZ " + cb();
-        case 0xe8: return "CALL " + cw();
-        case 0xe9: return "JMP " + cw();
-        case 0xea: return "JMP " + cp();
-        case 0xeb: return "JMP " + cb();
-        case 0xf0:
-        case 0xf1: return "LOCK";
-        case 0xf2: return "REPNE ";
-        case 0xf3: return "REP ";
-        case 0xf4: return "HLT";
-        case 0xf5: return "CMC";
-        case 0xf6:
-        case 0xf7:
-            switch (reg()) {
-            case 0:
-            case 1: return "TEST " + ea() + ", " + imm(true);
-            case 2: return "NOT " + ea();
-            case 3: return "NEG " + ea();
-            case 4: return "MUL " + ea();
-            case 5: return "IMUL " + ea();
-            case 6: return "DIV " + ea();
-            case 7: return "IDIV " + ea();
-            }
-        case 0xf8: return "CLC";
-        case 0xf9: return "STC";
-        case 0xfa: return "CLI";
-        case 0xfb: return "STI";
-        case 0xfc: return "CLD";
-        case 0xfd: return "STD";
-        case 0xfe:
-        case 0xff:
-            switch (reg()) {
-            case 0: return "INC " + ea();
-            case 1: return "DEC " + ea();
-            case 2: return "CALL " + ea();
-            case 3: _doubleWord = true; return "CALL " + ea();
-            case 4: return "JMP " + ea();
-            case 5: _doubleWord = true; return "JMP " + ea();
-            case 6: return "PUSH " + ea();
-            case 7: return "??? " + ea();
-            }
+            case 0x27: return "DAA";
+            case 0x2f: return "DAS";
+            case 0x37: return "AAA";
+            case 0x3f: return "AAS";
+            case 0x84:
+            case 0x85: return "TEST " + regMemPair();
+            case 0x86:
+            case 0x87: return "XCHG " + regMemPair();
+            case 0x8c:
+                _wordSize = true;
+                return "MOV " + ea() + ", " + segreg(reg());
+            case 0x8d:
+                _doubleWord = true;
+                _wordSize = false;
+                return "LEA " + rw() + ", " + ea();
+            case 0x8e:
+                _wordSize = true;
+                return "MOV " + segreg(reg()) + ", " + ea();
+            case 0x8f: return "POP " + ea();
+            case 0x98: return "CBW";
+            case 0x99: return "CWD";
+            case 0x9a: return "CALL " + cp();
+            case 0x9b: return "WAIT";
+            case 0x9c: return "PUSHF";
+            case 0x9d: return "POPF";
+            case 0x9e: return "SAHF";
+            case 0x9f: return "LAHF";
+            case 0xa0:
+            case 0xa1: return "MOV " + accum() + ", " + size() + "[" + iw() + "]";
+            case 0xa2:
+            case 0xa3: return "MOV " + size() + "[" + iw() + "], " + accum();
+            case 0xa4:
+            case 0xa5: return "MOVS" + size();
+            case 0xa6:
+            case 0xa7: return "CMPS" + size();
+            case 0xa8:
+            case 0xa9: return "TEST " + accum() + ", " + imm();
+            case 0xaa:
+            case 0xab: return "STOS" + size();
+            case 0xac:
+            case 0xad: return "LODS" + size();
+            case 0xae:
+            case 0xaf: return "SCAS" + size();
+            case 0xc0:
+            case 0xc2: return "RET " + iw();
+            case 0xc1:
+            case 0xc3: return "RET";
+            case 0xc4: _doubleWord = true; return "LDS " + rw() + ", " + ea();
+            case 0xc5:
+                _doubleWord = true;
+                _wordSize = false;
+                return "LES " + rw() + ", " + ea();
+            case 0xc6:
+            case 0xc7: return "MOV " + ea() + ", " + imm(true);
+            case 0xc8:
+            case 0xca: return "RETF " + iw();
+            case 0xc9:
+            case 0xcb: return "RETF";
+            case 0xcc: return "INT 3";
+            case 0xcd: return "INT " + ib();
+            case 0xce: return "INTO";
+            case 0xcf: return "IRET";
+            case 0xd4: return "AAM " + ib();
+            case 0xd5: return "AAD " + ib();
+            case 0xd6: return "SALC";
+            case 0xd7: return "XLATB";
+            case 0xe0: return "LOOPNE " + cb();
+            case 0xe1: return "LOOPE " + cb();
+            case 0xe2: return "LOOP " + cb();
+            case 0xe3: return "JCXZ " + cb();
+            case 0xe8: return "CALL " + cw();
+            case 0xe9: return "JMP " + cw();
+            case 0xea: return "JMP " + cp();
+            case 0xeb: return "JMP " + cb();
+            case 0xf0:
+            case 0xf1: return "LOCK";
+            case 0xf2: return "REPNE ";
+            case 0xf3: return "REP ";
+            case 0xf4: return "HLT";
+            case 0xf5: return "CMC";
+            case 0xf6:
+            case 0xf7:
+                switch (reg()) {
+                    case 0:
+                    case 1: return "TEST " + ea() + ", " + imm(true);
+                    case 2: return "NOT " + ea();
+                    case 3: return "NEG " + ea();
+                    case 4: return "MUL " + ea();
+                    case 5: return "IMUL " + ea();
+                    case 6: return "DIV " + ea();
+                    case 7: return "IDIV " + ea();
+                }
+            case 0xf8: return "CLC";
+            case 0xf9: return "STC";
+            case 0xfa: return "CLI";
+            case 0xfb: return "STI";
+            case 0xfc: return "CLD";
+            case 0xfd: return "STD";
+            case 0xfe:
+            case 0xff:
+                switch (reg()) {
+                    case 0: return "INC " + ea();
+                    case 1: return "DEC " + ea();
+                    case 2: return "CALL " + ea();
+                    case 3: _doubleWord = true; return "CALL " + ea();
+                    case 4: return "JMP " + ea();
+                    case 5: _doubleWord = true; return "JMP " + ea();
+                    case 6: return "PUSH " + ea();
+                    case 7: return "??? " + ea();
+                }
         }
         return "!b";
     }
@@ -477,10 +550,10 @@ private:
     {
         String s;
         switch (mod()) {
-        case 0: s = disp(); break;
-        case 1: s = disp() + sb(); _offset = 3; break;
-        case 2: s = disp() + "+" + iw(); _offset = 4; break;
-        case 3: return !_wordSize ? byteRegs(rm()) : wordRegs(rm());
+            case 0: s = disp(); break;
+            case 1: s = disp() + sb(); _offset = 3; break;
+            case 2: s = disp() + "+" + iw(); _offset = 4; break;
+            case 3: return !_wordSize ? byteRegs(rm()) : wordRegs(rm());
         }
         return size() + "[" + s + "]";
     }
@@ -588,7 +661,7 @@ public:
         _d = -1;  
         _queueLength = 0;
         _lastS = 0;
-        _pitCycle = 2;
+        _pitCycle = 0;
         _cpu_s = 7;
     }
     String getLine()
@@ -913,13 +986,10 @@ private:
     void run()
     {
         _cycle = 0;
-        Byte* stopP = _test.outputCode(&_ram[testSegment << 4]);
-        _stopIP = stopP - &_ram[(testSegment << 4) + 2];
         ax() = 0;
         cx() = 0;
         dx() = 0;
         bx() = 0;
-        sp() = -18;
         bp() = 0;
         si() = 0;
         di() = 0;
@@ -927,6 +997,12 @@ private:
         cs() = testSegment;
         ss() = testSegment;
         ds() = testSegment;
+
+        Word newSP = 0;
+        Byte* stopP = _test.outputCode(&_ram[testSegment << 4], &newSP);
+        sp() = newSP;
+        _stopIP = stopP - &_ram[(testSegment << 4) + 2];
+
         _busState = tIdle;
         _queueCycle = 0;
         _ready = true;
@@ -945,8 +1021,6 @@ private:
         _ip = 0;
         _segmentOverride = -1;
         _prefetchAddress = 0;
-        for (int i = 0; i < 9; ++i)
-            *(Word*)(&_ram[i*2 + 0x10000 - 18]) = 0x10a8;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
@@ -1528,17 +1602,33 @@ private:
                 dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff);
                 wait(4);
                 break;
-            case 0x9a: // CALL cp
-                throw Exception("Not yet implemented.");
+            case 0x9a: // CALL cd
+                {
+                    wait(1);
+                    UInt16 savedIP = fetchInstructionWord();
+                    UInt16 savedCS = fetchInstructionWord();
+                    _prefetching = false;
+                    wait(1);
+                    push(cs());
+                    _prefetching = false;
+                    wait(4);
+                    UInt16 oldIP = _ip;
+                    cs() = savedCS;
+                    setIP(savedIP);
+                    wait(1);
+                    _prefetching = true;
+                    push2(oldIP);
+                    wait(6);
+                }
                 break;
             case 0x9b: // WAIT
                 throw Exception("Not yet implemented.");
                 break;
             case 0x9c: // PUSHF
-                throw Exception("Not yet implemented.");
+                push((_flags & 0x0fd7) | 0xf000);
                 break;
             case 0x9d: // POPF
-                throw Exception("Not yet implemented.");
+                _flags = pop() | 2;
                 break;
             case 0x9e: // SAHF
                 throw Exception("Not yet implemented.");
@@ -1940,6 +2030,10 @@ private:
         _prefetching = false;
         wait(2);
         _prefetching = true;
+        push2(data);
+    }
+    void push2(UInt16 data)
+    {
         _data = data;
         sp() -= 2;
         _address = sp();
@@ -2242,6 +2336,8 @@ private:
     bool _wordSize;
     int _aluOperation;
     bool _sourceIsRM;
+    UInt16 _savedCS;
+    UInt16 _savedIP;
     int _rep;
     int _segment;
 
@@ -2325,7 +2421,7 @@ public:
             int totalLength = 0;
             int newNextTest = _tests.count();
             for (int i = nextTest; i < newNextTest; ++i) {
-                int nl = totalLength + _tests[i].length() + 4;
+                int nl = totalLength + _tests[i].length();
                 int cycles = emulator.expected(_tests[i]);
                 _tests[i].setCycles(cycles);
                 bool useTest = true;
@@ -2359,7 +2455,7 @@ public:
                 p[1] = cycles >> 8;
                 p += 2;
                 _tests[i].output(p);
-                p += _tests[i].length() + 2;
+                p += _tests[i].length() - 2;
                 if (i % 10 == 0)
                     printf(".");
             }
@@ -2488,6 +2584,8 @@ private:
     void addTest(Instruction i)
     {
         for (int nops = 0; nops < 20; ++nops) {
+            if (i.opcode() == 0x9b)  // No way to test WAIT at the moment...
+                continue;
             Test t(0, nops);
             t.addInstruction(i);
             _tests.append(t);
