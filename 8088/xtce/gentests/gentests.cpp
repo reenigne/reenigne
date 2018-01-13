@@ -165,11 +165,17 @@ public:
         Byte opcode = instruction.opcode();
         switch (opcode) {
             case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+                _preamble.append(opcode - 1);  // PUSH segreg
+                break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
+                _preamble.append(opcode - 8);  // PUSH rw
+                break;
             case 0x8f: // POP rmw
+                _preamble.append(0x50);  // PUSH AX
+                break;
             case 0x9d: // POPF
-                _fixups.append(static_cast<Word>(0x0000));
+                _preamble.append(0x9c);  // PUSHF
                 break;
             case 0x9a: // CALL cp
             case 0xea: // JMP cp
@@ -209,12 +215,20 @@ public:
     }
     int length()  // Entire test
     {
-        return 4 + codeLength() + 1 + 2*_fixups.count();
+        return 4 + _preamble.count() + 1 + codeLength() + 1 +
+            2*_fixups.count();
     }
     void output(Byte* p)       // For the real hardware
     {
         *p = (_queueFiller << 5) + _nops;
         ++p;
+        int pc = _preamble.count();
+        *p = pc;
+        ++p;
+        for (int i = 0; i < pc; ++i) {
+            *p = _preamble[i];
+            ++p;
+        }
         int l = codeLength();
         *p = l;
         ++p;
@@ -242,6 +256,12 @@ public:
     {
         Byte* pStart = p;
         Word sp = 0;
+
+        int pc = _preamble.count();
+        for (int i = 0; i < pc; ++i)
+            p[i] = _preamble[i];
+        p += pc;
+
         int ql = 0;
         switch (_queueFiller) {
             case 0:
@@ -315,6 +335,8 @@ private:
     UInt32 _address;
     int _queueFiller;
     int _nops;
+
+    AppendableArray<Byte> _preamble;
     AppendableArray<Instruction> _instructions;
     AppendableArray<Word> _fixups;
     int _cycles;
@@ -1021,6 +1043,8 @@ private:
         _ip = 0;
         _segmentOverride = -1;
         _prefetchAddress = 0;
+        _rep = 0;
+        _repeating = false;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
@@ -1272,6 +1296,13 @@ private:
         }
         wait(w);
     }
+    void busRead()
+    {
+        if (_wordSize)
+            _data = busReadWord(ioReadMemory);
+        else
+            _data = busAccess(ioReadMemory);
+    }
     void readEA()
     {
         initEA();
@@ -1279,10 +1310,7 @@ private:
             _prefetching = false;
             wait(2);
             _prefetching = true;
-            if (_wordSize)
-                _data = busReadWord(ioReadMemory);
-            else
-                _data = busAccess(ioReadMemory);
+            busRead();
             return;
         }
         if (!_wordSize)
@@ -1290,15 +1318,19 @@ private:
         else
             _data = _wordRegisters[_address];
     }
+    void busWrite()
+    {
+        if (_wordSize)
+            busWriteWord(ioWriteMemory);
+        else
+            busAccess(ioWriteMemory);
+    }
     void writeEA(UInt16 data, int w = 0)
     {
         _data = data;
         wait(w);
         if (_useMemory) {
-            if (_wordSize)
-                busWriteWord(ioWriteMemory);
-            else
-                busAccess(ioWriteMemory);
+            busWrite();
             return;
         }
         if (!_wordSize)
@@ -1309,10 +1341,12 @@ private:
 
     void executeOneInstruction()
     {
-        _opcode = fetchInstructionByte();
-        _wordSize = ((_opcode & 1) != 0);
-        _snifferDecoder.queueOperation(1);
-        _sourceIsRM = ((_opcode & 2) != 0);
+        if (!_repeating) {
+            _opcode = fetchInstructionByte();
+            _wordSize = ((_opcode & 1) != 0);
+            _snifferDecoder.queueOperation(1);
+            _sourceIsRM = ((_opcode & 2) != 0);
+        }
         bool completed = true;
         switch (_opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
@@ -1568,16 +1602,11 @@ private:
                 break;
             case 0x8f: // POP rmw
                 initEA();
-                if (_useMemory) {
-                    //_prefetching = false;
+                if (_useMemory)
                     wait(2);
-                    //_prefetching = true;
-                }
                 _source = _address;
                 _data = pop();
                 _address = _source;
-                //if (_useMemory)
-                //    wait(5);
                 wait(1);
                 if (_useMemory) {
                     wait(2);
@@ -1631,19 +1660,49 @@ private:
                 _flags = pop() | 2;
                 break;
             case 0x9e: // SAHF
-                throw Exception("Not yet implemented.");
+                _flags = (_flags & 0xff02) | ah();
+                wait(3);
                 break;
             case 0x9f: // LAHF
-                throw Exception("Not yet implemented.");
+                ah() = _flags & 0xd7;
+                wait(1);
                 break;
             case 0xa0: case 0xa1: // MOV A, [iw]
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _address = fetchInstructionWord();
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                busRead();
+                setAccum();
                 break;
             case 0xa2: case 0xa3: // MOV [iw], A
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _address = fetchInstructionWord();
+                _data = getAccum();
+                wait(1);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                busWrite();
                 break;
             case 0xa4: case 0xa5: // MOVS
-                throw Exception("Not yet implemented.");
+                wait(5);
+                if (_rep != 0)
+                    wait(1);
+                _repeating = false;
+                if (_rep == 0 || cx() != 0) {
+                    lodS();
+                    wait(3);
+                    stoS();
+                    wait(3);
+                    if (_rep != 0) {
+                        --cx();
+                        completed = cx() == 0;
+                        _repeating = !completed;
+                    }
+                    checkInterrupts();
+                }
                 break;
             case 0xa6: case 0xa7: // CMPS
                 throw Exception("Not yet implemented.");
@@ -1893,18 +1952,21 @@ private:
         if (completed) {
             _segmentOverride = -1;
             _rep = 0;
-            // TODO: check interrupts. After REP iterations but not prefixes?
-            //if (_nmiRequested) {
-            //    _nmiRequested = false;
-            //    interrupt(2);
-            //}
-            //if (intf() && _interruptRequested) {
-            //    initIO(stateHardwareInt, ioInterruptAcknowledge,
-            //        false);
-            //    _interruptRequested = false;
-            //    _wait = 1;
-            //}
+            checkInterrupts();
         }
+    }
+    void checkInterrupts()
+    {
+        //if (_nmiRequested) {
+        //    _nmiRequested = false;
+        //    interrupt(2);
+        //}
+        //if (intf() && _interruptRequested) {
+        //    initIO(stateHardwareInt, ioInterruptAcknowledge,
+        //        false);
+        //    _interruptRequested = false;
+        //    _wait = 1;
+        //}
     }
 
     bool _logging;
@@ -1990,18 +2052,18 @@ private:
         _source = source;
         bitwise(_destination & _source);
     }
-    //int stringIncrement()
-    //{
-    //    int r = (_wordSize ? 2 : 1);
-    //    return !df() ? r : -r;
-    //}
-    //void lodS(State state)
-    //{
-    //    _address = si();
-    //    si() += stringIncrement();
-    //    _segment = 3;
-    //    initIO(state, ioRead, _wordSize);
-    //}
+    int stringIncrement()
+    {
+        int r = (_wordSize ? 2 : 1);
+        return !df() ? r : -r;
+    }
+    void lodS()
+    {
+        _address = si();
+        si() += stringIncrement();
+        _segment = 3;
+        busRead();
+    }
     //void lodDIS(State state)
     //{
     //    _address = di();
@@ -2009,21 +2071,13 @@ private:
     //    _segment = 0;
     //    initIO(state, ioRead, _wordSize);
     //}
-    //void stoS(State state)
-    //{
-    //    _address = di();
-    //    di() += stringIncrement();
-    //    _segment = 0;
-    //    initIO(state, ioWrite, _wordSize);
-    //}
-    //bool repCheck()
-    //{
-    //    if (_rep != 0 && cx() == 0) {
-    //        _state = stateRepAction;
-    //        return false;
-    //    }
-    //    return true;
-    //}
+    void stoS()
+    {
+        _address = di();
+        di() += stringIncrement();
+        _segment = 0;
+        busWrite();
+    }
     void push(UInt16 data)
     {
         wait(4);
@@ -2268,7 +2322,7 @@ private:
     //void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
     bool intf() { return (_flags & 0x200) != 0; }
     //void setIF(bool intf) { _flags = (_flags & ~0x200) | (intf ? 0x200 : 0); }
-    //bool df() { return (_flags & 0x400) != 0; }
+    bool df() { return (_flags & 0x400) != 0; }
     //void setDF(bool df) { _flags = (_flags & ~0x400) | (df ? 0x400 : 0); }
     bool of() { return (_flags & 0x800) != 0; }
     void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
@@ -2339,6 +2393,7 @@ private:
     UInt16 _savedCS;
     UInt16 _savedIP;
     int _rep;
+    bool _repeating;
     int _segment;
 
     UInt8 _prefetchQueue[4];

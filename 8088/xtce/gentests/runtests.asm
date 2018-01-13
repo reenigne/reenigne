@@ -63,9 +63,9 @@ testLoop:
 
   complete
 notDone:
-  mov ax,[testCaseIndex]
-  call outputDecimal
-  outputCharacter ' '
+;  mov ax,[testCaseIndex]
+;  call outputDecimal
+;  outputCharacter ' '
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
@@ -80,13 +80,16 @@ notDone:
   jne testFailed
 
   inc word[testCaseIndex]
-  mov bl,[si+3]
+  mov bl,[si+3]      ; Number of preamble bytes
   mov bh,0
-  lea si,[si+bx+4]
-  mov bl,[si]
+  lea si,[si+bx+4]   ; Points to instruction bytes count
+  mov bl,[si]        ; Number of instruction bytes
+  inc si             ; Points to first instruction byte
+  add si,bx          ; Points to fixup count
+  mov bl,[si]        ; Number of fixups
+  inc si             ; Points to first fixup
   add si,bx
   add si,bx
-  inc si
   mov [testCaseOffset],si
   jmp testLoop
 
@@ -153,6 +156,17 @@ doMeasurement:
 repeatLoop:
 
   push cx
+  mov cl,[si+3]
+  push si
+  add si,4
+  rep movsb
+
+;   push di
+;   mov ax,di
+;   outputHex
+;   outputCharacter 'b'
+;   pop di
+
   mov al,bl
   and al,0xe0
   cmp al,0
@@ -170,14 +184,19 @@ doneQueueFiller:
   and cl,0x1f
   mov al,0x90
   rep stosb
-  mov cl,[si+3]
+  mov cl,[si]
+  inc si
   push bx
   mov bx,di
-  push si
-  add si,4
   rep movsb
   mov ax,0x00eb  ; 'jmp ip+0'
   stosw
+
+;   push di
+;   mov ax,di
+;   outputHex
+;   outputCharacter 'a'
+;   pop di
 
   push di
   mov cl,[si]
@@ -197,10 +216,16 @@ doneQueueFiller:
   loop .loopTop
 .overLoop:
   pop di
-
-  pop si
   pop bx
+  pop si
   pop cx
+
+;   push di
+;   mov ax,di
+;   outputHex
+;   outputCharacter 'd'
+;   pop di
+
   loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
   stosw
@@ -208,6 +233,7 @@ doneQueueFiller:
   stosw
   stosw
 
+;    push di
 ;    push si
 ;    push ds
 ;    push cx
@@ -217,15 +243,16 @@ doneQueueFiller:
 ;    mov ax,es
 ;    mov ds,ax
 ;    mov cx,7
-;.loopTop:
+;.dump:
 ;    lodsw
 ;    outputHex
-;    loop .loopTop
+;    loop .dump
 ;
 ;    pop ax
 ;    pop cx
 ;    pop ds
 ;    pop si
+;    pop di
 
   safeRefreshOff
   writePIT16 0, 2, 2
@@ -394,6 +421,8 @@ testCases:
 ;   For each testcase:
 ;     2 bytes: cycle count
 ;     1 byte: queueFiller operation (0 = MUL) * 32 + number of NOPs
+;     1 byte: number of preamble bytes
+;     N bytes: preamble
 ;     1 byte: number of instruction bytes
 ;     N bytes: instructions
 ;     1 byte: number of fixups
