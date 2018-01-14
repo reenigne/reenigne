@@ -63,9 +63,9 @@ testLoop:
 
   complete
 notDone:
-;  mov ax,[testCaseIndex]
-;  call outputDecimal
-;  outputCharacter ' '
+    mov ax,[testCaseIndex]
+    call outputDecimal
+    outputCharacter ' '
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
@@ -161,12 +161,6 @@ repeatLoop:
   add si,4
   rep movsb
 
-;   push di
-;   mov ax,di
-;   outputHex
-;   outputCharacter 'b'
-;   pop di
-
   mov al,bl
   and al,0xe0
   cmp al,0
@@ -192,12 +186,6 @@ doneQueueFiller:
   mov ax,0x00eb  ; 'jmp ip+0'
   stosw
 
-;   push di
-;   mov ax,di
-;   outputHex
-;   outputCharacter 'a'
-;   pop di
-
   push di
   mov cl,[si]
   inc si
@@ -220,12 +208,6 @@ doneQueueFiller:
   pop si
   pop cx
 
-;   push di
-;   mov ax,di
-;   outputHex
-;   outputCharacter 'd'
-;   pop di
-
   loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
   stosw
@@ -233,11 +215,16 @@ doneQueueFiller:
   stosw
   stosw
 
+  mov [testSP],dx
+
 ;    push di
 ;    push si
 ;    push ds
 ;    push cx
 ;    push ax
+;
+;    mov ax,dx
+;    outputHex
 ;
 ;    mov si,0
 ;    mov ax,es
@@ -247,6 +234,28 @@ doneQueueFiller:
 ;    lodsw
 ;    outputHex
 ;    loop .dump
+;
+;    pop ax
+;    pop cx
+;    pop ds
+;    pop si
+;    pop di
+;
+;
+;    push di
+;    push si
+;    push ds
+;    push cx
+;    push ax
+;
+;    mov si,-14
+;    mov ax,es
+;    mov ds,ax
+;    mov cx,7
+;.dumpStack:
+;    lodsw
+;    outputHex
+;    loop .dumpStack
 ;
 ;    pop ax
 ;    pop cx
@@ -294,7 +303,7 @@ doneQueueFiller:
   mov si,ax
   mov di,ax
   mov bp,ax
-  mov sp,ax
+  mov sp,[cs:testSP]
   mov word[cs:testBuffer],0
   mov [cs:testBuffer+2],ds
   jmp far [cs:testBuffer]
@@ -384,6 +393,7 @@ savedCX: dw 0
 lut: db 0x88,8
 sniffer: dw 0x7000
 countedCycles: dw 1
+testSP: dw 0
 
 fixupRoutines:
   dw pushSegment   ; for (e.g.) "pop cs"

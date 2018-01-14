@@ -1044,6 +1044,7 @@ private:
         _segmentOverride = -1;
         _prefetchAddress = 0;
         _rep = 0;
+        _completed = true;
         _repeating = false;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
@@ -1347,7 +1348,7 @@ private:
             _snifferDecoder.queueOperation(1);
             _sourceIsRM = ((_opcode & 2) != 0);
         }
-        bool completed = true;
+        _completed = true;
         switch (_opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
             case 0x08: case 0x09: case 0x0a: case 0x0b: 
@@ -1403,7 +1404,7 @@ private:
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e: // segreg:
                 _segmentOverride = (_opcode >> 3) & 3;
-                completed = false;
+                _completed = false;
                 wait(1);
                 break;
             case 0x27: // DAA
@@ -1687,7 +1688,10 @@ private:
                 busWrite();
                 break;
             case 0xa4: case 0xa5: // MOVS
-                wait(5);
+                wait(2);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
                 if (_rep != 0)
                     wait(1);
                 _repeating = false;
@@ -1696,41 +1700,108 @@ private:
                     wait(3);
                     stoS();
                     wait(3);
-                    if (_rep != 0) {
-                        --cx();
-                        completed = cx() == 0;
-                        _repeating = !completed;
-                    }
-                    checkInterrupts();
+                    repAction();
                 }
                 break;
             case 0xa6: case 0xa7: // CMPS
-                throw Exception("Not yet implemented.");
+                wait(3);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                if (_rep != 0)
+                    wait(1);
+                _repeating = false;
+                if (_rep == 0 || cx() != 0) {
+                    lodS();
+                    _destination = _data;
+                    wait(4);
+                    lodDIS();
+                    _source = _data;
+                    sub();
+                    wait(4);
+                    repAction();
+                }
                 break;
             case 0xa8: case 0xa9: // TEST A, imm
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstruction();
+                test(getAccum(), _data);
+                wait(1);
                 break;
             case 0xaa: case 0xab: // STOS
-                throw Exception("Not yet implemented.");
+                wait(2);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                if (_rep != 0)
+                    wait(1);
+                _repeating = false;
+                if (_rep == 0 || cx() != 0) {
+                    stoS();
+                    wait(3);
+                    repAction();
+                }
                 break;
             case 0xac: case 0xad: // LODS
-                throw Exception("Not yet implemented.");
+                wait(2);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                if (_rep != 0)
+                    wait(1);
+                _repeating = false;
+                if (_rep == 0 || cx() != 0) {
+                    lodS();
+                    wait(3);
+                    repAction();
+                }
+                break;
                 break;
             case 0xae: case 0xaf: // SCAS
-                throw Exception("Not yet implemented.");
+                wait(4);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                if (_rep != 0)
+                    wait(1);
+                _repeating = false;
+                if (_rep == 0 || cx() != 0) {
+                    lodDIS();
+                    _destination = getAccum();
+                    _source = _data;
+                    sub();
+                    wait(4);
+                    repAction();
+                }
                 break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
             case 0xb4: case 0xb5: case 0xb6: case 0xb7: // MOV rb, ib
+                wait(1);
                 rb() = fetchInstructionByte();
+                wait(1);
                 break;
             case 0xb8: case 0xb9: case 0xba: case 0xbb:
             case 0xbc: case 0xbd: case 0xbe: case 0xbf: // MOV rw, iw
-                //rw() = fetchInstructionWord();
-                throw Exception("Not yet implemented.");
+                wait(1);
+                rw() = fetchInstructionWord();
+                wait(1);
                 break;
             case 0xc0: case 0xc1: case 0xc2: case 0xc3: 
             case 0xc8: case 0xc9: case 0xca: case 0xcb: // RET
-                throw Exception("Not yet implemented.");
+                _savedIP = pop();
+                if ((_opcode & 8) == 0)
+                    _savedCS = _segmentRegisters[1];
+                else {
+                    _savedCS = pop();
+                    wait(5);
+                }
+                if (!_wordSize)
+                    wait(4);
+                wait(12);
+                if (!_wordSize)
+                    sp() += fetchInstructionWord();
+                _segmentRegisters[1] = _savedCS;
+                setIP(_savedIP);
                 break;
             case 0xc4: case 0xc5: // LsS rw, rmd
                 throw Exception("Not yet implemented.");
@@ -1949,7 +2020,7 @@ private:
                 throw Exception("Not yet implemented.");
                 break;
         }
-        if (completed) {
+        if (_completed) {
             _segmentOverride = -1;
             _rep = 0;
             checkInterrupts();
@@ -2057,6 +2128,17 @@ private:
         int r = (_wordSize ? 2 : 1);
         return !df() ? r : -r;
     }
+    void repAction()
+    {
+        if (_rep != 0) {
+            --cx();
+            _completed = cx() == 0;
+            if ((_opcode & 0xf6) == 0xa6 && zf() == (_rep == 1))
+                _completed = true;
+            _repeating = !_completed;
+        }
+        checkInterrupts();
+    }
     void lodS()
     {
         _address = si();
@@ -2064,13 +2146,13 @@ private:
         _segment = 3;
         busRead();
     }
-    //void lodDIS(State state)
-    //{
-    //    _address = di();
-    //    di() += stringIncrement();
-    //    _segment = 0;
-    //    initIO(state, ioRead, _wordSize);
-    //}
+    void lodDIS()
+    {
+        _address = di();
+        di() += stringIncrement();
+        _segment = 0;
+        busRead();
+    }
     void stoS()
     {
         _address = di();
@@ -2167,6 +2249,10 @@ private:
             _writtenValue = value;
             _written = true;
             return *_data;
+        }
+        const U& operator=(const Register<U>& value)
+        {
+            return *this = *value._data;
         }
         operator U()
         {
@@ -2394,6 +2480,7 @@ private:
     UInt16 _savedIP;
     int _rep;
     bool _repeating;
+    bool _completed;
     int _segment;
 
     UInt8 _prefetchQueue[4];
@@ -2471,18 +2558,23 @@ public:
         Emulator emulator;
 
         int nextTest = 0;
+        int maxTests = 1000;
         int availableLength = 0xff00 - testProgram.count();
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
+            int tests = 0;
             for (int i = nextTest; i < newNextTest; ++i) {
                 int nl = totalLength + _tests[i].length();
                 int cycles = emulator.expected(_tests[i]);
+                if (i % 100 == 99)
+                    printf(".");
                 _tests[i].setCycles(cycles);
                 bool useTest = true;
                 if (i < _cacheHighWaterMark)
                     useTest = cycles != _cache[i];
                 if (useTest) {
+                    ++tests;
                     if (nl > availableLength) {
                         newNextTest = i;
                         break;
@@ -2492,6 +2584,10 @@ public:
                         // This test will fail. Just run the one to get a
                         // sniffer log.
                         nextTest = i;
+                        newNextTest = i + 1;
+                        break;
+                    }
+                    if (tests >= maxTests) {
                         newNextTest = i + 1;
                         break;
                     }
@@ -2511,8 +2607,6 @@ public:
                 p += 2;
                 _tests[i].output(p);
                 p += _tests[i].length() - 2;
-                if (i % 10 == 0)
-                    printf(".");
             }
 
             {
@@ -2628,6 +2722,8 @@ public:
                     throw Exception("Test was inconclusive");
             } while (true);
 
+            if (maxTests < 1000000)
+                maxTests *= 2;
             nextTest = newNextTest;
             if (nextTest == _tests.count())
                 break;
