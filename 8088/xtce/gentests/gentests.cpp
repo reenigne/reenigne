@@ -47,7 +47,7 @@ public:
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0,
             2, 2, 2, 2, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 0, 2, 0, 1, 1, 0, 0, 2, 0, 2, 0, 0, 1, 0, 0,
+            2, 0, 2, 0, 0, 0, 1, 2, 2, 0, 2, 0, 0, 1, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 4, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -147,6 +147,7 @@ public:
             hex(_offset, 4) + ", " + hex(_immediate) + "}");
     }
     Byte opcode() { return _opcode; }
+    void setImmediate(DWord immediate) { _immediate = immediate; }
 private:
     Byte _opcode;
     Byte _modrm;
@@ -179,27 +180,52 @@ public:
                 break;
             case 0x9a: // CALL cp
             case 0xea: // JMP cp
-                _fixups.append(static_cast<Word>(0x0103));
-                _fixups.append(static_cast<Word>(0x0302));
+                instruction.setImmediate(
+                    (static_cast<DWord>(testSegment) << 16) + 5);
+                _fixups.append(0x81);
                 break;
             case 0xc0: case 0xc2: // RET iw
-                _fixups.append(static_cast<Word>(0x0301));
+                _preamble.append(0xb8);  // MOV AX,3
+                _preamble.append(0x03);
+                _preamble.append(0x00);
+                _preamble.append(0x50);  // PUSH AX
+                _fixups.append(0x01);
                 break;
             case 0xc1: case 0xc3: // RET
-                _fixups.append(static_cast<Word>(0x0101));
+                _preamble.append(0xb8);  // MOV AX,1
+                _preamble.append(0x01);
+                _preamble.append(0x00);
+                _preamble.append(0x50);  // PUSH AX
+                _fixups.append(0x01);
+                break;
+            case 0xc5:  // LDS
+                _preamble.append(0x0e);  // PUSH CS
+                _preamble.append(0x1f);  // POP DS
                 break;
             case 0xc8: case 0xca: // RETF iw
-                _fixups.append(static_cast<Word>(0x0000));
-                _fixups.append(static_cast<Word>(0x0301));
+                _preamble.append(0x0e);  // PUSH CS
+                _preamble.append(0xb8);  // MOV AX,3
+                _preamble.append(0x03);
+                _preamble.append(0x00);
+                _preamble.append(0x50);  // PUSH AX
+                _fixups.append(0x02);
                 break;
             case 0xc9: case 0xcb: // RETF
-                _fixups.append(static_cast<Word>(0x0000));
-                _fixups.append(static_cast<Word>(0x0101));
+                _preamble.append(0x0e);  // PUSH CS
+                _preamble.append(0xb8);  // MOV AX,1
+                _preamble.append(0x01);
+                _preamble.append(0x00);
+                _preamble.append(0x50);  // PUSH AX
+                _fixups.append(0x02);
                 break;
             case 0xcf: // IRET
-                _fixups.append(static_cast<Word>(0x0000));  // flags
-                _fixups.append(static_cast<Word>(0x0000));
-                _fixups.append(static_cast<Word>(0x0101));
+                _preamble.append(0x9c);  // PUSHF
+                _preamble.append(0x0e);  // PUSH CS
+                _preamble.append(0xb8);  // MOV AX,1
+                _preamble.append(0x01);
+                _preamble.append(0x00);
+                _preamble.append(0x50);  // PUSH AX
+                _fixups.append(0x03);
                 break;
         }
 
@@ -216,7 +242,7 @@ public:
     int length()  // Entire test
     {
         return 4 + _preamble.count() + 1 + codeLength() + 1 +
-            2*_fixups.count();
+            _fixups.count();
     }
     void output(Byte* p)       // For the real hardware
     {
@@ -238,9 +264,8 @@ public:
         *p = f;
         ++p;
         for (int i = 0; i < f; ++i) {
-            *p = static_cast<Byte>(_fixups[i]);
-            p[1] = _fixups[i] >> 8;
-            p += 2;
+            *p = _fixups[i];
+            ++p;
         }
     }
     Byte* outputBytes(Byte* p)
@@ -252,10 +277,11 @@ public:
         }
         return p;
     }
-    Byte* outputCode(Byte* p, Word* newSp)  // For the emulator
+    Word readWord(Byte* p) { return p[0] + (p[1] << 8); }
+    void writeWord(Byte* p, Word w) { p[0] = w; p[1] = w >> 8; }
+    Byte* outputCode(Byte* p)  // For the emulator
     {
         Byte* pStart = p;
-        Word sp = 0;
 
         int pc = _preamble.count();
         for (int i = 0; i < pc; ++i)
@@ -279,31 +305,14 @@ public:
             *p = 0x90;
             ++p;
         }
-        Word instructionsOffset = ql + _nops;
+        Word instructionsOffset = pc + ql + _nops;
         p = outputBytes(p);
         for (int i = 0; i < _fixups.count(); ++i) {
-            Word f = _fixups[i];
-            Word di = instructionsOffset + (f >> 8);
-            switch (f & 0xff) {
-                case 0:  // pushSegment
-                    sp -= 2;
-                    pStart[sp] = (Byte)testSegment;
-                    pStart[sp + 1] = testSegment >> 8;
-                    break;
-                case 1:  // pushOffset
-                    sp -= 2;
-                    pStart[sp] = static_cast<Byte>(di);
-                    pStart[sp + 1] = di >> 8;
-                    break;
-                case 2:  // storeSegment
-                    pStart[di] = (Byte)testSegment;
-                    pStart[di + 1] = testSegment >> 8;
-                    break;
-                case 3:  // storeOffset4
-                    pStart[di] = di + 4;
-                    pStart[di + 1] = (di + 4) >> 8;
-                    break;
-            }
+            Byte f = _fixups[i];
+            Byte* base = pStart + (f & 0x7f);
+            if ((f & 0x80) != 0)
+                base += instructionsOffset;
+            writeWord(base, instructionsOffset + readWord(base));
         }
 
         p[0] = 0xeb;
@@ -312,7 +321,6 @@ public:
         p[3] = 0xff;
         for (int i = 0; i < 4; ++i)
             p[i + 4] = 0;
-        *newSp = sp;
         return p + 4;
     }
     void write()
@@ -338,7 +346,7 @@ private:
 
     AppendableArray<Byte> _preamble;
     AppendableArray<Instruction> _instructions;
-    AppendableArray<Word> _fixups;
+    AppendableArray<Byte> _fixups;
     int _cycles;
 };
 
@@ -1012,6 +1020,7 @@ private:
         cx() = 0;
         dx() = 0;
         bx() = 0;
+        sp() = 0;
         bp() = 0;
         si() = 0;
         di() = 0;
@@ -1020,9 +1029,7 @@ private:
         ss() = testSegment;
         ds() = testSegment;
 
-        Word newSP = 0;
-        Byte* stopP = _test.outputCode(&_ram[testSegment << 4], &newSP);
-        sp() = newSP;
+        Byte* stopP = _test.outputCode(&_ram[testSegment << 4]);
         _stopIP = stopP - &_ram[(testSegment << 4) + 2];
 
         _busState = tIdle;
@@ -1318,6 +1325,14 @@ private:
             _data = _byteRegisters[_address];
         else
             _data = _wordRegisters[_address];
+    }
+    void readEA2()
+    {
+        _prefetching = false;
+        wait(2);
+        _prefetching = true;
+        _address += 2;
+        busRead();
     }
     void busWrite()
     {
@@ -1641,7 +1656,7 @@ private:
                     wait(1);
                     push(cs());
                     _prefetching = false;
-                    wait(4);
+                    wait(5);
                     UInt16 oldIP = _ip;
                     cs() = savedCS;
                     setIP(savedIP);
@@ -1788,26 +1803,53 @@ private:
                 break;
             case 0xc0: case 0xc1: case 0xc2: case 0xc3: 
             case 0xc8: case 0xc9: case 0xca: case 0xcb: // RET
-                _savedIP = pop();
+                if (!_wordSize) {
+                    wait(1);
+                    _source = fetchInstructionWord();
+                }
+                wait(1);
+                _prefetching = false;
+                wait(2);
+                _savedIP = pop2();
+                _prefetching = false;
+                wait(2);
                 if ((_opcode & 8) == 0)
                     _savedCS = _segmentRegisters[1];
                 else {
                     _savedCS = pop();
                     wait(5);
                 }
-                if (!_wordSize)
-                    wait(4);
-                wait(12);
-                if (!_wordSize)
-                    sp() += fetchInstructionWord();
+                if (!_wordSize) {
+                    sp() += _source;
+                    wait(1);
+                }
                 _segmentRegisters[1] = _savedCS;
                 setIP(_savedIP);
+                wait(1);
+                _prefetching = true;
                 break;
             case 0xc4: case 0xc5: // LsS rw, rmd
-                throw Exception("Not yet implemented.");
+                _wordSize = true;
+                readEA();
+                setReg(_data);
+                if (_useMemory)
+                    wait(2);
+                wait(2);
+                readEA2();
+                _segmentRegisters[!_wordSize ? 0 : 3] = _data;
                 break;
             case 0xc6: case 0xc7: // MOV rm, imm
-                throw Exception("Not yet implemented.");
+                initEA();
+                wait(2);
+                _data = fetchInstruction();
+                _prefetching = false;
+                wait(1);
+                _prefetching = true;
+                wait(1);
+                _prefetching = false;
+                wait(3);
+                _prefetching = true;
+                writeEA(_data);
                 break;
             case 0xcc: // INT 3
                 throw Exception("Not yet implemented.");
@@ -2175,7 +2217,6 @@ private:
         _address = sp();
         _segment = 2;
         busWriteWord(ioWriteMemory);
-        wait(1);
     }
     Word pop()
     {

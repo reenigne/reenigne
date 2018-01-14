@@ -63,9 +63,9 @@ testLoop:
 
   complete
 notDone:
-    mov ax,[testCaseIndex]
-    call outputDecimal
-    outputCharacter ' '
+;    mov ax,[testCaseIndex]
+;    call outputDecimal
+;    outputCharacter ' '
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
@@ -89,7 +89,6 @@ notDone:
   mov bl,[si]        ; Number of fixups
   inc si             ; Points to first fixup
   add si,bx
-  add si,bx
   mov [testCaseOffset],si
   jmp testLoop
 
@@ -111,6 +110,20 @@ testFailed:
   mov ax,[si]
   call outputDecimal
   outputCharacter 10
+
+  mov ax,[countedCycles]
+  mov si,[testCaseOffset]
+  mov bx,[si]
+  cmp ax,bx
+  jae noSatLow
+  mov ax,bx
+noSatLow:
+  cmp ax,2047
+  jb noSatHigh
+  mov ax,2047
+noSatHigh:
+  mov [countedCycles],ax
+
 
   mov si,failMessage
   mov cx,5
@@ -152,10 +165,10 @@ doMeasurement:
   xor di,di
   mov si,[testCaseOffset]
   mov bl,[si+2]
-  xor dx,dx
 repeatLoop:
 
   push cx
+  mov bp,di
   mov cl,[si+3]
   push si
   add si,4
@@ -191,16 +204,20 @@ doneQueueFiller:
   inc si
   jcxz .overLoop
 .loopTop:
-  push bx
-  lodsw
-  mov di,bx
-  mov bl,ah
-  mov bh,0
-  add di,bx
-  mov bl,al
-  add bx,bx
-  call [bx+fixupRoutines]
-  pop bx
+  lodsb
+  test al,0x80
+  jnz .fixupMain
+  ; fixup preamble
+  cbw
+  mov di,ax
+  add word[es:di+bp],bx
+  jmp .doneFixup
+.fixupMain:
+  and al,0x7f
+  cbw
+  mov di,ax
+  add word[es:di+bx],bx
+.doneFixup:
   loop .loopTop
 .overLoop:
   pop di
@@ -215,16 +232,13 @@ doneQueueFiller:
   stosw
   stosw
 
-  mov [testSP],dx
-
+;  cmp word[sniffer],0x8000
+;  jne .noDump
 ;    push di
 ;    push si
 ;    push ds
 ;    push cx
 ;    push ax
-;
-;    mov ax,dx
-;    outputHex
 ;
 ;    mov si,0
 ;    mov ax,es
@@ -240,8 +254,9 @@ doneQueueFiller:
 ;    pop ds
 ;    pop si
 ;    pop di
-;
-;
+;  .noDump:
+
+
 ;    push di
 ;    push si
 ;    push ds
@@ -303,7 +318,7 @@ doneQueueFiller:
   mov si,ax
   mov di,ax
   mov bp,ax
-  mov sp,[cs:testSP]
+  mov sp,ax
   mov word[cs:testBuffer],0
   mov [cs:testBuffer+2],ds
   jmp far [cs:testBuffer]
@@ -395,34 +410,6 @@ sniffer: dw 0x7000
 countedCycles: dw 1
 testSP: dw 0
 
-fixupRoutines:
-  dw pushSegment   ; for (e.g.) "pop cs"
-  dw pushOffset    ; for (e.g.) "ret"
-  dw storeSegment
-  dw storeOffset4  ; for far call/jump
-
-pushSegment:    ; di unused
-  sub dx,2
-  mov bx,dx
-  mov [es:bx],es
-  ret
-
-pushOffset:
-  sub dx,2
-  mov bx,dx
-  mov [es:bx],di
-  ret
-
-storeSegment:
-  mov [es:di],es
-  ret
-
-storeOffset4:
-  lea bx,[di+4]
-  mov [es:di],bx
-  ret
-
-
 
 testCases:
 
@@ -437,7 +424,6 @@ testCases:
 ;     N bytes: instructions
 ;     1 byte: number of fixups
 ;     N entries:
-;       1 byte: fixup type
-;       1 byte: offset of fixup within instruction bytes
+;       1 byte: offset of address to fix up relative to start of preamble/main. Offset of main is added to value at this address + 128*(0 = address in preamble, 1 = address in main code)
 
 

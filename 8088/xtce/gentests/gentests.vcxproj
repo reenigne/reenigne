@@ -120,6 +120,9 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\alfe\file.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\..\..\include\alfe.natvis" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
