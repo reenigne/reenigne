@@ -63,9 +63,9 @@ testLoop:
 
   complete
 notDone:
-;    mov ax,[testCaseIndex]
-;    call outputDecimal
-;    outputCharacter ' '
+    mov ax,[testCaseIndex]
+    call outputDecimal
+    outputCharacter ' '
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
@@ -232,29 +232,31 @@ doneQueueFiller:
   stosw
   stosw
 
+%if 0
 ;  cmp word[sniffer],0x8000
 ;  jne .noDump
-;    push di
-;    push si
-;    push ds
-;    push cx
-;    push ax
-;
-;    mov si,0
-;    mov ax,es
-;    mov ds,ax
-;    mov cx,7
-;.dump:
-;    lodsw
-;    outputHex
-;    loop .dump
-;
-;    pop ax
-;    pop cx
-;    pop ds
-;    pop si
-;    pop di
+    push di
+    push si
+    push ds
+    push cx
+    push ax
+
+    mov si,0
+    mov ax,es
+    mov ds,ax
+    mov cx,11
+.dump:
+    lodsw
+    outputHex
+    loop .dump
+
+    pop ax
+    pop cx
+    pop ds
+    pop si
+    pop di
 ;  .noDump:
+%endif
 
 
 ;    push di

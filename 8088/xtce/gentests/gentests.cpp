@@ -48,7 +48,7 @@ public:
             2, 2, 2, 2, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
             2, 0, 2, 0, 0, 0, 1, 2, 2, 0, 2, 0, 0, 1, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 4, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         return immediateBytesTable[_opcode];
@@ -218,6 +218,23 @@ public:
                 _preamble.append(0x50);  // PUSH AX
                 _fixups.append(0x02);
                 break;
+            case 0xcc: case 0xcd: // INT
+                if (opcode == 0xcd)
+                    instruction.setImmediate(3);
+                _preamble.append(0x31);
+                _preamble.append(0xdb);  // XOR BX,BX
+                _preamble.append(0x8e);
+                _preamble.append(0xdb);  // MOV DS,BX
+                _preamble.append(0xc7);
+                _preamble.append(0x47);  
+                _preamble.append(0x0c);
+                _preamble.append(opcode - 0xcb);  
+                _preamble.append(0x00);  // MOV WORD[BX+0C],0000
+                _preamble.append(0x8c);
+                _preamble.append(0x4f); 
+                _preamble.append(0x0e);  // MOV [BX+0E],CS
+                _fixups.append(0x07);
+                break;
             case 0xcf: // IRET
                 _preamble.append(0x9c);  // PUSHF
                 _preamble.append(0x0e);  // PUSH CS
@@ -226,6 +243,9 @@ public:
                 _preamble.append(0x00);
                 _preamble.append(0x50);  // PUSH AX
                 _fixups.append(0x03);
+                break;
+            case 0xd4: case 0xd5: // AAx
+                instruction.setImmediate(10);
                 break;
         }
 
@@ -1097,7 +1117,7 @@ private:
                             _queueCycle = 3;
                             break;
                     }
-                    if (_ioInProgress._type != ioCodeAccess)  // This happens at the last Tw/T3 state
+                    if (_ioInProgress._type != ioCodeAccess && !write)  // This happens at the last Tw/T3 state
                         _synchronousDone = true;
                     if (!write)
                         _snifferDecoder.setData(_ioInProgress._data);
@@ -1207,7 +1227,7 @@ private:
     }
     Word busReadWord(IOType type)
     {
-        while (_ioNext._type != ioPassive)
+        while (_ioNext._type != ioPassive || !_synchronousDone)
             wait(1);
         initIO(type, _address);
         _synchronousDone = false;
@@ -1231,7 +1251,6 @@ private:
         _data >>= 8;
         ++_address;
         busAccess(ioWriteMemory);
-        wait(3);
     }
     Byte fetchInstructionByte()
     {
@@ -1808,16 +1827,17 @@ private:
                     _source = fetchInstructionWord();
                 }
                 wait(1);
+                if ((_opcode & 9) == 9)
+                    wait(2);
                 _prefetching = false;
                 wait(2);
                 _savedIP = pop2();
-                _prefetching = false;
                 wait(2);
                 if ((_opcode & 8) == 0)
                     _savedCS = _segmentRegisters[1];
                 else {
                     _savedCS = pop();
-                    wait(5);
+                    _prefetching = false;
                 }
                 if (!_wordSize) {
                     sp() += _source;
@@ -1840,43 +1860,167 @@ private:
                 break;
             case 0xc6: case 0xc7: // MOV rm, imm
                 initEA();
-                wait(2);
+                if (_useMemory)
+                    wait(2);
                 _data = fetchInstruction();
-                _prefetching = false;
-                wait(1);
-                _prefetching = true;
-                wait(1);
-                _prefetching = false;
-                wait(3);
-                _prefetching = true;
+                if (_useMemory) {
+                    if (!_wordSize)
+                        wait(2);
+                    if (!_wordSize) {
+                        _prefetching = false;
+                        if (_busState == tFirstIdle)
+                            wait(1);
+                    }
+                    else {
+                        wait(1);
+                        _prefetching = false;
+                    }
+                    wait(2);
+                    _prefetching = true;
+                }
                 writeEA(_data);
                 break;
             case 0xcc: // INT 3
-                throw Exception("Not yet implemented.");
+                wait(4);
+                interrupt(3);
                 break;
             case 0xcd: // INT
-                throw Exception("Not yet implemented.");
+                wait(1);
+                interrupt(fetchInstructionByte());
                 break;
             case 0xce: // INTO
-                throw Exception("Not yet implemented.");
+                if (of())
+                    interrupt(4);
+                else
+                    wait(2);
+                wait(1);
                 break;
             case 0xcf: // IRET
-                throw Exception("Not yet implemented.");
+                //wait(3);
+                wait(3);
+                _prefetching = false;
+                //wait(1);
+                wait(2);
+
+                _savedIP = pop2();
+                wait(5);
+                _savedCS = pop2();
+                wait(1);
+                //_prefetching = false;
+                setIP(_savedIP);
+                cs() = _savedCS;
+                wait(3);
+                _prefetching = true;
+                _flags = pop2() | 2;
+                wait(5);
                 break;
             case 0xd0: case 0xd1: case 0xd2: case 0xd3: // rot rm
-                throw Exception("Not yet implemented.");
+                readEA();
+                if ((_opcode & 2) == 0) {
+                    _source = 1;
+                    wait(_useMemory ? 4 : 0);
+                }
+                else {
+                    _source = cl();
+                    wait(_useMemory ? 9 : 6);
+                }
+                while (_source != 0) {
+                    _destination = _data;
+                    switch (modRMReg()) {
+                        case 0:  // ROL
+                            _data <<= 1;
+                            doCF();
+                            _data |= (cf() ? 1 : 0);
+                            setOFRotate();
+                            break;
+                        case 1:  // ROR
+                            setCF((_data & 1) != 0);
+                            _data >>= 1;
+                            if (cf())
+                                _data |= (!_wordSize ? 0x80 : 0x8000);
+                            setOFRotate();
+                            break;
+                        case 2:  // RCL
+                            _data = (_data << 1) | (cf() ? 1 : 0);
+                            doCF();
+                            setOFRotate();
+                            break;
+                        case 3:  // RCR
+                            _data >>= 1;
+                            if (cf())
+                                _data |= (!_wordSize ? 0x80 : 0x8000);
+                            setCF((_destination & 1) != 0);
+                            setOFRotate();
+                            break;
+                        case 4:  // SHL
+                            _data <<= 1;
+                            doCF();
+                            setOFRotate();
+                            setPZS();
+                            break;
+                        case 5:  // SHR
+                            setCF((_data & 1) != 0);
+                            _data >>= 1;
+                            setOFRotate();
+                            setAF(true);
+                            setPZS();
+                            break;
+                        case 6:  // SETMO
+                            bitwise(0xffff);
+                            break;
+                        case 7:  // SAR
+                            setCF((_data & 1) != 0);
+                            _data >>= 1;
+                            if (!_wordSize)
+                                _data |= (_destination & 0x80);
+                            else
+                                _data |= (_destination & 0x8000);
+                            setOFRotate();
+                            setAF(true);
+                            setPZS();
+                            break;
+                    }
+                    if ((_opcode & 2) != 0)
+                        wait(4);
+                    --_source;
+                }
+                if (_useMemory) {
+                    _prefetching = false;
+                    wait(2);
+                    _prefetching = true;
+                }
+                writeEA(_data);
                 break;
             case 0xd4: // AAM
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstructionByte();
+                if (_data == 0)
+                    interrupt(0);
+                else {
+                    ah() = al() / _data;
+                    al() %= _data;
+                    _wordSize = true;
+                    setPZS();
+                    wait(74);
+                }
                 break;
             case 0xd5: // AAD
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstructionByte();
+                al() += ah()*_data;
+                ah() = 0;
+                setPZS();
+                wait(58);
                 break;
             case 0xd6: // SALC
-                throw Exception("Not yet implemented.");
+                al() = (cf() ? 0xff : 0x00); 
+                wait(2);
                 break;
             case 0xd7: // XLATB
-                throw Exception("Not yet implemented.");
+                _address = bx() + al();
+                wait(7);
+                busRead();
+                al() = _data;
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
@@ -2154,11 +2298,37 @@ private:
         wait(2);
         setIP(_ip + signExtend(_data));
     }
-    //void interrupt(UInt8 number)
-    //{
-    //    _data = number;
-    //    _state = stateIntAction;
-    //}
+    void interrupt(UInt8 number)
+    {
+        _address = number << 2;
+        _segment = 1;
+        wait(3);
+        _prefetching = false;
+        wait(2);
+
+        cs() = 0;
+        _savedIP = busReadWord(ioReadMemory);
+        _prefetching = true;
+        wait(2);
+        _prefetching = false;
+        wait(1);
+        _address += 2;
+        _savedCS = busReadWord(ioReadMemory);
+        wait(4);
+        push2(_flags & 0x0fd7);
+        setIF(false);
+        setTF(false);
+        wait(7);
+        push2(cs());
+        wait(5);
+        cs() = _savedCS;
+        setIP(_savedIP);
+        wait(1);
+        _prefetching = true;
+        wait(4);
+        _data = _ip;
+        push2(_data);
+    }
     void test(UInt16 destination, UInt16 source)
     {
         _destination = destination;
@@ -2253,10 +2423,10 @@ private:
         setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
     }
     void sub() { _data = _destination - _source; setCAPZS(); setOFSub(); }
-    //void setOFRotate()
-    //{
-    //    setOF(((_data ^ _destination) & (!_wordSize ? 0x80 : 0x8000)) != 0);
-    //}
+    void setOFRotate()
+    {
+        setOF(((_data ^ _destination) & (!_wordSize ? 0x80 : 0x8000)) != 0);
+    }
     void doALUOperation()
     {
         switch (_aluOperation) {
@@ -2446,9 +2616,9 @@ private:
             ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0);
     }
     //bool tf() { return (_flags & 0x100) != 0; }
-    //void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
+    void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
     bool intf() { return (_flags & 0x200) != 0; }
-    //void setIF(bool intf) { _flags = (_flags & ~0x200) | (intf ? 0x200 : 0); }
+    void setIF(bool intf) { _flags = (_flags & ~0x200) | (intf ? 0x200 : 0); }
     bool df() { return (_flags & 0x400) != 0; }
     //void setDF(bool df) { _flags = (_flags & ~0x400) | (df ? 0x400 : 0); }
     bool of() { return (_flags & 0x800) != 0; }

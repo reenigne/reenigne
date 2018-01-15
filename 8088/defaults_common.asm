@@ -408,7 +408,7 @@ cpu 8086
   waitForVerticalSync
   waitForDisplayEnable
 
-  ; Set up CRTC for 1 character by 2 scanline "frame". This gives us 2 lchars
+  ; Set up CRTC for 2 character by 2 scanline "frame". This gives us 4 lchars
   ; per frame.
   mov dx,0x3d4
   ;   0xff Horizontal Total
