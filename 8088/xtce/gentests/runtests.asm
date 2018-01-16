@@ -63,9 +63,9 @@ testLoop:
 
   complete
 notDone:
-    mov ax,[testCaseIndex]
-    call outputDecimal
-    outputCharacter ' '
+;    mov ax,[testCaseIndex]
+;    call outputDecimal
+;    outputCharacter ' '
 
   mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
@@ -281,13 +281,16 @@ doneQueueFiller:
 ;    pop di
 
   safeRefreshOff
-  writePIT16 0, 2, 2
-  writePIT16 0, 2, 100
+  writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
+  writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
   sti
-  hlt
-  hlt
-  writePIT16 0, 2, 0
-  cli
+  hlt                   ; ACK first IRQ0
+  hlt                   ; wait for second IRQ0
+  writePIT16 0, 2, 1500 ; Queue an IRQ0 for after the test (>1000 <2000)
+;  cli
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],irq0a
 
   mov ds,[cs:sniffer]
   mov ax,[0]      ; Trigger: Start of command load sequence
@@ -332,6 +335,10 @@ irq0:
   pop ax
   iret
 
+irq0a:
+  mov al,0x20
+  out 0x20,al
+
 interruptFF:
   mov al,0
   out 0x43,al
@@ -339,6 +346,10 @@ interruptFF:
   mov bl,al
   in al,0x40
   mov bh,al
+
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],irq0
 
   mov sp,[cs:savedSP]
   mov ss,[cs:savedSS]

@@ -159,97 +159,10 @@ class Test
 {
 public:
     Test(int queueFiller = 0, int nops = 0)
-      : _queueFiller(queueFiller), _nops(nops), _address(0)
+      : _queueFiller(queueFiller), _nops(nops)
     { }
     void addInstruction(Instruction instruction)
     {
-        Byte opcode = instruction.opcode();
-        switch (opcode) {
-            case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-                _preamble.append(opcode - 1);  // PUSH segreg
-                break;
-            case 0x58: case 0x59: case 0x5a: case 0x5b:
-            case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                _preamble.append(opcode - 8);  // PUSH rw
-                break;
-            case 0x8f: // POP rmw
-                _preamble.append(0x50);  // PUSH AX
-                break;
-            case 0x9d: // POPF
-                _preamble.append(0x9c);  // PUSHF
-                break;
-            case 0x9a: // CALL cp
-            case 0xea: // JMP cp
-                instruction.setImmediate(
-                    (static_cast<DWord>(testSegment) << 16) + 5);
-                _fixups.append(0x81);
-                break;
-            case 0xc0: case 0xc2: // RET iw
-                _preamble.append(0xb8);  // MOV AX,3
-                _preamble.append(0x03);
-                _preamble.append(0x00);
-                _preamble.append(0x50);  // PUSH AX
-                _fixups.append(0x01);
-                break;
-            case 0xc1: case 0xc3: // RET
-                _preamble.append(0xb8);  // MOV AX,1
-                _preamble.append(0x01);
-                _preamble.append(0x00);
-                _preamble.append(0x50);  // PUSH AX
-                _fixups.append(0x01);
-                break;
-            case 0xc5:  // LDS
-                _preamble.append(0x0e);  // PUSH CS
-                _preamble.append(0x1f);  // POP DS
-                break;
-            case 0xc8: case 0xca: // RETF iw
-                _preamble.append(0x0e);  // PUSH CS
-                _preamble.append(0xb8);  // MOV AX,3
-                _preamble.append(0x03);
-                _preamble.append(0x00);
-                _preamble.append(0x50);  // PUSH AX
-                _fixups.append(0x02);
-                break;
-            case 0xc9: case 0xcb: // RETF
-                _preamble.append(0x0e);  // PUSH CS
-                _preamble.append(0xb8);  // MOV AX,1
-                _preamble.append(0x01);
-                _preamble.append(0x00);
-                _preamble.append(0x50);  // PUSH AX
-                _fixups.append(0x02);
-                break;
-            case 0xcc: case 0xcd: // INT
-                if (opcode == 0xcd)
-                    instruction.setImmediate(3);
-                _preamble.append(0x31);
-                _preamble.append(0xdb);  // XOR BX,BX
-                _preamble.append(0x8e);
-                _preamble.append(0xdb);  // MOV DS,BX
-                _preamble.append(0xc7);
-                _preamble.append(0x47);  
-                _preamble.append(0x0c);
-                _preamble.append(opcode - 0xcb);  
-                _preamble.append(0x00);  // MOV WORD[BX+0C],0000
-                _preamble.append(0x8c);
-                _preamble.append(0x4f); 
-                _preamble.append(0x0e);  // MOV [BX+0E],CS
-                _fixups.append(0x07);
-                break;
-            case 0xcf: // IRET
-                _preamble.append(0x9c);  // PUSHF
-                _preamble.append(0x0e);  // PUSH CS
-                _preamble.append(0xb8);  // MOV AX,1
-                _preamble.append(0x01);
-                _preamble.append(0x00);
-                _preamble.append(0x50);  // PUSH AX
-                _fixups.append(0x03);
-                break;
-            case 0xd4: case 0xd5: // AAx
-                instruction.setImmediate(10);
-                break;
-        }
-
-        _address += instruction.length();
         _instructions.append(instruction);
     }
     int codeLength()  // Just the code bytes
@@ -298,7 +211,11 @@ public:
         return p;
     }
     Word readWord(Byte* p) { return p[0] + (p[1] << 8); }
-    void writeWord(Byte* p, Word w) { p[0] = w; p[1] = w >> 8; }
+    void writeWord(Byte* p, Word w)
+    {
+        p[0] = static_cast<Byte>(w);
+        p[1] = w >> 8;
+    }
     Byte* outputCode(Byte* p)  // For the emulator
     {
         Byte* pStart = p;
@@ -359,8 +276,9 @@ public:
     }
     void setCycles(int cycles) { _cycles = cycles; }
     int cycles() { return _cycles; }
+    void preamble(Byte p) { _preamble.append(p); }
+    void fixup(Byte f) { _fixups.append(f); }
 private:
-    UInt32 _address;
     int _queueFiller;
     int _nops;
 
@@ -1000,10 +918,49 @@ private:
     bool _isaDataFloating;
 };
 
+class BusEmulator
+{
+public:
+    BusEmulator() : _ram(0xa0000) { }
+    Byte* ram() { return &_ram[0]; }
+    void startAccess(DWord address, int type)
+    {
+        _address = address;
+        _type = type;
+        _cycle = 0;
+    }
+    void wait() { ++_cycle; }
+    bool ready()
+    {
+        if (_type == 1 || _type == 2)
+            return _cycle > 2;  // System board adds a wait state for onboard IO devices
+        return true;
+    }
+    void write(Byte data)
+    {
+        if (_type == 2)
+            return;  // No port writes implemented yet
+        _ram[_address] = data;
+    }
+    Byte read()
+    {
+        if (_type == 0) // Interrupt acknowledge
+            return 8; // Assume all IRQs are IRQ0 for now.
+        if (_type == 1) // Read port
+            return 0xff;  // Only a dummy port for now
+        return _ram[_address];
+    }
+private:
+    Array<Byte> _ram;
+    DWord _address;
+    int _type;
+    int _cycle;
+};
+
 class Emulator
 {
 public:
-    Emulator() : _logging(false), _ram(0xa0000)
+    Emulator() : _logging(false)
     {
         static String b[8] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
         static String w[8] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
@@ -1049,12 +1006,12 @@ private:
         ss() = testSegment;
         ds() = testSegment;
 
-        Byte* stopP = _test.outputCode(&_ram[testSegment << 4]);
-        _stopIP = stopP - &_ram[(testSegment << 4) + 2];
+        Byte* r = _bus.ram() + (testSegment << 4);
+        Byte* stopP = _test.outputCode(r);
+        _stopIP = stopP - (r + 2);
 
         _busState = tIdle;
         _queueCycle = 0;
-        _ready = true;
         _ioInProgress._type = ioPassive;
         _ioNext = _ioInProgress;
         _lastIO = ioPassive;
@@ -1071,12 +1028,37 @@ private:
         _segmentOverride = -1;
         _prefetchAddress = 0;
         _rep = 0;
+        _lock = false;
         _completed = true;
         _repeating = false;
+        _busReady = false;
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
         } while (_ip != _stopIP && _cycle < 2048);
+    }
+    void doBusAccess()
+    {
+        if (!_bus.ready())
+            return;
+        Byte data;
+        auto t = _ioInProgress._type;
+        if (t == ioInterruptAcknowledge || t == ioReadPort || t == ioReadMemory
+            || t == ioCodeAccess) {
+            data = _bus.read();
+            _ioInProgress._data = data;
+            if (_ioInProgress._type == ioCodeAccess) {
+                _prefetchQueue[(_prefetchOffset + _prefetchedBIU) & 3] = data;
+                ++_prefetchAddress;
+                ++_prefetchedBIU;
+                _queueCycle = 3;
+            }
+            else
+                _synchronousDone = true;
+            _snifferDecoder.setData(data);
+        }
+        _busReady = true;
+        _snifferDecoder.setStatus((int)ioPassive);
     }
     void wait(int cycles)
     {
@@ -1084,6 +1066,7 @@ private:
             _snifferDecoder.setInterruptFlag(intf());
             bool write = _ioInProgress._type == ioWriteMemory ||
                 _ioInProgress._type == ioWritePort;
+            _bus.wait();
             switch (_busState) {
                 case t1:
                     _snifferDecoder.setStatusHigh(_ioInProgress._segment);
@@ -1095,52 +1078,25 @@ private:
                     _busState = t2;
                     break;
                 case t2:
-                    _snifferDecoder.setStatus((int)ioPassive);
-                    // TODO: Need to handle wait states
-                    switch (_ioInProgress._type) {
-                        case ioInterruptAcknowledge:
-                            _ioInProgress._data = 8;
-                            break;
-                        case ioReadPort:
-                            _ioInProgress._data = 0xff;
-                            break;
-                        case ioReadMemory:
-                            _ioInProgress._data = _ram[_ioInProgress._address];
-                            break;
-                        case ioCodeAccess:
-                            _ioInProgress._data = _ram[_ioInProgress._address];
-                            _prefetchQueue[
-                                (_prefetchOffset + _prefetchedBIU) & 3] =
-                                _ioInProgress._data;
-                            ++_prefetchAddress;
-                            ++_prefetchedBIU;
-                            _queueCycle = 3;
-                            break;
-                    }
-                    if (_ioInProgress._type != ioCodeAccess && !write)  // This happens at the last Tw/T3 state
-                        _synchronousDone = true;
-                    if (!write)
-                        _snifferDecoder.setData(_ioInProgress._data);
+                    doBusAccess();
                     _busState = t3;
                     break;
                 case t3:
-                    _statusSet = false;
-                    switch (_ioInProgress._type) {
-                        case ioWritePort:
-                            break;
-                        case ioWriteMemory:
-                            _ram[_ioInProgress._address] = _ioInProgress._data;
-                            break;
-                    }
-                    // Fall through
                 case tWait:
+                    if (_busReady)
+                        _statusSet = false;
                     _busState = tWait;
-                    if (!_ready)
-                        break;
-                    _busState = t4;
+                    if (_busReady) {
+                        _busState = t4;
+                        if (write)
+                            _bus.write(_ioInProgress._data);
+                    }
+                    else
+                        doBusAccess();
                     break;
                 case t4:
                     _busState = tFirstIdle;
+                    _busReady = false;
                     break;
                 case tFirstIdle:
                     _busState = tIdle;
@@ -1158,6 +1114,7 @@ private:
                         _busState = t1;
                         _lastIO = _ioInProgress._type;
                         _snifferDecoder.setAddress(_ioInProgress._address);
+                        _bus.startAccess(_ioInProgress._address, (int)_lastIO);
                     }
                 }
             }
@@ -1173,6 +1130,8 @@ private:
                     _statusSet = true;
                 }
             }
+            //if (_busReady && _statusSet)
+            //    _statusSet = false;
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0)
@@ -1247,10 +1206,10 @@ private:
     }
     void busWriteWord(IOType type)
     {
-        busAccess(ioWriteMemory);
+        busAccess(type);
         _data >>= 8;
         ++_address;
-        busAccess(ioWriteMemory);
+        busAccess(type);
     }
     Byte fetchInstructionByte()
     {
@@ -1323,12 +1282,12 @@ private:
         }
         wait(w);
     }
-    void busRead()
+    void busRead(IOType type = ioReadMemory)
     {
         if (_wordSize)
-            _data = busReadWord(ioReadMemory);
+            _data = busReadWord(type);
         else
-            _data = busAccess(ioReadMemory);
+            _data = busAccess(type);
     }
     void readEA()
     {
@@ -1353,12 +1312,12 @@ private:
         _address += 2;
         busRead();
     }
-    void busWrite()
+    void busWrite(IOType type = ioWriteMemory)
     {
         if (_wordSize)
-            busWriteWord(ioWriteMemory);
+            busWriteWord(type);
         else
-            busAccess(ioWriteMemory);
+            busAccess(type);
     }
     void writeEA(UInt16 data, int w = 0)
     {
@@ -1777,19 +1736,27 @@ private:
                 }
                 break;
             case 0xac: case 0xad: // LODS
+                if (_rep != 0) {
+                    if (!_repeating)
+                        wait(2);
+                    wait(5);
+                }
                 wait(2);
                 _prefetching = false;
                 wait(2);
                 _prefetching = true;
-                if (_rep != 0)
-                    wait(1);
                 _repeating = false;
-                if (_rep == 0 || cx() != 0) {
+                if (_rep == 0) {
                     lodS();
                     wait(3);
-                    repAction();
                 }
-                break;
+                else {
+                    lodS();
+                    //wait(3);
+                    repAction();
+                    if (!_repeating)
+                        wait(6);
+                }
                 break;
             case 0xae: case 0xaf: // SCAS
                 wait(4);
@@ -1896,17 +1863,14 @@ private:
                 wait(1);
                 break;
             case 0xcf: // IRET
-                //wait(3);
                 wait(3);
                 _prefetching = false;
-                //wait(1);
                 wait(2);
 
                 _savedIP = pop2();
                 wait(5);
                 _savedCS = pop2();
                 wait(1);
-                //_prefetching = false;
                 setIP(_savedIP);
                 cs() = _savedCS;
                 wait(3);
@@ -2018,44 +1982,149 @@ private:
                 break;
             case 0xd7: // XLATB
                 _address = bx() + al();
-                wait(7);
-                busRead();
-                al() = _data;
+                wait(4);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                al() = busAccess(ioReadMemory);
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
-                throw Exception("Not yet implemented.");
+                _wordSize = true;
+                readEA();
+                if (_useMemory)
+                    wait(2);
                 break;
             case 0xe0: case 0xe1: case 0xe2: case 0xe3: // loop
-                throw Exception("Not yet implemented.");
+                wait(3);
+                _data = fetchInstructionByte();
+                {
+                    bool jump;
+                    int w = 0;
+                    if (_opcode == 0xe1)
+                        w = 1;
+                    if (_opcode != 0xe3) {
+                        w = 5;
+                        --cx();
+                        jump = (cx() != 0);
+                        switch (_opcode) {
+                            case 0xe0:
+                                if (zf())
+                                    jump = false;
+                                w = 1;
+                                break;
+                            case 0xe1: if (!zf()) jump = false; break;
+                        }
+                    }
+                    else {
+                        w = 6;
+                        jump = (cx() == 0);
+                    }
+                    if (jump) {
+                        if (_opcode != 0xe2)
+                            wait(1);
+                        jumpShort();
+                        wait(1);
+                        _prefetching = true;
+                    }
+                    else
+                        wait(w);
+                }
                 break;
             case 0xe4: case 0xe5: case 0xe6: case 0xe7:
             case 0xec: case 0xed: case 0xee: case 0xef: // INOUT
-                throw Exception("Not yet implemented.");
+                if ((_opcode & 8) == 0) {
+                    wait(1);
+                    _data = fetchInstructionByte();
+                }
+                else
+                    _data = dx();
+                _segment = 7;
+                _address = _data;
+                wait(1);
+                if ((_opcode & 2) != 0)
+                    wait(1);
+                _prefetching = false;
+                wait(2);
+                _prefetching = true;
+                if ((_opcode & 2) == 0) {
+                    busRead(ioReadPort);
+                    setAccum();
+                }
+                else {
+                    _data = getAccum();
+                    busWrite(ioWritePort);
+                    wait(1);
+                }
                 break;
             case 0xe8: // CALL cw
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstructionWord();
+
+                // TODO: combine this with sane code in jumpNear?
+                _prefetching = false;
+                wait(3);
+                while (_busState != tIdle || _ioNext._type != ioPassive)
+                    wait(1);
+                wait(2);
+
+                _savedIP = _ip;
+                setIP(_data + _ip);
+                wait(1);
+                _prefetching = true;
+                wait(2);
+                push(_savedIP);
                 break;
             case 0xe9: // JMP cw
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _data = fetchInstructionWord();
+
+                // TODO: combine this with sane code in jumpNear?
+                _prefetching = false;
+                wait(3);
+                while (_busState != tIdle || _ioNext._type != ioPassive)
+                    wait(1);
+                wait(2);
+
+                _savedIP = _ip;
+                setIP(_data + _ip);
+                wait(1);
+                _prefetching = true;
                 break;
             case 0xea: // JMP cp
-                throw Exception("Not yet implemented.");
+                {
+                    wait(1);
+                    UInt16 savedIP = fetchInstructionWord();
+                    UInt16 savedCS = fetchInstructionWord();
+                    _prefetching = false;
+                    wait(5);
+                    UInt16 oldIP = _ip;
+                    cs() = savedCS;
+                    setIP(savedIP);
+                    wait(1);
+                    _prefetching = true;
+                }
                 break;
             case 0xeb: // JMP cb
                 wait(1);
                 _data = fetchInstructionByte();
                 jumpShort();
+                wait(1);
                 _prefetching = true;
                 break;
             case 0xf0: case 0xf1: // LOCK
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _lock = true;
+                _completed = false;
                 break;
             case 0xf2: case 0xf3: // REP
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _rep = (_opcode == 0xf2 ? 1 : 2);
+                _completed = false;
                 break;
             case 0xf4: // HLT
-                throw Exception("Not yet implemented.");
+                wait(1);
+                _repeating = true;
                 break;
             case 0xf5: // CMC
                 throw Exception("Not yet implemented.");
@@ -2209,6 +2278,7 @@ private:
         if (_completed) {
             _segmentOverride = -1;
             _rep = 0;
+            _lock = false;
             checkInterrupts();
         }
     }
@@ -2231,7 +2301,7 @@ private:
     String _log;
     int _logSkip;
     int _cycle;
-    Array<Byte> _ram;
+    BusEmulator _bus;
     int _stopIP;
 
     enum BusState
@@ -2690,6 +2760,7 @@ private:
     UInt16 _savedCS;
     UInt16 _savedIP;
     int _rep;
+    bool _lock;
     bool _repeating;
     bool _completed;
     int _segment;
@@ -2719,7 +2790,7 @@ private:
 
     int _segmentOverride;
 
-    bool _ready;
+    bool _busReady;
     int _queueCycle;
 
     SnifferDecoder _snifferDecoder;
@@ -2812,7 +2883,7 @@ public:
             p[1] = totalLength >> 8;
             p += 2;
             for (int i = nextTest; i < newNextTest; ++i) {
-                int cycles = (_tests[i].cycles() + 1) * 2;
+                int cycles = (_tests[i].cycles() /*+ 1*/) * 2;
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
@@ -2946,10 +3017,109 @@ private:
     void addTest(Instruction i)
     {
         for (int nops = 0; nops < 20; ++nops) {
-            if (i.opcode() == 0x9b)  // No way to test WAIT at the moment...
-                continue;
             Test t(0, nops);
+            Byte opcode = i.opcode();
+            switch (opcode) {
+                case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+                    t.preamble(opcode - 1);  // PUSH segreg
+                    break;
+                case 0x58: case 0x59: case 0x5a: case 0x5b:
+                case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
+                    t.preamble(opcode - 8);  // PUSH rw
+                    break;
+                case 0x8f: // POP rmw
+                    t.preamble(0x50);  // PUSH AX
+                    break;
+                case 0x9b: // WAIT
+                    continue;  // No way to test WAIT at the moment...
+                case 0x9d: // POPF
+                    t.preamble(0x9c);  // PUSHF
+                    break;
+                case 0x9a: // CALL cp
+                case 0xea: // JMP cp
+                    i.setImmediate(
+                        (static_cast<DWord>(testSegment) << 16) + 5);
+                    t.fixup(0x81);
+                    break;
+                case 0xc0: case 0xc2: // RET iw
+                    t.preamble(0xb8);  // MOV AX,3
+                    t.preamble(0x03);
+                    t.preamble(0x00);
+                    t.preamble(0x50);  // PUSH AX
+                    t.fixup(0x01);
+                    break;
+                case 0xc1: case 0xc3: // RET
+                    t.preamble(0xb8);  // MOV AX,1
+                    t.preamble(0x01);
+                    t.preamble(0x00);
+                    t.preamble(0x50);  // PUSH AX
+                    t.fixup(0x01);
+                    break;
+                case 0xc5:  // LDS
+                    t.preamble(0x0e);  // PUSH CS
+                    t.preamble(0x1f);  // POP DS
+                    break;
+                case 0xc8: case 0xca: // RETF iw
+                    t.preamble(0x0e);  // PUSH CS
+                    t.preamble(0xb8);  // MOV AX,3
+                    t.preamble(0x03);
+                    t.preamble(0x00);
+                    t.preamble(0x50);  // PUSH AX
+                    t.fixup(0x02);
+                    break;
+                case 0xc9: case 0xcb: // RETF
+                    t.preamble(0x0e);  // PUSH CS
+                    t.preamble(0xb8);  // MOV AX,1
+                    t.preamble(0x01);
+                    t.preamble(0x00);
+                    t.preamble(0x50);  // PUSH AX
+                    t.fixup(0x02);
+                    break;
+                case 0xcc: case 0xcd: // INT
+                    if (opcode == 0xcd)
+                        i.setImmediate(3);
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);  
+                    t.preamble(0x0c);
+                    t.preamble(opcode - 0xcb);  
+                    t.preamble(0x00);  // MOV WORD[BX+0C],0000
+                    t.preamble(0x8c);
+                    t.preamble(0x4f); 
+                    t.preamble(0x0e);  // MOV [BX+0E],CS
+                    t.fixup(0x07);
+                    break;
+                case 0xcf: // IRET
+                    t.preamble(0x9c);  // PUSHF
+                    t.preamble(0x0e);  // PUSH CS
+                    t.preamble(0xb8);  // MOV AX,1
+                    t.preamble(0x01);
+                    t.preamble(0x00);
+                    t.preamble(0x50);  // PUSH AX
+                    t.fixup(0x03);
+                    break;
+                case 0xd4: case 0xd5: // AAx
+                    i.setImmediate(10);
+                    break;
+                case 0xe4: case 0xe5: case 0xe6: case 0xe7: // IN/OUT ib
+                    i.setImmediate(0xe0);
+                    break;
+            }
             t.addInstruction(i);
+            switch (opcode) {
+                case 0xf2: case 0xf3: // REP
+                    t.preamble(0xb9);
+                    t.preamble(0x05);
+                    t.preamble(0x00);  // MOV CX,5
+                    {
+                        Instruction i2(0xac);  // LODSB
+                        t.addInstruction(i2);
+                    }
+                    break;
+            }
             _tests.append(t);
         }
     }
