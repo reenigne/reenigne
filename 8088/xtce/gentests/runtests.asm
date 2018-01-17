@@ -32,6 +32,22 @@ LENGTH EQU 2048
 
   outputCharacter 8
 
+  ; Enable PIT channel 2. We'll use this for timing so that tests can do IRQ0s.
+  in al,0x61
+  and al,0xfc
+  or al,1
+  out 0x61,al
+
+  ; Enable auto-EOI
+  mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
+  out 0x20,al  ; Set ICW1
+  mov al,0x08  ; Interrupt vector address
+  out 0x21,al  ; Set ICW2
+  mov al,0x0f  ; 8086/808 mode, auto-EOI, buffered mode/master, not special fully nested mode
+  out 0x21,al  ; Set ICW4
+  mov al,0xbc  ; Enable IRQs 0 (timer), 1 (keyboard) and 6 (floppy disk).
+  out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
+
   xor ax,ax
   mov ds,ax
   mov word[8*4],irq0
@@ -140,7 +156,7 @@ noSatHigh:
   mov cx,16
 loopTop:
   mov [savedCX],cx
-  mov cx,1
+  mov cx,1; + ITERS
 ;    mov word[countedCycles],2047
   call doMeasurement
 
@@ -244,7 +260,7 @@ doneQueueFiller:
     mov si,0
     mov ax,es
     mov ds,ax
-    mov cx,11
+    mov cx,22
 .dump:
     lodsw
     outputHex
@@ -286,11 +302,16 @@ doneQueueFiller:
   sti
   hlt                   ; ACK first IRQ0
   hlt                   ; wait for second IRQ0
-  writePIT16 0, 2, 1500 ; Queue an IRQ0 for after the test (>1000 <2000)
+  writePIT16 0, 2, 0 ; Queue an IRQ0 for after the test in case of crash
+  writePIT16 2, 2, 0
+
+  in al,0xe0
+
 ;  cli
   xor ax,ax
   mov ds,ax
   mov word[0x20],irq0a
+  mov [0x22],cs
 
   mov ds,[cs:sniffer]
   mov ax,[0]      ; Trigger: Start of command load sequence
@@ -329,27 +350,23 @@ doneQueueFiller:
   jmp far [cs:testBuffer]
 
 irq0:
-  push ax
-  mov al,0x20
-  out 0x20,al
-  pop ax
   iret
 
 irq0a:
-  mov al,0x20
-  out 0x20,al
 
 interruptFF:
-  mov al,0
+  mov al,0x80
   out 0x43,al
-  in al,0x40
+  in al,0x42
   mov bl,al
-  in al,0x40
+  in al,0x42
   mov bh,al
 
   xor ax,ax
   mov ds,ax
   mov word[0x20],irq0
+  mov [0x22],cs
+  writePIT16 0, 2, 0
 
   mov sp,[cs:savedSP]
   mov ss,[cs:savedSS]

@@ -51,6 +51,8 @@ public:
             0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 4, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        if ((_opcode & 0xfe) == 0xf6 && (_modrm & 0x30) == 0)
+            return (_opcode & 1) + 1;
         return immediateBytesTable[_opcode];
     }
     int modRMLength()
@@ -147,6 +149,7 @@ public:
             hex(_offset, 4) + ", " + hex(_immediate) + "}");
     }
     Byte opcode() { return _opcode; }
+    Byte modrm() { return _modrm; }
     void setImmediate(DWord immediate) { _immediate = immediate; }
 private:
     Byte _opcode;
@@ -629,12 +632,12 @@ public:
         _d = -1;  
         _queueLength = 0;
         _lastS = 0;
-        _pitCycle = 0;
+        _pitCycle = 1;
         _cpu_s = 7;
     }
     String getLine()
     {
-        _bus_pit = (_pitCycle & 3) < 2 ? 4 : 5;
+        _bus_pit = (_pitCycle & 3) < 2 ? 6 : 7;
 
         static const char qsc[] = ".IES";
         static const char sc[] = "ARWHCrwp";
@@ -918,18 +921,102 @@ private:
     bool _isaDataFloating;
 };
 
+class PITEmulator
+{
+public:
+    void reset()
+    {
+        _value = 0;
+        _count = 0;
+        _expired = false;
+    }
+    void write(int address, Byte data)
+    {
+        if (address == 0) {
+            _count = data;
+            _value = _count;
+        }
+    }
+    void wait()
+    {
+        --_value;
+        if (_value == 0) {
+            _expired = true;
+            _value = _count;
+        }
+    }
+    bool expired()
+    {
+        bool e = _expired;
+        _expired = false;
+        return e;
+    }
+private:
+    Word _count;
+    Word _value;
+    bool _expired;
+};
+
+class PICEmulator
+{
+public:
+    void reset()
+    {
+        _firstAck = false;
+        _interruptPending = false;
+        _interrupt = 0;
+    }
+    void write(int address, Byte data)
+    {
+    }
+    Byte interruptAcknowledge()
+    {
+        _firstAck = !_firstAck;
+        if (_firstAck)
+            return 0xff;
+        _interruptPending = false;
+        return _interrupt | 8;
+    }
+    void irq(int number)
+    {
+        _interrupt = number;
+        _interruptPending = true;
+    }
+    bool interruptPending() const { return _interruptPending; }
+private:
+    bool _firstAck;
+    bool _interruptPending;
+    int _interrupt;
+};
+
 class BusEmulator
 {
 public:
     BusEmulator() : _ram(0xa0000) { }
     Byte* ram() { return &_ram[0]; }
+    void reset()
+    {
+        _pic.reset();
+        _pit.reset();
+        _pitPhase = 1;
+    }
     void startAccess(DWord address, int type)
     {
         _address = address;
         _type = type;
         _cycle = 0;
     }
-    void wait() { ++_cycle; }
+    void wait()
+    {
+        ++_cycle;
+        ++_pitPhase;
+        if (_pitPhase == 4) {
+            _pitPhase = 0;
+            _pit.wait();
+            if (_pit.expired())
+                _pic.irq(0);
+        }
+    }
     bool ready()
     {
         if (_type == 1 || _type == 2)
@@ -938,23 +1025,36 @@ public:
     }
     void write(Byte data)
     {
-        if (_type == 2)
-            return;  // No port writes implemented yet
-        _ram[_address] = data;
+        if (_type == 2) {
+            switch (_address & 0x3e0) {
+                case 0x20:
+                    _pic.write(_address & 1, data);
+                    break;
+                case 0x40:
+                    _pit.write(_address & 3, data);
+                    break;
+            }
+        }
+        else
+            _ram[_address] = data;
     }
     Byte read()
     {
         if (_type == 0) // Interrupt acknowledge
-            return 8; // Assume all IRQs are IRQ0 for now.
+            return _pic.interruptAcknowledge();
         if (_type == 1) // Read port
             return 0xff;  // Only a dummy port for now
         return _ram[_address];
     }
+    bool interruptPending() { return _pic.interruptPending(); }
 private:
     Array<Byte> _ram;
     DWord _address;
     int _type;
     int _cycle;
+    PITEmulator _pit;
+    PICEmulator _pic;
+    int _pitPhase;
 };
 
 class Emulator
@@ -1032,6 +1132,7 @@ private:
         _completed = true;
         _repeating = false;
         _busReady = false;
+        _bus.reset();
 
         do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
             executeOneInstruction();
@@ -1622,8 +1723,13 @@ private:
                 wait(1);
                 break;
             case 0x99: // CWD
-                dx() = ((ax() & 0x8000) == 0 ? 0x0000 : 0xffff);
                 wait(4);
+                if ((ax() & 0x8000) == 0)
+                    dx() = 0;
+                else {
+                    wait(1);
+                    dx() = 0xffff;
+                }
                 break;
             case 0x9a: // CALL cd
                 {
@@ -2127,31 +2233,43 @@ private:
                 _repeating = true;
                 break;
             case 0xf5: // CMC
-                throw Exception("Not yet implemented.");
+                _flags ^= 1;
+                wait(1);
                 break;
             case 0xf6: case 0xf7: // math
                 readEA();
-                if ((modRMReg() & 6) == 0) {
-                    _destination = _data;
-                    _data = fetchInstruction();
-                }
                 switch (modRMReg()) {
                     case 0:
                     case 1:  // TEST
-                        //test(_destination, _data);
-                        //end(_useMemory ? 7 : 5);
-                        throw Exception("Not yet implemented.");
+                        _destination = _data;
+                        wait(2);
+                        _data = fetchInstruction();
+                        test(_destination, _data);
+                        if (_useMemory)
+                            wait(2);
                         break;
                     case 2:  // NOT
-                        //writeEA(~_data, _useMemory ? 8 : 3);
-                        throw Exception("Not yet implemented.");
+                        wait(1);
+                        if (_useMemory) {
+                            wait(3);
+                            _prefetching = false;
+                            wait(2);
+                            _prefetching = true;
+                        }
+                        writeEA(~_data);
                         break;
                     case 3:  // NEG
-                        //_source = _data;
-                        //_destination = 0;
-                        //sub();
-                        //writeEA(_data, _useMemory ? 8 : 3);
-                        throw Exception("Not yet implemented.");
+                        wait(1);
+                        if (_useMemory) {
+                            wait(3);
+                            _prefetching = false;
+                            wait(2);
+                            _prefetching = true;
+                        }
+                        _source = _data;
+                        _destination = 0;
+                        sub();
+                        writeEA(_data);
                         break;
                     case 4:  // MUL
                     case 5:  // IMUL
@@ -2166,99 +2284,103 @@ private:
                             if (modRMReg() == 4) {
                                 setCF(ah() != 0);
                                 wait(68);
+
                             }
                             else {
-                                throw Exception("Not yet implemented.");
-                                //if ((_source & 0x80) != 0)
-                                //    ah() -= _destination;
-                                //if ((_destination & 0x80) != 0)
-                                //    ah() -= _source;
-                                //setCF(ah() ==
-                                //    ((al() & 0x80) == 0 ? 0 : 0xff));
-                                //wait(80);
+                                if ((_source & 0x80) != 0)
+                                    ah() -= _destination;
+                                if ((_destination & 0x80) != 0)
+                                    ah() -= _source;
+                                setCF(ah() ==
+                                    ((al() & 0x80) == 0 ? 0 : 0xff));
+                                if (_useMemory)
+                                    wait(11);
+                                wait(78);
                             }
                         }
                         else {
-                            throw Exception("Not yet implemented.");
-                            //if (modRMReg() == 4) {
-                            //    dx() = _data >> 16;
-                            //    _data |= dx();
-                            //    setCF(dx() != 0);
-                            //    wait(118);
-                            //}
-                            //else {
-                            //    dx() = _data >> 16;
-                            //    if ((_source & 0x8000) != 0)
-                            //        dx() -= _destination;
-                            //    if ((_destination & 0x8000) != 0)
-                            //        dx() -= _source;
-                            //    _data |= dx();
-                            //    setCF(dx() ==
-                            //        ((ax() & 0x8000) == 0 ? 0 : 0xffff));
-                            //    wait(128);
-                            //}
+                            if (modRMReg() == 4) {
+                                dx() = _data >> 16;
+                                _data |= dx();
+                                setCF(dx() != 0);
+                                wait(118);
+                            }
+                            else {
+                                dx() = _data >> 16;
+                                if ((_source & 0x8000) != 0)
+                                    dx() -= _destination;
+                                if ((_destination & 0x8000) != 0)
+                                    dx() -= _source;
+                                _data |= dx();
+                                setCF(dx() ==
+                                    ((ax() & 0x8000) == 0 ? 0 : 0xffff));
+                                wait(128);
+                            }
                         }
                         setZF();
                         setOF(cf());
                         if (_useMemory)
-                            wait(2);
+                            wait(1);
                         break;
                     case 6:  // DIV
                     case 7:  // IDIV
-                        throw Exception("Not yet implemented.");
-                        //_source = _data;
-                        //if (_source == 0) {
-                        //    interrupt(0);
-                        //    break;
-                        //}
-                        //if (!_wordSize) {
-                        //    _destination = ax();
-                        //    if (modRMReg() == 6) {
-                        //        div();
-                        //        if (_data > 0xff) {
-                        //            interrupt(0);
-                        //            break;
-                        //        }
-                        //        _wait = 80;
-                        //    }
-                        //    else {
-                        //        _destination = ax();
-                        //        if ((_destination & 0x8000) != 0)
-                        //            _destination |= 0xffff0000;
-                        //        _source = signExtend(_source);
-                        //        div();
-                        //        if (_data > 0x7f && _data < 0xffffff80) {
-                        //            interrupt(0);
-                        //            break;
-                        //        }
-                        //        _wait = 101;
-                        //    }
-                        //    ah() = _remainder;
-                        //    al() = _data;
-                        //}
-                        //else {
-                        //    _destination = (dx() << 16) + ax();
-                        //    div();
-                        //    if (modRMReg() == 6) {
-                        //        if (_data > 0xffff) {
-                        //            interrupt(0);
-                        //            break;
-                        //        }
-                        //        _wait = 144;
-                        //    }
-                        //    else {
-                        //        if (_data > 0x7fff && _data <  0xffff8000) {
-                        //            interrupt(0);
-                        //            break;
-                        //        }
-                        //        _wait = 165;
-                        //    }
-                        //    dx() = _remainder;
-                        //    ax() = _data;
-                        //}
-                        //if (_useMemory)
-                        //    _wait += 2;
-                        //_state = stateEndInstruction;
+                        _source = _data;
+                        if (_source == 0) {
+                            wait(11);
+                            if (modRMReg() == 7)
+                                wait(10);
+                            interrupt(0);
+                            break;
+                        }
+                        if (!_wordSize) {
+                            _destination = ax();
+                            if (modRMReg() == 6) {
+                                div();
+                                if (_data > 0xff) {
+                                    interrupt(0);
+                                    break;
+                                }
+                                wait(77);
+                            }
+                            else {
+                                _destination = ax();
+                                if ((_destination & 0x8000) != 0)
+                                    _destination |= 0xffff0000;
+                                _source = signExtend(_source);
+                                div();
+                                if (_data > 0x7f && _data < 0xffffff80) {
+                                    interrupt(0);
+                                    break;
+                                }
+                                if (_useMemory)
+                                    wait(1);
+                                wait(97);
+                            }
+                            ah() = _remainder;
+                            al() = _data;
+                        }
+                        else {
+                            _destination = (dx() << 16) + ax();
+                            div();
+                            if (modRMReg() == 6) {
+                                if (_data > 0xffff) {
+                                    interrupt(0);
+                                    break;
+                                }
+                                wait(144);
+                            }
+                            else {
+                                if (_data > 0x7fff && _data <  0xffff8000) {
+                                    interrupt(0);
+                                    break;
+                                }
+                                wait(165);
+                            }
+                            dx() = _remainder;
+                            ax() = _data;
+                        }
+                        if (_useMemory)
+                            wait(2);
                         break;
                 }
                 break;
@@ -2266,7 +2388,8 @@ private:
                 throw Exception("Not yet implemented.");
                 break;
             case 0xfa: case 0xfb: // CLISTI
-                throw Exception("Not yet implemented.");
+                setIF(_wordSize);
+                wait(1);
                 break;
             case 0xfc: case 0xfd: // CLDSTD
                 throw Exception("Not yet implemented.");
@@ -2288,12 +2411,17 @@ private:
         //    _nmiRequested = false;
         //    interrupt(2);
         //}
-        //if (intf() && _interruptRequested) {
-        //    initIO(stateHardwareInt, ioInterruptAcknowledge,
-        //        false);
-        //    _interruptRequested = false;
-        //    _wait = 1;
-        //}
+        if (intf() && _bus.interruptPending()) {
+            _repeating = false;
+            _completed = true;
+            _segmentOverride = 1;
+            _lock = false;
+            wait(10);  // Some of these may actually be in the PIT or PIC
+            busAccess(ioInterruptAcknowledge);
+            _data = busAccess(ioInterruptAcknowledge);
+            wait(2);
+            interrupt(_data);
+        }
     }
 
     bool _logging;
@@ -2327,37 +2455,37 @@ private:
         al() &= 0x0f;
         wait(8);
     }
-    //void div()
-    //{
-    //    bool negative = false;
-    //    bool dividendNegative = false;
-    //    if (modRMReg() == 7) {
-    //        if ((_destination & 0x80000000) != 0) {
-    //            _destination =
-    //                static_cast<UInt32>(-static_cast<SInt32>(_destination));
-    //            negative = !negative;
-    //            dividendNegative = true;
-    //        }
-    //        if ((_source & 0x8000) != 0) {
-    //            _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
-    //                & 0xffff;
-    //            negative = !negative;
-    //        }
-    //    }
-    //    _data = _destination / _source;
-    //    UInt32 product = _data * _source;
-    //    // ISO C++ 2003 does not specify a rounding mode, but the x86 always
-    //    // rounds towards zero.
-    //    if (product > _destination) {
-    //        --_data;
-    //        product -= _source;
-    //    }
-    //    _remainder = _destination - product;
-    //    if (negative)
-    //        _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
-    //    if (dividendNegative)
-    //        _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
-    //}
+    void div()
+    {
+        bool negative = false;
+        bool dividendNegative = false;
+        if (modRMReg() == 7) {
+            if ((_destination & 0x80000000) != 0) {
+                _destination =
+                    static_cast<UInt32>(-static_cast<SInt32>(_destination));
+                negative = !negative;
+                dividendNegative = true;
+            }
+            if ((_source & 0x8000) != 0) {
+                _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
+                    & 0xffff;
+                negative = !negative;
+            }
+        }
+        _data = _destination / _source;
+        UInt32 product = _data * _source;
+        // ISO C++ 2003 does not specify a rounding mode, but the x86 always
+        // rounds towards zero.
+        if (product > _destination) {
+            --_data;
+            product -= _source;
+        }
+        _remainder = _destination - product;
+        if (negative)
+            _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
+        if (dividendNegative)
+            _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
+    }
     void jumpShort()
     {
         wait(1);
@@ -3086,10 +3214,10 @@ private:
                     t.preamble(0x47);  
                     t.preamble(0x0c);
                     t.preamble(opcode - 0xcb);  
-                    t.preamble(0x00);  // MOV WORD[BX+0C],0000
+                    t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
                     t.preamble(0x8c);
                     t.preamble(0x4f); 
-                    t.preamble(0x0e);  // MOV [BX+0E],CS
+                    t.preamble(0x0e);  // MOV [BX+0x0E],CS
                     t.fixup(0x07);
                     break;
                 case 0xcf: // IRET
@@ -3106,6 +3234,51 @@ private:
                     break;
                 case 0xe4: case 0xe5: case 0xe6: case 0xe7: // IN/OUT ib
                     i.setImmediate(0xe0);
+                    break;
+                case 0xf4: // HLT
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);  
+                    t.preamble(0x20);
+                    t.preamble(0x01);  
+                    t.preamble(0x00);  // MOV WORD[BX+0x20],0001
+                    t.preamble(0x8c);
+                    t.preamble(0x4f); 
+                    t.preamble(0x22);  // MOV [BX+0x22],CS
+                    //t.preamble(0xe4);  
+                    //t.preamble(0xe0);  // IN AL,0xE0
+                    t.preamble(0xb0);
+                    t.preamble(0x14);  // MOV AL,0x14
+                    t.preamble(0xe6);
+                    t.preamble(0x43);  // OUT 0x43,AL
+                    t.preamble(0xb0);
+                    t.preamble(0x3f);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                    t.preamble(0xe6);
+                    t.preamble(0x40);  // OUT 0x40,AL
+                    t.preamble(0xfb);  // STI
+                    t.fixup(0x07);
+                    break;
+                case 0xf6: case 0xf7:
+                    if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
+                        t.preamble(0x1e);  // PUSH DS
+                        t.preamble(0x31);
+                        t.preamble(0xdb);  // XOR BX,BX
+                        t.preamble(0x8e);
+                        t.preamble(0xdb);  // MOV DS,BX
+                        t.preamble(0xc7);
+                        t.preamble(0x47);  
+                        t.preamble(0x00);
+                        t.preamble(0x02);  
+                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                        t.preamble(0x8c);
+                        t.preamble(0x4f); 
+                        t.preamble(0x02);  // MOV [BX+0x02],CS
+                        t.preamble(0x1f);  // POP DS
+                        t.fixup(0x08);
+                    }
                     break;
             }
             t.addInstruction(i);

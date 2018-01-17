@@ -624,8 +624,8 @@ class Program : public ProgramBase
                         instruction = disassembler.disassemble(b, qs == 1);
                     }
                 }
-                if (t == 3 || d == 4) {
-                    if (t == 3 && d == 4)
+                if (tNext == 4 || d == 4) {
+                    if (t == 4 && d == 4)
                         o += "!e";
                     String seg;
                     switch (cpu & 0x30000) {
