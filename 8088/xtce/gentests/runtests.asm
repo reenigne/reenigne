@@ -53,7 +53,9 @@ LENGTH EQU 2048
   mov word[8*4],irq0
   mov [8*4+2],cs
   mov word[0xff*4],interruptFF
-  mov word[0xff*4+2],cs
+  mov [0xff*4+2],cs
+  mov word[3*4],int3handler
+  mov [3*4+2],cs
 
   mov ax,cs
   mov ds,ax
@@ -148,6 +150,7 @@ noSatHigh:
   call outputDecimal
 
   outputCharacter 10
+  outputCharacter 'x'
 
   mov word[sniffer],0x8000
 
@@ -156,8 +159,8 @@ noSatHigh:
   mov cx,16
 loopTop:
   mov [savedCX],cx
-  mov cx,1; + ITERS
-;    mov word[countedCycles],2047
+  mov cx,1 + ITERS
+    mov word[countedCycles],2047
   call doMeasurement
 
   mov ax,[countedCycles]
@@ -200,7 +203,14 @@ repeatLoop:
   stosw
   jmp doneQueueFiller
 notQueueFiller0:
-
+  cmp al,0x20
+  jne notQueueFiller1
+  mov ax,0x10b1  ; 'mov cl,16'
+  stosw
+  mov ax,0xe9d2  ; 'shl cl,cl'
+  stosw
+  jmp doneQueueFiller
+notQueueFiller1:
   jmp testFailed
 doneQueueFiller:
   mov cl,bl
@@ -348,6 +358,11 @@ doneQueueFiller:
   mov word[cs:testBuffer],0
   mov [cs:testBuffer+2],ds
   jmp far [cs:testBuffer]
+
+int3handler:
+  add sp,4
+  popf
+  retf
 
 irq0:
   iret

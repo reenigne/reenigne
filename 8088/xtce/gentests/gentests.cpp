@@ -151,6 +151,7 @@ public:
     Byte opcode() { return _opcode; }
     Byte modrm() { return _modrm; }
     void setImmediate(DWord immediate) { _immediate = immediate; }
+    void setModrm(Byte modrm) { _modrm = modrm; }
 private:
     Byte _opcode;
     Byte _modrm;
@@ -237,6 +238,13 @@ public:
                 p[3] = 0xe0;
                 ql = 4;
                 break;
+            case 1:
+                p[0] = 0xb1;
+                p[1] = 0x10;
+                p[2] = 0xd2;
+                p[3] = 0xe9;
+                ql = 4;
+                break;
             default:
                 throw Exception("Unknown queue filler.");
         }
@@ -281,6 +289,7 @@ public:
     int cycles() { return _cycles; }
     void preamble(Byte p) { _preamble.append(p); }
     void fixup(Byte f) { _fixups.append(f); }
+    void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
 private:
     int _queueFiller;
     int _nops;
@@ -992,7 +1001,11 @@ private:
 class BusEmulator
 {
 public:
-    BusEmulator() : _ram(0xa0000) { }
+    BusEmulator() : _ram(0xa0000), _rom(0x8000)
+    {
+        File("Q:\\external\\8088\\roms\\ibm5160\\1501512.u18", true).
+            openRead().read(&_rom[0], 0x8000);
+    }
     Byte* ram() { return &_ram[0]; }
     void reset()
     {
@@ -1036,7 +1049,8 @@ public:
             }
         }
         else
-            _ram[_address] = data;
+            if (_address < 0xa0000)
+                _ram[_address] = data;
     }
     Byte read()
     {
@@ -1044,11 +1058,16 @@ public:
             return _pic.interruptAcknowledge();
         if (_type == 1) // Read port
             return 0xff;  // Only a dummy port for now
+        if (_address >= 0xf8000)
+            return _rom[_address - 0xf8000];
+        if (_address >= 0xa0000)
+            return 0xff;
         return _ram[_address];
     }
     bool interruptPending() { return _pic.interruptPending(); }
 private:
     Array<Byte> _ram;
+    Array<Byte> _rom;
     DWord _address;
     int _type;
     int _cycle;
@@ -1105,6 +1124,17 @@ private:
         cs() = testSegment;
         ss() = testSegment;
         ds() = testSegment;
+
+        Byte* ram = _bus.ram();
+        ram[3*4 + 0] = 0x00;  // int 3 handler at 0x400
+        ram[3*4 + 1] = 0x04;
+        ram[3*4 + 2] = 0x00;
+        ram[3*4 + 3] = 0x00;
+        ram[0x400] = 0x83;
+        ram[0x401] = 0xc4;
+        ram[0x402] = 0x04;  // ADD SP,+4
+        ram[0x403] = 0x9d;  // POPF
+        ram[0x404] = 0xcb;  // RETF
 
         Byte* r = _bus.ram() + (testSegment << 4);
         Byte* stopP = _test.outputCode(r);
@@ -1240,6 +1270,8 @@ private:
             }
             if (_prefetchedRemove) {
                 --_prefetchedBIU;
+                if (_prefetchedBIU == 0xff)
+                    printf("Bug");
                 _prefetchOffset = (_prefetchOffset + 1) & 3;
                 _prefetchedRemove = false;
             }
@@ -1274,11 +1306,11 @@ private:
         _ioNext._data = _data;
         _ioNext._type = type;
     }
-    Byte busAccess(IOType type)
+    Byte busAccess(IOType type, Word address)
     {
         while (_ioNext._type != ioPassive)
             wait(1);
-        initIO(type, _address);
+        initIO(type, address);
         _synchronousDone = false;
         do {
             wait(1);
@@ -1307,10 +1339,9 @@ private:
     }
     void busWriteWord(IOType type)
     {
-        busAccess(type);
+        busAccess(type, _address);
         _data >>= 8;
-        ++_address;
-        busAccess(type);
+        busAccess(type, _address + 1);
     }
     Byte fetchInstructionByte()
     {
@@ -1320,6 +1351,8 @@ private:
             wait(1);
         while (_prefetchedEU == 0);
         UInt8 byte = _prefetchQueue[_prefetchOffset & 3];
+        if (_prefetchedBIU == 0)
+            printf(("Bug2"));
         _prefetchedRemove = true;
         --_prefetchedEU;
         _snifferDecoder.queueOperation(3);
@@ -1342,7 +1375,6 @@ private:
         _modRM = fetchInstructionByte();
         if ((_modRM & 0xc0) == 0xc0) {
             _useMemory = false;
-            _address = _modRM & 7;
             return;
         }
         _useMemory = true;
@@ -1386,7 +1418,7 @@ private:
         if (_wordSize)
             _data = busReadWord(type);
         else
-            _data = busAccess(type);
+            _data = busAccess(type, _address);
     }
     void readEA()
     {
@@ -1399,9 +1431,9 @@ private:
             return;
         }
         if (!_wordSize)
-            _data = _byteRegisters[_address];
+            _data = _byteRegisters[modRMReg2()];
         else
-            _data = _wordRegisters[_address];
+            _data = _wordRegisters[modRMReg2()];
     }
     void readEA2()
     {
@@ -1416,7 +1448,7 @@ private:
         if (_wordSize)
             busWriteWord(type);
         else
-            busAccess(type);
+            busAccess(type, _address);
     }
     void writeEA(UInt16 data, int w = 0)
     {
@@ -1427,9 +1459,9 @@ private:
             return;
         }
         if (!_wordSize)
-            _byteRegisters[_address] = _data;
+            _byteRegisters[modRMReg2()] = _data;
         else
-            _wordRegisters[_address] = _data;
+            _wordRegisters[modRMReg2()] = _data;
     }
 
     void executeOneInstruction()
@@ -1752,7 +1784,16 @@ private:
                 }
                 break;
             case 0x9b: // WAIT
-                throw Exception("Not yet implemented.");
+                if (!_repeating)
+                    --_ip;
+                wait(1);
+                if (/*_nmiRequested ||*/ (intf() && _bus.interruptPending())) {
+                    wait(14);
+                    _snifferDecoder.queueOperation(2);
+                    checkInterrupts2(3);
+                }
+                else
+                    _repeating = true;
                 break;
             case 0x9c: // PUSHF
                 _wordSize = true;
@@ -2093,7 +2134,7 @@ private:
                 _prefetching = false;
                 wait(2);
                 _prefetching = true;
-                al() = busAccess(ioReadMemory);
+                al() = busAccess(ioReadMemory, _address);
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
@@ -2400,7 +2441,6 @@ private:
                 break;
             case 0xfe: case 0xff: // misc
                 readEA();
-                //_savedIP = _data;
                 switch (modRMReg()) {
                     case 0:  // INC rm
                     case 1:  // DEC rm
@@ -2435,12 +2475,11 @@ private:
                         while (_busState != tIdle || _ioNext._type != ioPassive)
                             wait(1);
                         wait(2);
-                        if (_useMemory)
                         if (!_wordSize) {
                             if (_useMemory)
                                 _data |= 0xff00;
                             else
-                                _data = _wordRegisters[_address];
+                                _data = _wordRegisters[modRMReg2()];
                         }
 
                         _savedIP = _ip;
@@ -2453,8 +2492,10 @@ private:
                         break;
                     case 3:  // CALL rmd
                         {
-                            wait(3);
-                            if (!_wordSize)
+                            wait(2);
+                            if (_useMemory)
+                                wait(1);
+                            if (!_wordSize && _useMemory)
                                 _data |= 0xff00;
                             UInt16 savedIP = _data;
                             readEA2();
@@ -2470,7 +2511,6 @@ private:
                             wait(2);
 
                             push2(cs());
-                            //_prefetching = false;
                             wait(5);
                             UInt16 oldIP = _ip;
                             cs() = savedCS;
@@ -2482,15 +2522,21 @@ private:
                         }
                         break;
                     case 4:  // JMP rm
-                        // TODO: combine this with same code in JMP cw
-                        wait(4);
+                        // TODO: combine this with same code in JMP cw?
+                        wait(1);
+                        if (_useMemory)
+                            wait(3);
                         _prefetching = false;
                         while ((_busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
                             wait(1);
 
                         _savedIP = _ip;
-                        if (!_wordSize)
-                            _data |= 0xff00;
+                        if (!_wordSize) {
+                            if (_useMemory)
+                                _data |= 0xff00;
+                            else
+                                _data = _wordRegisters[modRMReg2()];
+                        }
                         setIP(_data);
                         wait(1);
                         _prefetching = true;
@@ -2499,24 +2545,26 @@ private:
                         {
                             wait(2);
                             _prefetching = false;
-                            wait(2);
+                            wait(1);
+                            if (_useMemory)
+                                wait(1);
                             while ((_busState != t4 && _busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
                                 wait(1);
-                            if (!_wordSize)
-                                _data |= 0xff00;
+                            if (!_wordSize) {
+                                if (_useMemory)
+                                    _data |= 0xff00;
+                                else
+                                    _data = _wordRegisters[modRMReg2()];
+                            }
                             UInt16 savedIP = _data;
                             readEA2();
                             if (!_wordSize)
                                 _data |= 0xff00;
                             UInt16 savedCS = _data;
 
-                            //wait(4);
-                            //while (_busState != tIdle || _ioNext._type != ioPassive)
-                            //    wait(1);
-                            //wait(1);
-
                             _prefetching = false;
-                            //wait(5);
+                            if (!_useMemory)
+                                wait(1);
                             cs() = savedCS;
                             setIP(savedIP);
                             wait(1);
@@ -2526,10 +2574,15 @@ private:
                         break;
                     case 6:  // PUSH rm
                     case 7:
-                        wait(1);
-                        push(_data);
-                        break;
+                        if (_useMemory)
+                            wait(1);
 
+                        wait(4);
+                        _prefetching = false;
+                        wait(2);
+                        _prefetching = true;
+                        push2(_data);
+                        break;
                 }
                 break;
         }
@@ -2542,20 +2595,24 @@ private:
     }
     void checkInterrupts()
     {
+        if (tf())
+            interrupt(1);
+        checkInterrupts2();
+    }
+    void checkInterrupts2(int w = 10)
+    {
         //if (_nmiRequested) {
         //    _nmiRequested = false;
         //    interrupt(2);
         //}
-        if (tf())
-            interrupt(1);
         if (intf() && _bus.interruptPending()) {
             _repeating = false;
             _completed = true;
             _segmentOverride = 1;
             _lock = false;
-            wait(10);  // Some of these may actually be in the PIT or PIC
-            busAccess(ioInterruptAcknowledge);
-            _data = busAccess(ioInterruptAcknowledge);
+            wait(w);  // Some of these may actually be in the PIT or PIC
+            busAccess(ioInterruptAcknowledge, 0);
+            _data = busAccess(ioInterruptAcknowledge, 0);
             wait(2);
             interrupt(_data);
         }
@@ -2957,6 +3014,7 @@ private:
     bool of() { return (_flags & 0x800) != 0; }
     void setOF(bool of) { _flags = (_flags & ~0x800) | (of ? 0x800 : 0); }
     int modRMReg() { return (_modRM >> 3) & 7; }
+    int modRMReg2() { return _modRM & 7; }
     Register<UInt16>& modRMRW() { return _wordRegisters[modRMReg()]; }
     Register<UInt8>& modRMRB() { return _byteRegisters[modRMReg()]; }
     UInt16 getReg()
@@ -2986,6 +3044,7 @@ private:
         _prefetchedBIU = 0;
         _snifferDecoder.queueOperation(2);
         _prefetchAddress = _ip;
+        _prefetchedRemove = false;
     }
 
     Register<UInt16> _wordRegisters[8];
@@ -3146,12 +3205,15 @@ public:
             p[1] = totalLength >> 8;
             p += 2;
             for (int i = nextTest; i < newNextTest; ++i) {
-                int cycles = (_tests[i].cycles() /*+ 1*/) * 2;
+                int cycles = _tests[i].cycles()*2;
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
                 _tests[i].output(p);
                 p += _tests[i].length() - 2;
+
+                //console.write(emulator.log(_tests[i]));
+                //return;
             }
 
             {
@@ -3294,7 +3356,29 @@ private:
                     t.preamble(0x50);  // PUSH AX
                     break;
                 case 0x9b: // WAIT
-                    continue;  // No way to test WAIT at the moment...
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);  
+                    t.preamble(0x20);
+                    t.preamble(0x01);  
+                    t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                    t.preamble(0x8c);
+                    t.preamble(0x4f); 
+                    t.preamble(0x22);  // MOV [BX+0x22],CS
+                    t.preamble(0xb0);
+                    t.preamble(0x14);  // MOV AL,0x14
+                    t.preamble(0xe6);
+                    t.preamble(0x43);  // OUT 0x43,AL
+                    t.preamble(0xb0);
+                    t.preamble(0x43);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                    t.preamble(0xe6);
+                    t.preamble(0x40);  // OUT 0x40,AL
+                    t.preamble(0xfb);  // STI
+                    t.fixup(0x07);
+                    break;
                 case 0x9d: // POPF
                     t.preamble(0x9c);  // PUSHF
                     break;
@@ -3414,115 +3498,188 @@ private:
                     }
                     break;
                 case 0xfe: case 0xff:
-                    if ((i.modrm() & 0x38) == 0x10) {  // CALL rm
-                        t.preamble(0xc6);
-                        t.preamble(0x47);
-                        t.preamble(0xc0);
-                        t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
+                    switch (i.modrm() & 0x38) {
+                        case 0x10:  // CALL rm
+                            t.preamble(0xc6);
+                            t.preamble(0x47);
+                            t.preamble(0xc0);
+                            t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
 
-                        t.preamble(0xb8);
-                        t.preamble(i.length());
-                        t.preamble(0x00);  // MOV AX,0x0002
-                        t.preamble(0x50);  // PUSH AX
-                        t.preamble(0x58);  // POP AX
+                            t.preamble(0xb8);
+                            t.preamble(i.length());
+                            t.preamble(0x00);  // MOV AX,0x0002
+                            t.preamble(0x50);  // PUSH AX
+                            t.preamble(0x58);  // POP AX
 
-                        t.preamble(0xc7);
-                        t.preamble(0x07);
-                        t.preamble(0xc0);  
-                        t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
+                            t.preamble(0xc7);
+                            t.preamble(0x07);
+                            t.preamble(0xc0);  
+                            t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
 
-                        t.preamble(0x8c);
-                        t.preamble(0x4f);
-                        t.preamble(0x02);  // MOV [BX+2],CS  // make it far
+                            t.preamble(0x8c);
+                            t.preamble(0x4f);
+                            t.preamble(0x02);  // MOV [BX+2],CS  // make it far
 
-                        t.fixup(0x05);
-                    }
-                    if ((i.modrm() & 0x38) == 0x18) {  // CALL rmd
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x31);
-                        t.preamble(0xdb);  // XOR BX,BX
-                        t.preamble(0x8e);  
-                        t.preamble(0xdb);  // MOV DS,BX
-                        t.preamble(0xc6);
-                        t.preamble(0x47);
-                        t.preamble(0xdf);
-                        t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
-                        t.preamble(0x1f);  // POP DS
+                            t.fixup(0x05);
+                            break;
+                        case 0x18:  // CALL rmd
+                            if ((i.modrm() & 0xc0) != 0xc0) { // CALL md
+                                t.preamble(0x1e);  // PUSH DS
+                                t.preamble(0x31);
+                                t.preamble(0xdb);  // XOR BX,BX
+                                t.preamble(0x8e);  
+                                t.preamble(0xdb);  // MOV DS,BX
+                                t.preamble(0xc6);
+                                t.preamble(0x47);
+                                t.preamble(0xdf);
+                                t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
+                                t.preamble(0x1f);  // POP DS
+                                t.preamble(0xc6);
+                                t.preamble(0x47);
+                                t.preamble(0x04);
+                                t.preamble(0xcb);  // MOV BYTE[BX+4],0xCB  // RETF
 
-                        t.preamble(0xb8);
-                        t.preamble(i.length());
-                        t.preamble(0x00);  // MOV AX,0x0002
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x50);  // PUSH AX
-                        t.preamble(0x58);  // POP AX
-                        t.preamble(0x1f);  // POP DS
+                                t.preamble(0xb8);
+                                t.preamble(i.length());
+                                t.preamble(0x00);  // MOV AX,0x0002
+                                t.preamble(0x1e);  // PUSH DS
+                                t.preamble(0x50);  // PUSH AX
+                                t.preamble(0x58);  // POP AX
+                                t.preamble(0x1f);  // POP DS
 
-                        t.preamble(0xc7);
-                        t.preamble(0x07);
-                        t.preamble(0xef);  
-                        t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+                                t.preamble(0xc7);
+                                t.preamble(0x07);
+                                t.preamble(0xef);  
+                                t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
 
-                        t.preamble(0xc7);
-                        t.preamble(0x47);
-                        t.preamble(0x02);
-                        t.preamble(0xff);  
-                        t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+                                t.preamble(0xc7);
+                                t.preamble(0x47);
+                                t.preamble(0x02);
+                                t.preamble(0xff);  
+                                t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
 
-                        t.fixup(0x0b);
-                    }
-                    if ((i.modrm() & 0x38) == 0x20) {  // JMP rm
-                        t.preamble(0xc6);
-                        t.preamble(0x47);
-                        t.preamble(0xc0);
-                        t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
+                                t.fixup(0x0f);
+                            }
+                            else {  // CALL rd
+                                t.preamble(0xc6);
+                                t.preamble(0x47);
+                                t.preamble(0x02);
+                                t.preamble(0xf7);  // MOV BYTE[BX+2],0xF7
 
-                        t.preamble(0xb8);
-                        t.preamble(i.length());
-                        t.preamble(0x00);  // MOV AX,0x0002
-                        t.preamble(0x50);  // PUSH AX
+                                t.preamble(0xb8);
+                                t.preamble(i.length());
+                                t.preamble(0x00);  // MOV AX,0x0002
+                                t.preamble(0x1e);  // PUSH DS
+                                t.preamble(0x50);  // PUSH AX
+                                t.preamble(0x58);  // POP AX
+                                t.preamble(0x1f);  // POP DS
 
-                        t.preamble(0xc7);
-                        t.preamble(0x07);
-                        t.preamble(0xc0);  
-                        t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
+                                t.preamble(0xc6);
+                                t.preamble(0x07);
+                                t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // Set address register to 0
 
-                        t.fixup(0x05);
-                    }
-                    if ((i.modrm() & 0x38) == 0x28) {  // JMP rmd
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x31);
-                        t.preamble(0xdb);  // XOR BX,BX
-                        t.preamble(0x8e);  
-                        t.preamble(0xdb);  // MOV DS,BX
-                        t.preamble(0xc6);
-                        t.preamble(0x47);
-                        t.preamble(0xdf);
-                        t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
-                        t.preamble(0x1f);  // POP DS
+                                t.fixup(0x05);
+                            }
+                            break;
+                        case 0x20:  // JMP rm
+                            if ((i.modrm() & 0xc0) != 0xc0) {  // JMP m
+                                t.preamble(0xc6);
+                                t.preamble(0x47);
+                                t.preamble(0xc0);
+                                t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
 
-                        t.preamble(0xb8);
-                        t.preamble(i.length());
-                        t.preamble(0x00);  // MOV AX,0x0002
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x50);  // PUSH AX
+                                t.preamble(0xb8);
+                                t.preamble(i.length());
+                                t.preamble(0x00);  // MOV AX,0x0002
+                                t.preamble(0x50);  // PUSH AX
 
-                        t.preamble(0xc7);
-                        t.preamble(0x07);
-                        t.preamble(0xef);  
-                        t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+                                t.preamble(0xc7);
+                                t.preamble(0x07);
+                                t.preamble(0xc0);  
+                                t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
 
-                        t.preamble(0xc7);
-                        t.preamble(0x47);
-                        t.preamble(0x02);
-                        t.preamble(0xff);  
-                        t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+                                t.fixup(0x05);
+                            }
+                            else {  // JMP r
+                                t.preamble(0xc6);
+                                t.preamble(0x07);
+                                t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
 
-                        t.fixup(0x0b);
+                                t.preamble(0xb8);
+                                t.preamble(i.length());
+                                t.preamble(0x00);  // MOV AX,0x0002
+                                t.preamble(0x50);  // PUSH AX
+
+                                t.fixup(0x04);
+                            }
+                            break;
+                        case 0x28:  // JMP rmd
+                            if ((i.modrm() & 0xc0) != 0xc0) {  // JMP md
+                                t.preamble(0x1e);  // PUSH DS
+                                t.preamble(0x31);
+                                t.preamble(0xdb);  // XOR BX,BX
+                                t.preamble(0x8e);  
+                                t.preamble(0xdb);  // MOV DS,BX
+                                t.preamble(0xc6);
+                                t.preamble(0x47);
+                                t.preamble(0xdf);
+                                t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
+                                t.preamble(0x1f);  // POP DS
+
+                                t.preamble(0xb8);
+                                t.preamble(i.length());
+                                t.preamble(0x00);  // MOV AX,0x0002
+                                t.preamble(0x1e);  // PUSH DS
+                                t.preamble(0x50);  // PUSH AX
+
+                                t.preamble(0xc7);
+                                t.preamble(0x07);
+                                t.preamble(0xef);  
+                                t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+
+                                t.preamble(0xc7);
+                                t.preamble(0x47);
+                                t.preamble(0x02);
+                                t.preamble(0xff);  
+                                t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+
+                                t.fixup(0x0b);
+                            }
+                            else {  // JMP rd
+                                t.preamble(0xc7);
+                                t.preamble(0x47);
+                                t.preamble(0x02);
+                                t.preamble(0xf7);
+                                t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
+
+                                t.preamble(0xb8);
+                                t.preamble(i.length());
+                                t.preamble(0x00);  // MOV AX,0x0002
+                                t.preamble(0x1e);  // PUSH DS
+                                t.preamble(0x50);  // PUSH AX
+
+                                t.preamble(0xc6);
+                                t.preamble(0x07);
+                                t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
+
+                                t.fixup(0x06);
+                            }
+                            break;
                     }
                     break;
             }
             t.addInstruction(i);
             switch (opcode) {
+                case 0x9b:  // WAIT
+                    {
+                        Instruction i2(0xe4);  // CWD
+                        i2.setImmediate(0xe0);
+                        t.addInstruction(i2);
+                        t.addInstruction(i2);
+                        //t.addInstruction(i2);
+                        //t.addInstruction(i2);
+                    }
+                    break;
                 case 0xf2: case 0xf3: // REP
                     t.preamble(0xb9);
                     t.preamble(0x05);
