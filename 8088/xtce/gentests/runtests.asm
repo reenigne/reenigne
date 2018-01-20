@@ -1,6 +1,5 @@
   %include "../../defaults_bin.asm"
 
-ITERS EQU 8
 LENGTH EQU 2048
 
 %macro outputByte 0
@@ -85,14 +84,10 @@ notDone:
 ;    call outputDecimal
 ;    outputCharacter ' '
 
-  mov cx,ITERS+1   ; Number of iterations in primary measurement
   call doMeasurement
-  push bx
-  mov cx,1       ; Number of iterations in secondary measurement
-  call doMeasurement
-  pop ax         ; The primary measurement will have the lower value, since the counter counts down
-  sub ax,bx      ; Subtract the secondary value, which will be higher, now AX is negative
-  neg ax         ; Negate to get the positive difference.
+  mov ax,bx
+  neg ax
+  sub ax,5013  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed
@@ -112,7 +107,6 @@ notDone:
 
 testFailed:
   push ax
-  shr ax,1
   mov [countedCycles],ax
 
   mov ax,[testCaseIndex]
@@ -159,7 +153,6 @@ noSatHigh:
   mov cx,16
 loopTop:
   mov [savedCX],cx
-  mov cx,1 + ITERS
     mov word[countedCycles],2047
   call doMeasurement
 
@@ -184,9 +177,7 @@ doMeasurement:
   xor di,di
   mov si,[testCaseOffset]
   mov bl,[si+2]
-repeatLoop:
 
-  push cx
   mov bp,di
   mov cl,[si+3]
   push si
@@ -211,6 +202,10 @@ notQueueFiller0:
   stosw
   jmp doneQueueFiller
 notQueueFiller1:
+  cmp al,0x40
+  jne notQueueFiller2
+  jmp doneQueueFiller
+notQueueFiller2:
   jmp testFailed
 doneQueueFiller:
   mov cl,bl
@@ -249,9 +244,7 @@ doneQueueFiller:
   pop di
   pop bx
   pop si
-  pop cx
 
-  loop repeatLoop
   mov ax,0xffcd  ; 'int 0xff'
   stosw
   xor ax,ax
@@ -313,7 +306,7 @@ doneQueueFiller:
   hlt                   ; ACK first IRQ0
   hlt                   ; wait for second IRQ0
   writePIT16 0, 2, 0 ; Queue an IRQ0 for after the test in case of crash
-  writePIT16 2, 2, 0
+  writePIT16 2, 2, 0        ; ***TIMING START***
 
   in al,0xe0
 
@@ -371,11 +364,36 @@ irq0a:
 
 interruptFF:
   mov al,0x80
-  out 0x43,al
+  out 0x43,al               ; ***TIMING END***
   in al,0x42
   mov bl,al
   in al,0x42
   mov bh,al
+
+  mov al,0x80
+  out 0x43,al
+  in al,0x42
+  mov cl,al
+  in al,0x42
+  mov ch,al
+
+  mov al,0x80
+  out 0x43,al
+  in al,0x42
+  mov dl,al
+  in al,0x42
+  mov dh,al
+
+  mov al,0x80
+  out 0x43,al
+  in al,0x42
+  mov ah,al
+  in al,0x42
+  xchg ah,al
+
+  add bx,ax
+  add bx,cx
+  add bx,dx
 
   xor ax,ax
   mov ds,ax

@@ -245,6 +245,9 @@ public:
                 p[3] = 0xe9;
                 ql = 4;
                 break;
+            case 2:
+                ql = 0;
+                break;
             default:
                 throw Exception("Unknown queue filler.");
         }
@@ -290,6 +293,7 @@ public:
     void preamble(Byte p) { _preamble.append(p); }
     void fixup(Byte f) { _fixups.append(f); }
     void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
+    void setNops(int nops) { _nops = nops; }
 private:
     int _queueFiller;
     int _nops;
@@ -1785,15 +1789,18 @@ private:
                 break;
             case 0x9b: // WAIT
                 if (!_repeating)
-                    --_ip;
-                wait(1);
+                    wait(2);
+                wait(5);
                 if (/*_nmiRequested ||*/ (intf() && _bus.interruptPending())) {
-                    wait(14);
+                    --_ip;
+                    wait(13);
                     _snifferDecoder.queueOperation(2);
                     checkInterrupts2(3);
                 }
-                else
+                else {
                     _repeating = true;
+                    _completed = false;
+                }
                 break;
             case 0x9c: // PUSHF
                 _wordSize = true;
@@ -2272,8 +2279,29 @@ private:
                 _completed = false;
                 break;
             case 0xf4: // HLT
-                wait(1);
-                _repeating = true;
+                if (!_repeating) {
+                    if (_busState == t2 || _busState == t4)
+                        wait(1);
+                    wait(2);
+                    _prefetching = false;
+                    wait(3);
+                    //if (_busState == tFirstIdle)
+                    //    wait(1);
+                    //if (_busState == tIdle || _busState == tFirstIdle)
+                    //    wait(1);
+                    wait(1);
+                }
+                wait(2);
+                if (/*_nmiRequested ||*/ (intf() && _bus.interruptPending())) {
+                    _prefetchedBIU = 4;  // Don't prefetch between vector word fetches
+                    --_ip;
+                    wait(7);
+                    checkInterrupts2(3);
+                }
+                else {
+                    _repeating = true;
+                    _completed = false;
+                }
                 break;
             case 0xf5: // CMC
                 _flags ^= 1;
@@ -2327,7 +2355,6 @@ private:
                             if (modRMReg() == 4) {
                                 setCF(ah() != 0);
                                 wait(68);
-
                             }
                             else {
                                 if ((_source & 0x80) != 0)
@@ -3126,6 +3153,7 @@ public:
         Array<Byte> testProgram;
         File("runtests.bin").readIntoArray(&testProgram);
 
+        // Basic tests
         for (int i = 0; i < 0x100; ++i) {
             Instruction instruction(i);
             if (instruction.hasModrm()) {
@@ -3144,6 +3172,33 @@ public:
             else
                 addTest(instruction);
         }
+        // CBW/CWD tests
+        for (int i = 0x98; i < 0x9a; ++i) {
+            Instruction instruction(i);
+            Test t;
+            t.setQueueFiller(1);
+            t.addInstruction(instruction);
+            t.preamble(0xb8);
+            t.preamble(0xff);
+            t.preamble(0xff);  // MOV AX,-1
+            addTestWithNops(t);
+        }
+        // INTO overflow test
+        {
+            Instruction instruction(0xce);
+            Test t;
+            t.setQueueFiller(2);
+            t.addInstruction(instruction);
+            t.preamble(0xb8);
+            t.preamble(0xff);
+            t.preamble(0xff);  // MOV AX,0xFFFF
+            t.preamble(0xb1);
+            t.preamble(0x10);  // MOV CL,16
+            t.preamble(0xd3);
+            t.preamble(0xe0);  // SHL AX,CL
+            addTestWithNops(t);
+        }
+        
 
         _cache.allocate(_tests.count());
         _cacheHighWaterMark = 0;
@@ -3205,7 +3260,7 @@ public:
             p[1] = totalLength >> 8;
             p += 2;
             for (int i = nextTest; i < newNextTest; ++i) {
-                int cycles = _tests[i].cycles()*2;
+                int cycles = _tests[i].cycles();
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
@@ -3339,167 +3394,257 @@ public:
         dumpCache(_tests.count());
     }
 private:
-    void addTest(Instruction i)
+    void addTestWithNops(Test t)
     {
         for (int nops = 0; nops < 20; ++nops) {
-            Test t(0, nops);
-            Byte opcode = i.opcode();
-            switch (opcode) {
-                case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-                    t.preamble(opcode - 1);  // PUSH segreg
-                    break;
-                case 0x58: case 0x59: case 0x5a: case 0x5b:
-                case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                    t.preamble(opcode - 8);  // PUSH rw
-                    break;
-                case 0x8f: // POP rmw
-                    t.preamble(0x50);  // PUSH AX
-                    break;
-                case 0x9b: // WAIT
+            t.setNops(nops);
+            _tests.append(t);
+        }
+    }
+    void addTest(Instruction i)
+    {
+        Test t(0, 0);
+        Byte opcode = i.opcode();
+        switch (opcode) {
+            case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+                t.preamble(opcode - 1);  // PUSH segreg
+                break;
+            case 0x58: case 0x59: case 0x5a: case 0x5b:
+            case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
+                t.preamble(opcode - 8);  // PUSH rw
+                break;
+            case 0x8f: // POP rmw
+                t.preamble(0x50);  // PUSH AX
+                break;
+            case 0x9b: // WAIT
+                t.preamble(0x31);
+                t.preamble(0xdb);  // XOR BX,BX
+                t.preamble(0x8e);
+                t.preamble(0xdb);  // MOV DS,BX
+                t.preamble(0xc7);
+                t.preamble(0x47);  
+                t.preamble(0x20);
+                t.preamble(0x01);  
+                t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                t.preamble(0x8c);
+                t.preamble(0x4f); 
+                t.preamble(0x22);  // MOV [BX+0x22],CS
+                t.preamble(0xb0);
+                t.preamble(0x14);  // MOV AL,0x14
+                t.preamble(0xe6);
+                t.preamble(0x43);  // OUT 0x43,AL
+                t.preamble(0xb0);
+                t.preamble(0x43);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                t.preamble(0xe6);
+                t.preamble(0x40);  // OUT 0x40,AL
+                t.preamble(0xfb);  // STI
+                t.fixup(0x07);
+                break;
+            case 0x9d: // POPF
+                t.preamble(0x9c);  // PUSHF
+                break;
+            case 0x9a: // CALL cp
+            case 0xea: // JMP cp
+                i.setImmediate(
+                    (static_cast<DWord>(testSegment) << 16) + 5);
+                t.fixup(0x81);
+                break;
+            case 0xc0: case 0xc2: // RET iw
+                t.preamble(0xb8);  // MOV AX,3
+                t.preamble(0x03);
+                t.preamble(0x00);
+                t.preamble(0x50);  // PUSH AX
+                t.fixup(0x01);
+                break;
+            case 0xc1: case 0xc3: // RET
+                t.preamble(0xb8);  // MOV AX,1
+                t.preamble(0x01);
+                t.preamble(0x00);
+                t.preamble(0x50);  // PUSH AX
+                t.fixup(0x01);
+                break;
+            case 0xc5:  // LDS
+                t.preamble(0x0e);  // PUSH CS
+                t.preamble(0x1f);  // POP DS
+                break;
+            case 0xc8: case 0xca: // RETF iw
+                t.preamble(0x0e);  // PUSH CS
+                t.preamble(0xb8);  // MOV AX,3
+                t.preamble(0x03);
+                t.preamble(0x00);
+                t.preamble(0x50);  // PUSH AX
+                t.fixup(0x02);
+                break;
+            case 0xc9: case 0xcb: // RETF
+                t.preamble(0x0e);  // PUSH CS
+                t.preamble(0xb8);  // MOV AX,1
+                t.preamble(0x01);
+                t.preamble(0x00);
+                t.preamble(0x50);  // PUSH AX
+                t.fixup(0x02);
+                break;
+            case 0xcc: case 0xcd: // INT
+                if (opcode == 0xcd)
+                    i.setImmediate(3);
+                t.preamble(0x31);
+                t.preamble(0xdb);  // XOR BX,BX
+                t.preamble(0x8e);
+                t.preamble(0xdb);  // MOV DS,BX
+                t.preamble(0xc7);
+                t.preamble(0x47);  
+                t.preamble(0x0c);
+                t.preamble(opcode - 0xcb);  
+                t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
+                t.preamble(0x8c);
+                t.preamble(0x4f); 
+                t.preamble(0x0e);  // MOV [BX+0x0E],CS
+                t.fixup(0x07);
+                break;
+            case 0xcf: // IRET
+                t.preamble(0x9c);  // PUSHF
+                t.preamble(0x0e);  // PUSH CS
+                t.preamble(0xb8);  // MOV AX,1
+                t.preamble(0x01);
+                t.preamble(0x00);
+                t.preamble(0x50);  // PUSH AX
+                t.fixup(0x03);
+                break;
+            case 0xd4: case 0xd5: // AAx
+                i.setImmediate(10);
+                break;
+            case 0xe4: case 0xe5: case 0xe6: case 0xe7: // IN/OUT ib
+                i.setImmediate(0xe0);
+                break;
+            case 0xf4: // HLT
+                t.preamble(0x31);
+                t.preamble(0xdb);  // XOR BX,BX
+                t.preamble(0x8e);
+                t.preamble(0xdb);  // MOV DS,BX
+                t.preamble(0xc7);
+                t.preamble(0x47);  
+                t.preamble(0x20);
+                t.preamble(0x01);  
+                t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                t.preamble(0x8c);
+                t.preamble(0x4f); 
+                t.preamble(0x22);  // MOV [BX+0x22],CS
+                t.preamble(0xb0);
+                t.preamble(0x14);  // MOV AL,0x14
+                t.preamble(0xe6);
+                t.preamble(0x43);  // OUT 0x43,AL
+                t.preamble(0xb0);
+                t.preamble(0x3f);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                t.preamble(0xe6);
+                t.preamble(0x40);  // OUT 0x40,AL
+                t.preamble(0xfb);  // STI
+                t.fixup(0x07);
+                break;
+            case 0xf6: case 0xf7:
+                if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
+                    t.preamble(0x1e);  // PUSH DS
                     t.preamble(0x31);
                     t.preamble(0xdb);  // XOR BX,BX
                     t.preamble(0x8e);
                     t.preamble(0xdb);  // MOV DS,BX
                     t.preamble(0xc7);
                     t.preamble(0x47);  
-                    t.preamble(0x20);
-                    t.preamble(0x01);  
-                    t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                    t.preamble(0x00);
+                    t.preamble(0x02);  
+                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                     t.preamble(0x8c);
                     t.preamble(0x4f); 
-                    t.preamble(0x22);  // MOV [BX+0x22],CS
-                    t.preamble(0xb0);
-                    t.preamble(0x14);  // MOV AL,0x14
-                    t.preamble(0xe6);
-                    t.preamble(0x43);  // OUT 0x43,AL
-                    t.preamble(0xb0);
-                    t.preamble(0x43);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
-                    t.preamble(0xe6);
-                    t.preamble(0x40);  // OUT 0x40,AL
-                    t.preamble(0xfb);  // STI
-                    t.fixup(0x07);
-                    break;
-                case 0x9d: // POPF
-                    t.preamble(0x9c);  // PUSHF
-                    break;
-                case 0x9a: // CALL cp
-                case 0xea: // JMP cp
-                    i.setImmediate(
-                        (static_cast<DWord>(testSegment) << 16) + 5);
-                    t.fixup(0x81);
-                    break;
-                case 0xc0: case 0xc2: // RET iw
-                    t.preamble(0xb8);  // MOV AX,3
-                    t.preamble(0x03);
-                    t.preamble(0x00);
-                    t.preamble(0x50);  // PUSH AX
-                    t.fixup(0x01);
-                    break;
-                case 0xc1: case 0xc3: // RET
-                    t.preamble(0xb8);  // MOV AX,1
-                    t.preamble(0x01);
-                    t.preamble(0x00);
-                    t.preamble(0x50);  // PUSH AX
-                    t.fixup(0x01);
-                    break;
-                case 0xc5:  // LDS
-                    t.preamble(0x0e);  // PUSH CS
+                    t.preamble(0x02);  // MOV [BX+0x02],CS
                     t.preamble(0x1f);  // POP DS
-                    break;
-                case 0xc8: case 0xca: // RETF iw
-                    t.preamble(0x0e);  // PUSH CS
-                    t.preamble(0xb8);  // MOV AX,3
-                    t.preamble(0x03);
-                    t.preamble(0x00);
-                    t.preamble(0x50);  // PUSH AX
-                    t.fixup(0x02);
-                    break;
-                case 0xc9: case 0xcb: // RETF
-                    t.preamble(0x0e);  // PUSH CS
-                    t.preamble(0xb8);  // MOV AX,1
-                    t.preamble(0x01);
-                    t.preamble(0x00);
-                    t.preamble(0x50);  // PUSH AX
-                    t.fixup(0x02);
-                    break;
-                case 0xcc: case 0xcd: // INT
-                    if (opcode == 0xcd)
-                        i.setImmediate(3);
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);  
-                    t.preamble(0x0c);
-                    t.preamble(opcode - 0xcb);  
-                    t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
-                    t.preamble(0x8c);
-                    t.preamble(0x4f); 
-                    t.preamble(0x0e);  // MOV [BX+0x0E],CS
-                    t.fixup(0x07);
-                    break;
-                case 0xcf: // IRET
-                    t.preamble(0x9c);  // PUSHF
-                    t.preamble(0x0e);  // PUSH CS
-                    t.preamble(0xb8);  // MOV AX,1
-                    t.preamble(0x01);
-                    t.preamble(0x00);
-                    t.preamble(0x50);  // PUSH AX
-                    t.fixup(0x03);
-                    break;
-                case 0xd4: case 0xd5: // AAx
-                    i.setImmediate(10);
-                    break;
-                case 0xe4: case 0xe5: case 0xe6: case 0xe7: // IN/OUT ib
-                    i.setImmediate(0xe0);
-                    break;
-                case 0xf4: // HLT
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);  
-                    t.preamble(0x20);
-                    t.preamble(0x01);  
-                    t.preamble(0x00);  // MOV WORD[BX+0x20],1
-                    t.preamble(0x8c);
-                    t.preamble(0x4f); 
-                    t.preamble(0x22);  // MOV [BX+0x22],CS
-                    t.preamble(0xb0);
-                    t.preamble(0x14);  // MOV AL,0x14
-                    t.preamble(0xe6);
-                    t.preamble(0x43);  // OUT 0x43,AL
-                    t.preamble(0xb0);
-                    t.preamble(0x3f);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
-                    t.preamble(0xe6);
-                    t.preamble(0x40);  // OUT 0x40,AL
-                    t.preamble(0xfb);  // STI
-                    t.fixup(0x07);
-                    break;
-                case 0xf6: case 0xf7:
-                    if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x31);
-                        t.preamble(0xdb);  // XOR BX,BX
-                        t.preamble(0x8e);
-                        t.preamble(0xdb);  // MOV DS,BX
+                    t.fixup(0x08);
+                }
+                break;
+            case 0xfe: case 0xff:
+                switch (i.modrm() & 0x38) {
+                    case 0x10:  // CALL rm
+                        t.preamble(0xc6);
+                        t.preamble(0x47);
+                        t.preamble(0xc0);
+                        t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
+
+                        t.preamble(0xb8);
+                        t.preamble(i.length());
+                        t.preamble(0x00);  // MOV AX,0x0002
+                        t.preamble(0x50);  // PUSH AX
+                        t.preamble(0x58);  // POP AX
+
                         t.preamble(0xc7);
-                        t.preamble(0x47);  
-                        t.preamble(0x00);
-                        t.preamble(0x02);  
-                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                        t.preamble(0x07);
+                        t.preamble(0xc0);  
+                        t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
+
                         t.preamble(0x8c);
-                        t.preamble(0x4f); 
-                        t.preamble(0x02);  // MOV [BX+0x02],CS
-                        t.preamble(0x1f);  // POP DS
-                        t.fixup(0x08);
-                    }
-                    break;
-                case 0xfe: case 0xff:
-                    switch (i.modrm() & 0x38) {
-                        case 0x10:  // CALL rm
+                        t.preamble(0x4f);
+                        t.preamble(0x02);  // MOV [BX+2],CS  // make it far
+
+                        t.fixup(0x05);
+                        break;
+                    case 0x18:  // CALL rmd
+                        if ((i.modrm() & 0xc0) != 0xc0) { // CALL md
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x31);
+                            t.preamble(0xdb);  // XOR BX,BX
+                            t.preamble(0x8e);  
+                            t.preamble(0xdb);  // MOV DS,BX
+                            t.preamble(0xc6);
+                            t.preamble(0x47);
+                            t.preamble(0xdf);
+                            t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
+                            t.preamble(0x1f);  // POP DS
+                            t.preamble(0xc6);
+                            t.preamble(0x47);
+                            t.preamble(0x04);
+                            t.preamble(0xcb);  // MOV BYTE[BX+4],0xCB  // RETF
+
+                            t.preamble(0xb8);
+                            t.preamble(i.length());
+                            t.preamble(0x00);  // MOV AX,0x0002
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x50);  // PUSH AX
+                            t.preamble(0x58);  // POP AX
+                            t.preamble(0x1f);  // POP DS
+
+                            t.preamble(0xc7);
+                            t.preamble(0x07);
+                            t.preamble(0xef);  
+                            t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+
+                            t.preamble(0xc7);
+                            t.preamble(0x47);
+                            t.preamble(0x02);
+                            t.preamble(0xff);  
+                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+
+                            t.fixup(0x0f);
+                        }
+                        else {  // CALL rd
+                            t.preamble(0xc7);
+                            t.preamble(0x47);
+                            t.preamble(0x02);
+                            t.preamble(0xf7);  
+                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
+
+                            t.preamble(0xb8);
+                            t.preamble(i.length());
+                            t.preamble(0x00);  // MOV AX,0x0002
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x50);  // PUSH AX
+                            t.preamble(0x58);  // POP AX
+                            t.preamble(0x1f);  // POP DS
+
+                            t.preamble(0xc6);
+                            t.preamble(0x07);
+                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // Set address register to 0
+
+                            t.fixup(0x06);
+                        }
+                        break;
+                    case 0x20:  // JMP rm
+                        if ((i.modrm() & 0xc0) != 0xc0) {  // JMP m
                             t.preamble(0xc6);
                             t.preamble(0x47);
                             t.preamble(0xc0);
@@ -3509,189 +3654,95 @@ private:
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x50);  // PUSH AX
-                            t.preamble(0x58);  // POP AX
 
                             t.preamble(0xc7);
                             t.preamble(0x07);
                             t.preamble(0xc0);  
                             t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
 
-                            t.preamble(0x8c);
-                            t.preamble(0x4f);
-                            t.preamble(0x02);  // MOV [BX+2],CS  // make it far
-
                             t.fixup(0x05);
-                            break;
-                        case 0x18:  // CALL rmd
-                            if ((i.modrm() & 0xc0) != 0xc0) { // CALL md
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x31);
-                                t.preamble(0xdb);  // XOR BX,BX
-                                t.preamble(0x8e);  
-                                t.preamble(0xdb);  // MOV DS,BX
-                                t.preamble(0xc6);
-                                t.preamble(0x47);
-                                t.preamble(0xdf);
-                                t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
-                                t.preamble(0x1f);  // POP DS
-                                t.preamble(0xc6);
-                                t.preamble(0x47);
-                                t.preamble(0x04);
-                                t.preamble(0xcb);  // MOV BYTE[BX+4],0xCB  // RETF
+                        }
+                        else {  // JMP r
+                            t.preamble(0xc6);
+                            t.preamble(0x07);
+                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
 
-                                t.preamble(0xb8);
-                                t.preamble(i.length());
-                                t.preamble(0x00);  // MOV AX,0x0002
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x50);  // PUSH AX
-                                t.preamble(0x58);  // POP AX
-                                t.preamble(0x1f);  // POP DS
+                            t.preamble(0xb8);
+                            t.preamble(i.length());
+                            t.preamble(0x00);  // MOV AX,0x0002
+                            t.preamble(0x50);  // PUSH AX
 
-                                t.preamble(0xc7);
-                                t.preamble(0x07);
-                                t.preamble(0xef);  
-                                t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+                            t.fixup(0x04);
+                        }
+                        break;
+                    case 0x28:  // JMP rmd
+                        if ((i.modrm() & 0xc0) != 0xc0) {  // JMP md
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x31);
+                            t.preamble(0xdb);  // XOR BX,BX
+                            t.preamble(0x8e);  
+                            t.preamble(0xdb);  // MOV DS,BX
+                            t.preamble(0xc6);
+                            t.preamble(0x47);
+                            t.preamble(0xdf);
+                            t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
+                            t.preamble(0x1f);  // POP DS
 
-                                t.preamble(0xc7);
-                                t.preamble(0x47);
-                                t.preamble(0x02);
-                                t.preamble(0xff);  
-                                t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+                            t.preamble(0xb8);
+                            t.preamble(i.length());
+                            t.preamble(0x00);  // MOV AX,0x0002
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x50);  // PUSH AX
 
-                                t.fixup(0x0f);
-                            }
-                            else {  // CALL rd
-                                t.preamble(0xc6);
-                                t.preamble(0x47);
-                                t.preamble(0x02);
-                                t.preamble(0xf7);  // MOV BYTE[BX+2],0xF7
+                            t.preamble(0xc7);
+                            t.preamble(0x07);
+                            t.preamble(0xef);  
+                            t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
 
-                                t.preamble(0xb8);
-                                t.preamble(i.length());
-                                t.preamble(0x00);  // MOV AX,0x0002
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x50);  // PUSH AX
-                                t.preamble(0x58);  // POP AX
-                                t.preamble(0x1f);  // POP DS
+                            t.preamble(0xc7);
+                            t.preamble(0x47);
+                            t.preamble(0x02);
+                            t.preamble(0xff);  
+                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
 
-                                t.preamble(0xc6);
-                                t.preamble(0x07);
-                                t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // Set address register to 0
+                            t.fixup(0x0b);
+                        }
+                        else {  // JMP rd
+                            t.preamble(0xc7);
+                            t.preamble(0x47);
+                            t.preamble(0x02);
+                            t.preamble(0xf7);
+                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
 
-                                t.fixup(0x05);
-                            }
-                            break;
-                        case 0x20:  // JMP rm
-                            if ((i.modrm() & 0xc0) != 0xc0) {  // JMP m
-                                t.preamble(0xc6);
-                                t.preamble(0x47);
-                                t.preamble(0xc0);
-                                t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
+                            t.preamble(0xb8);
+                            t.preamble(i.length());
+                            t.preamble(0x00);  // MOV AX,0x0002
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x50);  // PUSH AX
 
-                                t.preamble(0xb8);
-                                t.preamble(i.length());
-                                t.preamble(0x00);  // MOV AX,0x0002
-                                t.preamble(0x50);  // PUSH AX
+                            t.preamble(0xc6);
+                            t.preamble(0x07);
+                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
 
-                                t.preamble(0xc7);
-                                t.preamble(0x07);
-                                t.preamble(0xc0);  
-                                t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
-
-                                t.fixup(0x05);
-                            }
-                            else {  // JMP r
-                                t.preamble(0xc6);
-                                t.preamble(0x07);
-                                t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
-
-                                t.preamble(0xb8);
-                                t.preamble(i.length());
-                                t.preamble(0x00);  // MOV AX,0x0002
-                                t.preamble(0x50);  // PUSH AX
-
-                                t.fixup(0x04);
-                            }
-                            break;
-                        case 0x28:  // JMP rmd
-                            if ((i.modrm() & 0xc0) != 0xc0) {  // JMP md
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x31);
-                                t.preamble(0xdb);  // XOR BX,BX
-                                t.preamble(0x8e);  
-                                t.preamble(0xdb);  // MOV DS,BX
-                                t.preamble(0xc6);
-                                t.preamble(0x47);
-                                t.preamble(0xdf);
-                                t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
-                                t.preamble(0x1f);  // POP DS
-
-                                t.preamble(0xb8);
-                                t.preamble(i.length());
-                                t.preamble(0x00);  // MOV AX,0x0002
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x50);  // PUSH AX
-
-                                t.preamble(0xc7);
-                                t.preamble(0x07);
-                                t.preamble(0xef);  
-                                t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
-
-                                t.preamble(0xc7);
-                                t.preamble(0x47);
-                                t.preamble(0x02);
-                                t.preamble(0xff);  
-                                t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
-
-                                t.fixup(0x0b);
-                            }
-                            else {  // JMP rd
-                                t.preamble(0xc7);
-                                t.preamble(0x47);
-                                t.preamble(0x02);
-                                t.preamble(0xf7);
-                                t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
-
-                                t.preamble(0xb8);
-                                t.preamble(i.length());
-                                t.preamble(0x00);  // MOV AX,0x0002
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x50);  // PUSH AX
-
-                                t.preamble(0xc6);
-                                t.preamble(0x07);
-                                t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
-
-                                t.fixup(0x06);
-                            }
-                            break;
-                    }
-                    break;
-            }
-            t.addInstruction(i);
-            switch (opcode) {
-                case 0x9b:  // WAIT
-                    {
-                        Instruction i2(0xe4);  // CWD
-                        i2.setImmediate(0xe0);
-                        t.addInstruction(i2);
-                        t.addInstruction(i2);
-                        //t.addInstruction(i2);
-                        //t.addInstruction(i2);
-                    }
-                    break;
-                case 0xf2: case 0xf3: // REP
-                    t.preamble(0xb9);
-                    t.preamble(0x05);
-                    t.preamble(0x00);  // MOV CX,5
-                    {
-                        Instruction i2(0xac);  // LODSB
-                        t.addInstruction(i2);
-                    }
-                    break;
-            }
-            _tests.append(t);
+                            t.fixup(0x06);
+                        }
+                        break;
+                }
+                break;
         }
+        t.addInstruction(i);
+        switch (opcode) {
+            case 0xf2: case 0xf3: // REP
+                t.preamble(0xb9);
+                t.preamble(0x05);
+                t.preamble(0x00);  // MOV CX,5
+                {
+                    Instruction i2(0xac);  // LODSB
+                    t.addInstruction(i2);
+                }
+                break;
+        }
+        addTestWithNops(t);
     }
     bool parse(CharacterSource* s, String m)
     {
