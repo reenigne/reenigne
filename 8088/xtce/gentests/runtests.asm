@@ -153,7 +153,7 @@ noSatHigh:
   mov cx,16
 loopTop:
   mov [savedCX],cx
-    mov word[countedCycles],2047
+;    mov word[countedCycles],2047
   call doMeasurement
 
   mov ax,[countedCycles]

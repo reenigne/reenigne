@@ -177,13 +177,34 @@ lut: db 0x88,8
 
 
 testRoutine:
-  %rep 40
-    mov al,0
+    mov al,0x80
     out 0x43,al
-    in al,0x40
-    in al,0x40
-  %endrep
-;  times 146 in al,0x40
+    in al,0x42
+    mov bl,al
+    in al,0x42
+    mov bh,al
+
+    mov al,0x80
+    out 0x43,al
+    in al,0x42
+    mov cl,al
+    in al,0x42
+    mov ch,al
+
+    mov al,0x80
+    out 0x43,al
+    in al,0x42
+    mov bl,al
+    in al,0x42
+    mov dh,al
+
+    mov al,0x80
+    out 0x43,al
+    in al,0x42
+    mov ah,al
+    in al,0x42
+    xchg ah,al
+
   ret
 
 
