@@ -2401,6 +2401,7 @@ private:
                         if (!_wordSize) {
                             if (modRMReg() == 4) {
                                 _data = 0;
+                                _source &= 0xff;
                                 wait(3);
                                 for (int i = 0; i < 8; ++i) {
                                     wait(8);
@@ -2414,32 +2415,38 @@ private:
                                 ax() = _data;
                                 if (ah() == 0) {
                                     setCF(false);
+                                    setOF(false);
                                     wait(1);
                                 }
-                                else
+                                else {
                                     setCF(true);
+                                    setOF(true);
+                                }
                             }
                             else {
                                 _data = 0;
+                                bool negate = false;
                                 if ((_destination & 0x80) == 0) {
                                     if ((_source & 0x80) != 0) {
-                                        _data -= _destination << 8;
-                                        wait(10);
-                                        if (_source != 0x80)
+                                        wait(1);
+                                        if ((_source & 0xff) != 0x80)
                                             wait(1);
+                                        _source = ~_source + 1;
+                                        negate = true;
                                     }
                                 }
                                 else {
-                                    _data -= _source << 8;
-                                    wait(3);
+                                    wait(1);
+                                    _destination = ~_destination + 1;
+                                    negate = true;
                                     if ((_source & 0x80) != 0) {
-                                        _data -= _destination << 8;
-                                        if (_source != 0x80)
-                                            wait(1);
+                                        _source = ~_source + 1;
+                                        negate = false;
                                     }
                                     else
-                                        wait(13);
+                                        wait(4);
                                 }
+                                _source &= 0xff;
                                 wait(13);
                                 for (int i = 0; i < 8; ++i) {
                                     wait(8);
@@ -2450,37 +2457,99 @@ private:
                                     _destination >>= 1;
                                     _source <<= 1;
                                 }
+                                if (negate) {
+                                    _data = ~_data + 1;
+                                    wait(9);
+                                }
+                                ax() = _data;
                                 if (ah() == ((al() & 0x80) == 0 ? 0 : 0xff)) {
                                     setCF(false);
+                                    setOF(false);
                                     wait(1);
                                 }
-                                else
+                                else {
                                     setCF(true);
-                                //if (_useMemory)
-                                //    wait(10);
+                                    setOF(true);
+                                }
                             }
                         }
                         else {
                             if (modRMReg() == 4) {
-                                _data *= _source;
+                                _data = 0;
+                                _source &= 0xffff;
+                                wait(3);
+                                for (int i = 0; i < 16; ++i) {
+                                    wait(7);
+                                    if ((_destination & 1) != 0) {
+                                        _data += _source;
+                                        wait(1);
+                                    }
+                                    _destination >>= 1;
+                                    _source <<= 1;
+                                }
                                 ax() = _data;
                                 dx() = _data >> 16;
                                 _data |= dx();
-                                setCF(dx() != 0);
-                                wait(116);
+                                if (dx() == 0) {
+                                    setCF(false);
+                                    setOF(false);
+                                    wait(1);
+                                }
+                                else {
+                                    setCF(true);
+                                    setOF(true);
+                                }
                             }
                             else {
-                                _data *= _source;
+                                _data = 0;
+                                bool negate = false;
+                                if ((_destination & 0x8000) == 0) {
+                                    if ((_source & 0x8000) != 0) {
+                                        wait(1);
+                                        if ((_source & 0xff) != 0x8000)
+                                            wait(1);
+                                        _source = ~_source + 1;
+                                        negate = true;
+                                    }
+                                }
+                                else {
+                                    wait(1);
+                                    _destination = ~_destination + 1;
+                                    negate = true;
+                                    if ((_source & 0x8000) != 0) {
+                                        _source = ~_source + 1;
+                                        negate = false;
+                                    }
+                                    else
+                                        wait(4);
+                                }
+                                _source &= 0xffff;
+                                wait(13);
+                                for (int i = 0; i < 16; ++i) {
+                                    wait(7);
+                                    if ((_destination & 1) != 0) {
+                                        _data += _source;
+                                        wait(1);
+                                    }
+                                    _destination >>= 1;
+                                    _source <<= 1;
+                                }
+                                if (negate) {
+                                    _data = ~_data + 1;
+                                    wait(9);
+                                }
                                 ax() = _data;
                                 dx() = _data >> 16;
-                                if ((_source & 0x8000) != 0)
-                                    dx() -= _destination;
-                                if ((_destination & 0x8000) != 0)
-                                    dx() -= _source;
                                 _data |= dx();
-                                setCF(dx() ==
-                                    ((ax() & 0x8000) == 0 ? 0 : 0xffff));
-                                wait(126);
+                                if (dx() == ((ax() & 0x8000) == 0 ? 0 : 0xffff)) {
+                                    setCF(false);
+                                    setOF(false);
+                                    wait(1);
+                                }
+                                else {
+                                    setCF(true);
+                                    setOF(true);
+                                }
                             }
                         }
                         setZF();
@@ -2491,29 +2560,74 @@ private:
                     case 6:  // DIV
                     case 7:  // IDIV
                         _source = _data;
-                        if (_source == 0) {
-                            wait(11);
-                            if (modRMReg() == 7)
-                                wait(10);
-                            interrupt(0);
-                            break;
-                        }
                         if (!_wordSize) {
                             _destination = ax();
                             if (modRMReg() == 6) {
-                                div();
-                                if (_data > 0xff) {
+                                _data = _destination;
+                                _source = (_source << 8) & 0xffff;
+                                Byte quotient = 0;
+                                Byte qBit = 0x80;
+                                wait(11);
+                                if (_data >= _source) {
                                     interrupt(0);
                                     break;
                                 }
-                                wait(77);
+                                for (int i = 0; i < 8; ++i) {
+                                    _source >>= 1;
+                                    if (_data > _source) {
+                                        _data -= _source;
+                                        wait(1);
+                                        if (i == 7)
+                                            wait(2);
+                                        quotient |= qBit;
+                                    }
+                                    wait(8);
+                                    qBit >>= 1;
+                                }
+                                ah() = _data;
+                                al() = quotient;
+                                wait(2);
                             }
                             else {
                                 _destination = ax();
                                 if ((_destination & 0x8000) != 0)
                                     _destination |= 0xffff0000;
                                 _source = signExtend(_source);
-                                div();
+                                if (_source == 0) {
+                                    wait(11);
+                                    if (modRMReg() == 7)
+                                        wait(10);
+                                    interrupt(0);
+                                    break;
+                                }
+
+                                bool negative = false;
+                                bool dividendNegative = false;
+                                if ((_destination & 0x80000000) != 0) {
+                                    _destination =
+                                        static_cast<UInt32>(-static_cast<SInt32>(_destination));
+                                    negative = !negative;
+                                    dividendNegative = true;
+                                }
+                                if ((_source & 0x8000) != 0) {
+                                    _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
+                                        & 0xffff;
+                                    negative = !negative;
+                                }
+                                _data = _destination / _source;
+                                UInt32 product = _data * _source;
+                                // ISO C++ 2003 does not specify a rounding mode, but the x86 always
+                                // rounds towards zero.
+                                if (product > _destination) {
+                                    --_data;
+                                    product -= _source;
+                                }
+                                _remainder = _destination - product;
+                                if (negative)
+                                    _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
+                                if (dividendNegative)
+                                    _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
+
                                 if (_data > 0x7f && _data < 0xffffff80) {
                                     interrupt(0);
                                     break;
@@ -2527,7 +2641,43 @@ private:
                         }
                         else {
                             _destination = (dx() << 16) + ax();
-                            div();
+                            if (_source == 0) {
+                                wait(11);
+                                if (modRMReg() == 7)
+                                    wait(10);
+                                interrupt(0);
+                                break;
+                            }
+
+                            bool negative = false;
+                            bool dividendNegative = false;
+                            if (modRMReg() == 7) {
+                                if ((_destination & 0x80000000) != 0) {
+                                    _destination =
+                                        static_cast<UInt32>(-static_cast<SInt32>(_destination));
+                                    negative = !negative;
+                                    dividendNegative = true;
+                                }
+                                if ((_source & 0x8000) != 0) {
+                                    _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
+                                        & 0xffff;
+                                    negative = !negative;
+                                }
+                            }
+                            _data = _destination / _source;
+                            UInt32 product = _data * _source;
+                            // ISO C++ 2003 does not specify a rounding mode, but the x86 always
+                            // rounds towards zero.
+                            if (product > _destination) {
+                                --_data;
+                                product -= _source;
+                            }
+                            _remainder = _destination - product;
+                            if (negative)
+                                _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
+                            if (dividendNegative)
+                                _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
+
                             if (modRMReg() == 6) {
                                 if (_data > 0xffff) {
                                     interrupt(0);
@@ -2771,37 +2921,6 @@ private:
     {
         al() &= 0x0f;
         wait(8);
-    }
-    void div()
-    {
-        bool negative = false;
-        bool dividendNegative = false;
-        if (modRMReg() == 7) {
-            if ((_destination & 0x80000000) != 0) {
-                _destination =
-                    static_cast<UInt32>(-static_cast<SInt32>(_destination));
-                negative = !negative;
-                dividendNegative = true;
-            }
-            if ((_source & 0x8000) != 0) {
-                _source = (static_cast<UInt32>(-static_cast<SInt32>(_source)))
-                    & 0xffff;
-                negative = !negative;
-            }
-        }
-        _data = _destination / _source;
-        UInt32 product = _data * _source;
-        // ISO C++ 2003 does not specify a rounding mode, but the x86 always
-        // rounds towards zero.
-        if (product > _destination) {
-            --_data;
-            product -= _source;
-        }
-        _remainder = _destination - product;
-        if (negative)
-            _data = static_cast<UInt32>(-static_cast<SInt32>(_data));
-        if (dividendNegative)
-            _remainder = static_cast<UInt32>(-static_cast<SInt32>(_remainder));
     }
     void jumpShort()
     {
@@ -3500,6 +3619,33 @@ public:
                 }
             }
         }
+        for (int i = 0xf6; i < 0xf8; ++i) {
+            for (int m = 0xc0; m < 0xff; ++m) {
+                Instruction instruction(i, m);
+                Test t;
+                t.addInstruction(instruction);
+
+                if ((m & 0x30) == 0x30) {
+                    t.preamble(0x1e);  // PUSH DS
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);  
+                    t.preamble(0x00);
+                    t.preamble(0x02);  
+                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                    t.preamble(0x8c);
+                    t.preamble(0x4f); 
+                    t.preamble(0x02);  // MOV [BX+0x02],CS
+                    t.preamble(0x1f);  // POP DS
+                    t.fixup(0x08);
+                }
+                addTestWithNops(t);
+            }
+        }
+
         std::mt19937 generator;
         std::uniform_int_distribution<int> d(0, 65535);
         // Multiply

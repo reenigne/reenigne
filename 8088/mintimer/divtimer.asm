@@ -20,11 +20,24 @@
   mov ds,ax
   mov word[8*4],irq0
   mov [8*4+2],cs
+  mov word[0],div0
+  mov [2],cs
 
+  mov ax,cs
+  add ax,0x1000
+  mov es,ax
+
+  mov si,0
+outerLoop:
+  push si
+
+  xor di,di
   xor ax,ax
 doTest:
   push ax
+  push si
   safeRefreshOff
+  pop si
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
   writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
   sti
@@ -36,7 +49,25 @@ doTest:
   pop ax
   push ax
 
-  imul ah
+  mov bl,ah
+
+;  mov ah,0
+;  mov ah,0x01
+  mov cx,si
+  mov ah,cl
+
+;  mov ah,al
+;  mov al,0
+
+;  mov bl,0xff
+
+
+  mov cl,16
+  shr cl,cl
+
+  idiv bl
+
+  jmp $+2
 
   mov al,0x80
   out 0x43,al               ; ***TIMING END***
@@ -77,20 +108,31 @@ doTest:
   pop ax
   neg ax
   sub al,200 - '0'
-  cmp al,32
-  jae noSaturate
-  mov al,32
-noSaturate:
-  outputCharacter
+  stosb
 
   pop ax
   inc ax
   jz done
   jmp doTest
 done:
+
+  xor si,si
+  mov ax,es
+  mov ds,ax
+  mov dx,1
+  xor cx,cx
+  sendFile
+
+  pop si
+  inc si
+  cmp si,0x100
+  je outerDone
+  jmp outerLoop
+outerDone:
   complete
 
 irq0:
+div0:
   iret
 
 
