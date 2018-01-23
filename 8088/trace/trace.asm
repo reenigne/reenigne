@@ -150,9 +150,14 @@ loopTop:
   rep lodsw
   refreshOn
 
+;  mov cx,3
+;flushLoop3:
+;  push cx
   mov cx,25*LENGTH
 flushLoop2:
   loop flushLoop2
+;  pop cx
+;  loop flushLoop3
 
   mov cx,[cs:savedCX]
   loop loopTop2
@@ -177,6 +182,54 @@ lut: db 0x88,8
 
 
 testRoutine:
+  xor bx,bx
+  mov ds,bx
+  mov word[bx],div0
+  mov [bx+2],cs
+
+  mov ax,0
+  mov dl,0
+
+  mov cl,16
+  shr cl,cl
+
+  idiv dl
+;div0:
+  jmp $+2
+
+;  mov word[bx],div0a
+
+  mov ax,0
+  mov dl,1
+
+  mov cl,16
+  shr cl,cl
+
+  idiv dl
+;div0a:
+  jmp $+2
+
+;  mov word[bx],div0b
+
+  mov ax,128
+  mov dl,1
+
+  mov cl,16
+  shr cl,cl
+
+  idiv dl
+;div0b:
+  jmp $+2
+
+
+;  add sp,12
+  ret
+
+div0:
+  iret
+
+
+
     mov al,0x80
     out 0x43,al
     in al,0x42

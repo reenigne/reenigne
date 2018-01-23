@@ -27,9 +27,9 @@
   add ax,0x1000
   mov es,ax
 
-  mov si,0
-outerLoop:
-  push si
+;  mov si,193
+;outerLoop:
+;  push si
 
   xor di,di
   xor ax,ax
@@ -38,6 +38,23 @@ doTest:
   push si
   safeRefreshOff
   pop si
+
+  pop ax
+  push ax
+  mov bl,ah
+  add al,0x80
+  cmp bl,0x80
+  jb positive
+  neg bl
+  mul bl
+  neg ax
+  jmp donemul
+positive:
+  mul bl
+donemul:
+  push ax
+  push bx
+
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
   writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
   sti
@@ -46,15 +63,15 @@ doTest:
   writePIT16 0, 2, 0 ; Queue an IRQ0 for after the test in case of crash
   writePIT16 2, 2, 0        ; ***TIMING START***
 
+  pop bx
   pop ax
-  push ax
 
-  mov bl,ah
+;  mov bl,ah
 
 ;  mov ah,0
 ;  mov ah,0x01
-  mov cx,si
-  mov ah,cl
+;  mov cx,si
+;  mov ah,cl
 
 ;  mov ah,al
 ;  mov al,0
@@ -123,12 +140,12 @@ done:
   xor cx,cx
   sendFile
 
-  pop si
-  inc si
-  cmp si,0x100
-  je outerDone
-  jmp outerLoop
-outerDone:
+;  pop si
+;  inc si
+;  cmp si,0x100
+;  je outerDone
+;  jmp outerLoop
+;outerDone:
   complete
 
 irq0:

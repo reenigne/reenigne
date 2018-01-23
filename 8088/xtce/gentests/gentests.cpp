@@ -2574,7 +2574,7 @@ private:
                                 }
                                 for (int i = 0; i < 8; ++i) {
                                     _source >>= 1;
-                                    if (_data > _source) {
+                                    if (_data >= _source) {
                                         _data -= _source;
                                         wait(1);
                                         if (i == 7)
