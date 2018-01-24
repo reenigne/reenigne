@@ -39,21 +39,10 @@ doTest:
   safeRefreshOff
   pop si
 
-  pop ax
+  mov [cs:patch+1],ah
+  mov [cs:savedSP],sp
+
   push ax
-  mov bl,ah
-  add al,0x80
-  cmp bl,0x80
-  jb positive
-  neg bl
-  mul bl
-  neg ax
-  jmp donemul
-positive:
-  mul bl
-donemul:
-  push ax
-  push bx
 
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
   writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
@@ -63,26 +52,14 @@ donemul:
   writePIT16 0, 2, 0 ; Queue an IRQ0 for after the test in case of crash
   writePIT16 2, 2, 0        ; ***TIMING START***
 
-  pop bx
   pop ax
-
-;  mov bl,ah
-
-;  mov ah,0
-;  mov ah,0x01
-;  mov cx,si
-;  mov ah,cl
-
-;  mov ah,al
-;  mov al,0
-
-;  mov bl,0xff
-
 
   mov cl,16
   shr cl,cl
 
-  idiv bl
+patch:
+  aam
+div0:
 
   jmp $+2
 
@@ -118,6 +95,8 @@ donemul:
   add bx,cx
   add bx,dx
 
+  mov sp,[cs:savedSP]
+
   push bx
 
   refreshOn
@@ -149,7 +128,6 @@ done:
   complete
 
 irq0:
-div0:
   iret
-
+savedSP:
 

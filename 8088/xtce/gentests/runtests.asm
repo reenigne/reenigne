@@ -156,12 +156,19 @@ loopTop:
 ;    mov word[countedCycles],2047
   call doMeasurement
 
+  mov cx,2
+outerFlush:
+  push cx
+
   mov ax,[countedCycles]
   mov dx,25
   mul dx
   mov cx,ax
 flushLoop2:
   loop flushLoop2
+
+  pop cx
+  loop outerFlush
 
   mov cx,[savedCX]
   loop loopTop2

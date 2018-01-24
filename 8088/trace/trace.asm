@@ -182,6 +182,79 @@ lut: db 0x88,8
 
 
 testRoutine:
+;  mov ax,98
+;  mov bl,204
+;  mov cl,16
+;  shr cl,cl
+;  div bl
+;  jmp $+2
+;
+;  mov ax,99
+;  mov bl,204
+;  mov cl,16
+;  shr cl,cl
+;  div bl
+;  jmp $+2
+;
+;  mov ax,9453
+;  mov bl,155
+;  mov cl,16
+;  shr cl,cl
+;  div bl
+;  jmp $+2
+;
+;  mov ax,9454
+;  mov bl,155
+;  mov cl,16
+;  shr cl,cl
+;  div bl
+;  jmp $+2
+;
+;  mov ax,5726
+;  mov bl,153
+;  mov cl,16
+;  shr cl,cl
+;  div bl
+;  jmp $+2
+;
+;  mov ax,5727
+;  mov bl,153
+;  mov cl,16
+;  shr cl,cl
+;  div bl
+;  jmp $+2
+
+  mov ax,9468
+  mov bl,155
+  mov cl,16
+  shr cl,cl
+  div bl
+  jmp $+2
+
+  mov ax,9469
+  mov bl,155
+  mov cl,16
+  shr cl,cl
+  div bl
+  jmp $+2
+
+  mov ax,9455
+  mov bl,155
+  mov cl,16
+  shr cl,cl
+  div bl
+  jmp $+2
+
+  mov ax,9456
+  mov bl,155
+  mov cl,16
+  shr cl,cl
+  div bl
+  jmp $+2
+
+  ret
+
+
   xor bx,bx
   mov ds,bx
   mov word[bx],div0
