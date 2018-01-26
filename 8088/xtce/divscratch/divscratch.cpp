@@ -3,6 +3,11 @@
 class Program : public ProgramBase
 {
 public:
+    void checkResult(int dividend, int divisor, int quotient, int remainder)
+    {
+        if (dividend / divisor != quotient || dividend % divisor != remainder)
+            throw Exception("Incorrect result.");
+    }
     void run()
     {
         Array<Byte> observed(0x1000000);
@@ -30,32 +35,64 @@ public:
         //}
 
         Array<Byte> expected(0x1000000);
+        //for (int dividend = 0; dividend < 0x10000; ++dividend) {
+        //    for (int divisor = 0; divisor < 0x100; ++divisor) {
+        //        int t = 239;
+        //        int remainder = dividend;
+        //        int quotient = 0;
+        //        int qbit = 0x80;
+        //        int x = divisor << 8;
+        //        if (remainder < x) {
+        //            t = 194;
+        //            for (int b = 0; b < 8; ++b) { 
+        //                x >>= 1;
+        //                if (remainder >= x) {
+        //                    remainder -= x;
+        //                    ++t;
+        //                    if (b == 7)
+        //                        t += 2;
+        //                    quotient |= qbit;
+        //                }
+        //                qbit >>= 1;
+        //            }
+        //        }
+        //        int o = ((dividend & 0xff00) << 8) + (divisor << 8) + (dividend & 0xff);
+        //        expected[o] = t;
+        //        observed[o] -= t;
+        //    }
+        //}
         for (int dividend = 0; dividend < 0x10000; ++dividend) {
             for (int divisor = 0; divisor < 0x100; ++divisor) {
+                if (dividend == 1 && divisor == 1)
+                    printf("Stop");
                 int t = 239;
-                int remainder = dividend;
-                int quotient = 0;
-                int qbit = 0x80;
-                int x = divisor << 8;
-                if (remainder < x) {
+                Byte l = dividend & 0xff;
+                Byte h = dividend >> 8;
+                if (h < divisor) {
                     t = 194;
-                    for (int b = 0; b < 8; ++b) { 
-                        x >>= 1;
-                        if (remainder >= x) {
-                            remainder -= x;
+                    for (int b = 0; b < 8; ++b) {
+                        bool c = false;
+                        if (h >= divisor) {
+                            h -= divisor;
+                            c = true;
                             ++t;
                             if (b == 7)
                                 t += 2;
-                            quotient |= qbit;
                         }
-                        qbit >>= 1;
+                        bool nc = (h & 0x80) != 0;
+                        h = (h << 1) + ((l & 0x80) != 0 ? 1 : 0);
+                        l = (l << 1) + (c ? 1 : 0);
+
                     }
+                    checkResult(dividend, divisor, l, h);
                 }
                 int o = ((dividend & 0xff00) << 8) + (divisor << 8) + (dividend & 0xff);
                 expected[o] = t;
                 observed[o] -= t;
             }
         }
+
+
         //for (int dividend1 = 0; dividend1 < 0x10000; ++dividend1) {
         //    for (int divisor1 = 0; divisor1 < 0x100; ++divisor1) {
         //        int dividend = dividend1;
