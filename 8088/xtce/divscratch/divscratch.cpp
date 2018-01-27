@@ -5,8 +5,10 @@ class Program : public ProgramBase
 public:
     void checkResult(int dividend, int divisor, int quotient, int remainder)
     {
-        if (dividend / divisor != quotient || dividend % divisor != remainder)
+        if (dividend / divisor != quotient || dividend % divisor != remainder) {
+            printf("%i / %i gave %i r %i\n",dividend,divisor, quotient, remainder);
             throw Exception("Incorrect result.");
+        }
     }
     void run()
     {
@@ -63,28 +65,33 @@ public:
         //}
         for (int dividend = 0; dividend < 0x10000; ++dividend) {
             for (int divisor = 0; divisor < 0x100; ++divisor) {
-                if (dividend == 1 && divisor == 1)
-                    printf("Stop");
                 int t = 239;
                 Byte l = dividend & 0xff;
                 Byte h = dividend >> 8;
                 if (h < divisor) {
-                    t = 194;
+                    t = 192;
+                    bool carry = true;
                     for (int b = 0; b < 8; ++b) {
-                        bool c = false;
-                        if (h >= divisor) {
+                        Byte r = (l << 1) + (carry ? 1 : 0); carry = (l & 0x80) != 0; l = r;
+                        r = (h << 1) + (carry ? 1 : 0); carry = (h & 0x80) != 0; h = r;
+                        t += 7;
+                        if (carry) {
+                            carry = false;
                             h -= divisor;
-                            c = true;
                             ++t;
-                            if (b == 7)
-                                t += 2;
                         }
-                        bool nc = (h & 0x80) != 0;
-                        h = (h << 1) + ((l & 0x80) != 0 ? 1 : 0);
-                        l = (l << 1) + (c ? 1 : 0);
-
+                        else {
+                            carry = divisor > h;
+                            if (!carry) {
+                                h -= divisor;
+                                t += 2;
+                            }
+                            //else
+                            //    ++t;
+                        }
                     }
-                    checkResult(dividend, divisor, l, h);
+                    l = (l << 1) + (carry ? 1 : 0);
+                    checkResult(dividend, divisor, (~l) & 0xff, h);
                 }
                 int o = ((dividend & 0xff00) << 8) + (divisor << 8) + (dividend & 0xff);
                 expected[o] = t;
