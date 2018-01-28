@@ -39,9 +39,16 @@ doTest:
   safeRefreshOff
   pop si
 
+  pop ax
+  push ax
+
   mov [cs:patch+1],ah
   mov [cs:savedSP],sp
 
+  mov ah,al
+  mov al,0
+;  mov bl,ah
+;  mov ah,0
   push ax
 
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
@@ -58,7 +65,9 @@ doTest:
   shr cl,cl
 
 patch:
-  aam
+  aad
+
+;  div bl
 div0:
 
   jmp $+2

@@ -10,6 +10,51 @@ public:
             throw Exception("Incorrect result.");
         }
     }
+    int divTest(int dividend, int divisor, int expected = 0)
+    {
+        int t = 239;
+        Byte l = dividend & 0xff;
+        Byte h = dividend >> 8;
+        if (expected != 0)
+            printf("%i / %i  ",dividend,divisor);
+        if (h < divisor) {
+            t = 130;
+            bool carry = true;
+            for (int b = 0; b < 8; ++b) {
+                Byte r = (l << 1) + (carry ? 1 : 0); carry = (l & 0x80) != 0; l = r;
+                r = (h << 1) + (carry ? 1 : 0); carry = (h & 0x80) != 0; h = r;
+                t += 8;
+                if (carry) {
+                    carry = false;
+                    h -= divisor;
+                    if (b == 7)
+                        t += 2;
+                    if (expected != 0)
+                        printf("A");
+                }
+                else {
+                    carry = divisor > h;
+                    if (!carry) {
+                        h -= divisor;
+                        if (expected != 0)
+                            printf("C");
+                        ++t;
+                        if (b == 7)
+                            t += 2;
+                    }
+                    else {
+                        if (expected != 0)
+                            printf("B");
+                    }
+                }
+            }
+            l = (l << 1) + (carry ? 1 : 0);
+            checkResult(dividend, divisor, (~l) & 0xff, h);
+        }
+        if (expected != 0)
+            printf("  %i cycles, expected %i diff %i\n",t,expected,t-expected);
+        return t;
+    }
     void run()
     {
         Array<Byte> observed(0x1000000);
@@ -24,6 +69,22 @@ public:
         observed[(1263 & 0xff) + ((667 - 512) << 8) + (((1263 + 8192) & 0xff00) << 8)] = 199;
         observed[(1276 & 0xff) + ((667 - 512) << 8) + (((1276 + 8192) & 0xff00) << 8)] = 199;
         observed[(1630 & 0xff) + ((409 - 256) << 8) + (((1630 + 4096) & 0xff00) << 8)] = 199;
+
+        divTest(0,0,239);
+
+        divTest(0,1,194);
+
+        divTest(1,1,197);
+        divTest(0x100,0xff,196);
+
+        divTest(2,1,195);
+        divTest(0x100,0x80,195);
+        divTest(0x200,0xff,194);
+
+        divTest(3,1,198);
+        divTest(0x100,74,198);
+        divTest(0x200,0x81,197);
+        divTest(0x202,0x81,196);
 
         //for (int i = 0; i < 0x100; ++i) {
         //    if (i < 193) {
@@ -65,34 +126,7 @@ public:
         //}
         for (int dividend = 0; dividend < 0x10000; ++dividend) {
             for (int divisor = 0; divisor < 0x100; ++divisor) {
-                int t = 239;
-                Byte l = dividend & 0xff;
-                Byte h = dividend >> 8;
-                if (h < divisor) {
-                    t = 192;
-                    bool carry = true;
-                    for (int b = 0; b < 8; ++b) {
-                        Byte r = (l << 1) + (carry ? 1 : 0); carry = (l & 0x80) != 0; l = r;
-                        r = (h << 1) + (carry ? 1 : 0); carry = (h & 0x80) != 0; h = r;
-                        t += 7;
-                        if (carry) {
-                            carry = false;
-                            h -= divisor;
-                            ++t;
-                        }
-                        else {
-                            carry = divisor > h;
-                            if (!carry) {
-                                h -= divisor;
-                                t += 2;
-                            }
-                            //else
-                            //    ++t;
-                        }
-                    }
-                    l = (l << 1) + (carry ? 1 : 0);
-                    checkResult(dividend, divisor, (~l) & 0xff, h);
-                }
+                int t = divTest(dividend, divisor);
                 int o = ((dividend & 0xff00) << 8) + (divisor << 8) + (dividend & 0xff);
                 expected[o] = t;
                 observed[o] -= t;

@@ -18,7 +18,7 @@ public:
             1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0,
             1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0,
             1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0,
-            1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 
+            1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -39,7 +39,7 @@ public:
             0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0,
             0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0,
             0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0,
-            0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 
+            0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -59,10 +59,10 @@ public:
     int modRMLength()
     {
         static const Byte modRMLengthsTable[] = {
-            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 
-            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 
-            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 
-            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 
+            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+            0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -87,18 +87,18 @@ public:
     {
         if (hasModrm() && _opcode != 0x8d) {
             static const signed char defaultSegmentTable[] = {
-                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 
-                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 
-                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 
-                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
-                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3, 
+                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3,
+                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3,
+                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3,
+                3, 3, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
+                3, 3, 2, 2, 3, 3, 2, 3, 3, 3, 2, 2, 3, 3, 2, 3,
                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -143,7 +143,7 @@ public:
     {
         int o = _opcode & 0xfe;
         return o == 0xf6 || o == 0xfe || o == 0x80 || o == 0x82;
-    }  
+    }
     void write()
     {
         console.write("{" + hex(_opcode, 2) + ", " + hex(_modrm, 2) + ", " +
@@ -258,6 +258,7 @@ public:
             ++p;
         }
         Word instructionsOffset = pc + ql + _nops;
+        _startIP = instructionsOffset;
         p = outputBytes(p);
         for (int i = 0; i < _fixups.count(); ++i) {
             Byte f = _fixups[i];
@@ -295,6 +296,7 @@ public:
     void fixup(Byte f) { _fixups.append(f); }
     void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
     void setNops(int nops) { _nops = nops; }
+    int startIP() { return _startIP; }
 private:
     int _queueFiller;
     int _nops;
@@ -303,6 +305,7 @@ private:
     AppendableArray<Instruction> _instructions;
     AppendableArray<Byte> _fixups;
     int _cycles;
+    int _startIP;
 };
 
 class Disassembler
@@ -641,9 +644,9 @@ public:
         _bus_aen = false;    // Used for DMA, NYI
         _bus_tc = false;     // Used for DMA, NYI
 
-        _t = 0;  
+        _t = 0;
         _tNext = 0;
-        _d = -1;  
+        _d = -1;
         _queueLength = 0;
         _lastS = 0;
         _pitCycle = 1;
@@ -1113,6 +1116,7 @@ public:
         } catch (...) { }
         return _cycle;
     }
+    int instructionCycles() { return _cycle2 - _cycle1; }
 private:
     void run()
     {
@@ -1146,6 +1150,9 @@ private:
         Byte* stopP = _test.outputCode(r);
         _stopIP = stopP - (r + 2);
 
+        _timeIP1 = _test.startIP();
+        _timeIP2 = _stopIP - 2;
+
         _busState = tIdle;
         _queueCycle = 0;
         _ioInProgress._type = ioPassive;
@@ -1157,6 +1164,7 @@ private:
         _prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
+        _jumping = false;
         _log = "";
         _logSkip = 3;
         _synchronousDone = true;
@@ -1170,7 +1178,7 @@ private:
         _busReady = false;
         _bus.reset();
 
-        do {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+        do {
             executeOneInstruction();
         } while (_ip != _stopIP && _cycle < 2048);
     }
@@ -1257,7 +1265,7 @@ private:
             }
             if (!_statusSet && _busState != tFirstIdle) {
                 if (_ioNext._type == ioPassive && _prefetchedBIU < 4 &&
-                    _prefetching && (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait)) {
+                    _prefetching && (/*!_jumping ||*/ (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))) {
                     _ioNext._type = ioCodeAccess;
                     _ioNext._address = physicalAddress(1, _prefetchAddress);
                     _ioNext._segment = 1;
@@ -1267,8 +1275,6 @@ private:
                     _statusSet = true;
                 }
             }
-            //if (_busReady && _statusSet)
-            //    _statusSet = false;
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0)
@@ -1372,9 +1378,6 @@ private:
             return fetchInstructionWord();
         return fetchInstructionByte();
     }
-    void initEA()
-    {
-    }
     void busRead(IOType type = ioReadMemory)
     {
         if (_wordSize)
@@ -1428,6 +1431,10 @@ private:
     void executeOneInstruction()
     {
         if (!_repeating) {
+            if (_ip == _timeIP1)
+                _cycle1 = _cycle;
+            if (_ip == _timeIP2)
+                _cycle2 = _cycle;
             _opcode = fetchInstructionByte();
             _snifferDecoder.queueOperation(1);
             static const DWord hasModRM[] = {
@@ -1476,11 +1483,11 @@ private:
         _completed = true;
         switch (_opcode) {
             case 0x00: case 0x01: case 0x02: case 0x03:
-            case 0x08: case 0x09: case 0x0a: case 0x0b: 
+            case 0x08: case 0x09: case 0x0a: case 0x0b:
             case 0x10: case 0x11: case 0x12: case 0x13:
             case 0x18: case 0x19: case 0x1a: case 0x1b:
             case 0x20: case 0x21: case 0x22: case 0x23:
-            case 0x28: case 0x29: case 0x2a: case 0x2b: 
+            case 0x28: case 0x29: case 0x2a: case 0x2b:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
                 readEA();
@@ -1979,7 +1986,7 @@ private:
                 rw() = fetchInstructionWord();
                 wait(1);
                 break;
-            case 0xc0: case 0xc1: case 0xc2: case 0xc3: 
+            case 0xc0: case 0xc1: case 0xc2: case 0xc3:
             case 0xc8: case 0xc9: case 0xca: case 0xcb: // RET
                 {
                     if (!_wordSize) {
@@ -2151,26 +2158,22 @@ private:
                 writeEA(_data);
                 break;
             case 0xd4: // AAM
-                _data = fetchInstructionByte();
-                if (_data == 0)
-                    interrupt(0);  // This might not be right
-                else {
-                    ah() = al() / _data;
-                    al() %= _data;
-                    _wordSize = true;
+                _source = fetchInstructionByte();
+                if (div(al(), 0)) {
+                    _wordSize = true;  // Probably incorrect
                     setPZS();
-                    wait(74);
                 }
                 break;
             case 0xd5: // AAD
-                _data = fetchInstructionByte();
-                al() += ah()*_data;
+                _wordSize = false;
+                mul(fetchInstructionByte(), ah());
+                al() += _data;
                 ah() = 0;
+                _wordSize = true;  // Probably incorrect
                 setPZS();
-                wait(58);  // No data dependence observed
                 break;
             case 0xd6: // SALC
-                al() = (cf() ? 0xff : 0x00); 
+                al() = (cf() ? 0xff : 0x00);
                 wait(1);
                 break;
             case 0xd7: // XLATB
@@ -2321,213 +2324,26 @@ private:
                         break;
                     case 4:  // MUL
                     case 5:  // IMUL
-                        {
-                            _source = _data;
-                            _destination = getAccum();
-                            setSF();
-                            setPF();
-                            _data = 0;
-                            bool negate = false;
-                            UInt16 highBit = 0x80;
-                            UInt16 allBits = 0xff;
-                            int bitCount = 8;
-                            if (_wordSize) {
-                                highBit = 0x8000;
-                                allBits = 0xffff;
-                                bitCount = 16;
-                            }
-                            if (modRMReg() == 5) {
-                                if ((_destination & highBit) == 0) {
-                                    if ((_source & highBit) != 0) {
-                                        wait(1);
-                                        if ((_source & allBits) != highBit)
-                                            wait(1);
-                                        _source = ~_source + 1;
-                                        negate = true;
-                                    }
-                                }
-                                else {
-                                    wait(1);
-                                    _destination = ~_destination + 1;
-                                    negate = true;
-                                    if ((_source & highBit) != 0) {
-                                        _source = ~_source + 1;
-                                        negate = false;
-                                    }
-                                    else
-                                        wait(4);
-                                }
-                                wait(10);
-                            }
-                            _source &= allBits;
-                            wait(3);
-                            for (int i = 0; i < bitCount; ++i) {
-                                wait(7);
-                                if (!_wordSize)
-                                    wait(1);
-                                if ((_destination & 1) != 0) {
-                                    _data += _source;
-                                    wait(1);
-                                }
-                                _destination >>= 1;
-                                _source <<= 1;
-                            }
-                            if (negate) {
-                                _data = ~_data + 1;
-                                wait(9);
-                            }
-                            ax() = _data;
-                            if (_wordSize) {
-                                dx() = _data >> 16;
-                                _data |= dx();
-                                setCOMul(dx() != ((ax() & 0x8000) == 0 || modRMReg() == 4 ? 0 : 0xffff));
-                            }
-                            else
-                                setCOMul(ah() != ((al() & 0x80) == 0 || modRMReg() == 4 ? 0 : 0xff));
-                            setZF();
-                            if (_useMemory)
-                                wait(1);
+                        mul(getAccum(), _data);
+                        ax() = _data;
+                        if (_wordSize) {
+                            dx() = _data >> 16;
+                            _data |= dx();
+                            setCOMul(dx() != ((ax() & 0x8000) == 0 || modRMReg() == 4 ? 0 : 0xffff));
                         }
+                        else
+                            setCOMul(ah() != ((al() & 0x80) == 0 || modRMReg() == 4 ? 0 : 0xff));
+                        setZF();
+                        if (_useMemory)
+                            wait(1);
                         break;
                     case 6:  // DIV
                     case 7:  // IDIV
                         _source = _data;
-                        if (!_wordSize) {
-                            _destination = ax();
-                            if (modRMReg() == 6) {
-                                _data = _destination;
-                                _source = (_source << 8) & 0xffff;
-                                Byte quotient = 0;
-                                Byte qBit = 0x80;
-                                wait(11);
-                                if (_data >= _source) {
-                                    interrupt(0);
-                                    break;
-                                }
-                                for (int i = 0; i < 8; ++i) {
-                                    _source >>= 1;
-                                    if (_data >= _source) {
-                                        _data -= _source;
-                                        wait(1);
-                                        if (i == 7)
-                                            wait(2);
-                                        quotient |= qBit;
-                                    }
-                                    wait(8);
-                                    qBit >>= 1;
-                                }
-                                ah() = _data;
-                                al() = quotient;
-                                wait(2);
-                            }
-                            else {
-                                _destination = ax();
-
-                                bool negative = false;
-                                bool dividendNegative = false;
-                                if ((_destination & 0x8000) != 0) {
-                                    _destination = ~_destination + 1;
-                                    negative = true;
-                                    dividendNegative = true;
-                                    wait(4);
-                                }
-                                if ((_source & 0x80) != 0) { 
-                                    _source = ~_source + 1;
-                                    negative = !negative;
-                                }
-                                else
-                                    wait(1);
-                                _data = _destination & 0xffff;
-                                Byte quotient = 0;
-                                Byte qBit = 0x80;
-                                _source = (_source << 8) & 0xffff;
-                                wait(20);
-                                if (_data >= _source) {
-                                    interrupt(0);
-                                    break;
-                                }
-                                wait(13);
-                                for (int i = 0; i < 8; ++i) { 
-                                    _source >>= 1;
-                                    if (_data >= _source) {
-                                        _data -= _source;
-                                        wait(1);
-                                        if (i == 7)
-                                            wait(2);
-                                        quotient |= qBit;
-                                    }
-                                    wait(8);
-                                    qBit >>= 1;
-                                }
-                                if ((quotient & 0x80) != 0) {
-                                    interrupt(0);
-                                    break;
-                                }
-                                if (negative)
-                                    quotient = ~quotient + 1;
-                                if (dividendNegative)
-                                    _data = ~_data + 1;
-
-                                ah() = _data;
-                                al() = quotient;
-                            }
+                        if (div(al(), ah())) {
+                            if (_useMemory)
+                                wait(1);
                         }
-                        else {
-                            _destination = (dx() << 16) + ax();
-                            if (_source == 0) {
-                                wait(11);
-                                if (modRMReg() == 7)
-                                    wait(10);
-                                interrupt(0);
-                                break;
-                            }
-
-                            bool negative = false;
-                            bool dividendNegative = false;
-                            if (modRMReg() == 7) {
-                                if ((_destination & 0x80000000) != 0) {
-                                    _destination = ~_destination + 1;
-                                    negative = !negative;
-                                    dividendNegative = true;
-                                }
-                                if ((_source & 0x8000) != 0) {
-                                    _source = (~_source + 1) & 0xffff;
-                                    negative = !negative;
-                                }
-                            }
-                            _data = _destination / _source;
-                            UInt32 product = _data * _source;
-                            // ISO C++ 2003 does not specify a rounding mode, but the x86 always
-                            // rounds towards zero.
-                            if (product > _destination) {
-                                --_data;
-                                product -= _source;
-                            }
-                            UInt32 remainder = _destination - product;
-                            if (negative)
-                                _data = ~_data + 1;
-                            if (dividendNegative)
-                                remainder = ~remainder + 1;
-
-                            if (modRMReg() == 6) {
-                                if (_data > 0xffff) {
-                                    interrupt(0);
-                                    break;
-                                }
-                                wait(141);
-                            }
-                            else {
-                                if (_data > 0x7fff && _data <  0xffff8000) {
-                                    interrupt(0);
-                                    break;
-                                }
-                                wait(162);
-                            }
-                            dx() = remainder;
-                            ax() = _data;
-                        }
-                        if (_useMemory)
-                            wait(2);
                         break;
                 }
                 break;
@@ -2567,7 +2383,6 @@ private:
                         writeEA(_data);
                         break;
                     case 2:  // CALL rm
-                        // TODO: combine this with same code for CALL cw?
                         {
                             wait(1);
                             _prefetching = false;
@@ -2716,6 +2531,10 @@ private:
     int _cycle;
     BusEmulator _bus;
     int _stopIP;
+    int _cycle1;
+    int _cycle2;
+    int _timeIP1;
+    int _timeIP2;
 
     enum BusState
     {
@@ -2728,6 +2547,154 @@ private:
         tIdle
     };
 
+    bool div(Word l, Word h)
+    {
+        Word highBit = 0x80;
+        Word allBits = 0xff;
+        int bitCount = 8;
+        if (_wordSize) {
+            l = ax();
+            h = dx();
+            highBit = 0x8000;
+            allBits = 0xffff;
+            bitCount = 16;
+        }
+        bool negative = false;
+        bool dividendNegative = false;
+        if (_opcode != 0xd4) {
+            if (modRMReg() == 7) {
+                if ((h & highBit) != 0) {
+                    h = ~h;
+                    l = (~l + 1) & allBits;
+                    if (l == 0)
+                        ++h;
+                    h &= allBits;
+                    negative = true;
+                    dividendNegative = true;
+                    wait(4);
+                }
+                if ((_source & highBit) != 0) {
+                    _source = ~_source + 1;
+                    negative = !negative;
+                }
+                else
+                    wait(1);
+                wait(9);
+            }
+            wait(3);
+        }
+        wait(8);
+        _source &= allBits;
+        if (h >= _source) {
+            interrupt(0);
+            return false;
+        }
+        if (_opcode != 0xd4)
+            wait(1);
+        wait(2);
+        bool carry = true;
+        for (int b = 0; b < bitCount; ++b) {
+            Word r = (l << 1) + (carry ? 1 : 0);
+            carry = (l & highBit) != 0;
+            l = r;
+            r = (h << 1) + (carry ? 1 : 0);
+            carry = (h & highBit) != 0;
+            h = r;
+            wait(8);
+            if (carry) {
+                carry = false;
+                h -= _source;
+                if (b == bitCount - 1)
+                    wait(2);
+            }
+            else {
+                carry = _source > h;
+                if (!carry) {
+                    h -= _source;
+                    wait(1);
+                    if (b == bitCount -1)
+                        wait(2);
+                }
+            }
+        }
+        l = ~((l << 1) + (carry ? 1 : 0));
+        if (_opcode != 0xd4 && modRMReg() == 7) {
+            wait(4);
+            if ((l & highBit) != 0) {
+                interrupt(0);
+                return false;
+            }
+            wait(7);
+            if (negative)
+                l = ~l + 1;
+            if (dividendNegative)
+                h = ~h + 1;
+        }
+        ah() = h & 0xff;
+        al() = l & 0xff;
+        if (_wordSize) {
+            dx() = h;
+            ax() = l;
+        }
+        return true;
+    }
+    void mul(Word a, DWord b)
+    {
+        setSF();
+        setPF();
+        _data = 0;
+        bool negate = false;
+        UInt16 highBit = 0x80;
+        UInt16 allBits = 0xff;
+        int bitCount = 8;
+        if (_opcode != 0xd5) {
+            if (_wordSize) {
+                highBit = 0x8000;
+                allBits = 0xffff;
+                bitCount = 16;
+            }
+            else
+                wait(8);
+            if (modRMReg() == 5) {
+                if ((a & highBit) == 0) {
+                    if ((b & highBit) != 0) {
+                        wait(1);
+                        if ((b & allBits) != highBit)
+                            wait(1);
+                        b = ~b + 1;
+                        negate = true;
+                    }
+                }
+                else {
+                    wait(1);
+                    a = ~a + 1;
+                    negate = true;
+                    if ((b & highBit) != 0) {
+                        b = ~b + 1;
+                        negate = false;
+                    }
+                    else
+                        wait(4);
+                }
+                wait(10);
+            }
+            wait(3);
+        }
+        b &= allBits;
+        for (int i = 0; i < bitCount; ++i) {
+            wait(7);
+            if ((a & 1) != 0) {
+                _data += b;
+                wait(1);
+            }
+            a >>= 1;
+            b <<= 1;
+        }
+        if (negate) {
+            _data = ~_data + 1;
+            wait(9);
+        }
+    }
     void da()
     {
         _wordSize = false;
@@ -2753,7 +2720,11 @@ private:
     }
     void jumpShort()
     {
+        _jumping = true;
+        //if (_queueCycle == 2 && _prefetchedEU >= 1)
+        //    _prefetching = false;
         wait(1);
+        _jumping = false;
         jump(signExtend(_data));
     }
     UInt16 jumpNear() { return jump(fetchInstructionWord()); }
@@ -2856,7 +2827,7 @@ private:
         _prefetching = false;
         wait(2);
         _prefetching = true;
-        return pop2();                                                                                          
+        return pop2();
     }
     Word pop2()
     {
@@ -3174,6 +3145,7 @@ private:
     BusState _busState;
     bool _statusSet;
     bool _prefetching;
+    bool _jumping;
 
     struct IOInformation
     {
@@ -3208,372 +3180,379 @@ public:
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
             0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
-        // Basic tests
-        for (int i = 0; i < 0x100; ++i) {
-            Instruction instruction(i);
-            if (instruction.hasModrm()) {
-                int jj = 1;
-                if (instruction.isGroup())
-                    jj = 8;
+        int noppingTests;
+        for (_group = 0; _group < 2; ++_group) {
+            // Basic tests
+            for (int i = 0; i < 0x100; ++i) {
+                Instruction instruction(i);
+                if (instruction.hasModrm()) {
+                    int jj = 1;
+                    if (instruction.isGroup())
+                        jj = 8;
+                    for (int m = 0; m < 25; ++m) {
+                        for (int j = 0; j < jj; ++j)
+                            addTest(Instruction(i, modrms[m] + (j << 3)));
+                    }
+                }
+                else
+                    addTest(instruction);
+            }
+            // CBW/CWD tests
+            for (int i = 0x98; i < 0x9a; ++i) {
+                Instruction instruction(i);
+                Test t;
+                t.setQueueFiller(1);
+                t.addInstruction(instruction);
+                t.preamble(0xb8);
+                t.preamble(0xff);
+                t.preamble(0xff);  // MOV AX,-1
+                addTestWithNops(t);
+            }
+            // INTO overflow test
+            {
+                Instruction instruction(0xce);
+                Test t;
+                t.setQueueFiller(2);
+                t.addInstruction(instruction);
+                t.preamble(0x31);
+                t.preamble(0xdb);  // XOR BX,BX
+                t.preamble(0x8e);
+                t.preamble(0xdb);  // MOV DS,BX
+                t.preamble(0xc7);
+                t.preamble(0x47);
+                t.preamble(0x10);
+                t.preamble(0x01);
+                t.preamble(0x00);  // MOV WORD[BX+0x10],0001
+                t.preamble(0x8c);
+                t.preamble(0x4f);
+                t.preamble(0x12);  // MOV [BX+0x12],CS
+                t.fixup(0x07);
+
+                t.preamble(0xb8);
+                t.preamble(0xff);
+                t.preamble(0xff);  // MOV AX,0xFFFF
+                t.preamble(0xb1);
+                t.preamble(0x10);  // MOV CL,16
+                t.preamble(0xd3);
+                t.preamble(0xe0);  // SHL AX,CL
+                addTestWithNops(t);
+            }
+            // Shift/rotate with various counts
+            for (int i = 0xd2; i < 0xd4; ++i) {
                 for (int m = 0; m < 25; ++m) {
-                    for (int j = 0; j < jj; ++j)
-                        addTest(Instruction(i, modrms[m] + (j << 3)));
+                    for (int j = 0; j < 8; ++j) {
+                        for (int c = 0; c < 5; ++c) {
+                            Instruction instruction(i, modrms[m] + (j << 3));
+                            Test t;
+                            t.addInstruction(instruction);
+                            t.preamble(0xb1);
+                            t.preamble(c);
+                            addTestWithNops(t);
+                        }
+                    }
                 }
             }
-            else
-                addTest(instruction);
-        }
-        // CBW/CWD tests
-        for (int i = 0x98; i < 0x9a; ++i) {
-            Instruction instruction(i);
-            Test t;
-            t.setQueueFiller(1);
-            t.addInstruction(instruction);
-            t.preamble(0xb8);
-            t.preamble(0xff);
-            t.preamble(0xff);  // MOV AX,-1
-            addTestWithNops(t);
-        }
-        // INTO overflow test
-        {
-            Instruction instruction(0xce);
-            Test t;
-            t.setQueueFiller(2);
-            t.addInstruction(instruction);
-            t.preamble(0x31);
-            t.preamble(0xdb);  // XOR BX,BX
-            t.preamble(0x8e);
-            t.preamble(0xdb);  // MOV DS,BX
-            t.preamble(0xc7);
-            t.preamble(0x47);  
-            t.preamble(0x10);
-            t.preamble(0x01);  
-            t.preamble(0x00);  // MOV WORD[BX+0x10],0001
-            t.preamble(0x8c);
-            t.preamble(0x4f); 
-            t.preamble(0x12);  // MOV [BX+0x12],CS
-            t.fixup(0x07);
-
-            t.preamble(0xb8);
-            t.preamble(0xff);
-            t.preamble(0xff);  // MOV AX,0xFFFF
-            t.preamble(0xb1);
-            t.preamble(0x10);  // MOV CL,16
-            t.preamble(0xd3);
-            t.preamble(0xe0);  // SHL AX,CL
-            addTestWithNops(t);
-        }
-        // Shift/rotate with various counts
-        for (int i = 0xd2; i < 0xd4; ++i) {
-            for (int m = 0; m < 25; ++m) {
-                for (int j = 0; j < 8; ++j) {
+            // LOOP with CX==1
+            for (int i = 0xe0; i < 0xe4; ++i) {
+                Instruction instruction(i);
+                Test t;
+                t.addInstruction(instruction);
+                t.preamble(0xb9);
+                t.preamble(0x01);
+                t.preamble(0x00);  // MOV CX,1
+                addTestWithNops(t);
+            }
+            // String operations with various counts
+            for (int r = 0xf2; r < 0xf4; ++r) {
+                for (int i = 0xa4; i < 0xb0; ++i) {
+                    int t = i & 0x0e;
+                    if (t == 8)
+                        continue;
                     for (int c = 0; c < 5; ++c) {
-                        Instruction instruction(i, modrms[m] + (j << 3));
+                        Instruction instruction(r);
                         Test t;
                         t.addInstruction(instruction);
-                        t.preamble(0xb1);
+                        Instruction i2(i);
+                        t.addInstruction(i2);
+                        t.preamble(0xb9);
                         t.preamble(c);
+                        t.preamble(0x00);  // MOV CX,c
+                        t.preamble(0xbe);
+                        t.preamble(0x00);
+                        t.preamble(0x40);  // MOV SI,0x4000
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
+                        switch ((r << 8) + i) {
+                            case 0xf2a6:  // REPNE CMPSB
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x02);
+                                t.preamble(0x03);  // MOV AX,0x0302
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x04);
+                                t.preamble(0x04);  // MOV AX,0x0404
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf2a7:  // REPNE CMPSW
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x02);
+                                t.preamble(0x03);  // MOV AX,0x0302
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf2ae:  // REPNE SCASB
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x00);  // MOV AX,0x0003
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf2af:  // REPNE SCASW
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x00);
+                                t.preamble(0x00);  // MOV AX,0x0000
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf3a6:  // REPE CMPSB
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x03);  // MOV AX,0x0303
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf3a7:  // REPE CMPSW
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x03);  // MOV AX,0x0303
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf3ae:  // REPE SCASB
+                            case 0xf3af:  // REPE SCASW
+                                t.preamble(0xb8);
+                                t.preamble(0x00);
+                                t.preamble(0x00);  // MOV AX,0x0000
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x00);
+                                t.preamble(0x01);  // MOV AX,0x0100
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                        }
                         addTestWithNops(t);
                     }
                 }
             }
-        }
-        // LOOP with CX==1
-        for (int i = 0xe0; i < 0xe4; ++i) {
-            Instruction instruction(i);
-            Test t;
-            t.addInstruction(instruction);
-            t.preamble(0xb9);
-            t.preamble(0x01);
-            t.preamble(0x00);  // MOV CX,1
-            addTestWithNops(t);
-        }
-        // String operations with various counts
-        for (int r = 0xf2; r < 0xf4; ++r) {
-            for (int i = 0xa4; i < 0xb0; ++i) {
-                int t = i & 0x0e;
-                if (t == 8)
-                    continue;
-                for (int c = 0; c < 5; ++c) {
-                    Instruction instruction(r);
+            for (int i = 0xf6; i < 0xf8; ++i) {
+                for (int m = 0xc0; m < 0xff; ++m) {
+                    Instruction instruction(i, m);
                     Test t;
                     t.addInstruction(instruction);
-                    Instruction i2(i);
-                    t.addInstruction(i2);
-                    t.preamble(0xb9);
-                    t.preamble(c);
-                    t.preamble(0x00);  // MOV CX,c
-                    t.preamble(0xbe);
-                    t.preamble(0x00);
-                    t.preamble(0x40);  // MOV SI,0x4000
-                    t.preamble(0xbf);
-                    t.preamble(0x00);
-                    t.preamble(0x60);  // MOV DI,0x6000
-                    switch ((r << 8) + i) {
-                        case 0xf2a6:  // REPNE CMPSB
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x04);  // MOV AX,0x0403
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x40);  // MOV DI,0x4000
-                            t.preamble(0xb8);
-                            t.preamble(0x02);
-                            t.preamble(0x03);  // MOV AX,0x0302
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x04);
-                            t.preamble(0x04);  // MOV AX,0x0404
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
-                        case 0xf2a7:  // REPNE CMPSW
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x04);  // MOV AX,0x0403
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x40);  // MOV DI,0x4000
-                            t.preamble(0xb8);
-                            t.preamble(0x02);
-                            t.preamble(0x03);  // MOV AX,0x0302
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x04);  // MOV AX,0x0403
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
-                        case 0xf2ae:  // REPNE SCASB
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x00);  // MOV AX,0x0003
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
-                        case 0xf2af:  // REPNE SCASW
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x00);
-                            t.preamble(0x00);  // MOV AX,0x0000
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
-                        case 0xf3a6:  // REPE CMPSB
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x04);  // MOV AX,0x0403
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x40);  // MOV DI,0x4000
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x03);  // MOV AX,0x0303
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
-                        case 0xf3a7:  // REPE CMPSW
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x04);  // MOV AX,0x0403
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x40);  // MOV DI,0x4000
-                            t.preamble(0xb8);
-                            t.preamble(0x01);
-                            t.preamble(0x02);  // MOV AX,0x0201
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x03);
-                            t.preamble(0x03);  // MOV AX,0x0303
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
-                        case 0xf3ae:  // REPE SCASB
-                        case 0xf3af:  // REPE SCASW
-                            t.preamble(0xb8);
-                            t.preamble(0x00);
-                            t.preamble(0x00);  // MOV AX,0x0000
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xb8);
-                            t.preamble(0x00);
-                            t.preamble(0x01);  // MOV AX,0x0100
-                            t.preamble(0xab);  // STOSW
-                            t.preamble(0xbf);
-                            t.preamble(0x00);
-                            t.preamble(0x60);  // MOV DI,0x6000
-                            break;
+
+                    if ((m & 0x30) == 0x30) {
+                        t.preamble(0x1e);  // PUSH DS
+                        t.preamble(0x31);
+                        t.preamble(0xdb);  // XOR BX,BX
+                        t.preamble(0x8e);
+                        t.preamble(0xdb);  // MOV DS,BX
+                        t.preamble(0xc7);
+                        t.preamble(0x47);
+                        t.preamble(0x00);
+                        t.preamble(0x02);
+                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                        t.preamble(0x8c);
+                        t.preamble(0x4f);
+                        t.preamble(0x02);  // MOV [BX+0x02],CS
+                        t.preamble(0x1f);  // POP DS
+                        t.fixup(0x08);
                     }
                     addTestWithNops(t);
                 }
             }
-        }
-        for (int i = 0xf6; i < 0xf8; ++i) {
-            for (int m = 0xc0; m < 0xff; ++m) {
-                Instruction instruction(i, m);
-                Test t;
-                t.addInstruction(instruction);
+            if (_group == 0)
+                noppingTests = _tests.count();
+            else
+                break;
 
-                if ((m & 0x30) == 0x30) {
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);  
-                    t.preamble(0x00);
-                    t.preamble(0x02);  
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f); 
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
+            std::mt19937 generator;
+            std::uniform_int_distribution<int> d(0, 65535);
+            // Multiply
+            for (int i = 0xf6; i < 0xf8; ++i) {
+                for (int m = 0xe2; m < 0xf2; m += 8) {
+                    for (int v = 0; v < 1000; ++v) {
+                        Instruction instruction(i, m);
+                        Test t;
+                        t.addInstruction(instruction);
+                        Word a = d(generator);
+                        t.preamble(0xb8);
+                        t.preamble(a & 0xff);
+                        t.preamble(a >> 8);  // MOV AX,a
+                        Word b = d(generator);
+                        t.preamble(0xba);
+                        t.preamble(b & 0xff);
+                        t.preamble(b >> 8);  // MOV DX,a
+                        t.setQueueFiller(1);
+                        _tests.append(t);
+                    }
                 }
-                addTestWithNops(t);
             }
-        }
+            // Divide
+            for (int i = 0xf6; i < 0xf8; ++i) {
+                for (int m = 0xf3; m < 0xff; m += 8) {
+                    for (int v = 0; v < 1000; ++v) {
+                        Instruction instruction(i, m);
+                        Test t;
+                        t.addInstruction(instruction);
 
-        std::mt19937 generator;
-        std::uniform_int_distribution<int> d(0, 65535);
-        // Multiply
-        for (int i = 0xf6; i < 0xf8; ++i) {
-            for (int m = 0xe2; m < 0xf2; m += 8) {
+                        t.preamble(0x1e);  // PUSH DS
+                        t.preamble(0x31);
+                        t.preamble(0xdb);  // XOR BX,BX
+                        t.preamble(0x8e);
+                        t.preamble(0xdb);  // MOV DS,BX
+                        t.preamble(0xc7);
+                        t.preamble(0x47);
+                        t.preamble(0x00);
+                        t.preamble(0x02);
+                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                        t.preamble(0x8c);
+                        t.preamble(0x4f);
+                        t.preamble(0x02);  // MOV [BX+0x02],CS
+                        t.preamble(0x1f);  // POP DS
+                        t.fixup(0x08);
+
+                        Word a = d(generator);
+                        t.preamble(0xb8);
+                        t.preamble(a & 0xff);
+                        t.preamble(a >> 8);  // MOV AX,a
+                        Word b = d(generator);
+                        t.preamble(0xba);
+                        t.preamble(b & 0xff);
+                        t.preamble(b >> 8);  // MOV DX,a
+                        Word c = d(generator);
+                        t.preamble(0xbb);
+                        t.preamble(c & 0xff);
+                        t.preamble(c >> 8);  // MOV BX,a
+                        t.setQueueFiller(1);
+                        _tests.append(t);
+                    }
+                }
+            }
+            // AAM and AAD
+            for (int i = 0xd4; i < 0xd6; ++i) {
                 for (int v = 0; v < 1000; ++v) {
-                    Instruction instruction(i, m);
+                    Instruction instruction(i);
+                    Word b = d(generator);
+                    instruction.setImmediate(b & 0xff);
                     Test t;
+
+                    if (i == 0xd4) {
+                        t.preamble(0x1e);  // PUSH DS
+                        t.preamble(0x31);
+                        t.preamble(0xdb);  // XOR BX,BX
+                        t.preamble(0x8e);
+                        t.preamble(0xdb);  // MOV DS,BX
+                        t.preamble(0xc7);
+                        t.preamble(0x47);
+                        t.preamble(0x00);
+                        t.preamble(0x02);
+                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                        t.preamble(0x8c);
+                        t.preamble(0x4f);
+                        t.preamble(0x02);  // MOV [BX+0x02],CS
+                        t.preamble(0x1f);  // POP DS
+                        t.fixup(0x08);
+                    }
+
                     t.addInstruction(instruction);
                     Word a = d(generator);
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
-                    Word b = d(generator);
-                    t.preamble(0xba);
-                    t.preamble(b & 0xff);
-                    t.preamble(b >> 8);  // MOV DX,a
                     t.setQueueFiller(1);
                     _tests.append(t);
                 }
-            }
-        }
-        // Divide
-        for (int i = 0xf6; i < 0xf8; ++i) {
-            for (int m = 0xf3; m < 0xff; m += 8) {
-                for (int v = 0; v < 1000; ++v) {
-                    Instruction instruction(i, m);
-                    Test t;
-                    t.addInstruction(instruction);
-
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);  
-                    t.preamble(0x00);
-                    t.preamble(0x02);  
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f); 
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
-
-                    Word a = d(generator);
-                    t.preamble(0xb8);
-                    t.preamble(a & 0xff);
-                    t.preamble(a >> 8);  // MOV AX,a
-                    Word b = d(generator);
-                    t.preamble(0xba);
-                    t.preamble(b & 0xff);
-                    t.preamble(b >> 8);  // MOV DX,a
-                    Word c = d(generator);
-                    t.preamble(0xbb);
-                    t.preamble(c & 0xff);
-                    t.preamble(c >> 8);  // MOV BX,a
-                    t.setQueueFiller(1);
-                    _tests.append(t);
-                }
-            }
-        }
-        // AAM and AAD
-        for (int i = 0xd4; i < 0xd6; ++i) {
-            for (int v = 0; v < 1000; ++v) {
-                Instruction instruction(i);
-                Word b = d(generator);
-                instruction.setImmediate(b & 0xff);
-                Test t;
-
-                if (i == 0xd4) {
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);  
-                    t.preamble(0x00);
-                    t.preamble(0x02);  
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f); 
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
-                }
-
-                t.addInstruction(instruction);
-                Word a = d(generator);
-                t.preamble(0xb8);
-                t.preamble(a & 0xff);
-                t.preamble(a >> 8);  // MOV AX,a
-                t.setQueueFiller(1);
-                _tests.append(t);
             }
         }
 
@@ -3596,6 +3575,7 @@ public:
         int nextTest = 0;
         int maxTests = 1000;
         int availableLength = 0xf400 - testProgram.count();
+        Array<int> cycleCounts(noppingTests);
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
@@ -3606,6 +3586,8 @@ public:
                 if (i % 100 == 99)
                     printf(".");
                 _tests[i].setCycles(cycles);
+                if (i < noppingTests)
+                    cycleCounts[i] = emulator.instructionCycles();
                 bool useTest = true;
                 if (i < _cacheHighWaterMark)
                     useTest = cycles != _cache[i];
@@ -3769,13 +3751,149 @@ public:
 
         } while (true);
         dumpCache(_tests.count());
+
+#if 0
+        // Look for a nopcount column that has the same timings as another one
+        for (int c1 = 0; c1 < 20; ++c1) {
+            for (int c2 = 0; c2 < 20; ++c2) {
+                if (c2 == c1)
+                    continue;
+                bool found = true;
+                for (int t = 0; t < noppingTests; t += 20) {
+                    if (t == 40140 || t == 49600)  // skip WAIT and HLT
+                        continue; 
+                    if (cycleCounts[t + c1] != cycleCounts[t + c2]) {
+                        found = false;
+                        //console.write("To distinguish between " + decimal(c1) + " and " + decimal(c2) + " look at test " + decimal(t) + " ");
+                        //_tests[t].write();
+                        break;
+                    }
+                }       
+                if (found) {
+                    printf("nopcounts %i and %i are identical\n", c1, c2);
+                }
+            }
+        }
+        File("nopping.dat").save(cycleCounts);
+#endif
+        AppendableArray<int> uniqueTests;
+        for (int i = 0; i < noppingTests; i += 20) {
+            if (i == 40140 || i == 49600)  // skip WAIT and HLT
+                continue;
+            bool isUnique = true;
+            for (int j = 0; j < i; j += 20) {
+                bool isMatch = true;
+                for (int k = 0; k < 11; ++k) {
+                    if (cycleCounts[i + k] != cycleCounts[j + k]) {
+                        isMatch = false;
+                        break;
+                    }
+                }
+                if (isMatch) {
+                    isUnique = false;
+                    break;
+                }
+            }
+            if (isUnique)
+                uniqueTests.append(i);
+        }
+        printf("Unique tests found: %i\n", uniqueTests.count());
+        {
+            auto ws = File("uniques.dat").openWrite();
+            for (int i = 0; i < uniqueTests.count(); ++i) {
+                for (int j = 0; j < 11; ++j) {
+                    Byte b = cycleCounts[uniqueTests[i] + j];
+                    ws.write(b);
+                }
+            }
+        }
+
+        for (int setSize = 1;; ++setSize) {
+            printf("Trying set size %i\n",setSize);
+            Array<int> setMembers(setSize);
+            for (int i = 0; i < setSize; ++i)
+                setMembers[i] = i;
+            bool tryNextSize = false;
+            do {
+#if 0
+                bool goodSet = true;
+                for (int i = 0; i < setSize; ++i) {
+                    for (int j = 0; j < setSize; ++j) {
+                        if (i == j)
+                            continue;
+                        if (setMembers[i] == setMembers[j]) {
+                            goodSet = false;
+                            i = setSize;
+                            break;
+                        }
+                    }
+                }
+                if (goodSet) {
+#endif
+                    bool working = true;
+                    for (int i = 0; i < 11; ++i) {
+                        for (int j = i + 1; j < 11; ++j) {
+                            bool canDistinguish = false;
+                            for (int k = 0; k < setSize; ++k) {
+                                int t = uniqueTests[setMembers[k]];
+                                if (cycleCounts[t + i] != cycleCounts[t + j]) {
+                                    canDistinguish = true;
+                                    break;
+                                }
+                            }
+                            if (!canDistinguish) {
+                                i = 11;
+                                working = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (working) {
+                        console.write("Found a set that works:\n");
+                        for (int i = 0; i < setSize; ++i) {
+                            int t = uniqueTests[setMembers[i]];
+                            _tests[t].write();
+                            console.write("\n");
+                        }
+                        console.write("\n");
+                        break;
+                    }
+#if 0
+                }
+#endif
+                bool foundDigit = false;
+                for (int d = setSize - 1; d >= 0; --d) {
+                    if (d == 0)
+                        printf(".");
+                    ++setMembers[d];
+                    if (setMembers[d] != uniqueTests.count() - ((setSize - 1) - d)) {
+                        foundDigit = true;
+                        for (int i = d + 1; i < setSize; ++i)
+                            setMembers[i] = setMembers[i - 1] + 1;
+                        break;
+                    }
+                }
+                if (!foundDigit) {
+                    tryNextSize = true;
+                    break;
+                }
+            } while (true);
+            if (!tryNextSize)
+                break;
+        }
     }
 private:
+    void addTest1(Test t)
+    {
+        if (_group == 1)
+            t.addInstruction(Instruction(0, 6));
+        _tests.append(t);
+    }
     void addTestWithNops(Test t)
     {
         for (int nops = 0; nops < 20; ++nops) {
             t.setNops(nops);
-            _tests.append(t);
+            addTest1(t);
         }
     }
     void addTest(Instruction i)
@@ -3799,12 +3917,12 @@ private:
                 t.preamble(0x8e);
                 t.preamble(0xdb);  // MOV DS,BX
                 t.preamble(0xc7);
-                t.preamble(0x47);  
+                t.preamble(0x47);
                 t.preamble(0x20);
-                t.preamble(0x01);  
+                t.preamble(0x01);
                 t.preamble(0x00);  // MOV WORD[BX+0x20],1
                 t.preamble(0x8c);
-                t.preamble(0x4f); 
+                t.preamble(0x4f);
                 t.preamble(0x22);  // MOV [BX+0x22],CS
                 t.preamble(0xb0);
                 t.preamble(0x14);  // MOV AL,0x14
@@ -3868,12 +3986,12 @@ private:
                 t.preamble(0x8e);
                 t.preamble(0xdb);  // MOV DS,BX
                 t.preamble(0xc7);
-                t.preamble(0x47);  
+                t.preamble(0x47);
                 t.preamble(0x0c);
-                t.preamble(opcode - 0xcb);  
+                t.preamble(opcode - 0xcb);
                 t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
                 t.preamble(0x8c);
-                t.preamble(0x4f); 
+                t.preamble(0x4f);
                 t.preamble(0x0e);  // MOV [BX+0x0E],CS
                 t.fixup(0x07);
                 break;
@@ -3898,12 +4016,12 @@ private:
                 t.preamble(0x8e);
                 t.preamble(0xdb);  // MOV DS,BX
                 t.preamble(0xc7);
-                t.preamble(0x47);  
+                t.preamble(0x47);
                 t.preamble(0x20);
-                t.preamble(0x01);  
+                t.preamble(0x01);
                 t.preamble(0x00);  // MOV WORD[BX+0x20],1
                 t.preamble(0x8c);
-                t.preamble(0x4f); 
+                t.preamble(0x4f);
                 t.preamble(0x22);  // MOV [BX+0x22],CS
                 t.preamble(0xb0);
                 t.preamble(0x14);  // MOV AL,0x14
@@ -3924,12 +4042,12 @@ private:
                     t.preamble(0x8e);
                     t.preamble(0xdb);  // MOV DS,BX
                     t.preamble(0xc7);
-                    t.preamble(0x47);  
+                    t.preamble(0x47);
                     t.preamble(0x00);
-                    t.preamble(0x02);  
+                    t.preamble(0x02);
                     t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                     t.preamble(0x8c);
-                    t.preamble(0x4f); 
+                    t.preamble(0x4f);
                     t.preamble(0x02);  // MOV [BX+0x02],CS
                     t.preamble(0x1f);  // POP DS
                     t.fixup(0x08);
@@ -3951,7 +4069,7 @@ private:
 
                         t.preamble(0xc7);
                         t.preamble(0x07);
-                        t.preamble(0xc0);  
+                        t.preamble(0xc0);
                         t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
 
                         t.preamble(0x8c);
@@ -3965,7 +4083,7 @@ private:
                             t.preamble(0x1e);  // PUSH DS
                             t.preamble(0x31);
                             t.preamble(0xdb);  // XOR BX,BX
-                            t.preamble(0x8e);  
+                            t.preamble(0x8e);
                             t.preamble(0xdb);  // MOV DS,BX
                             t.preamble(0xc6);
                             t.preamble(0x47);
@@ -3987,13 +4105,13 @@ private:
 
                             t.preamble(0xc7);
                             t.preamble(0x07);
-                            t.preamble(0xef);  
+                            t.preamble(0xef);
                             t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
 
                             t.preamble(0xc7);
                             t.preamble(0x47);
                             t.preamble(0x02);
-                            t.preamble(0xff);  
+                            t.preamble(0xff);
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
 
                             t.fixup(0x0f);
@@ -4002,7 +4120,7 @@ private:
                             t.preamble(0xc7);
                             t.preamble(0x47);
                             t.preamble(0x02);
-                            t.preamble(0xf7);  
+                            t.preamble(0xf7);
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
 
                             t.preamble(0xb8);
@@ -4034,7 +4152,7 @@ private:
 
                             t.preamble(0xc7);
                             t.preamble(0x07);
-                            t.preamble(0xc0);  
+                            t.preamble(0xc0);
                             t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
 
                             t.fixup(0x05);
@@ -4057,7 +4175,7 @@ private:
                             t.preamble(0x1e);  // PUSH DS
                             t.preamble(0x31);
                             t.preamble(0xdb);  // XOR BX,BX
-                            t.preamble(0x8e);  
+                            t.preamble(0x8e);
                             t.preamble(0xdb);  // MOV DS,BX
                             t.preamble(0xc6);
                             t.preamble(0x47);
@@ -4073,13 +4191,13 @@ private:
 
                             t.preamble(0xc7);
                             t.preamble(0x07);
-                            t.preamble(0xef);  
+                            t.preamble(0xef);
                             t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
 
                             t.preamble(0xc7);
                             t.preamble(0x47);
                             t.preamble(0x02);
-                            t.preamble(0xff);  
+                            t.preamble(0xff);
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
 
                             t.fixup(0x0b);
@@ -4151,4 +4269,5 @@ private:
 
     Array<Word> _cache;
     int _cacheHighWaterMark = 0;
+    int _group;
 };
