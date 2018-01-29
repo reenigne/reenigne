@@ -164,7 +164,7 @@ class Test
 {
 public:
     Test(int queueFiller = 0, int nops = 0)
-      : _queueFiller(queueFiller), _nops(nops)
+      : _queueFiller(queueFiller), _nops(nops), _usesCH(false)
     { }
     void addInstruction(Instruction instruction)
     {
@@ -182,8 +182,12 @@ public:
         return 4 + _preamble.count() + 1 + codeLength() + 1 +
             _fixups.count();
     }
+    void setUsesCH() { _usesCH = true; }
+    int nopBytes() { return _nops >= 11 ? 3 : _nops; }
     void output(Byte* p)       // For the real hardware
     {
+        if (_usesCH && _nops == 11)
+            _nops = 12;
         *p = (_queueFiller << 5) + _nops;
         ++p;
         int pc = _preamble.count();
@@ -253,11 +257,19 @@ public:
                 throw Exception("Unknown queue filler.");
         }
         p += ql;
-        for (int i = 0; i < _nops; ++i) {
-            *p = 0x90;
-            ++p;
+        if (_usesCH && _nops == 11)
+            _nops = 12;
+        if (_nops == 11 || _nops == 12) {
+            p[0] = 0x90;
+            p[1] = 0x02;
+            p[2] = _nops == 11 ? 0x28 : 0x10;
         }
-        Word instructionsOffset = pc + ql + _nops;
+        else {
+            for (int i = 0; i < _nops; ++i)
+                p[i] = 0x90;
+        }
+        p += nopBytes();
+        Word instructionsOffset = pc + ql + nopBytes();
         _startIP = instructionsOffset;
         p = outputBytes(p);
         for (int i = 0; i < _fixups.count(); ++i) {
@@ -300,6 +312,7 @@ public:
 private:
     int _queueFiller;
     int _nops;
+    bool _usesCH;
 
     AppendableArray<Byte> _preamble;
     AppendableArray<Instruction> _instructions;
@@ -1164,7 +1177,7 @@ private:
         _prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
-        _jumping = false;
+        _prefetchTweak = true;
         _log = "";
         _logSkip = 3;
         _synchronousDone = true;
@@ -1181,6 +1194,7 @@ private:
         do {
             executeOneInstruction();
         } while (_ip != _stopIP && _cycle < 2048);
+        _cycle2 = _cycle;
     }
     void doBusAccess()
     {
@@ -1265,7 +1279,7 @@ private:
             }
             if (!_statusSet && _busState != tFirstIdle) {
                 if (_ioNext._type == ioPassive && _prefetchedBIU < 4 &&
-                    _prefetching && (/*!_jumping ||*/ (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))) {
+                    _prefetching /*&& (!_prefetchTweak || (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))*/) {
                     _ioNext._type = ioCodeAccess;
                     _ioNext._address = physicalAddress(1, _prefetchAddress);
                     _ioNext._segment = 1;
@@ -1433,9 +1447,8 @@ private:
         if (!_repeating) {
             if (_ip == _timeIP1)
                 _cycle1 = _cycle;
-            if (_ip == _timeIP2)
-                _cycle2 = _cycle;
             _opcode = fetchInstructionByte();
+            _prefetchTweak = false;
             _snifferDecoder.queueOperation(1);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
@@ -1476,8 +1489,10 @@ private:
                     }
                 }
             }
-            else
+            else {
+                _prefetchTweak = true;
                 wait(1);
+            }
             _wordSize = ((_opcode & 1) != 0);
         }
         _completed = true;
@@ -2720,11 +2735,8 @@ private:
     }
     void jumpShort()
     {
-        _jumping = true;
-        //if (_queueCycle == 2 && _prefetchedEU >= 1)
-        //    _prefetching = false;
+        _prefetching = false;
         wait(1);
-        _jumping = false;
         jump(signExtend(_data));
     }
     UInt16 jumpNear() { return jump(fetchInstructionWord()); }
@@ -3145,7 +3157,7 @@ private:
     BusState _busState;
     bool _statusSet;
     bool _prefetching;
-    bool _jumping;
+    bool _prefetchTweak;
 
     struct IOInformation
     {
@@ -3168,6 +3180,8 @@ private:
     SnifferDecoder _snifferDecoder;
 };
 
+static const int nopCounts = 12;
+
 class Program : public ProgramBase
 {
 public:
@@ -3180,7 +3194,7 @@ public:
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
             0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
-        int noppingTests;
+        int noppingTests, noppingTests2;
         for (_group = 0; _group < 2; ++_group) {
             // Basic tests
             for (int i = 0; i < 0x100; ++i) {
@@ -3260,6 +3274,7 @@ public:
                 t.preamble(0xb9);
                 t.preamble(0x01);
                 t.preamble(0x00);  // MOV CX,1
+                t.setUsesCH();
                 addTestWithNops(t);
             }
             // String operations with various counts
@@ -3283,6 +3298,7 @@ public:
                         t.preamble(0xbf);
                         t.preamble(0x00);
                         t.preamble(0x60);  // MOV DI,0x6000
+                        t.setUsesCH();
                         switch ((r << 8) + i) {
                             case 0xf2a6:  // REPNE CMPSB
                                 t.preamble(0xb8);
@@ -3554,6 +3570,7 @@ public:
                     _tests.append(t);
                 }
             }
+            noppingTests2 = _tests.count();
         }
 
         _cache.allocate(_tests.count());
@@ -3575,7 +3592,7 @@ public:
         int nextTest = 0;
         int maxTests = 1000;
         int availableLength = 0xf400 - testProgram.count();
-        Array<int> cycleCounts(noppingTests);
+        Array<int> cycleCounts(_tests.count());
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
@@ -3586,8 +3603,7 @@ public:
                 if (i % 100 == 99)
                     printf(".");
                 _tests[i].setCycles(cycles);
-                if (i < noppingTests)
-                    cycleCounts[i] = emulator.instructionCycles();
+                cycleCounts[i] = emulator.instructionCycles();
                 bool useTest = true;
                 if (i < _cacheHighWaterMark)
                     useTest = cycles != _cache[i];
@@ -3612,7 +3628,10 @@ public:
                 }
                 else
                     nextTest = i + 1;
+
             }
+            if (nextTest == newNextTest)
+                break;
             Array<Byte> output(totalLength + 2);
             Byte* p = &output[0];
             *p = totalLength;
@@ -3752,16 +3771,28 @@ public:
         } while (true);
         dumpCache(_tests.count());
 
+        Array<bool> useTest(_tests.count());
+        for (int i = 0; i < _tests.count(); ++i) {
+            bool use = true;
+            if (i == 40140 || i == 49600)  // skip WAIT and HLT
+                use = false;
+            if (i >= noppingTests && i < noppingTests2)
+                use = false;
+            if (i - noppingTests2 == 40140 || i - noppingTests2 == 49600)
+                use = false;
+            useTest[i] = use;
+        }
+
 #if 0
         // Look for a nopcount column that has the same timings as another one
-        for (int c1 = 0; c1 < 20; ++c1) {
-            for (int c2 = 0; c2 < 20; ++c2) {
+        for (int c1 = 0; c1 < nopCounts; ++c1) {
+            for (int c2 = 0; c2 < nopCounts; ++c2) {
                 if (c2 == c1)
                     continue;
                 bool found = true;
-                for (int t = 0; t < noppingTests; t += 20) {
-                    if (t == 40140 || t == 49600)  // skip WAIT and HLT
-                        continue; 
+                for (int t = 0; t < _tests.count(); t += nopCounts) {
+                    if (!useTest[t])
+                        continue;
                     if (cycleCounts[t + c1] != cycleCounts[t + c2]) {
                         found = false;
                         //console.write("To distinguish between " + decimal(c1) + " and " + decimal(c2) + " look at test " + decimal(t) + " ");
@@ -3777,11 +3808,13 @@ public:
         File("nopping.dat").save(cycleCounts);
 #endif
         AppendableArray<int> uniqueTests;
-        for (int i = 0; i < noppingTests; i += 20) {
-            if (i == 40140 || i == 49600)  // skip WAIT and HLT
+        for (int i = 0; i < noppingTests; i += nopCounts) {
+            if (!useTest[i])
                 continue;
             bool isUnique = true;
-            for (int j = 0; j < i; j += 20) {
+            for (int j = 0; j < i; j += nopCounts) {
+                if (!useTest[j])
+                    continue;
                 bool isMatch = true;
                 for (int k = 0; k < 11; ++k) {
                     if (cycleCounts[i + k] != cycleCounts[j + k]) {
@@ -3891,7 +3924,7 @@ private:
     }
     void addTestWithNops(Test t)
     {
-        for (int nops = 0; nops < 20; ++nops) {
+        for (int nops = 0; nops < nopCounts; ++nops) {
             t.setNops(nops);
             addTest1(t);
         }
@@ -4231,6 +4264,7 @@ private:
                 t.preamble(0xb9);
                 t.preamble(0x05);
                 t.preamble(0x00);  // MOV CX,5
+                t.setUsesCH();
                 {
                     Instruction i2(0xac);  // LODSB
                     t.addInstruction(i2);

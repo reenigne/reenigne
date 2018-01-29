@@ -218,7 +218,22 @@ doneQueueFiller:
   mov cl,bl
   and cl,0x1f
   mov al,0x90
+  cmp cl,11
+  jge irregularNops
   rep stosb
+  jmp doneNops
+irregularNops:
+  stosb
+  cmp cl,11
+  jne dlNops
+  mov ax,0x2802  ; 'add ch,[bx+si]'
+  stosw
+  jmp doneNops
+dlNops:
+  mov ax,0x1002  ; 'add dl,[bx+si]'
+  stosw
+doneNops:
+
   mov cl,[si]
   inc si
   push bx
