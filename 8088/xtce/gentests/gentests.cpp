@@ -324,7 +324,8 @@ private:
 class Disassembler
 {
 public:
-    Disassembler() : _byteCount(0) { }
+    Disassembler() { reset(); }
+    void reset() { _byteCount = 0; }
     String disassemble(Byte byte, bool firstByte)
     {
         String bytes;
@@ -664,6 +665,8 @@ public:
         _lastS = 0;
         _pitCycle = 1;
         _cpu_s = 7;
+
+        _disassembler.reset();
     }
     String getLine()
     {
@@ -1167,7 +1170,7 @@ private:
         _timeIP2 = _stopIP - 2;
 
         _busState = tIdle;
-        //_queueCycle = 0;
+        _queueCycle = 0;
         _ioInProgress._type = ioPassive;
         _ioNext = _ioInProgress;
         _lastIO = ioPassive;
@@ -1177,6 +1180,7 @@ private:
         //_prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
+        _transferStarting = false;
         //_prefetchTweak = true;
         _log = "";
         _logSkip = 3;
@@ -1212,7 +1216,7 @@ private:
             if (_ioInProgress._type == ioCodeAccess) {
                 _queueData[_queueWritePosition] = data;
                 _queueWritePosition = (_queueWritePosition + 1) & 3;
-                //_queueCycle = 3;
+                _queueCycle = 3;
             }
             else
                 _synchronousDone = true;
@@ -1279,11 +1283,12 @@ private:
                     }
                 }
             }
+            int adjust = _queueCycle > 0 ? 1 : 0;
             if (!_statusSet && _busState != tFirstIdle) {
-                if (_ioNext._type == ioPassive && _queueBytes < 4 &&
-                    _prefetching /*&& (!_prefetchTweak || (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))*/) {
+                if (_ioNext._type == ioPassive && _queueBytes + adjust < 4 &&
+                    _prefetching && !_transferStarting /*&& (!_prefetchTweak || (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))*/) {
                     _ioNext._type = ioCodeAccess;
-                    _ioNext._address = physicalAddress(1, _ip);
+                    _ioNext._address = physicalAddress(1, _ip + adjust);
                     _ioNext._segment = 1;
                 }
                 if (_ioNext._type != ioPassive) {
@@ -1298,11 +1303,11 @@ private:
                     ++_ip;
                 }
             }
-            if (_prefetchedRemove) {
-                --_prefetchedBIU;
-                _prefetchOffset = (_prefetchOffset + 1) & 3;
-                _prefetchedRemove = false;
-            }
+            //if (_prefetchedRemove) {
+            //    --_prefetchedBIU;
+            //    _prefetchOffset = (_prefetchOffset + 1) & 3;
+            //    _prefetchedRemove = false;
+            //}
             if (_logging) {
                 String l = _snifferDecoder.getLine();
                 if (_logSkip > 0)
@@ -1345,8 +1350,15 @@ private:
         } while (!_synchronousDone);
         return _ioInProgress._data;
     }
+    void busInit()
+    {
+        _transferStarting = true;
+        wait(2);
+        _transferStarting = false;
+    }
     Word busReadWord(IOType type)
     {
+        busInit();
         while (_ioNext._type != ioPassive || !_synchronousDone)
             wait(1);
         initIO(type, _address);
@@ -1367,30 +1379,54 @@ private:
     }
     void busWriteWord(IOType type)
     {
+        busInit();
         busAccess(type, _address);
         _data >>= 8;
         busAccess(type, _address + 1);
     }
-    Byte fetchInstructionByte()
+    Byte busReadByte(IOType type)
+    {
+        busInit();
+        return busAccess(type, _address);
+    }
+    void busWriteByte(IOType type)
+    {
+        busInit();
+        busAccess(type, _address);
+    }
+    Byte queueRead(int offset)
     {
         // Always wait at least one cycle so we don't fetch more than one byte
         // from the queue per cycle.
         do
             wait(1);
-        while (_queueBytes == 0);
-        UInt8 byte = _queueData[_prefetchOffset & 3];
-        _prefetchedRemove = true;
-        --_prefetchedEU;
+        while (_queueBytes <= offset);
+        UInt8 byte = _queueData[_queueReadPosition + offset];
+        //_prefetchedRemove = true;
+        //--_prefetchedEU;
         _snifferDecoder.queueOperation(3);
-        //++_ip;
         return byte;
+    }
+    void acknowledgeInstructionByte()
+    {
+        --_queueBytes;
+        _queueReadPosition = (_queueReadPosition + 1) & 3;
+    }
+    Byte fetchInstructionByte()
+    {
+        Byte b = queueRead(0);
+        acknowledgeInstructionByte();
+        return b;
     }
     Word fetchInstructionWord()
     {
-        Byte low = fetchInstructionByte();
-        return (fetchInstructionByte() << 8) | low;
+        Byte low = queueRead(0);
+        Byte high = queueRead(1);
+        acknowledgeInstructionByte();
+        acknowledgeInstructionByte();
+        return (high << 8) | low;
     }
-    Word fetchInstruction()
+    Word fetchInstructionData()
     {
         if (_wordSize)
             return fetchInstructionWord();
@@ -1401,14 +1437,11 @@ private:
         if (_wordSize)
             _data = busReadWord(type);
         else
-            _data = busAccess(type, _address);
+            _data = busReadByte(type);
     }
     void readEA()
     {
         if (_useMemory) {
-//            _prefetching = false;
-            wait(2);
-//            _prefetching = true;
             busRead();
             return;
         }
@@ -1419,9 +1452,6 @@ private:
     }
     void readEA2()
     {
-//        _prefetching = false;
-        wait(2);
-//        _prefetching = true;
         _address += 2;
         busRead();
     }
@@ -1451,18 +1481,22 @@ private:
         if (!_repeating) {
             if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1)
                 _cycle1 = _cycle;
-            _opcode = fetchInstructionByte();
+            _opcode = queueRead(0);
             //_prefetchTweak = false;
             _snifferDecoder.queueOperation(1);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
-                _modRM = fetchInstructionByte();
-                if ((_modRM & 0xc0) == 0xc0)
+                _modRM = queueRead(1);
+                acknowledgeInstructionByte();
+                if ((_modRM & 0xc0) == 0xc0) {
+                    acknowledgeInstructionByte();
                     _useMemory = false;
+                }
                 else {
                     _useMemory = true;
                     wait(1);
+                    acknowledgeInstructionByte();
                     if ((_modRM & 0xc7) == 0x06) {
                         _address = fetchInstructionWord();
                         _segment = 3;
@@ -1496,6 +1530,7 @@ private:
             else {
                 //_prefetchTweak = true;
                 wait(1);
+                acknowledgeInstructionByte();
             }
             _wordSize = ((_opcode & 1) != 0);
         }
@@ -1509,6 +1544,8 @@ private:
             case 0x28: case 0x29: case 0x2a: case 0x2b:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
+                //if (_useMemory)
+                //    wait(1);
                 readEA();
                 _aluOperation = (_opcode >> 3) & 7;
                 if ((_opcode & 2) == 0) {
@@ -1537,7 +1574,7 @@ private:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
             case 0x24: case 0x25: case 0x2c: case 0x2d:
             case 0x34: case 0x35: case 0x3c: case 0x3d: // alu A, imm
-                _data = fetchInstruction();
+                _data = fetchInstructionData();
                 _destination = getAccum();
                 _source = _data;
                 _aluOperation = (_opcode >> 3) & 7;
@@ -1708,12 +1745,8 @@ private:
                 writeEA(_source);
                 break;
             case 0x88: case 0x89: // MOV rm, reg
-                if (_useMemory) {
+                if (_useMemory)
                     wait(4);
-//                    _prefetching = false;
-                    wait(2);
-//                    _prefetching = true;
-                }
                 writeEA(getReg());
                 break;
             case 0x8a: case 0x8b: // MOV reg, rm
@@ -1724,12 +1757,8 @@ private:
                 break;
             case 0x8c: // MOV rmw, segreg
                 _wordSize = true;
-                if (_useMemory) {
+                if (_useMemory)
                     wait(3);
-//                    _prefetching = false;
-                    wait(2);
-//                    _prefetching = true;
-                }
                 writeEA(_segmentRegisters[modRMReg() & 3]);
                 break;
             case 0x8d: // LEA rw, rmw
@@ -1752,12 +1781,8 @@ private:
                 _data = pop();
                 _address = _source;
                 wait(1);
-                if (_useMemory) {
+                if (_useMemory)
                     wait(2);
-//                    _prefetching = false;
-                    wait(2);
-//                    _prefetching = true;
-                }
                 writeEA(_data);
                 break;
             case 0x90: case 0x91: case 0x92: case 0x93:
@@ -1827,9 +1852,6 @@ private:
                 break;
             case 0xa0: case 0xa1: // MOV A, [iw]
                 _address = fetchInstructionWord();
-                //_prefetching = false;
-                wait(2);
-                //_prefetching = true;
                 busRead();
                 setAccum();
                 break;
@@ -1837,9 +1859,6 @@ private:
                 _address = fetchInstructionWord();
                 _data = getAccum();
                 wait(1);
-                //_prefetching = false;
-                wait(2);
-                //_prefetching = true;
                 busWrite();
                 break;
             case 0xa4: case 0xa5: // MOVS
@@ -1904,7 +1923,7 @@ private:
                 }
                 break;
             case 0xa8: case 0xa9: // TEST A, imm
-                _data = fetchInstruction();
+                _data = fetchInstructionData();
                 test(getAccum(), _data);
                 wait(1);
                 break;
@@ -2024,7 +2043,6 @@ private:
                     else {
                         wait(1);
                         newCS = pop();
-                        //_prefetching = false;
                     }
                     if (!_wordSize) {
                         sp() += _source;
@@ -2047,11 +2065,10 @@ private:
             case 0xc6: case 0xc7: // MOV rm, imm
                 if (_useMemory)
                     wait(2);
-                _data = fetchInstruction();
+                _data = fetchInstructionData();
                 if (_useMemory) {
-                    if (!_wordSize)
-                        wait(2);
                     if (!_wordSize) {
+                        wait(2);
                         //_prefetching = false;
                         //if (_busState == tFirstIdle)
                             wait(1);
@@ -2091,10 +2108,6 @@ private:
                     wait(1);
                     cs() = newCS;
                     setIP(newIP);
-                    //_prefetching = false;
-                    wait(2);
-                    //_prefetching = true;
-
                     _flags = pop2() | 2;
                     wait(5);
                 }
@@ -2169,11 +2182,6 @@ private:
                         wait(4);
                     --_source;
                 }
-                if (_useMemory) {
-                    //_prefetching = false;
-                    wait(2);
-                    //_prefetching = true;
-                }
                 writeEA(_data);
                 break;
             case 0xd4: // AAM
@@ -2198,9 +2206,6 @@ private:
             case 0xd7: // XLATB
                 _address = bx() + al();
                 wait(3);
-                //_prefetching = false;
-                wait(2);
-                //_prefetching = true;
                 al() = busAccess(ioReadMemory, _address);
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
@@ -2243,9 +2248,6 @@ private:
                 _address = _data;
                 if ((_opcode & 2) != 0)
                     wait(1);
-                //_prefetching = false;
-                wait(2);
-                //_prefetching = true;
                 if ((_opcode & 2) == 0) {
                     busRead(ioReadPort);
                     setAccum();
@@ -2319,19 +2321,15 @@ private:
                     case 0:
                     case 1:  // TEST
                         wait(2);
-                        test(_data, fetchInstruction());
+                        test(_data, fetchInstructionData());
                         if (_useMemory)
                             wait(2);
                         break;
                     case 2:  // NOT
                     case 3:  // NEG
                         wait(1);
-                        if (_useMemory) {
+                        if (_useMemory)
                             wait(3);
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
                         if (modRMReg() == 2)
                             _data = ~_data;
                         else {
@@ -2393,12 +2391,8 @@ private:
                         doAF();
                         setPZS();
                         wait(1);
-                        if (_useMemory) {
+                        if (_useMemory)
                             wait(3);
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
                         writeEA(_data);
                         break;
                     case 2:  // CALL rm
@@ -2489,7 +2483,6 @@ private:
                                 _data |= 0xff00;
                             UInt16 newCS = _data;
 
-                            _prefetching = false;
                             if (!_useMemory)
                                 wait(1);
                             cs() = newCS;
@@ -2503,9 +2496,6 @@ private:
                             wait(1);
 
                         wait(4);
-                        //_prefetching = false;
-                        wait(2);
-                        //_prefetching = true;
                         push2(_data);
                         break;
                 }
@@ -2739,7 +2729,7 @@ private:
     }
     void jumpShort()
     {
-        _prefetching = false;
+        //_prefetching = false;
         wait(1);
         jump(signExtend(_data));
     }
@@ -2825,9 +2815,6 @@ private:
     void push(UInt16 data)
     {
         wait(3);
-        //_prefetching = false;
-        wait(2);
-        //_prefetching = true;
         push2(data);
     }
     void push2(UInt16 data)
@@ -2840,9 +2827,6 @@ private:
     }
     Word pop()
     {
-        //_prefetching = false;
-        wait(2);
-        //_prefetching = true;
         return pop2();
     }
     Word pop2()
@@ -3173,6 +3157,7 @@ private:
     BusState _busState;
     bool _statusSet;
     bool _prefetching;
+    bool _transferStarting;
     //bool _prefetchTweak;
 
     struct IOInformation
