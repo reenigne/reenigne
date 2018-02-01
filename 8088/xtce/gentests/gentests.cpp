@@ -1189,6 +1189,7 @@ private:
         _queueReadPosition = 0;
         _queueWritePosition = 0;
         _queueBytes = 0;
+        _queueWaitCycles = 0;
         _segmentOverride = -1;
         //_prefetchAddress = 0;
         _rep = 0;
@@ -1248,10 +1249,9 @@ private:
                     break;
                 case t3:
                 case tWait:
-                    if (_busReady)
-                        _statusSet = false;
                     _busState = tWait;
                     if (_busReady) {
+                        _statusSet = false;
                         _busState = t4;
                         if (write)
                             _bus.write(_ioInProgress._data);
@@ -1286,7 +1286,7 @@ private:
             int adjust = _queueCycle > 0 ? 1 : 0;
             if (!_statusSet && _busState != tFirstIdle) {
                 if (_ioNext._type == ioPassive && _queueBytes + adjust < 4 &&
-                    _prefetching && !_transferStarting /*&& (!_prefetchTweak || (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))*/) {
+                    _prefetching && !_transferStarting && _queueWaitCycles == 0 /*&& (!_prefetchTweak || (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))*/) {
                     _ioNext._type = ioCodeAccess;
                     _ioNext._address = physicalAddress(1, _ip + adjust);
                     _ioNext._segment = 1;
@@ -1296,6 +1296,9 @@ private:
                     _statusSet = true;
                 }
             }
+            //if (_queueCycle == 2 && _queueBytes == 3)
+            //    _queueWaitCycles = 3;
+
             if (_queueCycle > 0) {
                 --_queueCycle;
                 if (_queueCycle == 0) {
@@ -1303,6 +1306,8 @@ private:
                     ++_ip;
                 }
             }
+            if (_queueWaitCycles > 0)
+                --_queueWaitCycles;
             //if (_prefetchedRemove) {
             //    --_prefetchedBIU;
             //    _prefetchOffset = (_prefetchOffset + 1) & 3;
@@ -1333,7 +1338,7 @@ private:
     void initIO(IOType type, UInt32 address)
     {
         _ioNext._segment = _segment;
-        if (_segmentOverride != -1)
+        if (_segmentOverride != -1 && _segment != 0)
             _ioNext._segment = _segmentOverride;
         _ioNext._address = physicalAddress(_ioNext._segment, address);
         _ioNext._data = _data;
@@ -1401,7 +1406,7 @@ private:
         do
             wait(1);
         while (_queueBytes <= offset);
-        UInt8 byte = _queueData[_queueReadPosition + offset];
+        UInt8 byte = _queueData[(_queueReadPosition + offset) & 3];
         //_prefetchedRemove = true;
         //--_prefetchedEU;
         _snifferDecoder.queueOperation(3);
@@ -1529,6 +1534,8 @@ private:
             }
             else {
                 //_prefetchTweak = true;
+                if (_queueCycle == 2 && _queueBytes == 3)
+                    _queueWaitCycles = 3;
                 wait(1);
                 acknowledgeInstructionByte();
             }
@@ -1544,8 +1551,6 @@ private:
             case 0x28: case 0x29: case 0x2a: case 0x2b:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
-                //if (_useMemory)
-                //    wait(1);
                 readEA();
                 _aluOperation = (_opcode >> 3) & 7;
                 if ((_opcode & 2) == 0) {
@@ -1556,8 +1561,12 @@ private:
                     _destination = getReg();
                     _source = _data;
                 }
-                if (_useMemory)
-                    wait(2);
+                if (_useMemory) {
+                    if (!_wordSize)
+                        wait(2);
+                    if ((_opcode & 2) != 0 && _wordSize)
+                        wait(2);
+                }
                 wait(1);
                 doALUOperation();
                 if (_aluOperation != 7) {
@@ -3151,6 +3160,7 @@ private:
     int _queueReadPosition;
     int _queueWritePosition;
     int _queueBytes;
+    int _queueWaitCycles;
     UInt16 _ip;
 
     //UInt16 _prefetchAddress;
@@ -3710,7 +3720,7 @@ public:
                         if (ec == -1)
                             break;
                         ++column;
-                        if ((column >= 7 && column < 20) || column >= 23) {
+                        /*if ((column >= 7 && column < 20) || column >= 23)*/ {
                             //if (line < c)
                                 expected1 += codePoint(ec);
                         }
@@ -3726,7 +3736,7 @@ public:
                         if (oc == -1)
                             break;
                         ++column;
-                        if ((column >= 7 && column < 20) || column >= 23) {
+                        /*if ((column >= 7 && column < 20) || column >= 23)*/ {
                             //if (line < c)
                                 observed += codePoint(oc);
                         }
