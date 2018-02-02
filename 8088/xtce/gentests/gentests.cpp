@@ -1177,7 +1177,7 @@ private:
         _snifferDecoder.reset();
         //_prefetchedEU = 0;
         //_prefetchedBIU = 0;
-        //_prefetchedRemove = false;
+        _prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
         _transferStarting = false;
@@ -1308,11 +1308,14 @@ private:
             }
             if (_queueWaitCycles > 0)
                 --_queueWaitCycles;
-            //if (_prefetchedRemove) {
+            if (_prefetchedRemove) {
             //    --_prefetchedBIU;
             //    _prefetchOffset = (_prefetchOffset + 1) & 3;
-            //    _prefetchedRemove = false;
-            //}
+
+                --_queueBytes;
+
+                _prefetchedRemove = false;
+            }
             if (_logging) {
                 String l = _snifferDecoder.getLine();
                 if (_logSkip > 0)
@@ -1407,7 +1410,6 @@ private:
             wait(1);
         while (_queueBytes <= offset);
         UInt8 byte = _queueData[(_queueReadPosition + offset) & 3];
-        //_prefetchedRemove = true;
         //--_prefetchedEU;
         _snifferDecoder.queueOperation(3);
         return byte;
@@ -1416,6 +1418,7 @@ private:
     {
         --_queueBytes;
         _queueReadPosition = (_queueReadPosition + 1) & 3;
+        //_prefetchedRemove = true;
     }
     Byte fetchInstructionByte()
     {
@@ -1465,7 +1468,7 @@ private:
         if (_wordSize)
             busWriteWord(type);
         else
-            busAccess(type, _address);
+            busWriteByte(type);
     }
     void writeEA(UInt16 data, int w = 0)
     {
@@ -1534,8 +1537,8 @@ private:
             }
             else {
                 //_prefetchTweak = true;
-                if (_queueCycle == 2 && _queueBytes == 3)
-                    _queueWaitCycles = 3;
+                if ((_queueCycle == 2 || _queueCycle == 1) && _queueBytes == 3)
+                    _queueWaitCycles = 1 + _queueCycle;
                 wait(1);
                 acknowledgeInstructionByte();
             }
@@ -1561,18 +1564,14 @@ private:
                     _destination = getReg();
                     _source = _data;
                 }
-                if (_useMemory) {
-                    if (!_wordSize)
-                        wait(2);
-                    if ((_opcode & 2) != 0 && _wordSize)
-                        wait(2);
-                }
+                if (_useMemory)
+                    wait(2);
                 wait(1);
                 doALUOperation();
                 if (_aluOperation != 7) {
                     if ((_opcode & 2) == 0) {
                         if (_useMemory)
-                            wait(4);
+                            wait(2);
                         writeEA(_data);
                     }
                     else
@@ -1719,21 +1718,24 @@ private:
                     wait(2);
                 if (_opcode == 0x81)
                     _source = fetchInstructionWord();
-                else
-                    _source = signExtend(fetchInstructionByte());
+                else {
+                    _source = signExtend(queueRead(0));
+                    wait(1);
+                    acknowledgeInstructionByte();
+                }
                 _aluOperation = modRMReg();
                 doALUOperation();
                 if (_useMemory) {
                     wait(2);
-                    if (_aluOperation != 7) {
-//                        _prefetching = false;
-                        wait(1);
-//                        _prefetching = true;
-                        wait(1);
-                    }
+//                    if (_aluOperation != 7) {
+////                        _prefetching = false;
+//                        wait(1);
+////                        _prefetching = true;
+//                        wait(1);
+//                    }
                 }
-                else
-                    wait(3);
+                //else
+                //    wait(3);
                 if (_aluOperation != 7)
                     writeEA(_data);
                 break;
@@ -1750,12 +1752,20 @@ private:
                 setReg(_data);
                 wait(2);
                 if (_useMemory)
-                    wait(6);
+                    wait(4);
                 writeEA(_source);
                 break;
             case 0x88: case 0x89: // MOV rm, reg
-                if (_useMemory)
+                if (_useMemory) {
                     wait(4);
+                    //if (!_wordSize)
+                    //    wait(1);
+                    //_transferStarting = true;
+                    //wait(1);
+
+                    //if (_queueBytes == 4 || (_queueBytes == 3 && _queueCycle == 3))
+                    //    wait(1);
+                }
                 writeEA(getReg());
                 break;
             case 0x8a: case 0x8b: // MOV reg, rm
@@ -1826,8 +1836,9 @@ private:
                     UInt16 oldIP = ip();
                     cs() = newCS;
                     setIP(newIP);
+                    wait(1);
                     push2(oldIP);
-                    wait(6);
+                    //wait(6);
                 }
                 break;
             case 0x9b: // WAIT
@@ -1877,8 +1888,9 @@ private:
                         wait(4);
                     else {
                         //_prefetching = false;
-                        wait(2);
+                        //wait(2);
                         //_prefetching = true;
+                        wait(1);
                     }
                 }
                 if (_rep == 0 || cx() != 0) {
@@ -1891,7 +1903,7 @@ private:
                         }
                     }
                     lodS();
-                    wait(3);
+                    wait(1);
                     stoS();
                     wait(3);
                     repAction();
@@ -2083,7 +2095,7 @@ private:
                             wait(1);
                     }
                     else {
-                        wait(1);
+                        //wait(1);
                         //_prefetching = false;
                     }
                     wait(2);
@@ -2537,7 +2549,7 @@ private:
             wait(w);  // Some of these may actually be in the PIT or PIC
             busAccess(ioInterruptAcknowledge, 0);
             _data = busAccess(ioInterruptAcknowledge, 0);
-            wait(2);
+            //wait(2);
             interrupt(_data);
         }
     }
@@ -2755,20 +2767,21 @@ private:
         cs() = 0;
         UInt16 newIP = busReadWord(ioReadMemory);
         //_prefetching = true;
-        wait(2);
+        //wait(2);
         _prefetching = false;
         UInt16 oldIP = ip();
         wait(1);
         _address += 2;
         UInt16 newCS = busReadWord(ioReadMemory);
-        wait(4);
+        wait(2);
         _wordSize = true;
+        _segmentOverride = -1;
         push2(_flags & 0x0fd7);
         setIF(false);
         setTF(false);
-        wait(7);
-        push2(oldCS);
         wait(5);
+        push2(oldCS);
+        wait(3);
         cs() = newCS;
         setIP(newIP);
         wait(4);
@@ -3107,7 +3120,7 @@ private:
         //_prefetchedBIU = 0;
         _snifferDecoder.queueOperation(2);
         //_prefetchAddress = _ip;
-        //_prefetchedRemove = false;
+        _prefetchedRemove = false;
         wait(1);
         _prefetching = true;
     }
@@ -3156,7 +3169,7 @@ private:
     //UInt8 _prefetchOffset;
     //UInt8 _prefetchedEU;
     //UInt8 _prefetchedBIU;
-    //bool _prefetchedRemove;
+    bool _prefetchedRemove;
     int _queueReadPosition;
     int _queueWritePosition;
     int _queueBytes;
