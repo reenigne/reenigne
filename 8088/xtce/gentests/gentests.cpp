@@ -1186,6 +1186,7 @@ private:
         _logSkip = 3;
         _synchronousDone = true;
         _ip = 0;
+        _nmiRequested = false;
         _queueReadPosition = 0;
         _queueWritePosition = 0;
         _queueBytes = 0;
@@ -1845,7 +1846,7 @@ private:
                 if (!_repeating)
                     wait(1);
                 wait(5);
-                if (/*_nmiRequested ||*/ (intf() && _bus.interruptPending())) {
+                if (interruptPending()) {
                     //--_ip;
                     wait(13);
                     _snifferDecoder.queueOperation(2);
@@ -1882,66 +1883,45 @@ private:
                 busWrite();
                 break;
             case 0xa4: case 0xa5: // MOVS
-                if (!_repeating) {
+            case 0xac: case 0xad: // LODS
+                if (repAction())
+                    break;
+                wait(1);
+                if (_queueBytes < 4 && _queueWaitCycles == 1) {
+                    _transferStarting = true;
                     wait(1);
-                    if (_rep != 0)
-                        wait(4);
-                    else {
-                        //_prefetching = false;
-                        //wait(2);
-                        //_prefetching = true;
-                        wait(1);
-                    }
                 }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0) {
-                        wait(3);
-                        if (!_repeating) {
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
-                    }
-                    lodS();
+                lods();
+                if ((_opcode & 8) == 0) { // MOVS
                     wait(1);
-                    stoS();
-                    wait(3);
-                    repAction();
-                    if (_rep != 0)
-                        wait(1);
+                    stos();
                 }
+                else
+                    setAccum();
+                wait(3);
+                _completed = (_rep == 0);
                 break;
             case 0xa6: case 0xa7: // CMPS
-                if (!_repeating) {
+            case 0xae: case 0xaf: // SCAS
+                if (repAction())
+                    break;
+                _destination = getAccum();
+                if ((_opcode & 8) == 0) {  // CMPS
                     wait(2);
-                    if (_rep != 0)
-                        wait(3);
-                    else {
-                        //_prefetching = false;
-                        wait(2);
-                        //_prefetching = true;
-                    }
-                }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0) {
-                        wait(4);
-                        if (!_repeating) {
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
-                    }
-                    lodS();
+                    lods();
                     _destination = _data;
-                    wait(4);
-                    lodDIS();
-                    _source = _data;
-                    sub();
-                    wait(4);
-                    repAction();
-                    if (_rep != 0)
-                        wait(1);
                 }
+                else
+                    wait(1);
+                wait(2);
+                _address = di();
+                _segment = 0;
+                busRead();
+                _source = _data;
+                sub();
+                di() = stringIncrement();
+                wait(4);
+                _completed = (_rep == 0 || zf() == (_rep == 1));
                 break;
             case 0xa8: case 0xa9: // TEST A, imm
                 _data = fetchInstructionData();
@@ -1949,91 +1929,19 @@ private:
                 wait(1);
                 break;
             case 0xaa: case 0xab: // STOS
-                if (!_repeating) {
+                if (repAction()) {
+                    _address = di();
+                    break;
+                }
+                _data = getAccum();
+                wait(1);
+                if (_queueBytes < 4 && _queueWaitCycles == 1) {
+                    _transferStarting = true;
                     wait(1);
-                    if (_rep != 0)
-                        wait(3);
-                    else {
-                        //_prefetching = false;
-                        wait(2);
-                        //_prefetching = true;
-                    }
                 }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0) {
-                        wait(4);
-                        if (!_repeating) {
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
-                    }
-                    _data = ax();
-                    stoS();
-                    wait(3);
-                    repAction();
-                    if (_rep != 0 && !_repeating)
-                        wait(1);
-                }
-                else
-                    wait(1);
-                break;
-            case 0xac: case 0xad: // LODS
-                if (!_repeating) {
-                    wait(1);
-                    if (_rep != 0)
-                        wait(4);
-                    else {
-                        //_prefetching = false;
-                        wait(2);
-                        //_prefetching = true;
-                    }
-                }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0) {
-                        wait(3);
-                        if (!_repeating) {
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
-                    }
-                    lodS();
-                    wait(3);
-                    repAction();
-                    if (_rep != 0)
-                        wait(3);
-                }
-                break;
-            case 0xae: case 0xaf: // SCAS
-                if (!_repeating) {
-                    wait(3);
-                    if (_rep != 0)
-                        wait(2);
-                    else {
-                        //_prefetching = false;
-                        wait(2);
-                        //_prefetching = true;
-                    }
-                }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0) {
-                        wait(5);
-                        if (!_repeating) {
-                            //_prefetching = false;
-                            wait(2);
-                            //_prefetching = true;
-                        }
-                    }
-                    lodDIS();
-                    _destination = getAccum();
-                    _source = _data;
-                    sub();
-                    wait(4);
-                    repAction();
-                    if (_rep != 0)
-                        wait(1);
-                }
+                stos();
+                _completed = (_rep == 0);
+                wait(3);
                 break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
             case 0xb4: case 0xb5: case 0xb6: case 0xb7: // MOV rb, ib
@@ -2055,7 +1963,6 @@ private:
                     if ((_opcode & 9) == 9)
                         wait(2);
                     _prefetching = false;
-                    wait(2);
                     UInt16 newIP = pop2();
                     wait(2);
                     UInt16 newCS;
@@ -2086,21 +1993,67 @@ private:
             case 0xc6: case 0xc7: // MOV rm, imm
                 if (_useMemory)
                     wait(2);
-                _data = fetchInstructionData();
+                if (_wordSize)
+                    _data = fetchInstructionWord();
+                else {
+                    //_data = fetchInstructionByte();
+                    //_transferStarting = true;
+                    //wait(1);
+                    //_transferStarting = false;
+
+                    _data = queueRead(0);
+                    wait(1);
+                    acknowledgeInstructionByte();
+
+                    wait(1);
+                }
                 if (_useMemory) {
                     if (!_wordSize) {
-                        wait(2);
-                        //_prefetching = false;
-                        //if (_busState == tFirstIdle)
+                        _transferStarting = true;
+                        if (_busState == tFirstIdle)
                             wait(1);
                     }
-                    else {
-                        //wait(1);
-                        //_prefetching = false;
-                    }
-                    wait(2);
-                    //_prefetching = true;
+                    else
+                        wait(1);
                 }
+
+                //if (_wordSize)
+                //    _data = fetchInstructionWord();
+                //else {
+                //    _data = queueRead(0);
+                //    wait(2);
+                //    acknowledgeInstructionByte();
+
+                //    if (_queueBytes < 4 && _queueWaitCycles == 0) {
+                //        _transferStarting = true;
+                //        wait(1);
+                //    }
+                //    //wait(1);
+                //}
+
+                ////_data = fetchInstructionData();
+                //if (_useMemory) {
+                //    if (!_wordSize) {
+                //        //wait(1);
+                //        //_transferStarting = true;
+
+                //        //if (_queueBytes < 4 && _queueWaitCycles == 1) {
+                //        //    _transferStarting = true;
+                //        //    wait(1);
+                //        //}
+
+
+                //        //wait(2);
+                //        ////_prefetching = false;
+                //        ////if (_busState == tFirstIdle)
+                //        //    wait(1);
+                //    }
+                //    else {
+                //        wait(2);
+                //        //_prefetching = false;
+                //    }
+                //    //_prefetching = true;
+                //}
                 writeEA(_data);
                 break;
             case 0xcc: // INT 3
@@ -2322,7 +2275,7 @@ private:
                     wait(4);
                 }
                 wait(2);
-                if (/*_nmiRequested ||*/ (intf() && _bus.interruptPending())) {
+                if (interruptPending()) {
                     //_prefetchedBIU = 4;  // Don't prefetch between vector word fetches
                     //--_ip;
                     wait(7);
@@ -2529,6 +2482,10 @@ private:
             checkInterrupts();
         }
     }
+    bool interruptPending()
+    {
+        return _nmiRequested || (intf() && _bus.interruptPending());
+    }
     void checkInterrupts()
     {
         if (tf())
@@ -2537,21 +2494,22 @@ private:
     }
     void checkInterrupts2(int w = 10)
     {
-        //if (_nmiRequested) {
-        //    _nmiRequested = false;
-        //    interrupt(2);
-        //}
-        if (intf() && _bus.interruptPending()) {
-            _repeating = false;
-            _completed = true;
-            _segmentOverride = 1;
-            _lock = false;
-            wait(w);  // Some of these may actually be in the PIT or PIC
-            busAccess(ioInterruptAcknowledge, 0);
-            _data = busAccess(ioInterruptAcknowledge, 0);
-            //wait(2);
-            interrupt(_data);
+        if (!interruptPending())
+            return;
+        if (_nmiRequested) {
+            _nmiRequested = false;
+            interrupt(2);
+            return;
         }
+        _repeating = false;
+        _completed = true;
+        _segmentOverride = 1;
+        _lock = false;
+        wait(w);  // Some of these may actually be in the PIT or PIC
+        busAccess(ioInterruptAcknowledge, 0);
+        _data = busAccess(ioInterruptAcknowledge, 0);
+        //wait(2);
+        interrupt(_data);
     }
 
     bool _logging;
@@ -2793,46 +2751,43 @@ private:
         _source = source;
         bitwise(_destination & _source);
     }
-    int stringIncrement()
+    Word stringIncrement()
     {
-        int r = (_wordSize ? 2 : 1);
-        return !df() ? r : -r;
+        int d = _wordSize ? 2 : 1;
+        if (df())
+            _address -= d;
+        else
+            _address += d;
+        return _address;
     }
-    void repAction()
+    bool repAction()
     {
-        if (_rep != 0) {
-            --cx();
-            _completed = cx() == 0;
-            if ((_opcode & 0xf6) == 0xa6) {
-                if (zf() == (_rep == 1))
-                    _completed = true;
-                else
-                    wait(1);
-            }
-            _repeating = !_completed;
+        if (_rep == 0)
+            return false;
+        Word t = cx();
+        if (interruptPending()) {
+            _prefetching = false;
+            setIP(ip() - 2);
+            return true;
         }
-        checkInterrupts();
+        if (t == 0)
+            return true;
+        --cx();
+        return false;
     }
-    void lodS()
+    void lods()
     {
         _address = si();
-        si() += stringIncrement();
         _segment = 3;
         busRead();
+        si() = stringIncrement();
     }
-    void lodDIS()
+    void stos()
     {
         _address = di();
-        di() += stringIncrement();
-        _segment = 0;
-        busRead();
-    }
-    void stoS()
-    {
-        _address = di();
-        di() += stringIncrement();
         _segment = 0;
         busWrite();
+        di() = stringIncrement();
     }
     void push(UInt16 data)
     {
@@ -3175,6 +3130,7 @@ private:
     int _queueBytes;
     int _queueWaitCycles;
     UInt16 _ip;
+    bool _nmiRequested;
 
     //UInt16 _prefetchAddress;
     BusState _busState;
@@ -4000,6 +3956,10 @@ private:
                 i.setImmediate(
                     (static_cast<DWord>(testSegment) << 16) + 5);
                 t.fixup(0x81);
+                break;
+            case 0xa4: case 0xa5: case 0xa6: case 0xa7: case 0xaa: case 0xab:
+            case 0xac: case 0xad:  // MOVS/CMPS/STOS/LODS/SCAS
+                t.setUsesCH();
                 break;
             case 0xc0: case 0xc2: // RET iw
                 t.preamble(0xb8);  // MOV AX,3
