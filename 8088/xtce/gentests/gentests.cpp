@@ -1175,13 +1175,10 @@ private:
         _ioNext = _ioInProgress;
         _lastIO = ioPassive;
         _snifferDecoder.reset();
-        //_prefetchedEU = 0;
-        //_prefetchedBIU = 0;
         _prefetchedRemove = false;
         _statusSet = false;
         _prefetching = true;
         _transferStarting = false;
-        //_prefetchTweak = true;
         _log = "";
         _logSkip = 3;
         _synchronousDone = true;
@@ -1192,7 +1189,6 @@ private:
         _queueBytes = 0;
         _queueWaitCycles = 0;
         _segmentOverride = -1;
-        //_prefetchAddress = 0;
         _rep = 0;
         _lock = false;
         _completed = true;
@@ -1287,7 +1283,8 @@ private:
             int adjust = _queueCycle > 0 ? 1 : 0;
             if (!_statusSet && _busState != tFirstIdle) {
                 if (_ioNext._type == ioPassive && _queueBytes + adjust < 4 &&
-                    _prefetching && !_transferStarting && _queueWaitCycles == 0 /*&& (!_prefetchTweak || (_lastIO != ioCodeAccess || _busState == t4 || _busState == t3 || _busState == tWait))*/) {
+                    _prefetching && !_transferStarting &&
+                    _queueWaitCycles == 0) {
                     _ioNext._type = ioCodeAccess;
                     _ioNext._address = physicalAddress(1, _ip + adjust);
                     _ioNext._segment = 1;
@@ -1297,8 +1294,6 @@ private:
                     _statusSet = true;
                 }
             }
-            //if (_queueCycle == 2 && _queueBytes == 3)
-            //    _queueWaitCycles = 3;
 
             if (_queueCycle > 0) {
                 --_queueCycle;
@@ -1310,11 +1305,7 @@ private:
             if (_queueWaitCycles > 0)
                 --_queueWaitCycles;
             if (_prefetchedRemove) {
-            //    --_prefetchedBIU;
-            //    _prefetchOffset = (_prefetchOffset + 1) & 3;
-
                 --_queueBytes;
-
                 _prefetchedRemove = false;
             }
             if (_logging) {
@@ -1411,7 +1402,6 @@ private:
             wait(1);
         while (_queueBytes <= offset);
         UInt8 byte = _queueData[(_queueReadPosition + offset) & 3];
-        //--_prefetchedEU;
         _snifferDecoder.queueOperation(3);
         return byte;
     }
@@ -1419,7 +1409,6 @@ private:
     {
         --_queueBytes;
         _queueReadPosition = (_queueReadPosition + 1) & 3;
-        //_prefetchedRemove = true;
     }
     Byte fetchInstructionByte()
     {
@@ -1446,18 +1435,20 @@ private:
         if (_wordSize)
             _data = busReadWord(type);
         else
-            _data = busReadByte(type);
+            _data = busReadByte(type) | 0xff00;
     }
-    void readEA()
+    void readEA(bool memoryOnly = false)
     {
         if (_useMemory) {
             busRead();
             return;
         }
-        if (!_wordSize)
-            _data = _byteRegisters[modRMReg2()];
-        else
-            _data = _wordRegisters[modRMReg2()];
+        if (!memoryOnly) {
+            if (!_wordSize)
+                _data = _byteRegisters[modRMReg2()];
+            else
+                _data = _wordRegisters[modRMReg2()];
+        }
     }
     void readEA2()
     {
@@ -1491,7 +1482,6 @@ private:
             if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1)
                 _cycle1 = _cycle;
             _opcode = queueRead(0);
-            //_prefetchTweak = false;
             _snifferDecoder.queueOperation(1);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
@@ -1537,7 +1527,6 @@ private:
                 }
             }
             else {
-                //_prefetchTweak = true;
                 if ((_queueCycle == 2 || _queueCycle == 1) && _queueBytes == 3)
                     _queueWaitCycles = 1 + _queueCycle;
                 wait(1);
@@ -1726,17 +1715,8 @@ private:
                 }
                 _aluOperation = modRMReg();
                 doALUOperation();
-                if (_useMemory) {
+                if (_useMemory)
                     wait(2);
-//                    if (_aluOperation != 7) {
-////                        _prefetching = false;
-//                        wait(1);
-////                        _prefetching = true;
-//                        wait(1);
-//                    }
-                }
-                //else
-                //    wait(3);
                 if (_aluOperation != 7)
                     writeEA(_data);
                 break;
@@ -1757,16 +1737,8 @@ private:
                 writeEA(_source);
                 break;
             case 0x88: case 0x89: // MOV rm, reg
-                if (_useMemory) {
+                if (_useMemory)
                     wait(4);
-                    //if (!_wordSize)
-                    //    wait(1);
-                    //_transferStarting = true;
-                    //wait(1);
-
-                    //if (_queueBytes == 4 || (_queueBytes == 3 && _queueCycle == 3))
-                    //    wait(1);
-                }
                 writeEA(getReg());
                 break;
             case 0x8a: case 0x8b: // MOV reg, rm
@@ -1817,7 +1789,7 @@ private:
                 break;
             case 0x99: // CWD
                 wait(3);
-                if ((ax() & 0x8000) == 0)
+                if (!topBit(ax()))
                     dx() = 0;
                 else {
                     wait(1);
@@ -1832,14 +1804,12 @@ private:
                     wait(2);
                     _wordSize = true;
                     push(cs());
-                    //_prefetching = false;
                     wait(5);
                     UInt16 oldIP = ip();
                     cs() = newCS;
                     setIP(newIP);
                     wait(1);
                     push2(oldIP);
-                    //wait(6);
                 }
                 break;
             case 0x9b: // WAIT
@@ -1884,9 +1854,10 @@ private:
                 break;
             case 0xa4: case 0xa5: // MOVS
             case 0xac: case 0xad: // LODS
+                if (!_repeating)
+                    wait(1);
                 if (repAction())
                     break;
-                wait(1);
                 if (_queueBytes < 4 && _queueWaitCycles == 1) {
                     _transferStarting = true;
                     wait(1);
@@ -1898,8 +1869,10 @@ private:
                 }
                 else
                     setAccum();
-                wait(3);
                 _completed = (_rep == 0);
+                _repeating = !_completed;
+                if (!_repeating)
+                    wait(3);
                 break;
             case 0xa6: case 0xa7: // CMPS
             case 0xae: case 0xaf: // SCAS
@@ -1922,6 +1895,7 @@ private:
                 di() = stringIncrement();
                 wait(4);
                 _completed = (_rep == 0 || zf() == (_rep == 1));
+                _repeating = !_completed;
                 break;
             case 0xa8: case 0xa9: // TEST A, imm
                 _data = fetchInstructionData();
@@ -1941,6 +1915,7 @@ private:
                 }
                 stos();
                 _completed = (_rep == 0);
+                _repeating = !_completed;
                 wait(3);
                 break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
@@ -1982,7 +1957,7 @@ private:
                 break;
             case 0xc4: case 0xc5: // LsS rw, rmd
                 _wordSize = true;
-                readEA();
+                readEA(true);
                 setReg(_data);
                 if (_useMemory)
                     wait(2);
@@ -1996,64 +1971,20 @@ private:
                 if (_wordSize)
                     _data = fetchInstructionWord();
                 else {
-                    //_data = fetchInstructionByte();
-                    //_transferStarting = true;
-                    //wait(1);
-                    //_transferStarting = false;
-
                     _data = queueRead(0);
                     wait(1);
                     acknowledgeInstructionByte();
-
-                    wait(1);
                 }
+                if (_busState == tFirstIdle)
+                    _transferStarting = true;
+                wait(1);
                 if (_useMemory) {
                     if (!_wordSize) {
                         _transferStarting = true;
                         if (_busState == tFirstIdle)
                             wait(1);
                     }
-                    else
-                        wait(1);
                 }
-
-                //if (_wordSize)
-                //    _data = fetchInstructionWord();
-                //else {
-                //    _data = queueRead(0);
-                //    wait(2);
-                //    acknowledgeInstructionByte();
-
-                //    if (_queueBytes < 4 && _queueWaitCycles == 0) {
-                //        _transferStarting = true;
-                //        wait(1);
-                //    }
-                //    //wait(1);
-                //}
-
-                ////_data = fetchInstructionData();
-                //if (_useMemory) {
-                //    if (!_wordSize) {
-                //        //wait(1);
-                //        //_transferStarting = true;
-
-                //        //if (_queueBytes < 4 && _queueWaitCycles == 1) {
-                //        //    _transferStarting = true;
-                //        //    wait(1);
-                //        //}
-
-
-                //        //wait(2);
-                //        ////_prefetching = false;
-                //        ////if (_busState == tFirstIdle)
-                //        //    wait(1);
-                //    }
-                //    else {
-                //        wait(2);
-                //        //_prefetching = false;
-                //    }
-                //    //_prefetching = true;
-                //}
                 writeEA(_data);
                 break;
             case 0xcc: // INT 3
@@ -2066,7 +1997,7 @@ private:
             case 0xce: // INTO
                 wait(2);
                 if (of()) {
-                    wait(2);
+                    wait(4);
                     interrupt(4);
                 }
                 break;
@@ -2074,10 +2005,8 @@ private:
                 {
                     wait(2);
                     _prefetching = false;
-                    wait(2);
-
                     UInt16 newIP = pop2();
-                    wait(5);
+                    wait(3);
                     UInt16 newCS = pop2();
                     wait(1);
                     cs() = newCS;
@@ -2098,10 +2027,11 @@ private:
                 }
                 while (_source != 0) {
                     _destination = _data;
+                    bool oldCF = cf();
                     switch (modRMReg()) {
                         case 0:  // ROL
+                            setCF(topBit(_data));
                             _data <<= 1;
-                            doCF();
                             _data |= (cf() ? 1 : 0);
                             setOFRotate();
                             break;
@@ -2113,20 +2043,21 @@ private:
                             setOFRotate();
                             break;
                         case 2:  // RCL
-                            _data = (_data << 1) | (cf() ? 1 : 0);
-                            doCF();
+                            setCF(topBit(_data));
+                            _data = (_data << 1) | (oldCF ? 1 : 0);
                             setOFRotate();
                             break;
                         case 3:  // RCR
+                            setCF((_data & 1) != 0);
                             _data >>= 1;
-                            if (cf())
+                            if (oldCF)
                                 _data |= (!_wordSize ? 0x80 : 0x8000);
                             setCF((_destination & 1) != 0);
                             setOFRotate();
                             break;
                         case 4:  // SHL
+                            setCF(topBit(_data));
                             _data <<= 1;
-                            doCF();
                             setOFRotate();
                             setPZS();
                             break;
@@ -2139,6 +2070,10 @@ private:
                             break;
                         case 6:  // SETMO
                             bitwise(0xffff);
+                            setCF(false);
+                            setOFRotate();
+                            setAF(false);
+                            setPZS();
                             break;
                         case 7:  // SAR
                             setCF((_data & 1) != 0);
@@ -2180,7 +2115,8 @@ private:
             case 0xd7: // XLATB
                 _address = bx() + al();
                 wait(3);
-                al() = busAccess(ioReadMemory, _address);
+                _segment = 3;
+                al() = busReadByte(ioReadMemory);
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
@@ -2220,13 +2156,16 @@ private:
                     _data = dx();
                 _segment = 7;
                 _address = _data;
-                if ((_opcode & 2) != 0)
-                    wait(1);
                 if ((_opcode & 2) == 0) {
                     busRead(ioReadPort);
                     setAccum();
                 }
                 else {
+                    if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    wait(1);
                     _data = getAccum();
                     busWrite(ioWritePort);
                     wait(1);
@@ -2276,8 +2215,6 @@ private:
                 }
                 wait(2);
                 if (interruptPending()) {
-                    //_prefetchedBIU = 4;  // Don't prefetch between vector word fetches
-                    //--_ip;
                     wait(7);
                     checkInterrupts2(3);
                 }
@@ -2295,7 +2232,14 @@ private:
                     case 0:
                     case 1:  // TEST
                         wait(2);
-                        test(_data, fetchInstructionData());
+                        if (_wordSize)
+                            _source = fetchInstructionWord();
+                        else {
+                            _source = queueRead(0);
+                            wait(1);
+                            acknowledgeInstructionByte();
+                        }
+                        test(_data, _source);
                         if (_useMemory)
                             wait(2);
                         break;
@@ -2348,7 +2292,7 @@ private:
                 setDF(_wordSize);
                 break;
             case 0xfe: case 0xff: // misc
-                readEA();
+                readEA(modRMReg() == 3 || modRMReg() == 5);
                 switch (modRMReg()) {
                     case 0:  // INC rm
                     case 1:  // DEC rm
@@ -2373,9 +2317,9 @@ private:
                         {
                             wait(1);
                             _prefetching = false;
-                            wait(2);
+                            wait(3);  // 2
                             if (_useMemory)
-                                wait(2);
+                                wait(1);  // 2
                             while (_busState != tIdle || _ioNext._type != ioPassive)
                                 wait(1);
                             wait(2);
@@ -2397,6 +2341,8 @@ private:
                             wait(2);
                             if (_useMemory)
                                 wait(1);
+                            //else
+                            //    wait(10);
                             if (!_wordSize && _useMemory)
                                 _data |= 0xff00;
                             UInt16 newIP = _data;
@@ -2409,7 +2355,7 @@ private:
                             wait(2);
                             while (_busState != tIdle || _ioNext._type != ioPassive)
                                 wait(1);
-                            wait(2);
+                            //wait(2);
                             push2(cs());
                             wait(5);
                             UInt16 oldIP = ip();
@@ -2422,9 +2368,10 @@ private:
                     case 4:  // JMP rm
                         {
                             wait(1);
-                            if (_useMemory)
-                                wait(3);
                             _prefetching = false;
+                            wait(2);
+                            if (_useMemory)
+                                wait(1);
                             while ((_busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
                                 wait(1);
                             if (!_wordSize) {
@@ -2508,7 +2455,7 @@ private:
         wait(w);  // Some of these may actually be in the PIT or PIC
         busAccess(ioInterruptAcknowledge, 0);
         _data = busAccess(ioInterruptAcknowledge, 0);
-        //wait(2);
+        wait(2);
         interrupt(_data);
     }
 
@@ -2537,31 +2484,27 @@ private:
 
     bool div(Word l, Word h)
     {
-        Word highBit = 0x80;
-        Word allBits = 0xff;
         int bitCount = 8;
         if (_wordSize) {
             l = ax();
             h = dx();
-            highBit = 0x8000;
-            allBits = 0xffff;
             bitCount = 16;
         }
         bool negative = false;
         bool dividendNegative = false;
         if (_opcode != 0xd4) {
             if (modRMReg() == 7) {
-                if ((h & highBit) != 0) {
+                if (topBit(h)) {
                     h = ~h;
-                    l = (~l + 1) & allBits;
+                    l = (~l + 1) & sizeMask();
                     if (l == 0)
                         ++h;
-                    h &= allBits;
+                    h &= sizeMask();
                     negative = true;
                     dividendNegative = true;
                     wait(4);
                 }
-                if ((_source & highBit) != 0) {
+                if (topBit(_source)) {
                     _source = ~_source + 1;
                     negative = !negative;
                 }
@@ -2572,7 +2515,7 @@ private:
             wait(3);
         }
         wait(8);
-        _source &= allBits;
+        _source &= sizeMask();
         if (h >= _source) {
             interrupt(0);
             return false;
@@ -2583,10 +2526,10 @@ private:
         bool carry = true;
         for (int b = 0; b < bitCount; ++b) {
             Word r = (l << 1) + (carry ? 1 : 0);
-            carry = (l & highBit) != 0;
+            carry = topBit(l);
             l = r;
             r = (h << 1) + (carry ? 1 : 0);
-            carry = (h & highBit) != 0;
+            carry = topBit(h);
             h = r;
             wait(8);
             if (carry) {
@@ -2608,7 +2551,7 @@ private:
         l = ~((l << 1) + (carry ? 1 : 0));
         if (_opcode != 0xd4 && modRMReg() == 7) {
             wait(4);
-            if ((l & highBit) != 0) {
+            if (topBit(l)) {
                 interrupt(0);
                 return false;
             }
@@ -2632,22 +2575,17 @@ private:
         setPF();
         _data = 0;
         bool negate = false;
-        UInt16 highBit = 0x80;
-        UInt16 allBits = 0xff;
         int bitCount = 8;
         if (_opcode != 0xd5) {
-            if (_wordSize) {
-                highBit = 0x8000;
-                allBits = 0xffff;
+            if (_wordSize)
                 bitCount = 16;
-            }
             else
                 wait(8);
             if (modRMReg() == 5) {
-                if ((a & highBit) == 0) {
-                    if ((b & highBit) != 0) {
+                if (!topBit(a)) {
+                    if (topBit(b)) {
                         wait(1);
-                        if ((b & allBits) != highBit)
+                        if ((b & sizeMask()) != (_wordSize ? 0x8000 : 0x80))
                             wait(1);
                         b = ~b + 1;
                         negate = true;
@@ -2657,7 +2595,7 @@ private:
                     wait(1);
                     a = ~a + 1;
                     negate = true;
-                    if ((b & highBit) != 0) {
+                    if (topBit(b)) {
                         b = ~b + 1;
                         negate = false;
                     }
@@ -2668,7 +2606,7 @@ private:
             }
             wait(3);
         }
-        b &= allBits;
+        b &= sizeMask();
         for (int i = 0; i < bitCount; ++i) {
             wait(7);
             if ((a & 1) != 0) {
@@ -2708,7 +2646,6 @@ private:
     }
     void jumpShort()
     {
-        //_prefetching = false;
         wait(1);
         jump(signExtend(_data));
     }
@@ -2718,15 +2655,11 @@ private:
     {
         _address = number << 2;
         _segment = 1;
-        wait(3);
-        //_prefetching = false;
+        wait(1);
         wait(2);
         UInt16 oldCS = cs();
         cs() = 0;
         UInt16 newIP = busReadWord(ioReadMemory);
-        //_prefetching = true;
-        //wait(2);
-        _prefetching = false;
         UInt16 oldIP = ip();
         wait(1);
         _address += 2;
@@ -2735,14 +2668,15 @@ private:
         _wordSize = true;
         _segmentOverride = -1;
         push2(_flags & 0x0fd7);
+        _prefetching = false;
         setIF(false);
         setTF(false);
         wait(5);
         push2(oldCS);
-        wait(3);
+        wait(5);
         cs() = newCS;
         setIP(newIP);
-        wait(4);
+        wait(2);
         push2(oldIP);
     }
     void test(UInt16 destination, UInt16 source)
@@ -2768,11 +2702,16 @@ private:
         if (interruptPending()) {
             _prefetching = false;
             setIP(ip() - 2);
+            t = 0;
+        }
+        if (t == 0) {
+            wait(6);
+            _rep = 0;
+            _repeating = false;
             return true;
         }
-        if (t == 0)
-            return true;
         --cx();
+        wait(7);
         return false;
     }
     void lods()
@@ -2831,23 +2770,34 @@ private:
     void setPZS() { setPF(); setZF(); setSF(); }
     void bitwise(UInt16 data) { _data = data; clearCAO(); setPZS(); }
     void doAF() { setAF(((_data ^ _source ^ _destination) & 0x10) != 0); }
-    void doCF() { setCF((_data & (!_wordSize ? 0x100 : 0x10000)) != 0); }
-    void setCAPZS() { setPZS(); doAF(); doCF(); }
+    void setAPZS() { setPZS(); doAF(); }
+    Word sizeMask() { return _wordSize ? 0xffff : 0xff; }
+    bool topBit(Word w) { return (w & (_wordSize ? 0x8000 : 0x80)) != 0; }
     void setOFAdd()
     {
-        UInt16 t = (_data ^ _source) & (_data ^ _destination);
-        setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
+        setOF(topBit((_data ^ _source) & (_data ^ _destination)));
     }
-    void add() { _data = _destination + _source; setCAPZS(); setOFAdd(); }
+    void add()
+    {
+        _data = _destination + _source;
+        setAPZS();
+        setOFAdd();
+        setCF((_source & sizeMask()) > (_data & sizeMask()));
+    }
     void setOFSub()
     {
-        UInt16 t = (_destination ^ _source) & (_data ^ _destination);
-        setOF((t & (!_wordSize ? 0x80 : 0x8000)) != 0);
+        setOF(topBit((_destination ^ _source) & (_data ^ _destination)));
     }
-    void sub() { _data = _destination - _source; setCAPZS(); setOFSub(); }
+    void sub()
+    {
+        _data = _destination - _source;
+        setAPZS();
+        setOFSub();
+        setCF((_source & sizeMask()) > (_destination & sizeMask()));
+    }
     void setOFRotate()
     {
-        setOF(((_data ^ _destination) & (!_wordSize ? 0x80 : 0x8000)) != 0);
+        setOF(topBit(_data ^ _destination));
     }
     void doALUOperation()
     {
@@ -3024,15 +2974,10 @@ private:
     bool zf() { return (_flags & 0x40) != 0; }
     void setZF()
     {
-        _flags = (_flags & ~0x40) |
-            ((_data & (!_wordSize ? 0xff : 0xffff)) == 0 ? 0x40 : 0);
+        _flags = (_flags & ~0x40) | ((_data & sizeMask()) == 0 ? 0x40 : 0);
     }
     bool sf() { return (_flags & 0x80) != 0; }
-    void setSF()
-    {
-        _flags = (_flags & ~0x80) |
-            ((_data & (!_wordSize ? 0x80 : 0x8000)) != 0 ? 0x80 : 0);
-    }
+    void setSF() { _flags = (_flags & ~0x80) | (topBit(_data) ? 0x80 : 0); }
     bool tf() { return (_flags & 0x100) != 0; }
     void setTF(bool tf) { _flags = (_flags & ~0x100) | (tf ? 0x100 : 0); }
     bool intf() { return (_flags & 0x200) != 0; }
@@ -3071,10 +3016,7 @@ private:
         _queueBytes = 0;
         _queueReadPosition = 0;
         _queueWritePosition = 0;
-        //_prefetchedEU = 0;
-        //_prefetchedBIU = 0;
         _snifferDecoder.queueOperation(2);
-        //_prefetchAddress = _ip;
         _prefetchedRemove = false;
         wait(1);
         _prefetching = true;
@@ -3121,9 +3063,6 @@ private:
     int _segment;
 
     UInt8 _queueData[4];
-    //UInt8 _prefetchOffset;
-    //UInt8 _prefetchedEU;
-    //UInt8 _prefetchedBIU;
     bool _prefetchedRemove;
     int _queueReadPosition;
     int _queueWritePosition;
@@ -3132,12 +3071,10 @@ private:
     UInt16 _ip;
     bool _nmiRequested;
 
-    //UInt16 _prefetchAddress;
     BusState _busState;
     bool _statusSet;
     bool _prefetching;
     bool _transferStarting;
-    //bool _prefetchTweak;
 
     struct IOInformation
     {
@@ -3571,7 +3508,7 @@ public:
 
         int nextTest = 0;
         int maxTests = 1000;
-        int availableLength = 0xf400 - testProgram.count();
+        int availableLength = 0xf300 - testProgram.count();
         Array<int> cycleCounts(_tests.count());
         do {
             int totalLength = 0;
@@ -4134,6 +4071,18 @@ private:
                             t.fixup(0x0f);
                         }
                         else {  // CALL rd
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x31);
+                            t.preamble(0xdb);  // XOR BX,BX
+                            t.preamble(0x8e);
+                            t.preamble(0xdb);  // MOV DS,BX
+                            t.preamble(0xc6);
+                            t.preamble(0x06);
+                            t.preamble(0x70);
+                            t.preamble(0xfe);
+                            t.preamble(0xcb);  // MOV BYTE[BX+0xFE70],0xCB  // RETF
+                            t.preamble(0x1f);  // POP DS
+
                             t.preamble(0xc7);
                             t.preamble(0x47);
                             t.preamble(0x02);
@@ -4150,9 +4099,9 @@ private:
 
                             t.preamble(0xc6);
                             t.preamble(0x07);
-                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // Set address register to 0
+                            t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
 
-                            t.fixup(0x06);
+                            t.fixup(0x11);
                         }
                         break;
                     case 0x20:  // JMP rm
@@ -4220,6 +4169,18 @@ private:
                             t.fixup(0x0b);
                         }
                         else {  // JMP rd
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x31);
+                            t.preamble(0xdb);  // XOR BX,BX
+                            t.preamble(0x8e);
+                            t.preamble(0xdb);  // MOV DS,BX
+                            t.preamble(0xc6);
+                            t.preamble(0x06);
+                            t.preamble(0x70);
+                            t.preamble(0xfe);
+                            t.preamble(0xc3);  // MOV BYTE[BX+0xFE70],0xC3  // RET
+                            t.preamble(0x1f);  // POP DS
+
                             t.preamble(0xc7);
                             t.preamble(0x47);
                             t.preamble(0x02);
@@ -4234,9 +4195,9 @@ private:
 
                             t.preamble(0xc6);
                             t.preamble(0x07);
-                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
+                            t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
 
-                            t.fixup(0x06);
+                            t.fixup(0x11);
                         }
                         break;
                 }
