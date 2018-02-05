@@ -225,13 +225,21 @@ doneQueueFiller:
 irregularNops:
   stosb
   cmp cl,11
-  jne dlNops
+  jne notCHNops
   mov ax,0x2802  ; 'add ch,[bx+si]'
   stosw
   jmp doneNops
-dlNops:
+notCHNops:
+  cmp cl,12
+  jne notDLNops
   mov ax,0x1002  ; 'add dl,[bx+si]'
   stosw
+  jmp doneNops
+notDLNops:
+  stosb
+  stosb
+  mov al,0x37
+  stosb
 doneNops:
 
   mov cl,[si]
