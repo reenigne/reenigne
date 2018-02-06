@@ -164,7 +164,8 @@ class Test
 {
 public:
     Test(int queueFiller = 0, int nops = 0)
-      : _queueFiller(queueFiller), _nops(nops), _usesCH(false)
+      : _queueFiller(queueFiller), _nops(nops), _usesCH(false),
+        _noLESNop(false)
     { }
     void addInstruction(Instruction instruction)
     {
@@ -191,6 +192,12 @@ public:
                 return 3;
             case 13:
                 return 4;
+            case 14:
+                return 2;
+            case 15:
+                return 3;
+            case 16:
+                return 3;
             default:
                 return _nops;
         }
@@ -199,6 +206,8 @@ public:
     {
         if (_usesCH && _nops == 11)
             _nops = 12;
+        if (_nops == 14 && _noLESNop)
+            _nops = 13;
         *p = (_queueFiller << 5) + _nops;
         ++p;
         int pc = _preamble.count();
@@ -270,6 +279,8 @@ public:
         p += ql;
         if (_usesCH && _nops == 11)
             _nops = 12;
+        if (_nops == 14 && _noLESNop)
+            _nops = 13;
         switch (_nops) {
             case 11:
             case 12:
@@ -282,6 +293,20 @@ public:
                 p[1] = 0x90;
                 p[2] = 0x90;
                 p[3] = 0x37;
+                break;
+            case 14:
+                p[0] = 0xc4;
+                p[1] = 0x10;
+                break;
+            case 15:
+                p[0] = 0x80;
+                p[1] = 0x38;
+                p[2] = 0x00;
+                break;
+            case 16:
+                p[0] = 0xf6;
+                p[1] = 0x00;
+                p[2] = 0x00;
                 break;
             default:
                 for (int i = 0; i < _nops; ++i)
@@ -326,12 +351,15 @@ public:
     void preamble(Byte p) { _preamble.append(p); }
     void fixup(Byte f) { _fixups.append(f); }
     void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
+    int queueFiller() { return _queueFiller; }
     void setNops(int nops) { _nops = nops; }
     int startIP() { return _startIP; }
+    void noLESNop() { _noLESNop = true; }
 private:
     int _queueFiller;
     int _nops;
     bool _usesCH;
+    bool _noLESNop;
 
     AppendableArray<Byte> _preamble;
     AppendableArray<Instruction> _instructions;
@@ -471,11 +499,11 @@ private:
             case 0xc2: return "RET " + iw();
             case 0xc1:
             case 0xc3: return "RET";
-            case 0xc4: _doubleWord = true; return "LDS " + rw() + ", " + ea();
+            case 0xc4: _doubleWord = true; return "LES " + rw() + ", " + ea();
             case 0xc5:
                 _doubleWord = true;
                 _wordSize = false;
-                return "LES " + rw() + ", " + ea();
+                return "LDS " + rw() + ", " + ea();
             case 0xc6:
             case 0xc7: return "MOV " + ea() + ", " + imm(true);
             case 0xc8:
@@ -1508,7 +1536,7 @@ private:
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
                 _modRM = queueRead(1);
                 acknowledgeInstructionByte();
-                if (_busState == tFirstIdle)
+                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
                     ++_queueWaitCycles;
                 if ((_modRM & 0xc0) == 0xc0) {
                     acknowledgeInstructionByte();
@@ -1608,6 +1636,8 @@ private:
                 push(_segmentRegisters[_opcode >> 3]);
                 break;
             case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                    wait(1);
                 _segmentRegisters[_opcode >> 3] = pop();
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e: // segreg:
@@ -1651,8 +1681,11 @@ private:
                     ++ah();
                     setCA();
                 }
-                else
+                else {
                     clearCA();
+                    wait(1);
+                }
+
                 aa();
                 break;
             case 0x3f: // AAS
@@ -1661,8 +1694,10 @@ private:
                     --ah();
                     setCA();
                 }
-                else
+                else {
                     clearCA();
+                    wait(1);
+                }
                 aa();
                 break;
             case 0x40: case 0x41: case 0x42: case 0x43:
@@ -1691,6 +1726,8 @@ private:
                 break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
+                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                    wait(1);
                 rw() = pop();
                 break;
             case 0x60: case 0x61: case 0x62: case 0x63:
@@ -1731,16 +1768,24 @@ private:
                 if (_opcode == 0x81)
                     _source = fetchInstructionWord();
                 else {
-                    _source = signExtend(queueRead(0));
+                    if (_opcode == 0x83)
+                        _source = signExtend(queueRead(0));
+                    else
+                        _source = queueRead(0) | 0xff00;
                     wait(1);
                     acknowledgeInstructionByte();
                 }
                 _aluOperation = modRMReg();
                 doALUOperation();
-                if (_useMemory)
-                    wait(2);
-                if (_aluOperation != 7)
+                if (_aluOperation != 7) {
+                    if (_useMemory)
+                        wait(2);
                     writeEA(_data);
+                }
+                else {
+                    if (_useMemory)
+                        wait(1);
+                }
                 break;
             case 0x84: case 0x85: // TEST rm, reg
                 readEA();
@@ -1854,6 +1899,8 @@ private:
                 push((_flags & 0x0fd7) | 0xf000);
                 break;
             case 0x9d: // POPF
+                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                    wait(1);
                 _flags = pop() | 2;
                 break;
             case 0x9e: // SAHF
@@ -2100,7 +2147,9 @@ private:
                     if ((_opcode & 9) == 9)
                         wait(2);
                     _prefetching = false;
-                    UInt16 newIP = pop2();
+                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                        wait(1);
+                    UInt16 newIP = pop();
                     wait(2);
                     UInt16 newCS;
                     if ((_opcode & 8) == 0)
@@ -2127,7 +2176,7 @@ private:
                     wait(2);
                 wait(2);
                 readEA2();
-                _segmentRegisters[!_wordSize ? 0 : 3] = _data;
+                _segmentRegisters[!_wordSize ? 3 : 0] = _data;
                 break;
             case 0xc6: case 0xc7: // MOV rm, imm
                 if (_useMemory)
@@ -2139,13 +2188,13 @@ private:
                     wait(1);
                     acknowledgeInstructionByte();
                 }
-                if (_busState == tFirstIdle)
+                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
                     _transferStarting = true;
                 wait(1);
                 if (_useMemory) {
                     if (!_wordSize) {
                         _transferStarting = true;
-                        if (_busState == tFirstIdle)
+                        if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
                             wait(1);
                     }
                 }
@@ -2169,13 +2218,13 @@ private:
                 {
                     wait(2);
                     _prefetching = false;
-                    UInt16 newIP = pop2();
+                    UInt16 newIP = pop();
                     wait(3);
-                    UInt16 newCS = pop2();
+                    UInt16 newCS = pop();
                     wait(1);
                     cs() = newCS;
                     setIP(newIP);
-                    _flags = pop2() | 2;
+                    _flags = pop() | 2;
                     wait(5);
                 }
                 break;
@@ -2316,11 +2365,14 @@ private:
                     _data = fetchInstructionByte();
                     wait(1);
                 }
-                else
+                else {
                     _data = dx();
+                }
                 _segment = 7;
                 _address = _data;
                 if ((_opcode & 2) == 0) {
+                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                        wait(1);
                     busRead(ioReadPort);
                     setAccum();
                 }
@@ -2338,9 +2390,9 @@ private:
             case 0xe8: // CALL cw
                 {
                     UInt16 newIP = jumpNear();
-                    wait(3);
+                    wait(2);
                     _wordSize = true;
-                    push(newIP);
+                    push2(newIP);
                 }
                 break;
             case 0xe9: // JMP cw
@@ -2370,6 +2422,8 @@ private:
                 break;
             case 0xf4: // HLT
                 if (!_repeating) {
+                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                        wait(1);
                     wait(1);
                     if (_busState == t2 || _busState == t4)
                         wait(1);
@@ -2405,7 +2459,7 @@ private:
                         }
                         test(_data, _source);
                         if (_useMemory)
-                            wait(2);
+                            wait(1);
                         break;
                     case 2:  // NOT
                     case 3:  // NEG
@@ -2670,6 +2724,8 @@ private:
         wait(8);
         _source &= sizeMask();
         if (h >= _source) {
+            if (_useMemory)
+                wait(1);
             interrupt(0);
             return false;
         }
@@ -2783,8 +2839,9 @@ private:
     }
     void aa()
     {
+        setOF(false); // TODO: Figure out if this is ever set by AAA/AAS
         al() &= 0x0f;
-        wait(7);
+        wait(6);
     }
     UInt16 jump(UInt16 delta)
     {
@@ -2813,15 +2870,16 @@ private:
         UInt16 oldCS = cs();
         cs() = 0;
         UInt16 newIP = busReadWord(ioReadMemory);
-        UInt16 oldIP = ip();
         wait(1);
         _address += 2;
         UInt16 newCS = busReadWord(ioReadMemory);
+        _prefetching = false;
+        UInt16 oldIP = ip();
         wait(2);
         _wordSize = true;
         _segmentOverride = -1;
         push2(_flags & 0x0fd7);
-        _prefetching = false;
+//        _prefetching = false;
         setIF(false);
         setTF(false);
         wait(5);
@@ -2940,10 +2998,6 @@ private:
         busWrite();
     }
     Word pop()
-    {
-        return pop2();
-    }
-    Word pop2()
     {
         _address = sp();
         sp() += 2;
@@ -3295,7 +3349,7 @@ private:
     SnifferDecoder _snifferDecoder;
 };
 
-static const int nopCounts = 13;
+static const int nopCounts = 16;
 
 class Program : public ProgramBase
 {
@@ -3309,7 +3363,7 @@ public:
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
             0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
-        int noppingTests, noppingTests2;
+        int groupSize;
         for (_group = 0; _group < 2; ++_group) {
             // Basic tests
             for (int i = 0; i < 0x100; ++i) {
@@ -3583,109 +3637,107 @@ public:
                 }
             }
             if (_group == 0)
-                noppingTests = _tests.count();
-            else
-                break;
+                groupSize = _tests.count();
+        }
+        int noppingTests = _tests.count();
 
-            std::mt19937 generator;
-            std::uniform_int_distribution<int> d(0, 65535);
-            // Multiply
-            for (int i = 0xf6; i < 0xf8; ++i) {
-                for (int m = 0xe2; m < 0xf2; m += 8) {
-                    for (int v = 0; v < 1000; ++v) {
-                        Instruction instruction(i, m);
-                        Test t;
-                        t.addInstruction(instruction);
-                        Word a = d(generator);
-                        t.preamble(0xb8);
-                        t.preamble(a & 0xff);
-                        t.preamble(a >> 8);  // MOV AX,a
-                        Word b = d(generator);
-                        t.preamble(0xba);
-                        t.preamble(b & 0xff);
-                        t.preamble(b >> 8);  // MOV DX,a
-                        t.setQueueFiller(1);
-                        _tests.append(t);
-                    }
-                }
-            }
-            // Divide
-            for (int i = 0xf6; i < 0xf8; ++i) {
-                for (int m = 0xf3; m < 0xff; m += 8) {
-                    for (int v = 0; v < 1000; ++v) {
-                        Instruction instruction(i, m);
-                        Test t;
-                        t.addInstruction(instruction);
-
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x31);
-                        t.preamble(0xdb);  // XOR BX,BX
-                        t.preamble(0x8e);
-                        t.preamble(0xdb);  // MOV DS,BX
-                        t.preamble(0xc7);
-                        t.preamble(0x47);
-                        t.preamble(0x00);
-                        t.preamble(0x02);
-                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                        t.preamble(0x8c);
-                        t.preamble(0x4f);
-                        t.preamble(0x02);  // MOV [BX+0x02],CS
-                        t.preamble(0x1f);  // POP DS
-                        t.fixup(0x08);
-
-                        Word a = d(generator);
-                        t.preamble(0xb8);
-                        t.preamble(a & 0xff);
-                        t.preamble(a >> 8);  // MOV AX,a
-                        Word b = d(generator);
-                        t.preamble(0xba);
-                        t.preamble(b & 0xff);
-                        t.preamble(b >> 8);  // MOV DX,a
-                        Word c = d(generator);
-                        t.preamble(0xbb);
-                        t.preamble(c & 0xff);
-                        t.preamble(c >> 8);  // MOV BX,a
-                        t.setQueueFiller(1);
-                        _tests.append(t);
-                    }
-                }
-            }
-            // AAM and AAD
-            for (int i = 0xd4; i < 0xd6; ++i) {
+        std::mt19937 generator;
+        std::uniform_int_distribution<int> d(0, 65535);
+        // Multiply
+        for (int i = 0xf6; i < 0xf8; ++i) {
+            for (int m = 0xe2; m < 0xf2; m += 8) {
                 for (int v = 0; v < 1000; ++v) {
-                    Instruction instruction(i);
-                    Word b = d(generator);
-                    instruction.setImmediate(b & 0xff);
+                    Instruction instruction(i, m);
                     Test t;
-
-                    if (i == 0xd4) {
-                        t.preamble(0x1e);  // PUSH DS
-                        t.preamble(0x31);
-                        t.preamble(0xdb);  // XOR BX,BX
-                        t.preamble(0x8e);
-                        t.preamble(0xdb);  // MOV DS,BX
-                        t.preamble(0xc7);
-                        t.preamble(0x47);
-                        t.preamble(0x00);
-                        t.preamble(0x02);
-                        t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                        t.preamble(0x8c);
-                        t.preamble(0x4f);
-                        t.preamble(0x02);  // MOV [BX+0x02],CS
-                        t.preamble(0x1f);  // POP DS
-                        t.fixup(0x08);
-                    }
-
                     t.addInstruction(instruction);
                     Word a = d(generator);
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
+                    Word b = d(generator);
+                    t.preamble(0xba);
+                    t.preamble(b & 0xff);
+                    t.preamble(b >> 8);  // MOV DX,a
                     t.setQueueFiller(1);
                     _tests.append(t);
                 }
             }
-            noppingTests2 = _tests.count();
+        }
+        // Divide
+        for (int i = 0xf6; i < 0xf8; ++i) {
+            for (int m = 0xf3; m < 0xff; m += 8) {
+                for (int v = 0; v < 1000; ++v) {
+                    Instruction instruction(i, m);
+                    Test t;
+                    t.addInstruction(instruction);
+
+                    t.preamble(0x1e);  // PUSH DS
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);
+                    t.preamble(0x00);
+                    t.preamble(0x02);
+                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                    t.preamble(0x8c);
+                    t.preamble(0x4f);
+                    t.preamble(0x02);  // MOV [BX+0x02],CS
+                    t.preamble(0x1f);  // POP DS
+                    t.fixup(0x08);
+
+                    Word a = d(generator);
+                    t.preamble(0xb8);
+                    t.preamble(a & 0xff);
+                    t.preamble(a >> 8);  // MOV AX,a
+                    Word b = d(generator);
+                    t.preamble(0xba);
+                    t.preamble(b & 0xff);
+                    t.preamble(b >> 8);  // MOV DX,a
+                    Word c = d(generator);
+                    t.preamble(0xbb);
+                    t.preamble(c & 0xff);
+                    t.preamble(c >> 8);  // MOV BX,a
+                    t.setQueueFiller(1);
+                    _tests.append(t);
+                }
+            }
+        }
+        // AAM and AAD
+        for (int i = 0xd4; i < 0xd6; ++i) {
+            for (int v = 0; v < 1000; ++v) {
+                Instruction instruction(i);
+                Word b = d(generator);
+                instruction.setImmediate(b & 0xff);
+                Test t;
+
+                if (i == 0xd4) {
+                    t.preamble(0x1e);  // PUSH DS
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);
+                    t.preamble(0x00);
+                    t.preamble(0x02);
+                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                    t.preamble(0x8c);
+                    t.preamble(0x4f);
+                    t.preamble(0x02);  // MOV [BX+0x02],CS
+                    t.preamble(0x1f);  // POP DS
+                    t.fixup(0x08);
+                }
+
+                t.addInstruction(instruction);
+                Word a = d(generator);
+                t.preamble(0xb8);
+                t.preamble(a & 0xff);
+                t.preamble(a >> 8);  // MOV AX,a
+                t.setQueueFiller(1);
+                _tests.append(t);
+            }
         }
 
         _cache.allocate(_tests.count());
@@ -3876,6 +3928,11 @@ public:
                 if (c == -1)
                     throw Exception("Test was inconclusive");
             } while (true);
+            if (newNextTest == nextTest + 1) {
+                // Cache turned out to be bad, scrap the rest of it.
+                _cacheHighWaterMark = nextTest;
+            }
+            dumpCache(newNextTest);
 
             if (maxTests < 1000000)
                 maxTests *= 2;
@@ -3884,16 +3941,14 @@ public:
                 break;
 
         } while (true);
-        dumpCache(_tests.count());
 
-        Array<bool> useTest(_tests.count());
-        for (int i = 0; i < _tests.count(); ++i) {
+        Array<bool> useTest(noppingTests);
+        for (int i = 0; i < noppingTests; ++i) {
             bool use = true;
-            if (i/nopCounts == 2007 || i/nopCounts == 2480)  // skip WAIT and HLT
+            int t = (i % groupSize)/nopCounts;
+            if (t == 2007 || t == 2480)  // skip WAIT and HLT
                 use = false;
-            if (i >= noppingTests && i < noppingTests2)
-                use = false;
-            if ((i - noppingTests2)/nopCounts == 2007 || (i - noppingTests2)/nopCounts == 2480)
+            if (_tests[i].queueFiller() != 0)  // skip tests with non-standard queue fillers
                 use = false;
             useTest[i] = use;
         }
@@ -3905,7 +3960,7 @@ public:
                 if (c2 == c1)
                     continue;
                 bool found = true;
-                for (int t = 0; t < _tests.count(); t += nopCounts) {
+                for (int t = 0; t < noppingTests; t += nopCounts) {
                     if (!useTest[t])
                         continue;
                     if (cycleCounts[t + c1] != cycleCounts[t + c2]) {
@@ -4021,8 +4076,13 @@ private:
     {
         if (_group == 1) {
             Test t1 = t;
-            t.addInstruction(Instruction(0, 0));
+            t.addInstruction(Instruction(0, 4));
             _tests.append(t);
+            t1.addInstruction(Instruction(0x90));
+            t1.addInstruction(Instruction(0x90));
+            t1.addInstruction(Instruction(0x90));
+            t1.addInstruction(Instruction(0x90));
+            t1.addInstruction(Instruction(0, 4));
             t1.addInstruction(Instruction(5, 0));
             _tests.append(t1);
         }
@@ -4102,8 +4162,13 @@ private:
                 t.fixup(0x01);
                 break;
             case 0xc5:  // LDS
-                t.preamble(0x0e);  // PUSH CS
-                t.preamble(0x1f);  // POP DS
+                t.preamble(0xc7);
+                t.preamble(0x07);
+                t.preamble(0x00);
+                t.preamble(0x00);  // MOV WORD[BX],0000
+                t.preamble(0x8c);
+                t.preamble(0x4f);
+                t.preamble(0x02);  // MOV WORD[BX+2],CS
                 break;
             case 0xc8: case 0xca: // RETF iw
                 t.preamble(0x0e);  // PUSH CS
@@ -4187,7 +4252,7 @@ private:
                     t.preamble(0xc7);
                     t.preamble(0x47);
                     t.preamble(0x00);
-                    t.preamble(0x02);
+                    t.preamble(i.length());
                     t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                     t.preamble(0x8c);
                     t.preamble(0x4f);
@@ -4291,6 +4356,7 @@ private:
                             t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
 
                             t.fixup(0x11);
+                            t.noLESNop();
                         }
                         break;
                     case 0x20:  // JMP rm
@@ -4393,6 +4459,7 @@ private:
                             t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
 
                             t.fixup(0x11);
+                            t.noLESNop();
                         }
                         break;
                 }

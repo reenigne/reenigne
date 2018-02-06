@@ -223,22 +223,46 @@ doneQueueFiller:
   rep stosb
   jmp doneNops
 irregularNops:
-  stosb
   cmp cl,11
   jne notCHNops
+  stosb
   mov ax,0x2802  ; 'add ch,[bx+si]'
   stosw
   jmp doneNops
 notCHNops:
   cmp cl,12
   jne notDLNops
+  stosb
   mov ax,0x1002  ; 'add dl,[bx+si]'
   stosw
   jmp doneNops
 notDLNops:
+  cmp cl,13
+  jne notAAANops
   stosb
   stosb
-  mov al,0x37
+  stosb
+  mov al,0x37    ; 'aaa'
+  stosb
+  jmp doneNops
+notAAANops:
+  cmp cl,14
+  jne notLESNops
+  mov ax,0x10c4  ; 'les ax,[bx+si]'
+  stosw
+  jmp doneNops
+notLESNops:
+  cmp cl,15
+  jne notCMPNops
+  mov ax,0x3880  ; 'cmp byte[bx+si],0'
+  stosw
+  mov al,0
+  stosb
+  jmp doneNops
+notCMPNops
+  mov ax,0x00f6  ; 'test byte[bx+si],0'
+  stosw
+  mov al,0
   stosb
 doneNops:
 
@@ -328,6 +352,11 @@ doneNops:
 ;    pop ds
 ;    pop si
 ;    pop di
+
+;  xor ax,ax
+;  mov ax,0x10
+;  push ax
+;  popf
 
   safeRefreshOff
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
