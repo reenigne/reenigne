@@ -349,12 +349,18 @@ public:
     void setCycles(int cycles) { _cycles = cycles; }
     int cycles() { return _cycles; }
     void preamble(Byte p) { _preamble.append(p); }
-    void fixup(Byte f) { _fixups.append(f); }
+    void fixup(Byte f = 0xff)
+    {
+        if (f == 0xff)
+            f = _preamble.count();
+        _fixups.append(f);
+    }
     void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
     int queueFiller() { return _queueFiller; }
     void setNops(int nops) { _nops = nops; }
     int startIP() { return _startIP; }
     void noLESNop() { _noLESNop = true; }
+    Instruction instruction(int i) { return _instructions[i]; }
 private:
     int _queueFiller;
     int _nops;
@@ -1220,7 +1226,6 @@ private:
         _queueCycle = 0;
         _ioInProgress._type = ioPassive;
         _ioNext = _ioInProgress;
-        _lastIO = ioPassive;
         _snifferDecoder.reset();
         _prefetchedRemove = false;
         _statusSet = false;
@@ -1308,10 +1313,8 @@ private:
                     _busReady = false;
                     break;
                 case tFirstIdle:
-                    _busState = tIdle;
-                    break;
                 case tIdle:
-                    _lastIO = ioPassive;
+                    _busState = tIdle;
                     break;
             }
             if (_busState == tFirstIdle || _busState == tIdle) {
@@ -1321,9 +1324,9 @@ private:
                     _ioNext._type = ioPassive;
                     if (_ioInProgress._type != ioPassive) {
                         _busState = t1;
-                        _lastIO = _ioInProgress._type;
                         _snifferDecoder.setAddress(_ioInProgress._address);
-                        _bus.startAccess(_ioInProgress._address, (int)_lastIO);
+                        _bus.startAccess(_ioInProgress._address,
+                            (int)_ioInProgress._type);
                     }
                 }
             }
@@ -1921,115 +1924,68 @@ private:
                 wait(1);
                 busWrite();
                 break;
-            //case 0xa4: case 0xa5: // MOVS
-            //case 0xac: case 0xad: // LODS
-            //    if (repAction()) {
-            //        // if ((_opcode & 8) != 0)
-            //            wait(1);
-            //        break;
-            //    }
-            //    if (!_repeating) {
-            //        wait(1);                                            
-            //        if (_rep != 0 && (_opcode & 8) != 0)
-            //            wait(1);
-            //    }
-            //    if (/*(_opcode & 8) != 0 &&*/ _rep != 0)
-            //        wait(1);
-            //    if (_queueBytes < 4 && _queueWaitCycles == 1) {
-            //        _transferStarting = true;
-            //        wait(1);
-            //    }
-            //    lods();
-            //    if ((_opcode & 8) == 0) { // MOVS
-            //        wait(1);                                             // u
-            //        stos();
-            //    }
-            //    else {
-            //        setAccum();
-            //        if (_rep != 0)
-            //            wait(1);
-            //    }
-            //    _completed = (_rep == 0);
-            //    _repeating = !_completed;
-            //    if (!_repeating)
-            //        wait(3);                                             // r
-            //    break;
-            //case 0xa6: case 0xa7: // CMPS
-            //case 0xae: case 0xaf: // SCAS
-            //    if (repAction())
-            //        break;
-            //    _destination = getAccum();
-            //    if ((_opcode & 8) == 0) {  // CMPS
-            //        wait(2);
-            //        lods();
-            //        _destination = _data;
-            //    }
-            //    else
-            //        wait(1);
-            //    wait(2);
-            //    _address = di();
-            //    _segment = 0;
-            //    busRead();
-            //    _source = _data;
-            //    sub();
-            //    di() = stringIncrement();
-            //    wait(4);
-            //    _completed = (_rep == 0 || zf() == (_rep == 1));
-            //    _repeating = !_completed;
-            //    break;
-
-           case 0xa4: case 0xa5: // MOVS
+            case 0xa4: case 0xa5: // MOVS
+            case 0xac: case 0xad: // LODS
                 if (!_repeating) {
                     wait(1);
                     if (_queueBytes < 4 && _queueWaitCycles == 1) {
                         _transferStarting = true;
                         wait(1);
                     }
-                    if (_rep != 0)
-                        wait(4);
                 }
-                if (_rep == 0 || cx() != 0) {
+                if (repAction())
+                    break;
+                lods();
+                if ((_opcode & 8) == 0) {
+                    wait(1);
+                    stos();
+                }
+                else {
                     if (_rep != 0)
-                        wait(3);
-                    lodS();
-                    wait(1);
-                    stoS();
-                    wait(1);
-                    repAction();
-                    if (_rep != 0) {
-                        wait(1);
-                        if (_completed)
-                            wait(2);
-                    }
-                    else
                         wait(2);
                 }
+                if (_rep == 0) {
+                    wait(3);
+                    break;
+                }
+                _repeating = true;
                 break;
             case 0xa6: case 0xa7: // CMPS
-                if (!_repeating) {
-                    wait(2);
-                    if (_rep != 0)
-                        wait(3);
-                }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0)
-                        wait(4);
-                    lodS();
+            case 0xae: case 0xaf: // SCAS
+                if (!_repeating)
+                    wait(1);
+                if (repAction())
+                    break;
+                wait(1);
+                _destination = getAccum();
+                if ((_opcode & 8) == 0) {
+                    lods();
+                    wait(1);
                     _destination = _data;
-                    wait(2);
-                    lodDIS();
-                    _source = _data;
-                    sub();
-                    wait(2);
-                    repAction();
-                    if (_rep != 0) {
-                        wait(1);
-                        if (_completed)
-                            wait(2);
-                    }
-                    else
-                        wait(2);
                 }
+                wait(1);
+                _address = di();
+                _segment = 0;
+                busRead();
+                di() = stringIncrement();
+                _source = _data;
+                sub();
+                wait(2);
+                if (_rep == 0) {
+                    wait(2);
+                    break;
+                }
+                if (zf() == (_rep == 1)) {
+                    _completed = true;
+                    wait(3);
+                    break;
+                }
+                _repeating = true;
+                break;
+            case 0xa8: case 0xa9: // TEST A, imm
+                _data = fetchInstructionData();
+                test(getAccum(), _data);
+                wait(1);
                 break;
             case 0xaa: case 0xab: // STOS
                 if (!_repeating) {
@@ -2038,95 +1994,17 @@ private:
                         _transferStarting = true;
                         wait(1);
                     }
-                    if (_rep != 0)
-                        wait(3);
                 }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0)
-                        wait(4);
-                    _data = ax();
-                    stoS();
-                    wait(1);
-                    repAction();
-                    if (_rep != 0) {
-                        if (_completed)
-                            wait(3);
-                    }
-                    else
-                        wait(2);
-                }
-                else
-                    wait(1);
-                break;
-            case 0xac: case 0xad: // LODS
-                if (!_repeating) {
-                    wait(1);
-                    if (_queueBytes < 4 && _queueWaitCycles == 1) {
-                        _transferStarting = true;
-                        wait(1);
-                    }
-                    if (_rep != 0)
-                        wait(4);
-                }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0)
-                        wait(3);
-                    lodS();
+                if (repAction())
+                    break;
+                _data = ax();
+                stos();
+                if (_rep == 0) {
                     wait(3);
-                    repAction();
-                    if (_rep != 0) {
-                        wait(1);
-                        if (_completed)
-                            wait(2);
-                    }
+                    break;
                 }
+                _repeating = true;
                 break;
-            case 0xae: case 0xaf: // SCAS
-                if (!_repeating) {
-                    wait(3);
-                    if (_rep != 0)
-                        wait(2);
-                }
-                if (_rep == 0 || cx() != 0) {
-                    if (_rep != 0)
-                        wait(5);
-                    lodDIS();
-                    _destination = getAccum();
-                    _source = _data;
-                    sub();
-                    wait(2);
-                    repAction();
-                    if (_rep != 0) {
-                        wait(1);
-                        if (_completed)
-                            wait(2);
-                    }
-                    else
-                        wait(2);
-                }
-                break;
-
-            case 0xa8: case 0xa9: // TEST A, imm
-                _data = fetchInstructionData();
-                test(getAccum(), _data);
-                wait(1);
-                break;
-            //case 0xaa: case 0xab: // STOS
-            //    if (repAction()) {
-            //        _address = di();
-            //        break;
-            //    }
-            //    _data = getAccum();
-            //    wait(1);
-            //    if (_queueBytes < 4 && _queueWaitCycles == 1) {
-            //        _transferStarting = true;
-            //        wait(1);
-            //    }
-            //    stos();
-            //    _completed = (_rep == 0);
-            //    _repeating = !_completed;
-            //    wait(3);
-            //    break;
             case 0xb0: case 0xb1: case 0xb2: case 0xb3:
             case 0xb4: case 0xb5: case 0xb6: case 0xb7: // MOV rb, ib
                 _byteRegisters[_opcode & 7] = fetchInstructionByte();
@@ -2630,6 +2508,7 @@ private:
                 break;
         }
         if (_completed) {
+            _repeating = false;
             _segmentOverride = -1;
             _rep = 0;
             _lock = false;
@@ -2879,7 +2758,6 @@ private:
         _wordSize = true;
         _segmentOverride = -1;
         push2(_flags & 0x0fd7);
-//        _prefetching = false;
         setIF(false);
         setTF(false);
         wait(5);
@@ -2896,94 +2774,53 @@ private:
         _source = source;
         bitwise(_destination & _source);
     }
-    //Word stringIncrement()
-    //{
-    //    int d = _wordSize ? 2 : 1;
-    //    if (df())
-    //        _address -= d;
-    //    else
-    //        _address += d;
-    //    return _address;
-    //}
-    //bool repAction()
-    //{
-    //    if (_rep == 0)
-    //        return false;
-    //    Word t = cx();
-    //    if (interruptPending()) {
-    //        _prefetching = false;
-    //        setIP(ip() - 2);
-    //        t = 0;
-    //    }
-    //    wait(4);                                                         // v
-    //    if (t == 0) {
-    //        _rep = 0;
-    //        //if (!_repeating)
-    //        //    wait(1);
-    //        _repeating = false;
-    //        return true;
-    //    }
-    //    --cx();
-    //    wait(1);                                                         // s
-    //    return false;
-    //}
-    //void lods()
-    //{
-    //    _address = si();
-    //    _segment = 3;
-    //    busRead();
-    //    si() = stringIncrement();
-    //}
-    //void stos()
-    //{
-    //    _address = di();
-    //    _segment = 0;
-    //    busWrite();
-    //    di() = stringIncrement();
-    //}
-
-    int stringIncrement()
+    Word stringIncrement()
     {
-        int r = (_wordSize ? 2 : 1);
-        return !df() ? r : -r;
+        int d = _wordSize ? 2 : 1;
+        if (df())
+            _address -= d;
+        else
+            _address += d;
+        return _address;
     }
-    void repAction()
+    bool repAction()
     {
-        if (_rep != 0) {
-            --cx();
-            _completed = cx() == 0;
-            if ((_opcode & 0xf6) == 0xa6) {
-                if (zf() == (_rep == 1))
-                    _completed = true;
-                else
-                    wait(1);
-            }
-            _repeating = !_completed;
+        if (_rep == 0)
+            return false;
+        wait(2);
+        Word t = cx();
+        if (interruptPending()) {
+            _prefetching = false;
+            setIP(ip() - 2);
+            t = 0;
         }
-        checkInterrupts();
+        if (t == 0) {
+            wait(2);
+            _completed = true;
+            _repeating = false;
+            return true;
+        }
+        --cx();
+        _completed = false;
+        wait(3);
+        if (!_repeating)
+            wait(2);
+        return false;
     }
-    void lodS()
+    void lods()
     {
         _address = si();
-        si() += stringIncrement();
         _segment = 3;
         busRead();
+        si() = stringIncrement();
     }
-    void lodDIS()
+    void stos()
     {
         _address = di();
-        di() += stringIncrement();
-        _segment = 0;
-        busRead();
-    }
-    void stoS()
-    {
-        _address = di();
-        di() += stringIncrement();
         _segment = 0;
         busWrite();
+        di() = stringIncrement();
     }
-
     void push(UInt16 data)
     {
         wait(3);
@@ -3302,8 +3139,8 @@ private:
     UInt8 _opcode;
     UInt8 _modRM;
     UInt32 _data;
-    UInt32 _source;
-    UInt32 _destination;
+    UInt16 _source;
+    UInt16 _destination;
     UInt16 _address;
     bool _useMemory;
     bool _wordSize;
@@ -3339,7 +3176,6 @@ private:
     IOInformation _ioInProgress;
     IOInformation _ioNext;
     bool _synchronousDone;
-    IOType _lastIO;
 
     int _segmentOverride;
 
@@ -3364,7 +3200,7 @@ public:
             0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
             0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
         int groupSize;
-        for (_group = 0; _group < 2; ++_group) {
+        for (_group = 0; _group < 3; ++_group) {
             // Basic tests
             for (int i = 0; i < 0x100; ++i) {
                 Instruction instruction(i);
@@ -3458,6 +3294,10 @@ public:
                         t.addInstruction(instruction);
                         Instruction i2(i);
                         t.addInstruction(i2);
+                        t.preamble(0x90);  // NOP
+                        t.preamble(0xb8);
+                        t.preamble(0xa8);
+                        t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
                         t.preamble(0xb9);
                         t.preamble(c);
                         t.preamble(0x00);  // MOV CX,c
@@ -3467,6 +3307,9 @@ public:
                         t.preamble(0xbf);
                         t.preamble(0x00);
                         t.preamble(0x60);  // MOV DI,0x6000
+                        t.preamble(0xbb);
+                        t.preamble(0x00);
+                        t.preamble(0xc0);  // MOV BX,0xc000
                         t.setUsesCH();
                         switch ((r << 8) + i) {
                             case 0xf2a6:  // REPNE CMPSB
@@ -3747,8 +3590,10 @@ public:
             auto s = f.tryOpenRead();
             if (s.valid()) {
                 UInt64 size = s.size();
-                if (size > _tests.count()*2)
-                    throw Exception("Cache file too large!");
+                if (size > _tests.count()*2) {
+                    size = _tests.count()*2;
+                    //throw Exception("Cache file too large!");
+                }
                 s.read(reinterpret_cast<Byte*>(&_cache[0]), (int)size);
                 _cacheHighWaterMark = static_cast<int>(size)/2;
             }
@@ -3782,8 +3627,8 @@ public:
                     }
                     totalLength = nl;
                     if (i < _cacheHighWaterMark) {
-                        // This test will fail. Just run the one to get a
-                        // sniffer log.
+                        // This test will fail unless the cache is bad.
+                        // Just run the one to get a sniffer log.
                         nextTest = i;
                         newNextTest = i + 1;
                         break;
@@ -3942,6 +3787,9 @@ public:
 
         } while (true);
 
+        return;
+
+
         Array<bool> useTest(noppingTests);
         for (int i = 0; i < noppingTests; ++i) {
             bool use = true;
@@ -3950,12 +3798,25 @@ public:
                 use = false;
             if (_tests[i].queueFiller() != 0)  // skip tests with non-standard queue fillers
                 use = false;
+            Instruction inst = _tests[i].instruction(0);
+            int o = inst.opcode();
+            if ((o & 0xe0) == 0x60 || (o >= 0xe0 && o < 0xe4))  // skip conditional jump, time depends on flags
+                use = false;
+            if (o == 0xf2 || o == 0xf3)  // skip REP loops, need setup
+                use = false;
+            int op = inst.modrm() & 0x38;
+            if ((o >= 0xf6 && o < 0xf8) || op >= 0x20)  // multiplies and divides are not the way to go
+                use = false;
+            if (o >= 0xfe && op >= 0x10 && op < 0x30)  // CALL/JMP EA are awkward
+                use = false;
+
             useTest[i] = use;
         }
 
-#if 1
         // Look for a nopcount column that has the same timings as another one
+        Array<bool> useNop(nopCounts);
         for (int c1 = 0; c1 < nopCounts; ++c1) {
+            useNop[c1] = true;
             for (int c2 = 0; c2 < nopCounts; ++c2) {
                 if (c2 == c1)
                     continue;
@@ -3975,9 +3836,11 @@ public:
                 }
             }
         }
+        //useNop[12] = false;
+        useNop[13] = false;
+        useNop[14] = false;
+        useNop[15] = false;
         File("nopping.dat").save(cycleCounts);
-#endif
-        int uniqueNops = nopCounts;
 
         AppendableArray<int> uniqueTests;
         for (int i = 0; i < noppingTests; i += nopCounts) {
@@ -3988,7 +3851,9 @@ public:
                 if (!useTest[j])
                     continue;
                 bool isMatch = true;
-                for (int k = 0; k < uniqueNops; ++k) {
+                for (int k = 0; k < nopCounts; ++k) {
+                    if (!useNop[k])
+                        continue;
                     if (cycleCounts[i + k] != cycleCounts[j + k]) {
                         isMatch = false;
                         break;
@@ -4006,7 +3871,9 @@ public:
         {
             auto ws = File("uniques.dat").openWrite();
             for (int i = 0; i < uniqueTests.count(); ++i) {
-                for (int j = 0; j < uniqueNops; ++j) {
+                for (int j = 0; j < nopCounts; ++j) {
+                    if (!useNop[j])
+                        continue;
                     Byte b = cycleCounts[uniqueTests[i] + j];
                     ws.write(b);
                 }
@@ -4021,8 +3888,12 @@ public:
             bool tryNextSize = false;
             do {
                 bool working = true;
-                for (int i = 0; i < uniqueNops; ++i) {
-                    for (int j = i + 1; j < uniqueNops; ++j) {
+                for (int i = 0; i < nopCounts; ++i) {
+                    if (!useNop[i])
+                        continue;
+                    for (int j = i + 1; j < nopCounts; ++j) {
+                        if (!useNop[j])
+                            continue;
                         bool canDistinguish = false;
                         for (int k = 0; k < setSize; ++k) {
                             int t = uniqueTests[setMembers[k]];
@@ -4032,7 +3903,7 @@ public:
                             }
                         }
                         if (!canDistinguish) {
-                            i = uniqueNops;
+                            i = nopCounts;
                             working = false;
                             break;
                         }
@@ -4043,7 +3914,7 @@ public:
                     for (int i = 0; i < setSize; ++i) {
                         int u = setMembers[i];
                         int t = uniqueTests[u];
-                        console.write(decimal(u) + ": ");
+                        console.write(decimal(t) + ": ");
                         _tests[t].write();
                         console.write("\n");
                     }
@@ -4074,18 +3945,57 @@ public:
 private:
     void addTest1(Test t)
     {
-        if (_group == 1) {
-            Test t1 = t;
-            t.addInstruction(Instruction(0, 4));
-            _tests.append(t);
-            t1.addInstruction(Instruction(0x90));
-            t1.addInstruction(Instruction(0x90));
-            t1.addInstruction(Instruction(0x90));
-            t1.addInstruction(Instruction(0x90));
-            t1.addInstruction(Instruction(0, 4));
-            t1.addInstruction(Instruction(5, 0));
-            _tests.append(t1);
+        //switch (_group) {
+        //    case 0:
+        //        break;
+        //    case 1:
+        //        t.addInstruction(Instruction(0, 4));
+        //        break;
+        //    case 2:
+        //        t.addInstruction(Instruction(0x90));
+        //        t.addInstruction(Instruction(0x90));
+        //        t.addInstruction(Instruction(0x90));
+        //        t.addInstruction(Instruction(0x90));
+        //        t.addInstruction(Instruction(0, 4));
+        //        t.addInstruction(Instruction(5, 0));
+        //        break;
+        //}
+
+        //switch (_group) {
+        //    case 0:
+        //        break;
+        //    case 1:
+        //        t.addInstruction(Instruction(4, 0));
+        //        break;
+        //    case 2:
+        //        t.addInstruction(Instruction(0x88, 0xc0));
+        //        t.addInstruction(Instruction(4, 0));
+        //        break;
+        //}
+
+        //switch (_group) {
+        //    case 0:
+        //        break;
+        //    case 1:
+        //        t.addInstruction(Instruction(0, 0));
+        //        break;
+        //    case 2:
+        //        t.addInstruction(Instruction(5, 0));
+        //        break;
+        //}
+
+        switch (_group) {
+            case 0:
+                break;
+            case 1:
+                t.addInstruction(Instruction(4, 0));
+                break;
+            case 2:
+                t.addInstruction(Instruction(0x88, 0xc0));
+                t.addInstruction(Instruction(0, 0));
+                break;
         }
+
         _tests.append(t);
     }
     void addTestWithNops(Test t)
@@ -4118,6 +4028,7 @@ private:
                 t.preamble(0xc7);
                 t.preamble(0x47);
                 t.preamble(0x20);
+                t.fixup();
                 t.preamble(0x01);
                 t.preamble(0x00);  // MOV WORD[BX+0x20],1
                 t.preamble(0x8c);
@@ -4132,7 +4043,6 @@ private:
                 t.preamble(0xe6);
                 t.preamble(0x40);  // OUT 0x40,AL
                 t.preamble(0xfb);  // STI
-                t.fixup(0x07);
                 break;
             case 0x9d: // POPF
                 t.preamble(0x9c);  // PUSHF
@@ -4144,22 +4054,26 @@ private:
                 t.fixup(0x81);
                 break;
             case 0xa4: case 0xa5: case 0xa6: case 0xa7: case 0xaa: case 0xab:
-            case 0xac: case 0xad:  // MOVS/CMPS/STOS/LODS/SCAS
+            case 0xac: case 0xad: // MOVS/CMPS/STOS/LODS/SCAS
+                t.preamble(0x90);  // NOP
+                t.preamble(0xb8);
+                t.preamble(0xa8);
+                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
                 t.setUsesCH();
                 break;
             case 0xc0: case 0xc2: // RET iw
                 t.preamble(0xb8);  // MOV AX,3
+                t.fixup();
                 t.preamble(0x03);
                 t.preamble(0x00);
                 t.preamble(0x50);  // PUSH AX
-                t.fixup(0x01);
                 break;
             case 0xc1: case 0xc3: // RET
                 t.preamble(0xb8);  // MOV AX,1
+                t.fixup();
                 t.preamble(0x01);
                 t.preamble(0x00);
                 t.preamble(0x50);  // PUSH AX
-                t.fixup(0x01);
                 break;
             case 0xc5:  // LDS
                 t.preamble(0xc7);
@@ -4173,18 +4087,18 @@ private:
             case 0xc8: case 0xca: // RETF iw
                 t.preamble(0x0e);  // PUSH CS
                 t.preamble(0xb8);  // MOV AX,3
+                t.fixup();
                 t.preamble(0x03);
                 t.preamble(0x00);
                 t.preamble(0x50);  // PUSH AX
-                t.fixup(0x02);
                 break;
             case 0xc9: case 0xcb: // RETF
                 t.preamble(0x0e);  // PUSH CS
                 t.preamble(0xb8);  // MOV AX,1
+                t.fixup();
                 t.preamble(0x01);
                 t.preamble(0x00);
                 t.preamble(0x50);  // PUSH AX
-                t.fixup(0x02);
                 break;
             case 0xcc: case 0xcd: // INT
                 if (opcode == 0xcd)
@@ -4196,21 +4110,21 @@ private:
                 t.preamble(0xc7);
                 t.preamble(0x47);
                 t.preamble(0x0c);
+                t.fixup();
                 t.preamble(opcode - 0xcb);
                 t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
                 t.preamble(0x8c);
                 t.preamble(0x4f);
                 t.preamble(0x0e);  // MOV [BX+0x0E],CS
-                t.fixup(0x07);
                 break;
             case 0xcf: // IRET
                 t.preamble(0x9c);  // PUSHF
                 t.preamble(0x0e);  // PUSH CS
                 t.preamble(0xb8);  // MOV AX,1
+                t.fixup();
                 t.preamble(0x01);
                 t.preamble(0x00);
                 t.preamble(0x50);  // PUSH AX
-                t.fixup(0x03);
                 break;
             case 0xd4: case 0xd5: // AAx
                 i.setImmediate(10);
@@ -4226,6 +4140,7 @@ private:
                 t.preamble(0xc7);
                 t.preamble(0x47);
                 t.preamble(0x20);
+                t.fixup();
                 t.preamble(0x01);
                 t.preamble(0x00);  // MOV WORD[BX+0x20],1
                 t.preamble(0x8c);
@@ -4240,7 +4155,6 @@ private:
                 t.preamble(0xe6);
                 t.preamble(0x40);  // OUT 0x40,AL
                 t.preamble(0xfb);  // STI
-                t.fixup(0x07);
                 break;
             case 0xf6: case 0xf7:
                 if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
@@ -4252,13 +4166,13 @@ private:
                     t.preamble(0xc7);
                     t.preamble(0x47);
                     t.preamble(0x00);
+                    t.fixup();
                     t.preamble(i.length());
                     t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                     t.preamble(0x8c);
                     t.preamble(0x4f);
                     t.preamble(0x02);  // MOV [BX+0x02],CS
                     t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
                 }
                 break;
             case 0xfe: case 0xff:
@@ -4270,6 +4184,7 @@ private:
                         t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
 
                         t.preamble(0xb8);
+                        t.fixup();
                         t.preamble(i.length());
                         t.preamble(0x00);  // MOV AX,0x0002
                         t.preamble(0x50);  // PUSH AX
@@ -4283,8 +4198,6 @@ private:
                         t.preamble(0x8c);
                         t.preamble(0x4f);
                         t.preamble(0x02);  // MOV [BX+2],CS  // make it far
-
-                        t.fixup(0x05);
                         break;
                     case 0x18:  // CALL rmd
                         if ((i.modrm() & 0xc0) != 0xc0) { // CALL md
@@ -4304,6 +4217,7 @@ private:
                             t.preamble(0xcb);  // MOV BYTE[BX+4],0xCB  // RETF
 
                             t.preamble(0xb8);
+                            t.fixup();
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x1e);  // PUSH DS
@@ -4321,8 +4235,6 @@ private:
                             t.preamble(0x02);
                             t.preamble(0xff);
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
-
-                            t.fixup(0x0f);
                         }
                         else {  // CALL rd
                             t.preamble(0x1e);  // PUSH DS
@@ -4344,6 +4256,7 @@ private:
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
 
                             t.preamble(0xb8);
+                            t.fixup();
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x1e);  // PUSH DS
@@ -4354,8 +4267,6 @@ private:
                             t.preamble(0xc6);
                             t.preamble(0x07);
                             t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
-
-                            t.fixup(0x11);
                             t.noLESNop();
                         }
                         break;
@@ -4367,6 +4278,7 @@ private:
                             t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
 
                             t.preamble(0xb8);
+                            t.fixup();
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x50);  // PUSH AX
@@ -4375,8 +4287,6 @@ private:
                             t.preamble(0x07);
                             t.preamble(0xc0);
                             t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
-
-                            t.fixup(0x05);
                         }
                         else {  // JMP r
                             t.preamble(0xc6);
@@ -4390,11 +4300,10 @@ private:
                             t.preamble(0xc3);  // MOV BYTE[BX+0xFF00],0xC3  // RET
 
                             t.preamble(0xb8);
+                            t.fixup();
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x50);  // PUSH AX
-
-                            t.fixup(0x09);
                         }
                         break;
                     case 0x28:  // JMP rmd
@@ -4411,6 +4320,7 @@ private:
                             t.preamble(0x1f);  // POP DS
 
                             t.preamble(0xb8);
+                            t.fixup();
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x1e);  // PUSH DS
@@ -4426,8 +4336,6 @@ private:
                             t.preamble(0x02);
                             t.preamble(0xff);
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
-
-                            t.fixup(0x0b);
                         }
                         else {  // JMP rd
                             t.preamble(0x1e);  // PUSH DS
@@ -4449,6 +4357,7 @@ private:
                             t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
 
                             t.preamble(0xb8);
+                            t.fixup();
                             t.preamble(i.length());
                             t.preamble(0x00);  // MOV AX,0x0002
                             t.preamble(0x1e);  // PUSH DS
@@ -4457,8 +4366,6 @@ private:
                             t.preamble(0xc6);
                             t.preamble(0x07);
                             t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
-
-                            t.fixup(0x11);
                             t.noLESNop();
                         }
                         break;
