@@ -93,9 +93,9 @@ notDone:
   jne testFailed
 
   inc word[testCaseIndex]
-  mov bl,[si+3]      ; Number of preamble bytes
+  mov bl,[si+5]      ; Number of preamble bytes
   mov bh,0
-  lea si,[si+bx+4]   ; Points to instruction bytes count
+  lea si,[si+bx+6]   ; Points to instruction bytes count
   mov bl,[si]        ; Number of instruction bytes
   inc si             ; Points to first instruction byte
   add si,bx          ; Points to fixup count
@@ -187,8 +187,9 @@ doMeasurement:
 
   mov bp,di
   mov cl,[si+3]
+  mov dx,[si+4]
   push si
-  add si,4
+  add si,6
   rep movsb
 
   mov al,bl
@@ -367,7 +368,8 @@ doneNops:
   writePIT16 0, 2, 0 ; Queue an IRQ0 for after the test in case of crash
   writePIT16 2, 2, 0        ; ***TIMING START***
 
-  in al,0xe0
+  cmp dl,0
+
 
 ;  cli
   xor ax,ax
@@ -540,6 +542,8 @@ testCases:
 ;   For each testcase:
 ;     2 bytes: cycle count
 ;     1 byte: queueFiller operation (0 = MUL) * 32 + number of NOPs
+;     1 byte: refresh period
+;     1 byte: refresh phase
 ;     1 byte: number of preamble bytes
 ;     N bytes: preamble
 ;     1 byte: number of instruction bytes
