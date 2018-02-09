@@ -1,4 +1,4 @@
-  %include "../../defaults_bin.asm"
+%include "../../defaults_bin.asm"
 
 LENGTH EQU 2048
 
@@ -87,7 +87,7 @@ notDone:
   call doMeasurement
   mov ax,bx
   neg ax
-  sub ax,5013  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,5013+1361+80  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed
@@ -177,17 +177,17 @@ flushLoop2:
 loopTop2:
   jmp loopTop
 
-doMeasurement:
+doMeasurement:                ; si points to testcase data
   mov ax,cs
   add ax,0x1000
   mov es,ax
   xor di,di
   mov si,[testCaseOffset]
-  mov bl,[si+2]
+  mov bl,[si+2]               ; nops/queuefiller
 
   mov bp,di
-  mov cl,[si+3]
-  mov dx,[si+4]
+  mov dx,[si+3]               ; refresh
+  mov cl,[si+5]               ; preamble bytes
   push si
   add si,6
   rep movsb
@@ -260,14 +260,14 @@ notLESNops:
   mov al,0
   stosb
   jmp doneNops
-notCMPNops
+notCMPNops:
   mov ax,0x00f6  ; 'test byte[bx+si],0'
   stosw
   mov al,0
   stosb
 doneNops:
 
-  mov cl,[si]
+  mov cl,[si]                 ; instruction bytes
   inc si
   push bx
   mov bx,di
@@ -276,7 +276,7 @@ doneNops:
   stosw
 
   push di
-  mov cl,[si]
+  mov cl,[si]                 ; fixups
   inc si
   jcxz .overLoop
 .loopTop:
@@ -368,9 +368,9 @@ doneNops:
   writePIT16 0, 2, 0 ; Queue an IRQ0 for after the test in case of crash
   writePIT16 2, 2, 0        ; ***TIMING START***
 
-  cmp dl,0
+  in al,0xe0
 
-
+  push dx
 ;  cli
   xor ax,ax
   mov ds,ax
@@ -389,9 +389,43 @@ doneNops:
   mov dx,[cs:countedCycles]
   outputByte
   outputByte
-  mov dx,714
+  mov dx,714 + 1361*3
   outputByte
   outputByte
+  pop dx
+
+  ; Start of emulated code
+
+  mov bl,dh
+  mov bh,0
+  add bx,0
+  mov ax,cs
+  mov es,ax
+  mov ds,ax
+  mov si,[delayTable + bx]
+  mov di,patch+1
+  mov cx,10
+patchLoop:
+  movsb
+  add di,3
+  loop patchLoop
+
+
+  mov al,(1 << 6) | BOTH | (2 << 1)
+  out 0x43,al
+  mov al,dl
+  out 0x41,al
+  mov al,0
+  out 0x41,al
+
+  mov bl,1
+patch:
+  %rep 10
+    mov al,0
+    mul bl
+  %endrep
+
+
 
   mov [cs:savedSP],sp
   mov [cs:savedSS],ss
@@ -424,6 +458,11 @@ irq0:
 irq0a:
 
 interruptFF:
+  refreshOff
+  times 4 nop
+
+  ; end of emulated code
+
   mov al,0x80
   out 0x43,al               ; ***TIMING END***
   in al,0x42
@@ -534,6 +573,31 @@ sniffer: dw 0x7000
 countedCycles: dw 1
 testSP: dw 0
 
+delayData:
+%assign i 0
+%rep 81
+  %assign k i
+  %assign j 0
+  %rep 10
+    %if k <= 0
+      db 0
+    %elif k >= 8
+      db 0xff
+    %else
+      db 0xff >> (8-k)
+    %endif
+    %assign k k-8
+    %assign j j+1
+  %endrep
+  %assign i i+1
+%endrep
+
+delayTable:
+%assign i 0
+%rep 81
+  dw delayData + i*10
+  %assign i i+1
+%endrep
 
 testCases:
 
@@ -541,7 +605,7 @@ testCases:
 ;   2 bytes: total length of testCases data excluding length field
 ;   For each testcase:
 ;     2 bytes: cycle count
-;     1 byte: queueFiller operation (0 = MUL) * 32 + number of NOPs
+;     1 byte: queueFiller operation (0 = MUL, 1 = shift, 2 = nothing) * 32 + number of NOPs
 ;     1 byte: refresh period
 ;     1 byte: refresh phase
 ;     1 byte: number of preamble bytes

@@ -1191,6 +1191,12 @@ public:
         return _cycle;
     }
     int instructionCycles() { return _cycle2 - _cycle1; }
+    void setStub(Array<Byte> stub)
+    {
+        Byte* ram = _bus.ram() + ((testSegment - 0x1000) << 4);
+        for (int i = 0; i < stub.count(); ++i)
+            ram[i] = stub[i];
+    }
 private:
     void run()
     {
@@ -1398,7 +1404,7 @@ private:
     {
         while (_ioNext._type != ioPassive)
             wait(1);
-        //_transferStarting = false;
+        _transferStarting = false;
         initIO(type, address);
         _synchronousDone = false;
         do {
@@ -1410,13 +1416,13 @@ private:
     {
         _transferStarting = true;
         wait(2);
-        _transferStarting = false;
     }
     Word busReadWord(IOType type)
     {
         busInit();
         while (_ioNext._type != ioPassive || !_synchronousDone)
             wait(1);
+        _transferStarting = false;
         initIO(type, _address);
         _synchronousDone = false;
         do {
@@ -1551,7 +1557,7 @@ private:
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
                 _modRM = queueRead(1);
                 acknowledgeInstructionByte();
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
                     ++_queueWaitCycles;
                 if ((_modRM & 0xc0) == 0xc0) {
                     acknowledgeInstructionByte();
@@ -1592,7 +1598,7 @@ private:
                 }
             }
             else {
-                if ((_queueCycle == 2 || _queueCycle == 1) && _queueBytes == 3)
+                if ((_queueCycle == 2 || _queueCycle == 1) && _queueBytes == 3)  // Weird
                     _queueWaitCycles = 1 + _queueCycle;
                 wait(1);
                 acknowledgeInstructionByte();
@@ -1651,8 +1657,6 @@ private:
                 push(_segmentRegisters[_opcode >> 3]);
                 break;
             case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                    wait(1);
                 _segmentRegisters[_opcode >> 3] = pop();
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e: // segreg:
@@ -1741,8 +1745,6 @@ private:
                 break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                    wait(1);
                 rw() = pop();
                 break;
             case 0x60: case 0x61: case 0x62: case 0x63:
@@ -1852,7 +1854,7 @@ private:
                     wait(2);
                 wait(1);
                 _source = _address;
-                _data = pop();
+                _data = pop2();  //Don't know why this doesn't do prepareForRead()
                 _address = _source;
                 wait(1);
                 if (_useMemory)
@@ -1914,8 +1916,6 @@ private:
                 push((_flags & 0x0fd7) | 0xf000);
                 break;
             case 0x9d: // POPF
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                    wait(1);
                 _flags = pop() | 2;
                 break;
             case 0x9e: // SAHF
@@ -1938,13 +1938,9 @@ private:
                 break;
             case 0xa4: case 0xa5: // MOVS
             case 0xac: case 0xad: // LODS
-                if (!_repeating) {
+                if (!_repeating)
                     wait(1);
-                    if (_queueBytes < 4 && _queueWaitCycles == 1) {
-                        _transferStarting = true;
-                        wait(1);
-                    }
-                }
+                prepareForRead();
                 if (repAction())
                     break;
                 lods();
@@ -1966,6 +1962,7 @@ private:
             case 0xae: case 0xaf: // SCAS
                 if (!_repeating)
                     wait(1);
+                // prepareForRead();  // Don't know why this doesn't happen here.
                 if (repAction())
                     break;
                 wait(1);
@@ -2000,13 +1997,9 @@ private:
                 wait(1);
                 break;
             case 0xaa: case 0xab: // STOS
-                if (!_repeating) {
+                if (!_repeating)
                     wait(1);
-                    if (_queueBytes < 4 && _queueWaitCycles == 1) {
-                        _transferStarting = true;
-                        wait(1);
-                    }
-                }
+                prepareForRead();
                 if (repAction())
                     break;
                 _data = ax();
@@ -2037,8 +2030,6 @@ private:
                     if ((_opcode & 9) == 9)
                         wait(2);
                     _prefetching = false;
-                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                        wait(1);
                     Word newIP = pop();
                     wait(2);
                     Word newCS;
@@ -2078,16 +2069,16 @@ private:
                     wait(1);
                     acknowledgeInstructionByte();
                 }
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                    _transferStarting = true;
-                wait(1);
                 if (_useMemory) {
-                    if (!_wordSize) {
+                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
                         _transferStarting = true;
-                        if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                            wait(1);
-                    }
+                    wait(1);
+                    _transferStarting = true;
+                    if (!_wordSize)
+                        prepareForRead();
                 }
+                else
+                    wait(1);
                 writeEA(_data);
                 break;
             case 0xcc: // INT 3
@@ -2261,13 +2252,12 @@ private:
                 _segment = 7;
                 _address = _data;
                 if ((_opcode & 2) == 0) {
-                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                        wait(1);
+                    prepareForRead();
                     busRead(ioReadPort);
                     setAccum();
                 }
                 else {
-                    if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {
+                    if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {  // Weird
                         _transferStarting = true;
                         wait(1);
                     }
@@ -2312,10 +2302,9 @@ private:
                 break;
             case 0xf4: // HLT
                 if (!_repeating) {
-                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
-                        wait(1);
+                    prepareForRead();
                     wait(1);
-                    if (_busState == t2 || _busState == t4)
+                    if (_busState == t2 || _busState == t4)  // Really weird
                         wait(1);
                     wait(2);
                     _prefetching = false;
@@ -2428,10 +2417,10 @@ private:
                         {
                             wait(1);
                             _prefetching = false;
-                            wait(3);  // 2
+                            wait(3);
                             if (_useMemory)
-                                wait(1);  // 2
-                            while (_busState != tIdle || _ioNext._type != ioPassive)
+                                wait(1);
+                            while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
                                 wait(1);
                             wait(2);
                             if (!_wordSize) {
@@ -2460,7 +2449,7 @@ private:
                             wait(2);
                             _prefetching = false;
                             wait(2);
-                            while (_busState != tIdle || _ioNext._type != ioPassive)
+                            while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
                                 wait(1);
                             push2(cs());
                             wait(5);
@@ -2478,7 +2467,7 @@ private:
                             wait(2);
                             if (_useMemory)
                                 wait(1);
-                            while ((_busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
+                            while ((_busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)  // Weird
                                 wait(1);
                             if (!_wordSize) {
                                 if (_useMemory)
@@ -2496,7 +2485,7 @@ private:
                             wait(1);
                             if (_useMemory)
                                 wait(1);
-                            while ((_busState != t4 && _busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
+                            while ((_busState != t4 && _busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)  // Weird
                                 wait(1);
                             Word newIP = _data;
                             readEA2();
@@ -2529,6 +2518,11 @@ private:
             _lock = false;
             checkInterrupts();
         }
+    }
+    void prepareForRead()  // Not sure why this is necessary
+    {
+        if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+            wait(1);
     }
     bool interruptPending()
     {
@@ -2761,7 +2755,7 @@ private:
     {
         _prefetching = false;
         wait(3);
-        while (_busState != tIdle || _ioNext._type != ioPassive)
+        while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
             wait(1);
         wait(2);
         Word oldIP = ip();
@@ -2869,7 +2863,8 @@ private:
         _segment = 2;
         busWrite();
     }
-    Word pop()
+    Word pop() { prepareForRead(); return pop2(); }
+    Word pop2()
     {
         _address = sp();
         sp() += 2;
@@ -3116,6 +3111,8 @@ public:
     {
         Array<Byte> testProgram;
         File("runtests.bin").readIntoArray(&testProgram);
+        Array<Byte> runStub;
+        File("runstub.bin").readIntoArray(&runStub);
 
         static const Byte modrms[] = {
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
@@ -3124,7 +3121,7 @@ public:
         int groupSize;
         int noppingTests;
         static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
-        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 1 /*19*/; ++refreshPeriodIndex) {
+        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 2 /*19*/; ++refreshPeriodIndex) {
             _refreshPeriod = refreshPeriods[refreshPeriodIndex];
             for (_refreshPhase = 0; _refreshPhase < 1 /* 4*_refreshPeriod*/; ++_refreshPhase) {
                 for (_group = 0; _group < 3; ++_group) {
@@ -3530,6 +3527,7 @@ public:
         }
 
         Emulator emulator;
+        emulator.setStub(runStub);
 
         int nextTest = 0;
         int maxTests = 1000;
