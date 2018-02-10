@@ -12,24 +12,62 @@ cpu 8086
 
   ; Code executed on real hardware starts here
 
-  mov [cs:savedSP],sp
-  mov [cs:savedSS],ss
+  jmp $+2
+
+  ; Set up and save some registers for test
   mov ax,cs
-  add ax,0x1000
   mov ds,ax
   mov es,ax
+  mov [savedSP],sp
+  mov [savedSS],ss
+  mov ax,cs
+  add ax,0x1000
   mov ss,ax
+  mov word[testBuffer],0
+  mov [testBuffer+2],ax
 
-  xor ax,ax
-  mov dx,ax
-  mov bx,ax
-  mov cx,ax
-  mov si,ax
-  mov di,ax
-  mov bp,ax
-  mov sp,ax
-  mov word[cs:testBuffer],0
-  mov [cs:testBuffer+2],ds
+  ; Set up programmable delay
+  mov bl,dh
+  mov bh,0
+  add bx,bx
+  mov si,[delayTable + bx]
+  mov di,patch+1
+  mov cx,10
+patchLoop:
+  movsb
+  add di,3
+  loop patchLoop
+
+  ; Set up some more registers
+  mov ax,ss
+  mov ds,ax
+  mov es,ax
+  xor bx,bx
+  mov cx,bx
+  mov si,bx
+  mov di,bx
+  mov bp,bx
+  mov sp,bx
+
+  ; Start refresh at requested rate
+  mov al,(1 << 6) | 0x30 | (2 << 1)
+  out 0x43,al
+  mov al,dl
+  out 0x41,al
+  mov al,0
+  out 0x41,al
+
+  ; Programmable delay 0-80 cycles (plus a constant)
+  mov dl,1
+patch:
+  %rep 10
+    mov al,0
+    mul dl
+  %endrep
+
+  ; Set up very last registers and start test
+  mov ax,bx
+  mov dx,bx
   jmp far [cs:testBuffer]
 
 int3handler:
@@ -37,10 +75,18 @@ int3handler:
   popf
   retf
 
+irq0:
+  iret
+
 irq0a:
 
 interruptFF:
-  refreshOff
+  mov al,0x70
+  out 0x43,al
+  mov al,0
+  out 0x41,al
+  out 0x41,al
+
   times 4 nop
 
   ; Code executed on real hardware ends here

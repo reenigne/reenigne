@@ -87,7 +87,7 @@ notDone:
   call doMeasurement
   mov ax,bx
   neg ax
-  sub ax,5013+1361+80  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4713  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed
@@ -389,19 +389,34 @@ doneNops:
   mov dx,[cs:countedCycles]
   outputByte
   outputByte
-  mov dx,714 + 1361*3
+  mov dx,6 ;(238 + 888)*3
   outputByte
   outputByte
   pop dx
 
+  times 4 nop
+
+  ; Clear prefetch queue to improve sniffer output
+  jmp $+2
+
   ; Start of emulated code
 
+  ; Set up and save some registers for test
+  mov ax,cs
+  mov ds,ax
+  mov es,ax
+  mov [savedSP],sp
+  mov [savedSS],ss
+  mov ax,cs
+  add ax,0x1000
+  mov ss,ax
+  mov word[testBuffer],0
+  mov [testBuffer+2],ax
+
+  ; Set up programmable delay
   mov bl,dh
   mov bh,0
-  add bx,0
-  mov ax,cs
-  mov es,ax
-  mov ds,ax
+  add bx,bx
   mov si,[delayTable + bx]
   mov di,patch+1
   mov cx,10
@@ -410,7 +425,18 @@ patchLoop:
   add di,3
   loop patchLoop
 
+  ; Set up some more registers
+  mov ax,ss
+  mov ds,ax
+  mov es,ax
+  xor bx,bx
+  mov cx,bx
+  mov si,bx
+  mov di,bx
+  mov bp,bx
+  mov sp,bx
 
+  ; Start refresh at requested rate
   mov al,(1 << 6) | BOTH | (2 << 1)
   out 0x43,al
   mov al,dl
@@ -418,33 +444,17 @@ patchLoop:
   mov al,0
   out 0x41,al
 
-  mov bl,1
+  ; Programmable delay 0-80 cycles (plus a constant)
+  mov dl,1
 patch:
   %rep 10
     mov al,0
-    mul bl
+    mul dl
   %endrep
 
-
-
-  mov [cs:savedSP],sp
-  mov [cs:savedSS],ss
-  mov ax,cs
-  add ax,0x1000
-  mov ds,ax
-  mov es,ax
-  mov ss,ax
-
-  xor ax,ax
-  mov dx,ax
-  mov bx,ax
-  mov cx,ax
-  mov si,ax
-  mov di,ax
-  mov bp,ax
-  mov sp,ax
-  mov word[cs:testBuffer],0
-  mov [cs:testBuffer+2],ds
+  ; Set up very last registers and start test
+  mov ax,bx
+  mov dx,bx
   jmp far [cs:testBuffer]
 
 int3handler:
@@ -458,7 +468,11 @@ irq0:
 irq0a:
 
 interruptFF:
-  refreshOff
+  mov al,0x70
+  out 0x43,al
+  mov al,0
+  out 0x41,al
+  out 0x41,al
   times 4 nop
 
   ; end of emulated code

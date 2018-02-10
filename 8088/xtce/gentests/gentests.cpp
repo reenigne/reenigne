@@ -2,7 +2,7 @@
 #include "alfe/space.h"
 #include <random>
 
-static const UInt16 testSegment = 0x10a8;
+static const UInt16 testSegment = 0xa8;
 
 class Instruction
 {
@@ -725,7 +725,7 @@ public:
         _d = -1;
         _queueLength = 0;
         _lastS = 0;
-        _pitCycle = 1;
+        _pitCycle = 2;
         _cpu_s = 7;
 
         _disassembler.reset();
@@ -1021,35 +1021,91 @@ class PITEmulator
 public:
     void reset()
     {
-        _value = 0;
-        _count = 0;
-        _expired = false;
+        for (int i = 0; i < 3; ++i)
+            _counters[i].reset();
     }
     void write(int address, Byte data)
     {
-        if (address == 0) {
-            _count = data;
-            _value = _count;
+        if (address == 3) {
+            int counter = data >> 6;
+            if (counter == 3)
+                return;
+            _counters[counter].control(data & 0x3f);
         }
+        else
+            _counters[address].write(data);
+    }
+    Byte read(int address)
+    {
+        if (address == 3)
+            return 0xff;
+        return _counters[address].read();
     }
     void wait()
     {
-        --_value;
-        if (_value == 0) {
-            _expired = true;
-            _value = _count;
-        }
+        for (int i = 0; i < 3; ++i)
+            _counters[i].wait();
     }
-    bool expired()
+    void setGate(int counter, bool gate)
     {
-        bool e = _expired;
-        _expired = false;
-        return e;
+        _counters[counter]._gate = gate;
     }
+    bool getOutput(int counter) { return _counters[counter]._output; }
 private:
-    Word _count;
-    Word _value;
-    bool _expired;
+    struct Counter
+    {
+        void reset()
+        {
+            _value = 0;
+            _count = 0;
+            _firstByte = true;
+            _latched = false;
+            _output = false;
+            _control = 0x30;
+        }
+        void write(Byte data)
+        {
+            switch (_control & 0x30) {
+                case 0x10:
+
+                    break;
+                case 0x20:
+                    break;
+                case 0x30:
+                    break;
+
+            }
+        }
+        Byte read()
+        {
+        }
+        void wait()
+        {
+        }
+        void control(Byte control)
+        {
+            int command = control & 0x30;
+            if (command == 0) {
+                _latch = _value;
+                _latched = true;
+                return;
+            }
+            _control = control;
+            _firstByte = true;
+            _latched = false;
+        }
+
+        Word _count;
+        Word _value;
+        Word _latch;
+        Byte _control;
+        bool _gate;
+        bool _output;
+        bool _firstByte;
+        bool _latched;
+    };
+
+    Counter _counters[3];
 };
 
 class PICEmulator
@@ -1091,13 +1147,17 @@ public:
     {
         File("Q:\\external\\8088\\roms\\ibm5160\\1501512.u18", true).
             openRead().read(&_rom[0], 0x8000);
+        _pit.setGate(0, true);
+        _pit.setGate(1, true);
+        _pit.setGate(2, true);  // TODO: controllable via PPI
     }
     Byte* ram() { return &_ram[0]; }
     void reset()
     {
         _pic.reset();
         _pit.reset();
-        _pitPhase = 1;
+        _pitPhase = 2;
+        _lastCounter0Output = false;
     }
     void startAccess(DWord address, int type)
     {
@@ -1112,8 +1172,10 @@ public:
         if (_pitPhase == 4) {
             _pitPhase = 0;
             _pit.wait();
-            if (_pit.expired())
+            bool counter0Output = _pit.getOutput(0);
+            if (!_lastCounter0Output && counter0Output)
                 _pic.irq(0);
+            _lastCounter0Output = counter0Output;
         }
     }
     bool ready()
@@ -1142,8 +1204,12 @@ public:
     {
         if (_type == 0) // Interrupt acknowledge
             return _pic.interruptAcknowledge();
-        if (_type == 1) // Read port
-            return 0xff;  // Only a dummy port for now
+        if (_type == 1) { // Read port
+            switch (_address & 0x3e0) {
+                case 0x40: return _pit.read(_address & 3);
+            }
+            return 0xff;
+        }
         if (_address >= 0xf8000)
             return _rom[_address - 0xf8000];
         if (_address >= 0xa0000)
@@ -1160,6 +1226,7 @@ private:
     PITEmulator _pit;
     PICEmulator _pic;
     int _pitPhase;
+    bool _lastCounter0Output;
 };
 
 class Emulator
@@ -1193,9 +1260,10 @@ public:
     int instructionCycles() { return _cycle2 - _cycle1; }
     void setStub(Array<Byte> stub)
     {
-        Byte* ram = _bus.ram() + ((testSegment - 0x1000) << 4);
+        Byte* ram = _bus.ram() + (testSegment << 4);
         for (int i = 0; i < stub.count(); ++i)
             ram[i] = stub[i];
+        _stopIP = 0xbd;
     }
 private:
     void run()
@@ -1215,23 +1283,10 @@ private:
         ds() = testSegment;
         _flags = 0;
 
-        Byte* ram = _bus.ram();
-        ram[3*4 + 0] = 0x00;  // int 3 handler at 0x400
-        ram[3*4 + 1] = 0x04;
-        ram[3*4 + 2] = 0x00;
-        ram[3*4 + 3] = 0x00;
-        ram[0x400] = 0x83;
-        ram[0x401] = 0xc4;
-        ram[0x402] = 0x04;  // ADD SP,+4
-        ram[0x403] = 0x9d;  // POPF
-        ram[0x404] = 0xcb;  // RETF
-
-        Byte* r = _bus.ram() + (testSegment << 4);
+        Byte* r = _bus.ram() + ((testSegment + 0x1000) << 4);
         Byte* stopP = _test.outputCode(r);
-        _stopIP = stopP - (r + 2);
 
         _timeIP1 = _test.startIP();
-        _timeIP2 = _stopIP - 2;
 
         _busState = tIdle;
         _queueCycle = 0;
@@ -1243,7 +1298,7 @@ private:
         _prefetching = true;
         _transferStarting = false;
         _log = "";
-        _logSkip = 3;
+        _logSkip = 210;
         _synchronousDone = true;
         _ip = 0;
         _nmiRequested = false;
@@ -1261,7 +1316,7 @@ private:
 
         do {
             executeOneInstruction();
-        } while (_ip - _queueBytes != _stopIP && _cycle < 2048);
+        } while ((_ip - _queueBytes != _stopIP || cs() != testSegment) && _cycle < 4096 /* 2048*/);
         _cycle2 = _cycle;
     }
     void doBusAccess()
@@ -1548,7 +1603,7 @@ private:
     void executeOneInstruction()
     {
         if (!_repeating) {
-            if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1)
+            if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
             _opcode = queueRead(0);
             _snifferDecoder.queueOperation(1);
@@ -2303,8 +2358,10 @@ private:
             case 0xf4: // HLT
                 if (!_repeating) {
                     prepareForRead();
-                    wait(1);
-                    if (_busState == t2 || _busState == t4)  // Really weird
+                    //wait(1);
+                    //if (_busState == t2 || _busState == t4)  // Really weird
+                    //    wait(1);
+                    if (_busState == t1 || _busState == t3)
                         wait(1);
                     wait(2);
                     _prefetching = false;
@@ -2492,9 +2549,7 @@ private:
                             if (!_wordSize)
                                 _data |= 0xff00;
                             Word newCS = _data;
-
-                            if (!_useMemory)
-                                wait(1);
+                            wait(1);
                             cs() = newCS;
                             setIP(newIP);
                             wait(1);
@@ -2564,7 +2619,6 @@ private:
     int _cycle1;
     int _cycle2;
     int _timeIP1;
-    int _timeIP2;
 
     enum BusState
     {
@@ -3578,7 +3632,7 @@ public:
             p[1] = totalLength >> 8;
             p += 2;
             for (int i = nextTest; i < newNextTest; ++i) {
-                int cycles = _tests[i].cycles();
+                int cycles = _tests[i].cycles() - 210;
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
@@ -3984,7 +4038,7 @@ private:
             case 0x9a: // CALL cp
             case 0xea: // JMP cp
                 i.setImmediate(
-                    (static_cast<DWord>(testSegment) << 16) + 5);
+                    ((static_cast<DWord>(testSegment + 0x1000)) << 16) + 5);
                 t.fixup(0x81);
                 break;
             case 0xa4: case 0xa5: case 0xa6: case 0xa7: case 0xaa: case 0xab:
