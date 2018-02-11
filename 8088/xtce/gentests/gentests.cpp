@@ -1048,10 +1048,18 @@ public:
     }
     void setGate(int counter, bool gate)
     {
-        _counters[counter]._gate = gate;
+        _counters[counter].setGate(gate);
     }
     bool getOutput(int counter) { return _counters[counter]._output; }
 private:
+    enum State
+    {
+        stateWaitingForCount,
+        stateCounting,
+        stateWaitingForGate,
+        stateGateRose,
+        statePulsing
+    };
     struct Counter
     {
         void reset()
@@ -1062,25 +1070,195 @@ private:
             _latched = false;
             _output = false;
             _control = 0x30;
+            _state = stateWaitingForCount;
         }
         void write(Byte data)
         {
             switch (_control & 0x30) {
                 case 0x10:
-
+                    load(data);
                     break;
                 case 0x20:
+                    load(data << 8);
                     break;
                 case 0x30:
+                    if (_firstByte) {
+                        _lowByte = data;
+                        _firstByte = false;
+                    }
+                    else {
+                        load((data << 8) + _lowByte);
+                        _firstByte = true;
+                    }
                     break;
-
             }
         }
         Byte read()
         {
+            if (!_latched) {
+                // TODO: corrupt countdown in a deterministic but
+                // non-trivial way.
+                _latch = _count;
+            }
+            switch (_control & 0x30) {
+                case 0x10:
+                    _latched = false;
+                    return _latch & 0xff;
+                case 0x20:
+                    _latched = false;
+                    return _latch >> 8;
+                case 0x30:
+                    if (_firstByte) {
+                        _firstByte = false;
+                        return _latch & 0xff;
+                    }
+                    _firstByte = true;
+                    _latched = false;
+                    return _latch >> 8;
+            }
+            // This should never happen.
+            return 0;
         }
         void wait()
         {
+            switch (_control & 0x0e) {
+                case 0x00:  // Interrupt on Terminal Count
+                    if (_gate && _state == stateCounting) {
+                        countDown();
+                        if (_value == 0)
+                            _output = true;
+                    }
+                    break;
+                case 0x02:  // Programmable One-Shot
+                    if (_state == stateGateRose) {
+                        _output = false;
+                        _value = _count;
+                        _state = stateCounting;
+                    }
+                    countDown();
+                    if (_value == 0) {
+                        _output = true;
+                        _state = stateWaitingForGate;
+                    }
+                    break;
+                case 0x04:  
+                case 0x0c:  // Rate Generator
+                    if (_gate && _state == stateCounting) {
+                        countDown();
+                        if (_value == 1)
+                            _output = false;
+                        if (_value == 0) {
+                            _output = true;
+                            _value = _count;
+                        }
+                    }
+                    break;
+                case 0x06:  
+                case 0x0e:  // Square Wave Rate Generator
+                    if (_gate && _state == stateCounting) {
+                        if ((_value & 1) != 0) {
+                            if (!_output) {
+                                countDown();
+                                countDown();
+                            }
+                        }
+                        else
+                            countDown();
+                        countDown();
+                        if (_value == 0) {
+                            _output = !_output;
+                            _value = _count;
+                        }
+                    }
+                    break;
+                case 0x08:  // Software Triggered Strobe
+                    if (_state == statePulsing) {
+                        _output = true;
+                        _state = stateWaitingForCount;
+                    }
+                    if (_gate && _state == stateCounting) {
+                        countDown();
+                        if (_value == 0) {
+                            _output = false;
+                            _state = statePulsing;
+                        }
+                    }
+                    break;
+                case 0x0a:  // Hardware Triggered Strobe
+                    if (_state == statePulsing) {
+                        _output = true;
+                        _state = stateWaitingForCount;
+                    }
+                    if (_state == stateGateRose) {
+                        _output = false;
+                        _value = _count;
+                        _state = stateCounting;
+                    }
+                    if (_state == stateCounting) {
+                        countDown();
+                        if (_value == 1)
+                            _output = false;
+                        if (_value == 0) {
+                            _output = true;
+                            _state = stateWaitingForGate;
+                        }
+                    }
+                    break;
+            }
+        }
+        void countDown()
+        {
+            if ((_control & 1) == 0) {
+                --_value;
+                return;
+            }
+            if ((_value & 0xf) != 0) {
+                --_value;
+                return;
+            }
+            if ((_value & 0xf0) != 0) {
+                _value -= (0x10 - 9);
+                return;
+            }
+            if ((_value & 0xf00) != 0) {
+                _value -= (0x100 - 0x99);
+                return;
+            }
+            _value -= (0x1000 - 0x999);
+        }
+        void load(Word count)
+        {
+            _count = count;
+            switch (_control & 0x0e) {
+                case 0x00:  // Interrupt on Terminal Count
+                    if (_state == stateWaitingForCount)
+                        _state = stateCounting;
+                    _output = false;
+                    break;
+                case 0x02:  // Programmable One-Shot
+                    if (_state != stateCounting)
+                        _state = stateWaitingForGate;
+                    break;
+                case 0x04:  
+                case 0x0c:  // Rate Generator
+                    if (_state == stateWaitingForCount)
+                        _state = stateCounting;
+                    break;
+                case 0x06:  
+                case 0x0e:  // Square Wave Rate Generator
+                    if (_state == stateWaitingForCount)
+                        _state = stateCounting;
+                    break;
+                case 0x08:  // Software Triggered Strobe
+                    if (_state == stateWaitingForCount)
+                        _state = stateCounting;
+                    break;
+                case 0x0a:  // Hardware Triggered Strobe
+                    if (_state != stateCounting)
+                        _state = stateWaitingForGate;
+                    break;
+
+            }
         }
         void control(Byte control)
         {
@@ -1093,16 +1271,75 @@ private:
             _control = control;
             _firstByte = true;
             _latched = false;
+            _state = stateWaitingForCount;
+            switch (_control & 0x0e) {
+                case 0x00:  // Interrupt on Terminal Count
+                    _output = false;
+                    break;
+                case 0x02:  // Programmable One-Shot
+                    _output = true;
+                    break;
+                case 0x04:  
+                case 0x0c:  // Rate Generator
+                    _output = true;
+                    break;
+                case 0x06:  
+                case 0x0e:  // Square Wave Rate Generator
+                    _output = true;
+                    break;
+                case 0x08:  // Software Triggered Strobe
+                    _output = true;
+                    break;
+                case 0x0a:  // Hardware Triggered Strobe
+                    _output = true;
+                    break;
+            }
+        }
+        void setGate(bool gate)
+        {
+            if (_gate == gate)
+                return;
+            switch (_control & 0x0e) {
+                case 0x00:  // Interrupt on Terminal Count
+                    break;
+                case 0x02:  // Programmable One-Shot
+                    if (gate)
+                        _state = stateGateRose;
+                    break;
+                case 0x04:  
+                case 0x0c:  // Rate Generator
+                    if (!gate)
+                        _output = true;
+                    else
+                        _value = _count;
+                    break;
+                case 0x06:  
+                case 0x0e:  // Square Wave Rate Generator
+                    if (!gate)
+                        _output = true;
+                    else
+                        _value = _count;
+                    break;
+                case 0x08:  // Software Triggered Strobe
+                    break;
+                case 0x0a:  // Hardware Triggered Strobe
+                    if (gate)
+                        _state = stateGateRose;
+                    break;
+            }
+            _gate = gate;
         }
 
         Word _count;
         Word _value;
         Word _latch;
         Byte _control;
+        Byte _lowByte;
         bool _gate;
         bool _output;
         bool _firstByte;
         bool _latched;
+        State _state;
     };
 
     Counter _counters[3];
@@ -1116,8 +1353,49 @@ public:
         _firstAck = false;
         _interruptPending = false;
         _interrupt = 0;
+        _irr = 0;
+        _imr = 0;
+        _isr = 0;
     }
     void write(int address, Byte data)
+    {
+        if (address == 0) {
+            if ((data & 0x10) != 0) {
+                _icw1 = data;
+                _initializationState = initializationStateICW2;
+                _imr = 0;
+            }
+            else {
+                if ((data & 8) == 0)
+                    _ocw2 = data;
+                else
+                    _ocw3 = data;
+            }
+        }
+        else {
+            switch (_initializationState) {
+                case initializationStateICW2:
+                    _icw2 = data;
+                    if (cascadeMode())
+                        checkICW4Needed();
+                    else
+                        _initializationState = initializationStateICW3;
+                    break;
+                case initializationStateICW3:
+                    _icw3 = data;
+                    checkICW4Needed();
+                    break;
+                case initializationStateICW4:
+                    _icw4 = data;
+                    _state = initializationStateNone;
+                    break;
+                case initializationStateNone:
+                    _imr = data;
+
+            }
+        }
+    }
+    Byte read(int address)
     {
     }
     Byte interruptAcknowledge()
@@ -1130,14 +1408,52 @@ public:
     }
     void irq(int number)
     {
+        _irr |= (1 << number);
         _interrupt = number;
         _interruptPending = true;
     }
     bool interruptPending() const { return _interruptPending; }
 private:
+    bool cascadeMode() { return (_icw1 & 2) == 0; }
+    bool needICW4() { return (_icw1 & 1) != 0; }
+    void checkICW4Needed()
+    {
+        if (needICW4())
+            _initializationState = initializationStateICW4;
+        else
+            _initializationState = initializationStateNone;
+    }
+
+    enum InitializationState
+    {
+        initializationStateNone,
+        initializationStateICW2,
+        initializationStateICW3,
+        initializationStateICW4
+    };
     bool _firstAck;
     bool _interruptPending;
     int _interrupt;
+    Byte _irr;
+    Byte _imr;
+    Byte _isr;
+    Byte _icw1;
+    Byte _icw2;
+    Byte _icw3;
+    Byte _icw4;
+    Byte _ocw2;
+    Byte _ocw3;
+    InitializationState _initializationState;
+};
+
+class DMACEmulator
+{
+public:
+    void reset()
+    {
+    }
+private:
+
 };
 
 class BusEmulator
