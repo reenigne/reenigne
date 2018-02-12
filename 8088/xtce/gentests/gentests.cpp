@@ -1364,6 +1364,8 @@ public:
                 _icw1 = data;
                 _initializationState = initializationStateICW2;
                 _imr = 0;
+                if (!needICW4())
+                    _icw4 = 0;
             }
             else {
                 if ((data & 8) == 0)
@@ -1387,16 +1389,22 @@ public:
                     break;
                 case initializationStateICW4:
                     _icw4 = data;
-                    _state = initializationStateNone;
+                    _initializationState = initializationStateNone;
                     break;
                 case initializationStateNone:
                     _imr = data;
+                    break;
 
             }
         }
     }
     Byte read(int address)
     {
+        if (address == 0) {
+
+        }
+        else
+            return _imr;
     }
     Byte interruptAcknowledge()
     {
@@ -1406,11 +1414,20 @@ public:
         _interruptPending = false;
         return _interrupt | 8;
     }
-    void irq(int number)
+    //void irq(int number)
+    //{
+    //    _irr |= (1 << number);
+    //    // 
+    //    _interrupt = number;
+    //    _interruptPending = true;
+    //}
+    void setIRQLine(int line, bool state)
     {
-        _irr |= (1 << number);
-        _interrupt = number;
-        _interruptPending = true;
+        if (state)
+            _irr |= 1 << line;
+        else
+            _irr &= ~(1 << line);
+        // TODO: set _interruptPending if necessary
     }
     bool interruptPending() const { return _interruptPending; }
 private:
@@ -1489,8 +1506,8 @@ public:
             _pitPhase = 0;
             _pit.wait();
             bool counter0Output = _pit.getOutput(0);
-            if (!_lastCounter0Output && counter0Output)
-                _pic.irq(0);
+            if (_lastCounter0Output != counter0Output)
+                _pic.setIRQLine(0, counter0Output);
             _lastCounter0Output = counter0Output;
         }
     }
