@@ -1401,7 +1401,9 @@ public:
     Byte read(int address)
     {
         if (address == 0) {
-
+            if ((_ocw3 & 1) != 0)
+                return _isr;
+            return _irr;
         }
         else
             return _imr;
