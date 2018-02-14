@@ -1356,12 +1356,15 @@ public:
         _irr = 0;
         _imr = 0;
         _isr = 0;
+        _lines = 0;
     }
     void write(int address, Byte data)
     {
         if (address == 0) {
             if ((data & 0x10) != 0) {
                 _icw1 = data;
+                if (levelTriggered())
+                    _irr = _lines;
                 _initializationState = initializationStateICW2;
                 _imr = 0;
                 if (!needICW4())
@@ -1414,7 +1417,7 @@ public:
         if (_firstAck)
             return 0xff;
         _interruptPending = false;
-        return _interrupt | 8;
+        return _interrupt + (_icw2 & 0xf8);
     }
     //void irq(int number)
     //{
@@ -1425,16 +1428,38 @@ public:
     //}
     void setIRQLine(int line, bool state)
     {
-        if (state)
-            _irr |= 1 << line;
-        else
-            _irr &= ~(1 << line);
-        // TODO: set _interruptPending if necessary
+        Byte b = 1 << line;
+        if (state) {
+            if (levelTriggered() || (_lines & b) == 0)
+                _irr |= b;
+            _lines |= b;
+        }
+        else {
+            _irr &= ~b;
+            _lines &= ~b;
+        }
+
+        for (int i = 0; i < 8; ++i) {
+            Byte b = 1 << i;
+            if ((_isr & b) == 0 && (_irr & b) != 0 && (_imr & b) == 0) {
+                _interruptPending = true;
+                break;
+            }
+        }
     }
     bool interruptPending() const { return _interruptPending; }
 private:
     bool cascadeMode() { return (_icw1 & 2) == 0; }
     bool needICW4() { return (_icw1 & 1) != 0; }
+    bool callAddressInterval4() { return (_icw1 & 4) != 0; }
+    bool levelTriggered() { return (_icw1 & 8) != 0; }
+    Byte vectorAddress57() { return _icw1 & 0xe0; }
+    bool i86Mode() { return (_icw4 & 1) != 0; }
+    bool autoEOI() { return (_icw4 & 2) != 0; }
+    bool master() { return (_icw4 & 4) != 0; }
+    bool buffered() { return (_icw4 & 8) != 0; }
+    bool specialFullyNestedMode() { return (_icw4 & 0x10) != 0; }
+
     void checkICW4Needed()
     {
         if (needICW4())
@@ -1462,6 +1487,7 @@ private:
     Byte _icw4;
     Byte _ocw2;
     Byte _ocw3;
+    Byte _lines;
     InitializationState _initializationState;
 };
 
@@ -3029,7 +3055,7 @@ private:
                 if (!carry) {
                     h -= _source;
                     wait(1);
-                    if (b == bitCount -1)
+                    if (b == bitCount - 1)
                         wait(2);
                 }
             }
