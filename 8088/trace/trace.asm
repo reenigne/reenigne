@@ -182,6 +182,13 @@ lut: db 0x88,8
 
 
 testRoutine:
+  rep
+  repne
+  jmp $+2
+;  db 0,0
+  ret
+
+
 ;  mov ax,98
 ;  mov bl,204
 ;  mov cl,16

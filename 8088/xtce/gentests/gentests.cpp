@@ -1350,13 +1350,21 @@ class PICEmulator
 public:
     void reset()
     {
-        _firstAck = false;
         _interruptPending = false;
         _interrupt = 0;
         _irr = 0;
         _imr = 0;
         _isr = 0;
+        _icw1 = 0;
+        _icw2 = 0;
+        _icw3 = 0;
+        _icw4 = 0;
+        _ocw3 = 0;
         _lines = 0;
+        _specialMaskMode = false;
+        _acknowledgedBytes = 0;
+        _priority = 0;
+        _rotateInAutomaticEOIMode = false;
     }
     void write(int address, Byte data)
     {
@@ -1367,14 +1375,48 @@ public:
                     _irr = _lines;
                 _initializationState = initializationStateICW2;
                 _imr = 0;
+                _priority = 0;
+                _specialMaskMode = false;
                 if (!needICW4())
                     _icw4 = 0;
             }
             else {
-                if ((data & 8) == 0)
-                    _ocw2 = data;
-                else
+                if ((data & 8) == 0) {
+                    Byte b = 1 << (data & 7);
+                    switch (data & 0xe0) {
+                        case 0x00:  // Rotate in automatic EOI mode (clear) (Automatic Rotation)
+                            _rotateInAutomaticEOIMode = false;
+                            break;
+                        case 0x20:  // Non-specific EOI command (End of Interrupt)
+                            nonSpecificEOI(false);
+                            break;
+                        case 0x40:  // No operation
+                            break;
+                        case 0x60:  // Specific EOI command (End of Interrupt)
+                            _isr &= ~b;
+                            break;
+                        case 0x80:  // Rotate in automatic EOI mode (set) (Automatic Rotation)
+                            _rotateInAutomaticEOIMode = true;
+                            break;
+                        case 0xa0:  // Rotate on non-specific EOI command (Automatic Rotation)
+                            nonSpecificEOI(true);
+                            break;
+                        case 0xc0:  // Set priority command (Specific Rotation)
+                            _priority = (data + 1) & 7;
+                            break;
+                        case 0xe0:  // Rotate on specific EOI command (Specific Rotation)
+                            if ((_isr & b) != 0) {
+                                _isr &= ~b;
+                                _priority = (data + 1) & 7;
+                            }
+                            break;
+                    }
+                }
+                else {
                     _ocw3 = data;
+                    if ((_ocw3 & 0x40) != 0)
+                        _specialMaskMode = (_ocw3 & 0x20) != 0;
+                }
             }
         }
         else {
@@ -1397,12 +1439,15 @@ public:
                 case initializationStateNone:
                     _imr = data;
                     break;
-
             }
         }
     }
     Byte read(int address)
     {
+        if (poll()) {
+            acknowledge();
+            return (_interruptPending ? 0x80 : 0) + _interrupt;
+        }
         if (address == 0) {
             if ((_ocw3 & 1) != 0)
                 return _isr;
@@ -1413,19 +1458,37 @@ public:
     }
     Byte interruptAcknowledge()
     {
-        _firstAck = !_firstAck;
-        if (_firstAck)
-            return 0xff;
-        _interruptPending = false;
-        return _interrupt + (_icw2 & 0xf8);
+        if (_acknowledgedBytes == 0) {
+            acknowledge();
+            _acknowledgedBytes = 1;
+            if (i86Mode())
+                return 0xff;
+            else
+                return 0xcd;
+        }
+        if (i86Mode()) {
+            _acknowledgedBytes = 0;
+            if (autoEOI())
+                nonSpecificEOI(_rotateInAutomaticEOIMode);
+            if (slaveOn(_interrupt))
+                return 0xff;  // Filled in by slave PIC
+            return _interrupt + (_icw2 & 0xf8);
+        }
+        if (_acknowledgedBytes == 1) {
+            _acknowledgedBytes = 2;
+            if (slaveOn(_interrupt))
+                return 0xff;  // Filled in by slave PIC
+            if (callAddressInterval4())
+                return (_interrupt << 2) + vectorAddress57();
+            return (_interrupt << 3) + (vectorAddress57() & 0xc0);
+        }
+        _acknowledgedBytes = 0;
+        if (autoEOI())
+            nonSpecificEOI(_rotateInAutomaticEOIMode);
+        if (slaveOn(_interrupt))
+            return 0xff;  // Filled in by slave PIC
+        return _icw2;
     }
-    //void irq(int number)
-    //{
-    //    _irr |= (1 << number);
-    //    // 
-    //    _interrupt = number;
-    //    _interruptPending = true;
-    //}
     void setIRQLine(int line, bool state)
     {
         Byte b = 1 << line;
@@ -1439,12 +1502,18 @@ public:
             _lines &= ~b;
         }
 
+        int n = _priority;
         for (int i = 0; i < 8; ++i) {
-            Byte b = 1 << i;
-            if ((_isr & b) == 0 && (_irr & b) != 0 && (_imr & b) == 0) {
+            Byte b = 1 << n;
+            if ((_isr & b) != 0 && !_specialMaskMode && !specialFullyNestedSlaveOn(n))
+                break;
+            if ((_irr & b) != 0 && (_imr & b) == 0 && ((_isr & b) == 0 || specialFullyNestedSlaveOn(n))) {
                 _interruptPending = true;
                 break;
             }
+            if ((_isr & b) != 0 && !_specialMaskMode && specialFullyNestedSlaveOn(n))
+                break;
+            n = (n + 1) & 7;
         }
     }
     bool interruptPending() const { return _interruptPending; }
@@ -1459,6 +1528,49 @@ private:
     bool master() { return (_icw4 & 4) != 0; }
     bool buffered() { return (_icw4 & 8) != 0; }
     bool specialFullyNestedMode() { return (_icw4 & 0x10) != 0; }
+    bool poll() { return (_ocw3 & 4) != 0; }
+    bool slaveOn(int channel)
+    {
+        return cascadeMode() && buffered() && master() &&
+            (_icw3 & (1 << channel)) != 0;
+    }
+    bool specialFullyNestedSlaveOn(int channel)
+    {
+        return specialFullyNestedMode() && slaveOn(channel);
+    }
+    void acknowledge()
+    {
+        int n = _priority;
+        for (int i = 0; i < 8; ++i) {
+            Byte b = 1 << n;
+            if ((_isr & b) != 0 && !_specialMaskMode && !specialFullyNestedSlaveOn(n))
+                break;
+            if ((_irr & b) != 0 && (_imr & b) == 0 && ((_isr & b) == 0 || specialFullyNestedSlaveOn(n))) {
+                if (!levelTriggered())
+                    _irr &= ~b;
+                _isr |= b;
+                _interrupt = i;
+                break;
+            }
+            if ((_isr & b) != 0 && !_specialMaskMode && specialFullyNestedSlaveOn(n))
+                break;
+            n = (n + 1) & 7;
+        }
+    }
+    void nonSpecificEOI(bool rotatePriority = false)
+    {
+        int n = _priority;
+        for (int i = 0; i < 8; ++i) {
+            Byte b = 1 << n;
+            n = (n + 1) & 7;
+            if ((_isr & b) != 0 && (_imr & b) == 0) {
+                _isr &= ~b;
+                if (rotatePriority)
+                    _priority = n & 7;
+                break;
+            }
+        }
+    }
 
     void checkICW4Needed()
     {
@@ -1475,7 +1587,6 @@ private:
         initializationStateICW3,
         initializationStateICW4
     };
-    bool _firstAck;
     bool _interruptPending;
     int _interrupt;
     Byte _irr;
@@ -1485,9 +1596,12 @@ private:
     Byte _icw2;
     Byte _icw3;
     Byte _icw4;
-    Byte _ocw2;
     Byte _ocw3;
     Byte _lines;
+    int _acknowledgedBytes;
+    int _priority;
+    bool _specialMaskMode;
+    bool _rotateInAutomaticEOIMode;
     InitializationState _initializationState;
 };
 
@@ -1497,8 +1611,29 @@ public:
     void reset()
     {
     }
+    void write(int address, Byte data)
+    {
+    }
+    Byte read(int address)
+    {
+    }
 private:
-
+    struct Channel
+    {
+        Word _baseAddress;
+        Word _baseWordCount;
+        Word _currentAddress;
+        Word _currentWordCount;
+        Byte _mode;
+    };
+    Channel _channels[4];
+    Word _temporaryAddress;
+    Word _temporaryWordCount;
+    Byte _status;
+    Byte _command;
+    Byte _temporary;
+    Byte _mask;
+    Byte _request;
 };
 
 class BusEmulator
@@ -1549,6 +1684,9 @@ public:
     {
         if (_type == 2) {
             switch (_address & 0x3e0) {
+                case 0x00:
+                    _dmac.write(_address & 0x0f, data);
+                    break;
                 case 0x20:
                     _pic.write(_address & 1, data);
                     break;
@@ -1584,8 +1722,9 @@ private:
     DWord _address;
     int _type;
     int _cycle;
-    PITEmulator _pit;
+    DMACEmulator _dmac;
     PICEmulator _pic;
+    PITEmulator _pit;
     int _pitPhase;
     bool _lastCounter0Output;
 };
