@@ -1365,6 +1365,7 @@ public:
         _acknowledgedBytes = 0;
         _priority = 0;
         _rotateInAutomaticEOIMode = false;
+        _initializationState = initializationStateNone;
     }
     void write(int address, Byte data)
     {
@@ -1373,12 +1374,21 @@ public:
                 _icw1 = data;
                 if (levelTriggered())
                     _irr = _lines;
+                else
+                    _irr = 0;
                 _initializationState = initializationStateICW2;
                 _imr = 0;
+                _isr = 0;
+                _icw2 = 0;
+                _icw3 = 0;
+                _icw4 = 0;
+                _ocw3 = 0;
+                _acknowledgedBytes = 0;
                 _priority = 0;
+                _rotateInAutomaticEOIMode = false;
                 _specialMaskMode = false;
-                if (!needICW4())
-                    _icw4 = 0;
+                _interrupt = 0;
+                _interruptPending = false;
             }
             else {
                 if ((data & 8) == 0) {
@@ -1444,7 +1454,7 @@ public:
     }
     Byte read(int address)
     {
-        if (poll()) {
+        if ((_ocw3 & 4) != 0) {  // Poll mode
             acknowledge();
             return (_interruptPending ? 0x80 : 0) + _interrupt;
         }
@@ -1478,9 +1488,9 @@ public:
             _acknowledgedBytes = 2;
             if (slaveOn(_interrupt))
                 return 0xff;  // Filled in by slave PIC
-            if (callAddressInterval4())
-                return (_interrupt << 2) + vectorAddress57();
-            return (_interrupt << 3) + (vectorAddress57() & 0xc0);
+            if ((_icw1 & 4) != 0)  // Call address interval 4
+                return (_interrupt << 2) + (_icw1 & 0xe0);
+            return (_interrupt << 3) + (_icw1 & 0xc0);
         }
         _acknowledgedBytes = 0;
         if (autoEOI())
@@ -1501,61 +1511,47 @@ public:
             _irr &= ~b;
             _lines &= ~b;
         }
-
-        int n = _priority;
-        for (int i = 0; i < 8; ++i) {
-            Byte b = 1 << n;
-            if ((_isr & b) != 0 && !_specialMaskMode && !specialFullyNestedSlaveOn(n))
-                break;
-            if ((_irr & b) != 0 && (_imr & b) == 0 && ((_isr & b) == 0 || specialFullyNestedSlaveOn(n))) {
-                _interruptPending = true;
-                break;
-            }
-            if ((_isr & b) != 0 && !_specialMaskMode && specialFullyNestedSlaveOn(n))
-                break;
-            n = (n + 1) & 7;
-        }
+        if (findBestInterrupt() != -1)
+            _interruptPending = true;
     }
     bool interruptPending() const { return _interruptPending; }
 private:
     bool cascadeMode() { return (_icw1 & 2) == 0; }
-    bool needICW4() { return (_icw1 & 1) != 0; }
-    bool callAddressInterval4() { return (_icw1 & 4) != 0; }
     bool levelTriggered() { return (_icw1 & 8) != 0; }
-    Byte vectorAddress57() { return _icw1 & 0xe0; }
     bool i86Mode() { return (_icw4 & 1) != 0; }
     bool autoEOI() { return (_icw4 & 2) != 0; }
-    bool master() { return (_icw4 & 4) != 0; }
-    bool buffered() { return (_icw4 & 8) != 0; }
-    bool specialFullyNestedMode() { return (_icw4 & 0x10) != 0; }
-    bool poll() { return (_ocw3 & 4) != 0; }
     bool slaveOn(int channel)
     {
-        return cascadeMode() && buffered() && master() &&
+        return cascadeMode() && (_icw4 & 0xc0) == 0xc0 &&
             (_icw3 & (1 << channel)) != 0;
     }
-    bool specialFullyNestedSlaveOn(int channel)
-    {
-        return specialFullyNestedMode() && slaveOn(channel);
-    }
-    void acknowledge()
+    int findBestInterrupt()
     {
         int n = _priority;
         for (int i = 0; i < 8; ++i) {
             Byte b = 1 << n;
-            if ((_isr & b) != 0 && !_specialMaskMode && !specialFullyNestedSlaveOn(n))
+            bool s = (_icw4 & 0x10) != 0 && slaveOn(n);
+            if ((_isr & b) != 0 && !_specialMaskMode && !s)
                 break;
-            if ((_irr & b) != 0 && (_imr & b) == 0 && ((_isr & b) == 0 || specialFullyNestedSlaveOn(n))) {
-                if (!levelTriggered())
-                    _irr &= ~b;
-                _isr |= b;
-                _interrupt = i;
-                break;
-            }
-            if ((_isr & b) != 0 && !_specialMaskMode && specialFullyNestedSlaveOn(n))
+            if ((_irr & b) != 0 && (_imr & b) == 0 && ((_isr & b) == 0 || s))
+                return n;
+            if ((_isr & b) != 0 && !_specialMaskMode && s)
                 break;
             n = (n + 1) & 7;
         }
+        return -1;
+    }
+    void acknowledge()
+    {
+        int i = findBestInterrupt();
+        if (i == -1) {
+            _interrupt = 7;
+            return;
+        }
+        Byte b = 1 << i;
+        _isr |= b;
+        if (!levelTriggered())
+            _irr &= ~b;
     }
     void nonSpecificEOI(bool rotatePriority = false)
     {
@@ -1571,10 +1567,9 @@ private:
             }
         }
     }
-
     void checkICW4Needed()
     {
-        if (needICW4())
+        if ((_icw1 & 1) != 0)
             _initializationState = initializationStateICW4;
         else
             _initializationState = initializationStateNone;
@@ -1610,30 +1605,196 @@ class DMACEmulator
 public:
     void reset()
     {
+        for (int i = 0; i < 4; ++i)
+            _channels[i].reset();
+
     }
     void write(int address, Byte data)
     {
+        switch (address) {
+            case 0x00: case 0x02: case 0x04: case 0x06:
+                _channels[(address & 6) >> 1].setAddress(_high, data);
+                _high = !_high;
+                break;
+            case 0x01: case 0x03: case 0x05: case 0x07:
+                _channels[(address & 6) >> 1].setCount(_high, data);
+                _high = !_high;
+                break;
+            case 0x08:  // Write Command Register
+                _command = data;
+                break;
+            case 0x09:  // Write Request Register
+                setRequest(data & 3, (data & 4) != 0);
+                break;
+            case 0x0a:  // Write Single Mask Register Bit
+                {
+                    Byte b = 1 << (data & 3);
+                    if ((data & 4) != 0)
+                        _mask |= b;
+                    else
+                        _mask &= ~b;
+                }
+                break;
+            case 0x0b:  // Write Mode Register
+                _channels[data & 3]._mode = data;
+                break;
+            case 0x0c:  // Clear Byte Pointer Flip/Flop
+                _high = false;
+                break;
+            case 0x0d:  // Master Clear
+                reset();
+                break;
+            case 0x0e:  // Clear Mask Register
+                _mask = 0;
+                break;
+            case 0x0f:  // Write All Mask Register Bits
+                _mask = data;
+                break;
+        }
     }
     Byte read(int address)
+    {
+        switch (address) {
+            case 0x00: case 0x02: case 0x04: case 0x06:
+                _high = !_high;
+                return _channels[(address & 6) >> 1].getAddress(!_high);
+            case 0x01: case 0x03: case 0x05: case 0x07:
+                _high = !_high;
+                return _channels[(address & 6) >> 1].getCount(!_high);
+            case 0x08:  // Read Status Register
+                return _status;
+                break;
+            case 0x0d:  // Read Temporary Register
+                return _temporary;
+                break;
+            default:  // Illegal
+                return 0xff;
+        }
+    }
+    void setDMARequestLine(int line, bool state)
+    {
+        setRequest(line, state != dreqSenseActiveLow());
+    }
+    // Returns channel if DMA requested, else -1
+    int dmaRequested(Word* address, int* type, int* cycles)
+    {
+        if (_channel != -1) {
+            *address = _channels[_channel]._currentAddress;
+            *type = _channels[_channel]._mode & 0x0c;
+            if (!compressedTiming())
+                *cycles = 4;
+            else {
+                if (_needHighAddress)
+                    *cycles = 3;
+                else
+                    *cycles = 2;
+            }
+        }
+        return _channel;
+    }
+    Byte dmaRead()
+    {
+
+    }
+    void dmaWrite(Byte data)
     {
     }
 private:
     struct Channel
     {
+        void setAddress(bool high, Byte data)
+        {
+            if (high) {
+                _baseAddress = (_baseAddress & 0xff00) + data;
+                _currentAddress = (_currentAddress & 0xff00) + data;
+            }
+            else {
+                _baseAddress = (_baseAddress & 0xff) + (data << 8);
+                _currentAddress = (_currentAddress & 0xff) + (data << 8);
+            }
+        }
+        void setCount(bool high, Byte data)
+        {
+            if (high) {
+                _baseWordCount = (_baseWordCount & 0xff00) + data;
+                _currentWordCount = (_currentWordCount & 0xff00) + data;
+            }
+            else {
+                _baseWordCount = (_baseWordCount & 0xff) + (data << 8);
+                _currentWordCount = (_currentWordCount & 0xff) + (data << 8);
+            }
+        }
+        Byte getAddress(bool high)
+        {
+            if (high)
+                return _currentAddress >> 8;
+            else
+                return _currentAddress;
+        }
+        Byte getCount(bool high)
+        {
+            if (high)
+                return _currentWordCount >> 8;
+            else
+                return _currentWordCount;
+        }
+        void reset()
+        {
+            _baseAddress = 0;
+            _baseWordCount = 0;
+            _currentAddress = 0;
+            _currentWordCount = 0;
+            _mode = 0;
+        }
+        bool write() { return (_mode & 0x0c) == 4; }
+        bool read() { return (_mode & 0x0c) == 8; }
+        bool verify() { return (_mode & 0x0c) == 0; }
+        bool autoinitialization() { return (_mode & 0x10) != 0; }
+        bool addressDecrement() { return (_mode & 0x20) != 0; }
+        bool demand() { return (_mode & 0xc0) == 0x00; }
+        bool single() { return (_mode & 0xc0) == 0x40; }
+        bool block() { return (_mode & 0xc0) == 0x80; }
+        bool cascade() { return (_mode & 0xc0) == 0xc0; }
+
         Word _baseAddress;
         Word _baseWordCount;
         Word _currentAddress;
         Word _currentWordCount;
-        Byte _mode;
+        Byte _mode;  // Only 6 bits used
     };
+
+    bool memoryToMemory() { return (_command & 1) != 0; }
+    bool channel0AddressHold() { return (_command & 2) != 0; }
+    bool disabled() { return (_command & 4) != 0; }
+    bool compressedTiming() { return (_command & 8) != 0; }
+    bool rotatingPriority() { return (_command & 0x10) != 0; }
+    bool extendedWriteSelection() { return (_command & 0x20) != 0; }
+    bool dreqSenseActiveLow() { return (_command & 0x40) != 0; }
+    bool dackSenseActiveHigh() { return (_command & 0x80) != 0; }
+    void setRequest(int line, bool active)
+    {
+        Byte b = 1 << line;
+        Byte s = 0x10 << line;
+        if (active) {
+            _request |= b;
+            _status |= s;
+        }
+        else {
+            _request &= ~b;
+            _status &= ~s;
+        }
+    }
+
     Channel _channels[4];
     Word _temporaryAddress;
     Word _temporaryWordCount;
     Byte _status;
     Byte _command;
     Byte _temporary;
-    Byte _mask;
-    Byte _request;
+    Byte _mask;  // Only 4 bits used
+    Byte _request;  // Only 4 bits used
+    bool _high;
+    int _channel;
 };
 
 class BusEmulator
@@ -1654,6 +1815,7 @@ public:
         _pit.reset();
         _pitPhase = 2;
         _lastCounter0Output = false;
+        _lastCounter1Output = false;
     }
     void startAccess(DWord address, int type)
     {
@@ -1672,6 +1834,9 @@ public:
             if (_lastCounter0Output != counter0Output)
                 _pic.setIRQLine(0, counter0Output);
             _lastCounter0Output = counter0Output;
+            bool counter1Output = _pit.getOutput(1);
+            if (_lastCounter1Output != counter1Output)
+                _dmac.setDMARequestLine(0, counter1Output);
         }
     }
     bool ready()
@@ -1705,6 +1870,8 @@ public:
             return _pic.interruptAcknowledge();
         if (_type == 1) { // Read port
             switch (_address & 0x3e0) {
+                case 0x00: return _dmac.read(_address & 0x0f);
+                case 0x20: return _pic.read(_address & 1);
                 case 0x40: return _pit.read(_address & 3);
             }
             return 0xff;
@@ -1727,6 +1894,7 @@ private:
     PITEmulator _pit;
     int _pitPhase;
     bool _lastCounter0Output;
+    bool _lastCounter1Output;
 };
 
 class Emulator
