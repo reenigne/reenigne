@@ -182,6 +182,159 @@ lut: db 0x88,8
 
 
 testRoutine:
+;  mov cx,2246
+;  mov cx,4492
+;  mov cx,8984
+;  mov cx,17968
+;  mov cx,35936
+
+
+  mov al,TIMER1 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov al,0
+  out 0x41,al
+  mov al,18
+  out 0x41,al
+
+  out 0x0c,al  ; clear byte pointer flip/flop
+  mov al,0xff
+  out 0x01,al  ;
+  mov al,0
+  out 0x01,al  ; Set count to 256
+
+;
+  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+  out 0x08,al  ; DMA command write
+  mov al,0x98  ; channel 0, read, autoinit, increment, block
+  out 0x0b,al  ; DMA mode write
+
+
+  ; The following code will crash the machine unless refresh worked
+  mov cx,65535
+.loop:
+  xchg ax,cx
+  mov cx,1;8
+.loop2:
+  loop .loop2
+  xchg ax,cx
+  loop .loop
+
+
+  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+  out 0x08,al  ; DMA command write
+  mov al,0x58  ; channel 0, read, autoinit, increment, single
+  out 0x0b,al  ; DMA mode write
+  mov al,TIMER1 | BOTH | MODE2 | BINARY
+  out 0x43,al
+  mov al,18
+  out 0x41,al
+  mov al,0
+  out 0x41,al
+  out 0x0c,al  ; clear byte pointer flip/flop
+  mov al,0xff
+  out 0x01,al  ;
+  out 0x01,al  ; Set count to 65536
+
+
+
+; 304 cycles, 15 + 50 - 4 = 61 cycles for refresh
+%if 0
+  mov dx,0x3d9
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,76
+  out 0x41,al
+  out 0x0c,al  ; clear byte pointer flip/flop
+  mov al,3
+  out 0x01,al  ;
+  mov al,0
+  out 0x01,al  ; Set count to 4
+
+  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+  out 0x08,al  ; DMA command write
+  mov al,0x98  ; channel 0, read, autoinit, increment, block
+  out 0x0b,al  ; DMA mode write
+
+  %assign i 0
+  %rep 7
+    %rep 16
+      nop
+      out dx,al
+    %endrep
+    mov al,i
+    out 0x00,al
+    mov al,(i >> 8)
+    out 0x00,al
+    %assign i i+4
+    nop
+  %endrep
+
+  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+  out 0x08,al  ; DMA command write
+  mov al,0x58  ; channel 0, read, autoinit, increment, single mode
+  out 0x0b,al  ; DMA mode write
+%endif
+
+
+; ~312 cycles, 72 for refresh
+%if 0
+  mov dx,0x3d9
+  mov al,TIMER1 | LSB | MODE2 | BINARY
+  out 0x43,al
+  mov al,3
+  out 0x41,al
+;  mov al,64
+;  out 0x41,al
+  mov al,1
+  out 0x0a,al
+
+  %rep 7
+    %rep 16
+      nop
+      out dx,al
+    %endrep
+;    mov al,3
+;    out 0x41,al
+;    times 3 nop
+;    mov al,64
+;    out 0x41,al
+    mov al,0
+    out 0x0a,al
+    nop
+    mov al,4
+    out 0x0a,al
+  %endrep
+
+  mov al,0
+  out 0x0a,al
+%endif
+
+;  mov al,TIMER1 | LSB | MODE0 | BINARY
+;  out 0x43,al
+;  mov al,72
+;  out 0x41,al
+;  mov al,0x40  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active low, DACK sense active low
+;  out 0x08,al  ; DMA command write
+;  mov al,0x58  ; channel 0, read, autoinit, increment, single ;demand mode
+;  out 0x0b,al  ; DMA mode write
+;
+;  %rep 7
+;    %rep 20
+;      nop
+;      out dx,al     ; Pixel is 15 cycles == 45 hdots,
+;    %endrep
+;    mov al,8
+;    out 0x41,al
+;  %endrep
+;
+;  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+;  out 0x08,al  ; DMA command write
+;  mov al,0x58  ; channel 0, read, autoinit, increment, single mode
+;  out 0x0b,al  ; DMA mode write
+
+  ret
+
+
   rep
   repne
   jmp $+2

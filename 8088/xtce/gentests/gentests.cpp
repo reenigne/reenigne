@@ -1607,7 +1607,16 @@ public:
     {
         for (int i = 0; i < 4; ++i)
             _channels[i].reset();
-
+        _temporaryAddress = 0;
+        _temporaryWordCount = 0;
+        _status = 0;
+        _command = 0;
+        _temporary = 0;
+        _mask = 0xf;
+        _request = 0;
+        _high = false;
+        _channel = -1;
+        _needHighAddress = true;
     }
     void write(int address, Byte data)
     {
@@ -1694,10 +1703,14 @@ public:
     }
     Byte dmaRead()
     {
-
+        if (memoryToMemory() && _channel == 1)
+            return _temporary;
+        return 0xff;
     }
     void dmaWrite(Byte data)
     {
+        if (memoryToMemory() && _channel == 0)
+            _temporary = data;
     }
 private:
     struct Channel
@@ -1795,6 +1808,7 @@ private:
     Byte _request;  // Only 4 bits used
     bool _high;
     int _channel;
+    bool _needHighAddress;
 };
 
 class BusEmulator
