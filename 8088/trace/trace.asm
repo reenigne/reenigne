@@ -81,10 +81,10 @@ loopTop:
   hlt
   writePIT16 0, 2, 0
 
-;  mov ax,0xb800
-;  mov ds,ax
-;  mov ax,[0]
-;   lockstep 1
+  mov ax,0xb800
+  mov ds,ax
+  mov ax,[0]
+   lockstep 1
 
   mov ax,0x8000
   mov ds,ax
@@ -188,52 +188,169 @@ testRoutine:
 ;  mov cx,17968
 ;  mov cx,35936
 
+  writePIT16 0, 2, 410
+
+
+  mov al,3
+  out 0x80,al
+  mov al,4
+  out 0x81,al
+  mov al,0xb ;5
+  out 0x82,al
+  mov al,0xb
+  out 0x83,al
+
+  mov ax,0x4000
+  mov es,ax
+  mov di,0x80
+  mov ax,0x1234
+  stosw
+  mov ax,0x5678
+  stosw
+  mov ax,0xb800
+  mov es,ax
+  mov di,0xc0
+  xor ax,ax
+  stosw
+  stosw
+
+  sti
 
   mov al,TIMER1 | BOTH | MODE2 | BINARY
   out 0x43,al
   mov al,0
   out 0x41,al
-  mov al,18
+  mov al,1;8
   out 0x41,al
 
   out 0x0c,al  ; clear byte pointer flip/flop
-  mov al,0xff
+  mov al,0x0f
   out 0x01,al  ;
   mov al,0
-  out 0x01,al  ; Set count to 256
+  out 0x01,al  ; Set channel 0 count to 16
 
-;
-  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+  mov al,0x00
+  out 0x00,al
+  mov al,0x80
+  out 0x00,al  ; Set channel 0 address to 0x8000
+
+  mov al,0x40
+  out 0x02,al
+  mov al,0x80
+  out 0x02,al  ; Set channel 1 address to 0x8040
+
+  mov al,0x80
+  out 0x04,al
+  mov al,0
+  out 0x04,al  ; Set channel 2 address to 0x80
+
+  mov al,0xc0
+  out 0x06,al
+  mov al,0x80
+  out 0x06,al  ; Set channel 3 address to 0x80c0
+
+  mov al,0x3f
+  out 0x03,al  ;
+  mov al,0
+  out 0x03,al  ; Set channel 1 count to 64
+
+  mov al,0x1f
+  out 0x05,al  ;
+  mov al,0
+  out 0x05,al  ; Set channel 2 count to 32
+
+  mov al,0x1f
+  out 0x07,al  ;
+  mov al,0
+  out 0x07,al  ; Set channel 3 count to 32
+
+  mov al,0x0f  ; Set mask for channel 2 and 3, clear mask for channel 0 and 1
+  out 0x0f,al
+
+  ; 1 = memory-to-memory, 2 = channel 0 address hold, 4 = disable, 8 = compressed timing, 0x10 = rotating priority, 0x20 = extended write, 0x40 = DREQ sense active low, 0x80 = DACK sense active high
+  ; 1-3 = channel, 4 = write, 8 = read, 0x10 = auto-init, 0x20 = decrement, 0x00 = demand, 0x40 = single, 0x80 = block, 0xc0 = cascade
+
+;  mov al,0x10  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, rotating priority, late write selection, DREQ sense active high, DACK sense active low
+;  mov al,0x01  ; Memory-to-memory enable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+;  mov al,0x03  ; Memory-to-memory enable, Channel 0 address hold enable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+;  mov al,0x09  ; Memory-to-memory enable, Channel 0 address hold disable, controller enable, compressed timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+;  mov al,0x29  ; Memory-to-memory enable, Channel 0 address hold disable, controller enable, compressed timing, fixed priority, extended write selection, DREQ sense active high, DACK sense active low
+;  mov al,0x21  ; Memory-to-memory enable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, extended write selection, DREQ sense active high, DACK sense active low
+  mov al,0x29  ; Memory-to-memory enable, Channel 0 address hold disable, controller enable, compressed timing, fixed priority, extended write selection, DREQ sense active high, DACK sense active low
   out 0x08,al  ; DMA command write
-  mov al,0x98  ; channel 0, read, autoinit, increment, block
+  mov al,0x88  ; channel 0, read, autoinit, increment, block
   out 0x0b,al  ; DMA mode write
+  mov al,0x95  ; channel 1, write, autoinit, increment, block
+  out 0x0b,al
+  mov al,0x8a  ; channel 2, read, no autoinit, increment, demand
+  out 0x0b,al  ; DMA mode write
+  mov al,0x87  ; channel 3, write, no autoinit, increment, demand
+  out 0x0b,al
+
+;  mov al,4
+;  out 0x09,al  ; request channel 0
+;  mov al,5
+;  out 0x09,al  ; request channel 1
+;  mov al,6
+;  out 0x09,al  ; request channel 2
+;  mov al,7
+;  out 0x09,al  ; request channel 3
+
+  mov al,0x03  ; Set mask for channel 0 and 1, clear mask for channel 2 and 3
+  out 0x0f,al
+
+  mov al,0x71  ; Memory-to-memory enable, Channel 0 address hold disable, controller enable, normal timing, rotating priority, extended write selection, DREQ sense active high, DACK sense active low
+  out 0x08,al  ; DMA command write
 
 
   ; The following code will crash the machine unless refresh worked
-  mov cx,65535
+;  mov cx,65535
+;.loop:
+;  xchg ax,cx
+;  mov cx,1;8
+;.loop2:
+;  loop .loop2
+;  xchg ax,cx
+;  loop .loop
+
+  hlt
+
+
+  mov ax,[es:0xc0]
+  mov ax,[es:0xc2]
+
+
+  mov cx,1000
 .loop:
-  xchg ax,cx
-  mov cx,1;8
-.loop2:
-  loop .loop2
-  xchg ax,cx
   loop .loop
 
+
+  mov al,0x0f  ; Set all masks
+  out 0x0f,al
 
   mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
   out 0x08,al  ; DMA command write
   mov al,0x58  ; channel 0, read, autoinit, increment, single
   out 0x0b,al  ; DMA mode write
-  mov al,TIMER1 | BOTH | MODE2 | BINARY
-  out 0x43,al
-  mov al,18
-  out 0x41,al
-  mov al,0
-  out 0x41,al
+;  mov al,TIMER1 | BOTH | MODE2 | BINARY
+;  out 0x43,al
+;  mov al,18
+;  out 0x41,al
+;  mov al,0
+;  out 0x41,al
   out 0x0c,al  ; clear byte pointer flip/flop
   mov al,0xff
   out 0x01,al  ;
   out 0x01,al  ; Set count to 65536
+
+  mov al,0
+  out 0x80,al
+  out 0x81,al
+  out 0x82,al
+  out 0x83,al
+
+  mov al,0x0e  ; Set mask for channel 1, 2 and 3, clear mask for channel 0
+  out 0x0f,al
 
 
 
