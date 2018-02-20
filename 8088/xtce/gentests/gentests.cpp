@@ -1855,8 +1855,14 @@ public:
     }
     bool ready()
     {
-        if (_type == 1 || _type == 2)
+        if (_type == 1 || _type == 2)  // Read port, write port
             return _cycle > 2;  // System board adds a wait state for onboard IO devices
+        if (!_dma) {
+            Word dmaAddress;
+            int dmaType;
+            int dmaCycles;
+            _dma = _dmac.dmaRequested(&dmaAddress, &dmaType, &dmacycles);
+        }
         return true;
     }
     void write(Byte data)
@@ -1909,6 +1915,7 @@ private:
     int _pitPhase;
     bool _lastCounter0Output;
     bool _lastCounter1Output;
+    bool _dma;
 };
 
 class Emulator

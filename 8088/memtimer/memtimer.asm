@@ -251,6 +251,16 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experiment0:
+  db "scatter$"
+  db 0
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+  movsb
+  inc di
+.endCode
+
 experiment1:
   db "retrace found$"
   db 0

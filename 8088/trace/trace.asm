@@ -188,6 +188,13 @@ testRoutine:
 ;  mov cx,17968
 ;  mov cx,35936
 
+  in al,0x09
+  in al,0x0a
+  in al,0x0b
+  in al,0x0c
+  in al,0x0e
+  in al,0x0f
+
 
 %if 0
   writePIT16 0, 2, 410
@@ -383,7 +390,7 @@ testRoutine:
 
 
 ; 304 cycles, 15 + 50 - 4 = 61 cycles for refresh
-%if 1
+%if 0
   mov al,0x0f  ; Set mask for all channels
   out 0x0f,al
 
@@ -496,28 +503,30 @@ testRoutine:
   out 0x0a,al
 %endif
 
-;  mov al,TIMER1 | LSB | MODE0 | BINARY
-;  out 0x43,al
-;  mov al,72
-;  out 0x41,al
-;  mov al,0x40  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active low, DACK sense active low
-;  out 0x08,al  ; DMA command write
-;  mov al,0x58  ; channel 0, read, autoinit, increment, single ;demand mode
-;  out 0x0b,al  ; DMA mode write
-;
-;  %rep 7
-;    %rep 20
-;      nop
-;      out dx,al     ; Pixel is 15 cycles == 45 hdots,
-;    %endrep
-;    mov al,8
-;    out 0x41,al
-;  %endrep
-;
-;  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
-;  out 0x08,al  ; DMA command write
-;  mov al,0x58  ; channel 0, read, autoinit, increment, single mode
-;  out 0x0b,al  ; DMA mode write
+%if 1
+  mov al,TIMER1 | LSB | MODE0 | BINARY
+  out 0x43,al
+  mov al,72
+  out 0x41,al
+  mov al,0x40  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active low, DACK sense active low
+  out 0x08,al  ; DMA command write
+  mov al,0x58  ; channel 0, read, autoinit, increment, single ;demand mode
+  out 0x0b,al  ; DMA mode write
+
+  %rep 7
+    %rep 20
+      nop
+      out dx,al     ; Pixel is 15 cycles == 45 hdots,
+    %endrep
+    mov al,8
+    out 0x41,al
+  %endrep
+
+  mov al,0x00  ; Memory-to-memory disable, Channel 0 address hold disable, controller enable, normal timing, fixed priority, late write selection, DREQ sense active high, DACK sense active low
+  out 0x08,al  ; DMA command write
+  mov al,0x58  ; channel 0, read, autoinit, increment, single mode
+  out 0x0b,al  ; DMA mode write
+%endif
 
   ret
 
