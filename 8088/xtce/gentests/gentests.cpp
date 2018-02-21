@@ -1855,14 +1855,16 @@ public:
     }
     bool ready()
     {
-        if (_type == 1 || _type == 2)  // Read port, write port
-            return _cycle > 2;  // System board adds a wait state for onboard IO devices
         if (!_dma) {
             Word dmaAddress;
             int dmaType;
             int dmaCycles;
-            _dma = _dmac.dmaRequested(&dmaAddress, &dmaType, &dmacycles);
+            _dma = _dmac.dmaRequested(&dmaAddress, &dmaType, &dmaCycles);
         }
+        if (_dma)
+            return false;
+        if (_type == 1 || _type == 2)  // Read port, write port
+            return _cycle > 2;  // System board adds a wait state for onboard IO devices
         return true;
     }
     void write(Byte data)
