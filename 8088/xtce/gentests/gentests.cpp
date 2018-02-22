@@ -1684,6 +1684,15 @@ public:
     {
         setRequest(line, state != dreqSenseActiveLow());
     }
+    bool getHoldRequestLine()
+    {
+    }
+    void setHoldAcknowledgeLine(bool state)
+    {
+    }
+    bool getDMAAcknowledgeLine(int line)
+    {
+    }
     // Returns channel if DMA requested, else -1
     int dmaRequested(Word* address, int* type, int* cycles)
     {
@@ -1855,12 +1864,8 @@ public:
     }
     bool ready()
     {
-        if (!_dma) {
-            Word dmaAddress;
-            int dmaType;
-            int dmaCycles;
-            _dma = _dmac.dmaRequested(&dmaAddress, &dmaType, &dmaCycles);
-        }
+        if (!_dma)
+            _dma = _dmac.dmaRequested(&_dmaAddress, &_dmaType, &_dmaCycles);
         if (_dma)
             return false;
         if (_type == 1 || _type == 2)  // Read port, write port
@@ -1918,6 +1923,9 @@ private:
     bool _lastCounter0Output;
     bool _lastCounter1Output;
     bool _dma;
+    Word _dmaAddress;
+    int _dmaCycles;
+    int _dmaType;
 };
 
 class Emulator
@@ -3848,6 +3856,16 @@ private:
 };
 
 static const int nopCounts = 16;
+
+class Cache
+{
+public:
+    void setTime(Test, int)
+    {
+    }
+private:
+    HashTable<Test, int> _time;
+};
 
 class Program : public ProgramBase
 {
