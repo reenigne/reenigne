@@ -1,5 +1,6 @@
 #include "alfe/main.h"
 #include "alfe/space.h"
+#include "alfe/hash_table.h"
 #include <random>
 
 static const UInt16 testSegment = 0xa8;
@@ -202,7 +203,7 @@ public:
                 return _nops;
         }
     }
-    void output(Byte* p)       // For the real hardware
+    void output(Byte* p)       // For the real hardware and cache
     {
         if (_usesCH && _nops == 11)
             _nops = 12;
@@ -333,6 +334,10 @@ public:
         for (int i = 0; i < 4; ++i)
             p[i + 4] = 0;
         return p + 4;
+    }
+    Byte* read(Byte* p)
+    {
+
     }
     void write()
     {
@@ -3860,8 +3865,50 @@ static const int nopCounts = 16;
 class Cache
 {
 public:
-    void setTime(Test, int)
+    void setTime(Test test, int time)
     {
+        _time.add(test, time);
+    }
+    int getTime(Test test)
+    {
+        if (!_time.hasKey(test))
+            return -1;
+        return _time[test];
+    }
+    void load(File file)
+    {
+        auto s = file.tryOpenRead();
+        if (s.valid()) {
+            UInt64 size = s.size();
+            if (size > 0x7fffffff)
+                throw Exception("Cache too large.");
+            Array<Byte> d(size);
+            Byte* p = &d[0];
+            s.read(p, (int)size);
+            int i = 0;
+            while (i < size) {
+                Test t;
+                t.read(p);
+                int cycles = p[0] + (p[1] << 8);
+                int l = t.length();
+                p += t.length();
+                setTime(t, cycles);
+            }
+        }
+    }
+    void save(File file)
+    {
+        int size = 0;
+        for (auto i : _time)
+            size += i.key().length();
+        Array<Byte> d(size);
+        Byte* p = &d[0];
+        for (auto i : _time) {
+            Test t = i.key();
+            t.output(p);
+            p += t.length();
+        }
+        file.save(&d[0], size);
     }
 private:
     HashTable<Test, int> _time;
@@ -4273,21 +4320,8 @@ public:
             }
         }
 
-        _cache.allocate(_tests.count());
-        _cacheHighWaterMark = 0;
-        {
-            File f(String("cache.dat"));
-            auto s = f.tryOpenRead();
-            if (s.valid()) {
-                UInt64 size = s.size();
-                if (size > _tests.count()*2) {
-                    size = _tests.count()*2;
-                    //throw Exception("Cache file too large!");
-                }
-                s.read(reinterpret_cast<Byte*>(&_cache[0]), (int)size);
-                _cacheHighWaterMark = static_cast<int>(size)/2;
-            }
-        }
+        _cacheFile = File("cache.dat");
+        _cache.load(_cacheFile);
 
         Emulator emulator;
         emulator.setStub(runStub);
@@ -4307,17 +4341,15 @@ public:
                     printf(".");
                 _tests[i].setCycles(cycles);
                 cycleCounts[i] = emulator.instructionCycles();
-                bool useTest = true;
-                if (i < _cacheHighWaterMark)
-                    useTest = cycles != _cache[i];
-                if (useTest) {
+                int cached = _cache.getTime(_tests[i]);
+                if (cycles != cached) {
                     ++tests;
                     if (nl > availableLength) {
                         newNextTest = i;
                         break;
                     }
                     totalLength = nl;
-                    if (i < _cacheHighWaterMark) {
+                    if (cached != -1) {
                         // This test will fail unless the cache is bad.
                         // Just run the one to get a sniffer log.
                         nextTest = i;
@@ -4387,7 +4419,7 @@ public:
 
                     console.write(decimal(n) + "\n");
                     _tests[n].write();
-                    dumpCache(n);
+                    dumpCache(nextTest, n);
 
                     String expected = emulator.log(_tests[n]);
                     String expected1;
@@ -4464,11 +4496,7 @@ public:
                 if (c == -1)
                     throw Exception("Test was inconclusive");
             } while (true);
-            if (newNextTest == nextTest + 1) {
-                // Cache turned out to be bad, scrap the rest of it.
-                _cacheHighWaterMark = nextTest;
-            }
-            dumpCache(newNextTest);
+            dumpCache(nextTest, newNextTest);
 
             if (maxTests < 1000000)
                 maxTests *= 2;
@@ -5099,21 +5127,18 @@ private:
                 return false;
         } while (true);
     }
-    void dumpCache(int n)
+    void dumpCache(int first, int n)
     {
-        if (_cacheHighWaterMark > n)
-            return;
-        for (int i = _cacheHighWaterMark; i < n; ++i)
-            _cache[i] = _tests[i].cycles();
-        _cacheHighWaterMark = n;
-        File(String("cache.dat")).
-            save(reinterpret_cast<const Byte*>(&_cache[0]), n*2);
+        for (int i = first; i < n; ++i)
+            _cache.setTime(_tests[i], _tests[i].cycles());
+
+        _cache.save(_cacheFile);
     }
 
     AppendableArray<Test> _tests;
 
-    Array<Word> _cache;
-    int _cacheHighWaterMark = 0;
+    File _cacheFile;
+    Cache _cache;
     int _group;
 
     int _refreshPeriod;
