@@ -53,6 +53,8 @@ LENGTH EQU 2048
   mov [8*4+2],cs
   mov word[0xff*4],interruptFF
   mov [0xff*4+2],cs
+  mov word[0xfe*4],interruptFE
+  mov [0xfe*4+2],cs
   mov word[3*4],int3handler
   mov [3*4+2],cs
 
@@ -509,6 +511,7 @@ interruptFF:
   add bx,cx
   add bx,dx
 
+doneTimer:
   xor ax,ax
   mov ds,ax
   mov word[0x20],irq0
@@ -523,6 +526,10 @@ interruptFF:
   mov ax,cs
   mov ds,ax
   ret
+
+interruptFE:
+  xor bx,bx
+  jmp doneTimer
 
 
 outputDecimal:

@@ -154,6 +154,53 @@ public:
     Byte modrm() { return _modrm; }
     void setImmediate(DWord immediate) { _immediate = immediate; }
     void setModrm(Byte modrm) { _modrm = modrm; }
+    bool operator==(const Instruction& other) const
+    {
+        return _opcode == other._opcode && _modrm == other._modrm &&
+            _offset == other._offset && _immediate == other._immediate;
+    }
+    bool operator!=(const Instruction& other) const
+    {
+        return !(*this == other);
+    }
+    UInt32 hash() const
+    {
+        return Hash(typeid(Instruction)).mixin(_opcode).mixin(_modrm).
+            mixin(_offset).mixin(_immediate);
+    }
+    Byte* read(Byte* p)
+    {
+        _opcode = *p;
+        ++p;
+        if (hasModrm()) {
+            _modrm = *p;
+            ++p;
+            int l = modRMLength();
+            if (l > 1) {
+                _offset = *p;
+                ++p;
+                if (l > 2) {
+                    _offset += *p << 8;
+                    ++p;
+                }
+            }
+        }
+        int l = immediateBytes();
+        if (l > 0) {
+            _immediate = *p;
+            ++p;
+            if (l > 1) {
+                _immediate += *p << 8;
+                ++p;
+                if (l > 2) {
+                    _immediate += p[0] << 16;
+                    _immediate += p[1] << 24;
+                    p += 2;
+                }
+            }
+        }
+        return p;
+    }
 private:
     Byte _opcode;
     Byte _modrm;
@@ -164,9 +211,9 @@ private:
 class Test
 {
 public:
-    Test(int queueFiller = 0, int nops = 0)
+    Test(int queueFiller = 0, int nops = -1)
       : _queueFiller(queueFiller), _nops(nops), _usesCH(false),
-        _noLESNop(false)
+        _noLESNop(false), _refreshPeriod(0), _refreshPhase(0)
     { }
     void addInstruction(Instruction instruction)
     {
@@ -205,8 +252,6 @@ public:
     }
     void output(Byte* p)       // For the real hardware and cache
     {
-        if (_usesCH && _nops == 11)
-            _nops = 12;
         if (_nops == 14 && _noLESNop)
             _nops = 13;
         p[0] = (_queueFiller << 5) + _nops;
@@ -280,10 +325,6 @@ public:
                 throw Exception("Unknown queue filler.");
         }
         p += ql;
-        if (_usesCH && _nops == 11)
-            _nops = 12;
-        if (_nops == 14 && _noLESNop)
-            _nops = 13;
         switch (_nops) {
             case 11:
             case 12:
@@ -337,7 +378,29 @@ public:
     }
     Byte* read(Byte* p)
     {
-
+        _cycles = p[0] + (p[1] << 8);
+        _queueFiller = p[2] >> 5;
+        _nops = p[2] & 0x1f;
+        _refreshPeriod = p[3];
+        _refreshPhase = p[4];
+        int c = p[5];
+        p += 6;
+        for (int i = 0; i < c; ++i)
+            _preamble.append(p[i]);
+        p += c;
+        c = p[0];
+        ++p;
+        for (int i = 0; i < c; ++i) {
+            Instruction instruction(0);
+            p = instruction.read(p);
+            _instructions.append(instruction);
+        }
+        c = p[0];
+        ++p;
+        for (int i = 0; i < c; ++i)
+            _fixups.append(p[i]);
+        p += c;
+        return p;
     }
     void write()
     {
@@ -365,7 +428,14 @@ public:
     }
     void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
     int queueFiller() { return _queueFiller; }
-    void setNops(int nops) { _nops = nops; }
+    void setNops(int nops)
+    {
+        _nops = nops;
+        if (_usesCH && _nops == 11)
+            _nops = 12;
+        if (_nops == 14 && _noLESNop)
+            _nops = 13;
+    }
     int startIP() { return _startIP; }
     void noLESNop() { _noLESNop = true; }
     Instruction instruction(int i) { return _instructions[i]; }
@@ -373,6 +443,53 @@ public:
     void setRefreshPhase(int p) { _refreshPhase = p; }
     int refreshPeriod() { return _refreshPeriod; }
     int refreshPhase() { return _refreshPhase; }
+
+    bool operator==(const Test& other) const
+    {
+        if (_queueFiller != other._queueFiller || _nops != other._nops ||
+            _refreshPeriod != other._refreshPeriod ||
+            _refreshPhase != other._refreshPhase)
+            return false;
+        int c = _preamble.count();
+        if (c != other._preamble.count())
+            return false;
+        for (int i = 0; i < c; ++i)
+            if (_preamble[i] != other._preamble[i])
+                return false;
+        c = _instructions.count();
+        if (c != other._instructions.count())
+            return false;
+        for (int i = 0; i < c; ++i)
+            if (_instructions[i] != other._instructions[i])
+                return false;
+        c = _fixups.count();
+        if (c != other._fixups.count())
+            return false;
+        for (int i = 0; i < c; ++i)
+            if (_fixups[i] != other._fixups[i])
+                return false;
+        return true;
+    }
+    UInt32 hash() const
+    {
+        Hash h(typeid(Test));
+        h.mixin(_queueFiller).mixin(_nops);
+        int c = _preamble.count();
+        h.mixin(c);
+        for (int i = 0; i < c; ++i)
+            h.mixin(_preamble[i]);
+        c = _instructions.count();
+        h.mixin(c);
+        for (int i = 0; i < c; ++i)
+            h.mixin(_instructions[i].hash());
+        c = _fixups.count();
+        h.mixin(c);
+        for (int i = 0; i < c; ++i)
+            h.mixin(_fixups[i]);
+        h.mixin(_refreshPeriod);
+        h.mixin(_refreshPhase);
+        return h;
+    }
 private:
     int _queueFiller;
     int _nops;
@@ -1756,14 +1873,14 @@ private:
             if (high)
                 return _currentAddress >> 8;
             else
-                return _currentAddress;
+                return _currentAddress & 0xff;
         }
         Byte getCount(bool high)
         {
             if (high)
                 return _currentWordCount >> 8;
             else
-                return _currentWordCount;
+                return _currentWordCount & 0xff;
         }
         void reset()
         {
@@ -3882,17 +3999,17 @@ public:
             UInt64 size = s.size();
             if (size > 0x7fffffff)
                 throw Exception("Cache too large.");
-            Array<Byte> d(size);
+            int ss = static_cast<int>(size);
+            Array<Byte> d(ss);
             Byte* p = &d[0];
-            s.read(p, (int)size);
+            s.read(p, ss);
             int i = 0;
-            while (i < size) {
+            while (i < ss) {
                 Test t;
                 t.read(p);
-                int cycles = p[0] + (p[1] << 8);
                 int l = t.length();
                 p += t.length();
-                setTime(t, cycles);
+                setTime(t, t.cycles());
             }
         }
     }
@@ -3923,6 +4040,21 @@ public:
         File("runtests.bin").readIntoArray(&testProgram);
         Array<Byte> runStub;
         File("runstub.bin").readIntoArray(&runStub);
+        {
+            Array<Byte> functional;
+            File("functional.bin").readIntoArray(&functional);
+            Byte* p = &functional[0];
+            int i = 0;
+            while (i < functional.count()) {
+                Test t;
+                t.read(p);
+                p += t.length();
+                i += t.length();
+                _tests.append(t);
+            }
+        }
+
+        int groupStartCount = _tests.count();
 
         static const Byte modrms[] = {
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
@@ -4214,10 +4346,10 @@ public:
                         }
                     }
                     if (_group == 0)
-                        groupSize = _tests.count();
+                        groupSize = _tests.count() - groupStartCount;
                 }
                 if (_refreshPeriod == 0 && _refreshPhase == 0)
-                    noppingTests = _tests.count();
+                    noppingTests = _tests.count() - groupStartCount;
             }
         }
 

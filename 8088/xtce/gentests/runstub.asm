@@ -7,6 +7,8 @@ cpu 8086
   mov [0x22],cs
   mov word[0xff*4],interruptFF
   mov [0xff*4+2],cs
+  mov word[0xfe*4],interruptFF
+  mov [0xfe*4+2],cs
   mov word[3*4],int3handler
   mov [3*4+2],cs
 
