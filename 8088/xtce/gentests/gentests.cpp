@@ -828,6 +828,8 @@ private:
     int _lastOffset;
 };
 
+static const int initialPITPhase = 0;
+
 class SnifferDecoder
 {
 public:
@@ -847,7 +849,7 @@ public:
         _d = -1;
         _queueLength = 0;
         _lastS = 0;
-        _pitCycle = 2;
+        _pitCycle = initialPITPhase;
         _cpu_s = 7;
 
         _disassembler.reset();
@@ -1942,6 +1944,180 @@ private:
     bool _needHighAddress;
 };
 
+class PPIEmulator
+{
+public:
+    void reset()
+    {
+        //_mode = 0x99;  // XT normal operation: mode 0, A and C input, B output
+        _mode = 0x9b; // Default: all mode 0, all inputs
+        _a = 0;
+        _b = 0;
+        _c = 0;
+        _aLines = 0xff;
+        _bLines = 0xff;
+        _cLines = 0xff;
+    }
+    void write(int address, Byte data)
+    {
+        switch (address) {
+            case 0:
+                _a = data;
+                if ((aMode() == 0x20 && !aInput()) || aMode() == 0x40)
+
+                break;
+            case 1:
+                _b = data;
+                break;
+            case 2: _c = data; break;
+            case 3:
+                if ((data & 0x80) != 0) {  // Mode set
+                    _mode = data;
+                    _a = 0;
+                    _b = 0;
+                    _c = 0;
+                    break;
+                }
+                if ((data & 1) == 0)  // Port C bit reset
+                    _c &= ~(1 << ((data & 0xe) >> 1));
+                else
+                    _c |= 1 << ((data & 0xe) >> 1);
+        }
+    }
+    Byte read(int address)
+    {
+        switch (address) {
+            case 0:
+                if ((aMode() == 0x20 && aInput()) || aMode() == 0x40)
+                    _c &= 0xd7;  // Clear IBF and INTR
+                if (aMode() == 0 && aInput())
+                    return _aLines;
+                return _a;
+            case 1:
+                if (bMode() != 0)
+                    _c &= 0xfc;  // Clear IBF and INTR
+                if (bMode() == 0 && bInput())
+                    return _bLines;
+                return _b;
+            case 2:
+                {
+                    Byte c = _c;
+                    if (aMode() == 0) {
+                        if (cUpperInput())
+                            c = (c & 0x0f) + (_cLines & 0xf0);
+                    }
+                    else {
+                        if (aMode() == 0x20 && cUpperInput()) {
+                            if (aInput())
+                                c = (c & 0x3f) + (_cLines & 0xc0);
+                            else
+                                c = (c & 0xcf) + (_cLines & 0x30);
+                        }
+                    }
+                    if (bMode() == 0 && cLowerInput())
+                        c = (c & 0xf0) + (_cLines & 0x0f);
+                    return c;
+                }
+        }
+        return _mode;
+    }
+    void setA(int line, bool state)
+    {
+        if (((aMode() != 0 && aInput()) || aMode() == 0x40) &&
+            (_cLines & 4) == 0)
+            _b = _bLines;
+        _aLines = (_aLines & ~(1 << line)) | (state ? (1 << line) : 0);
+    }
+    void setB(int line, bool state)
+    {
+        if (bMode() != 0 && bInput() && (_cLines & 4) == 0)
+            _b = _bLines;
+        _bLines = (_bLines & ~(1 << line)) | (state ? (1 << line) : 0);
+    }
+    void setC(int line, bool state)
+    {
+        if (line == 4 && ((aMode() != 0 && aInput()) || aMode() == 0x40) &&
+            (!state || ((_cLines & 0x10) == 0))) {  // -STB low?
+            _a = _aLines;
+            _c |= 0x20;  // Set IBF
+            if ((_c & 0x10) != 0)  // INTE high?
+                _c |= 8;  // Set INTR
+        }
+        if (line == 6 && ((aMode() != 0 && !aInput()) || aMode() == 0x40) &&
+            (!state || ((_cLines & 0x40) == 0))) {  // -ACK low?
+
+        }
+        if (line == 2 && bMode() != 0 && bInput() &&
+            (!state || ((_cLines & 4) == 0))) {  // -STB low?
+            _b = _bLines;
+            _c |= 2;  // Set IBF
+            if ((_c & 4) != 0)  // INTE high?
+                _c |= 1;  // Set INTR
+        }
+        if (line == 2 && bMode() != 0 && !bInput() &&
+            (!state || ((_cLines & 4) == 0))) {  // -ACK low?
+
+        }
+
+        _cLines = (_cLines & ~(1 << line)) | (state ? (1 << line) : 0);
+    }
+    bool getA(int line)
+    {
+        Byte m = 1 << line;
+        if (aMode() == 0) {
+            if (aInput())
+                return (_aLines & m) != 0;
+            return (_a & _aLines & m) != 0;
+        }
+        return (_a & m) != 0;
+    }
+    bool getB(int line)
+    {
+        Byte m = 1 << line;
+        if (bMode() == 0) {
+            if (bInput())
+                return (_bLines & m) != 0;
+            return (_b & _bLines & m) != 0;
+        }
+        return (_b & m) != 0;
+    }
+    bool getC(int line)
+    {
+        Byte m = 1 << line;
+        if (line < 4) {
+            if (bMode() == 0) {
+                if (cLowerInput())
+                    return (_cLines & m) != 0;
+                return (_c & _cLines & m) != 0;
+            }
+        }
+        else {
+            if (aMode() == 0) {
+                if (cUpperInput())
+                    return (_cLines & m) != 0;
+                return (_c & _cLines & m) != 0;
+            }
+            if (aMode() == 0x20) {
+            }
+        }
+    }
+private:
+    Byte aMode() { return _mode & 0x60; }
+    Byte bMode() { return _mode & 4; }
+    bool aInput() { return (_mode & 0x10) != 0; }
+    bool cUpperInput() { return (_mode & 8) != 0; }
+    bool bInput() { return (_mode & 2) != 0; }
+    bool cLowerInput() { return (_mode & 1) != 0; }
+
+    Byte _a;
+    Byte _b;
+    Byte _c;
+    Byte _aLines;
+    Byte _bLines;
+    Byte _cLines;
+    Byte _mode;
+};
+
 class BusEmulator
 {
 public:
@@ -1958,7 +2134,7 @@ public:
     {
         _pic.reset();
         _pit.reset();
-        _pitPhase = 2;
+        _pitPhase = initialPITPhase;
         _lastCounter0Output = false;
         _lastCounter1Output = false;
     }
@@ -2007,6 +2183,9 @@ public:
                 case 0x40:
                     _pit.write(_address & 3, data);
                     break;
+                case 0x60:
+                    _ppi.write(_address & 3, data);
+                    break;
             }
         }
         else
@@ -2022,6 +2201,7 @@ public:
                 case 0x00: return _dmac.read(_address & 0x0f);
                 case 0x20: return _pic.read(_address & 1);
                 case 0x40: return _pit.read(_address & 3);
+                case 0x60: return _ppi.read(_address & 3);
             }
             return 0xff;
         }
@@ -2041,6 +2221,7 @@ private:
     DMACEmulator _dmac;
     PICEmulator _pic;
     PITEmulator _pit;
+    PPIEmulator _ppi;
     int _pitPhase;
     bool _lastCounter0Output;
     bool _lastCounter1Output;
@@ -2119,7 +2300,7 @@ private:
         _prefetching = true;
         _transferStarting = false;
         _log = "";
-        _logSkip = 210;
+        _logSkip = 268;
         _synchronousDone = true;
         _ip = 0;
         _nmiRequested = false;

@@ -188,14 +188,34 @@ testRoutine:
 ;  mov cx,17968
 ;  mov cx,35936
 
+  in al,0x60
+  in al,0x61
+  in al,0x62
+  in al,0x63
+
   in al,0x61
   or al,1
   out 0x61,al
   mov al,0x94
   out 0x43,al
-  mov al,18
-  lock
+  mov al,2 ;3
   out 0x42,al
+
+  in al,0x61
+  mov ah,al
+  in al,0x61
+  mov bl,al
+  in al,0x61
+  mov bh,al
+  in al,0x61
+  mov cl,al
+  in al,0x61
+  mov ch,al
+  in al,0x61
+  mov dl,al
+  in al,0x61
+  mov dh,al
+  in al,0x61
 
   mov cx,1000
 .l1:
