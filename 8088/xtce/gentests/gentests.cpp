@@ -1944,13 +1944,16 @@ private:
     bool _needHighAddress;
 };
 
+// Most of the complexity of the PPI is in the strobed and bidirectional bus
+// modes, which aren't actually used in the PC/XT. These modes are implemented
+// here for future reference, but are untested.
 class PPIEmulator
 {
 public:
     void reset()
     {
-        //_mode = 0x99;  // XT normal operation: mode 0, A and C input, B output
-        _mode = 0x9b; // Default: all mode 0, all inputs
+        _mode = 0x99;  // XT normal operation: mode 0, A and C input, B output
+        //_mode = 0x9b; // Default: all mode 0, all inputs
         _a = 0;
         _b = 0;
         _c = 0;
@@ -1963,11 +1966,13 @@ public:
         switch (address) {
             case 0:
                 _a = data;
-                if ((aMode() == 0x20 && !aInput()) || aMode() == 0x40)
-
+                if (aStrobedOutput())
+                    _c &= 0x77;  // Clear -OFB and INTR
                 break;
             case 1:
                 _b = data;
+                if (bStrobedOutput())
+                    _c &= 0xfc;  // Clear -OFB and INTR
                 break;
             case 2: _c = data; break;
             case 3:
@@ -1988,7 +1993,7 @@ public:
     {
         switch (address) {
             case 0:
-                if ((aMode() == 0x20 && aInput()) || aMode() == 0x40)
+                if (aStrobedInput())
                     _c &= 0xd7;  // Clear IBF and INTR
                 if (aMode() == 0 && aInput())
                     return _aLines;
@@ -2023,42 +2028,40 @@ public:
     }
     void setA(int line, bool state)
     {
-        if (((aMode() != 0 && aInput()) || aMode() == 0x40) &&
-            (_cLines & 4) == 0)
+        if (aStrobedInput() && aStrobe())
             _b = _bLines;
         _aLines = (_aLines & ~(1 << line)) | (state ? (1 << line) : 0);
     }
     void setB(int line, bool state)
     {
-        if (bMode() != 0 && bInput() && (_cLines & 4) == 0)
+        if (bStrobedInput() && bStrobe())
             _b = _bLines;
         _bLines = (_bLines & ~(1 << line)) | (state ? (1 << line) : 0);
     }
     void setC(int line, bool state)
     {
-        if (line == 4 && ((aMode() != 0 && aInput()) || aMode() == 0x40) &&
-            (!state || ((_cLines & 0x10) == 0))) {  // -STB low?
+        if (aStrobedInput() && line == 4 && (!state || aStrobe())) {
             _a = _aLines;
             _c |= 0x20;  // Set IBF
-            if ((_c & 0x10) != 0)  // INTE high?
-                _c |= 8;  // Set INTR
+            if (aInputInterruptEnable() && state)
+                _c |= 8;  // Set INTR on rising edge
         }
-        if (line == 6 && ((aMode() != 0 && !aInput()) || aMode() == 0x40) &&
-            (!state || ((_cLines & 0x40) == 0))) {  // -ACK low?
-
+        if (aStrobedOutput() && line == 6 && (!state || aAcknowledge())) {
+            _c |= 0x80;  // Set -OBF
+            if (aOutputInterruptEnable() && state)
+                _c |= 8;  // Set INTR on rising edge
         }
-        if (line == 2 && bMode() != 0 && bInput() &&
-            (!state || ((_cLines & 4) == 0))) {  // -STB low?
+        if (bStrobedInput() && line == 2 && (!state || bStrobe())) {
             _b = _bLines;
             _c |= 2;  // Set IBF
-            if ((_c & 4) != 0)  // INTE high?
-                _c |= 1;  // Set INTR
+            if (bInterruptEnable() && state)
+                _c |= 1;  // Set INTR on rising edge
         }
-        if (line == 2 && bMode() != 0 && !bInput() &&
-            (!state || ((_cLines & 4) == 0))) {  // -ACK low?
-
+        if (bStrobedOutput() && line == 2 && (!state || bStrobe())) {
+            _c |= 2;  // Set -OBF
+            if (bInterruptEnable() && state)
+                _c |= 1;  // Set INTR on rising edge
         }
-
         _cLines = (_cLines & ~(1 << line)) | (state ? (1 << line) : 0);
     }
     bool getA(int line)
@@ -2083,23 +2086,30 @@ public:
     }
     bool getC(int line)
     {
-        Byte m = 1 << line;
-        if (line < 4) {
-            if (bMode() == 0) {
-                if (cLowerInput())
-                    return (_cLines & m) != 0;
-                return (_c & _cLines & m) != 0;
-            }
-        }
-        else {
-            if (aMode() == 0) {
-                if (cUpperInput())
-                    return (_cLines & m) != 0;
-                return (_c & _cLines & m) != 0;
-            }
-            if (aMode() == 0x20) {
-            }
-        }
+        // 0 bit means output enabled, so _c bit low drives output low
+        // 1 bit means tristate from PPI so return _cLine bit.
+        static const Byte m[] = {
+            0x00, 0x0f, 0x00, 0x0f, 0x04, 0x0c, 0x04, 0x0c,  // A mode 0 
+            0xf0, 0xff, 0xf0, 0xff, 0xf4, 0xfc, 0xf4, 0xfc,
+            0x00, 0x0f, 0x00, 0x0f, 0x04, 0x0c, 0x04, 0x0c,
+            0xf0, 0xff, 0xf0, 0xff, 0xf4, 0xfc, 0xf4, 0xfc,
+
+            0x40, 0x47, 0x40, 0x47, 0x44, 0x44, 0x44, 0x44,  // A mode 1 output
+            0x70, 0x77, 0x70, 0x77, 0x74, 0x74, 0x74, 0x74,
+            0x10, 0x17, 0x10, 0x17, 0x14, 0x14, 0x14, 0x14,  // A mode 1 input
+            0xd0, 0xd7, 0xd0, 0xd7, 0xd4, 0xd4, 0xd4, 0xd4,
+
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,  // A mode 2
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,
+
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,  // A mode 2
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,
+            0x50, 0x57, 0x50, 0x57, 0x54, 0x54, 0x54, 0x54,
+        };                            
+        return (_cLines & (_c | m[_mode & 0x7f]) & (1 << line)) != 0; 
     }
 private:
     Byte aMode() { return _mode & 0x60; }
@@ -2108,6 +2118,23 @@ private:
     bool cUpperInput() { return (_mode & 8) != 0; }
     bool bInput() { return (_mode & 2) != 0; }
     bool cLowerInput() { return (_mode & 1) != 0; }
+    bool aStrobe() { return (_cLines & 0x10) == 0; }
+    bool bStrobe() { return (_cLines & 4) == 0; }
+    bool aAcknowledge() { return (_cLines & 0x40) == 0; }
+    bool bAcknowledge() { return (_cLines & 4) == 0; }
+    bool aStrobedInput()
+    {
+        return (aMode() == 0x20 && aInput()) || aMode() == 0x40;
+    }
+    bool aStrobedOutput()
+    {
+        return (aMode() == 0x20 && !aInput()) || aMode() == 0x40;
+    }
+    bool bStrobedInput() { return bMode() != 0 && bInput(); }
+    bool bStrobedOutput() { return bMode() != 0 && !bInput(); }
+    bool aInputInterruptEnable() { return (_c & 0x10) != 0; }
+    bool aOutputInterruptEnable() { return (_c & 0x40) != 0; }
+    bool bInterruptEnable() { return (_c & 4) != 0; }
 
     Byte _a;
     Byte _b;
@@ -2127,7 +2154,7 @@ public:
             openRead().read(&_rom[0], 0x8000);
         _pit.setGate(0, true);
         _pit.setGate(1, true);
-        _pit.setGate(2, true);  // TODO: controllable via PPI
+        _pit.setGate(2, true);
     }
     Byte* ram() { return &_ram[0]; }
     void reset()
@@ -2137,6 +2164,7 @@ public:
         _pitPhase = initialPITPhase;
         _lastCounter0Output = false;
         _lastCounter1Output = false;
+        _counter2Output = false;
     }
     void startAccess(DWord address, int type)
     {
@@ -2150,6 +2178,7 @@ public:
         ++_pitPhase;
         if (_pitPhase == 4) {
             _pitPhase = 0;
+            _pit.setGate(2, _ppi.getB(0));
             _pit.wait();
             bool counter0Output = _pit.getOutput(0);
             if (_lastCounter0Output != counter0Output)
@@ -2158,6 +2187,14 @@ public:
             bool counter1Output = _pit.getOutput(1);
             if (_lastCounter1Output != counter1Output)
                 _dmac.setDMARequestLine(0, counter1Output);
+            _lastCounter1Output = counter1Output;
+            bool counter2Output = _pit.getOutput(2);
+            if (_counter2Output != counter2Output) {
+                setSpeakerOutput(counter2Output && _speakerMask);
+                _ppi.setC(5, counter2Output);
+                updatePPI();
+            }
+            _counter2Output = counter2Output;
         }
     }
     bool ready()
@@ -2185,6 +2222,7 @@ public:
                     break;
                 case 0x60:
                     _ppi.write(_address & 3, data);
+                    updatePPI();
                     break;
             }
         }
@@ -2201,7 +2239,12 @@ public:
                 case 0x00: return _dmac.read(_address & 0x0f);
                 case 0x20: return _pic.read(_address & 1);
                 case 0x40: return _pit.read(_address & 3);
-                case 0x60: return _ppi.read(_address & 3);
+                case 0x60:
+                    {
+                        Byte b = _ppi.read(_address & 3);
+                        updatePPI();
+                        return b;
+                    }
             }
             return 0xff;
         }
@@ -2213,6 +2256,26 @@ public:
     }
     bool interruptPending() { return _pic.interruptPending(); }
 private:
+    void setSpeakerOutput(bool speakerOutput)
+    {
+        if (_speakerOutput != speakerOutput)
+            _ppi.setC(4, speakerOutput);
+        _speakerOutput = speakerOutput;
+    }
+    void updatePPI()
+    {
+        do {
+            bool speakerMask = _ppi.getB(1);
+            if (speakerMask != _speakerMask) {
+                setSpeakerOutput(_counter2Output && speakerMask);
+                _speakerMask = speakerMask;
+            }
+            else
+                break;
+            _speakerMask = speakerMask;
+        } while (true);
+    }
+
     Array<Byte> _ram;
     Array<Byte> _rom;
     DWord _address;
@@ -2225,6 +2288,9 @@ private:
     int _pitPhase;
     bool _lastCounter0Output;
     bool _lastCounter1Output;
+    bool _counter2Output;
+    bool _speakerMask;
+    bool _speakerOutput;
     bool _dma;
     Word _dmaAddress;
     int _dmaCycles;

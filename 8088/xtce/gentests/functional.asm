@@ -10,8 +10,11 @@ test0:
 .preambleEnd:
   db .instructionsEnd - ($+1)
 
+;  mov al,0x99
+;  out 0x63,al
+
   in al,0x61
-  or al,1
+  or al,3
   out 0x61,al
   mov al,0x94
   out 0x43,al
@@ -34,17 +37,17 @@ test0:
   mov dh,al
   in al,0x62
 
-  and ax,0x0202
-  cmp ax,0x0202
+  and ax,0x3030
+  cmp ax,0x1030
   jne .fail
-  and bx,0x0202
-  cmp ax,0x0202
+  and bx,0x3030
+  cmp ax,0x0010
   jne .fail
-  and cx,0x0202
-  cmp cx,0x0000
+  and cx,0x3030
+  cmp cx,0x2000
   jne .fail
-  and dx,0x0202
-  cmp dx,0x0000
+  and dx,0x3030
+  cmp dx,0x2020
   jne .fail
   int 0xff
 .fail:
