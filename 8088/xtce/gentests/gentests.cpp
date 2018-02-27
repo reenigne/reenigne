@@ -121,9 +121,9 @@ public:
             *p = _modrm;
             ++p;
             int l = modRMLength();
-            if (l > 0) {
+            if (l > 1) {
                 *p = (_offset & 0xff);
-                if (l > 1)
+                if (l > 2)
                     p[1] = _offset >> 8;
                 p += l;
             }
@@ -390,10 +390,12 @@ public:
         p += c;
         c = p[0];
         ++p;
-        for (int i = 0; i < c; ++i) {
+        int i = 0;
+        while (i < c) {
             Instruction instruction(0);
             p = instruction.read(p);
             _instructions.append(instruction);
+            i += instruction.length();
         }
         c = p[0];
         ++p;
@@ -849,15 +851,12 @@ public:
         _d = -1;
         _queueLength = 0;
         _lastS = 0;
-        _pitCycle = initialPITPhase;
         _cpu_s = 7;
 
         _disassembler.reset();
     }
     String getLine()
     {
-        _bus_pit = (_pitCycle & 3) < 2 ? 6 : 7;
-
         static const char qsc[] = ".IES";
         static const char sc[] = "ARWHCrwp";
         String line;
@@ -1030,7 +1029,6 @@ public:
             _bus_memr = false;
             _bus_memw = false;
         }
-        ++_pitCycle;
         _cpu_qs = 0;
         return line;
     }
@@ -1086,6 +1084,7 @@ public:
         _cpuDataFloating = true;
         _isaDataFloating = true;
     }
+    void setPITBits(int bits) { _bus_pit = bits; }
 private:
     Disassembler _disassembler;
 
@@ -1097,7 +1096,6 @@ private:
     Byte _queue[4];
     int _queueLength;
     int _lastS;
-    int _pitCycle;
 
     // These represent the CPU and ISA bus pins used to create the sniffer
     // logs.
@@ -2159,12 +2157,18 @@ public:
     Byte* ram() { return &_ram[0]; }
     void reset()
     {
+        _dmac.reset();
         _pic.reset();
         _pit.reset();
+        _ppi.reset();
         _pitPhase = initialPITPhase;
         _lastCounter0Output = false;
         _lastCounter1Output = false;
         _counter2Output = false;
+        _counter2Gate = false;
+        _speakerMask = false;
+        _speakerOutput = false;
+        _dma = false;
     }
     void startAccess(DWord address, int type)
     {
@@ -2178,7 +2182,8 @@ public:
         ++_pitPhase;
         if (_pitPhase == 4) {
             _pitPhase = 0;
-            _pit.setGate(2, _ppi.getB(0));
+            _counter2Gate = _ppi.getB(0);
+            _pit.setGate(2, _counter2Gate);
             _pit.wait();
             bool counter0Output = _pit.getOutput(0);
             if (_lastCounter0Output != counter0Output)
@@ -2190,19 +2195,26 @@ public:
             _lastCounter1Output = counter1Output;
             bool counter2Output = _pit.getOutput(2);
             if (_counter2Output != counter2Output) {
-                setSpeakerOutput(counter2Output && _speakerMask);
+                _counter2Output = counter2Output;
+                setSpeakerOutput();
                 _ppi.setC(5, counter2Output);
                 updatePPI();
             }
-            _counter2Output = counter2Output;
+        }
+        if (_speakerCycle != 0) {
+            --_speakerCycle;
+            if (_speakerCycle == 0) {
+                _speakerOutput = _nextSpeakerOutput;
+                _ppi.setC(4, _speakerOutput);
+            }
         }
     }
     bool ready()
     {
         if (!_dma)
             _dma = _dmac.dmaRequested(&_dmaAddress, &_dmaType, &_dmaCycles);
-        if (_dma)
-            return false;
+        //if (_dma)
+        //    return false;
         if (_type == 1 || _type == 2)  // Read port, write port
             return _cycle > 2;  // System board adds a wait state for onboard IO devices
         return true;
@@ -2255,24 +2267,32 @@ public:
         return _ram[_address];
     }
     bool interruptPending() { return _pic.interruptPending(); }
-private:
-    void setSpeakerOutput(bool speakerOutput)
+    int pitBits()
     {
-        if (_speakerOutput != speakerOutput)
-            _ppi.setC(4, speakerOutput);
-        _speakerOutput = speakerOutput;
+        return (_pitPhase == 0 || _pitPhase == 3 ? 1 : 0) +
+            (_counter2Gate ? 2 : 0) + (_pit.getOutput(2) ? 4 : 0);
+    }
+private:
+    void setSpeakerOutput()
+    {
+        bool o = !(_counter2Output && _speakerMask);
+        if (_nextSpeakerOutput != o) {
+            if (_speakerOutput == o)
+                _speakerCycle = 0;
+            else {
+                _speakerCycle = o ? 2 : 1;
+                _nextSpeakerOutput = o;
+            }
+        }
     }
     void updatePPI()
     {
         do {
             bool speakerMask = _ppi.getB(1);
-            if (speakerMask != _speakerMask) {
-                setSpeakerOutput(_counter2Output && speakerMask);
-                _speakerMask = speakerMask;
-            }
-            else
+            if (speakerMask == _speakerMask)
                 break;
             _speakerMask = speakerMask;
+            setSpeakerOutput();
         } while (true);
     }
 
@@ -2289,12 +2309,15 @@ private:
     bool _lastCounter0Output;
     bool _lastCounter1Output;
     bool _counter2Output;
+    bool _counter2Gate;
     bool _speakerMask;
     bool _speakerOutput;
+    bool _nextSpeakerOutput;
     bool _dma;
     Word _dmaAddress;
     int _dmaCycles;
     int _dmaType;
+    int _speakerCycle;
 };
 
 class Emulator
@@ -2366,7 +2389,7 @@ private:
         _prefetching = true;
         _transferStarting = false;
         _log = "";
-        _logSkip = 268;
+        _logSkip = 1041;
         _synchronousDone = true;
         _ip = 0;
         _nmiRequested = false;
@@ -2493,6 +2516,7 @@ private:
                 _prefetchedRemove = false;
             }
             if (_logging) {
+                _snifferDecoder.setPITBits(_bus.pitBits());
                 String l = _snifferDecoder.getLine();
                 if (_logSkip > 0)
                     --_logSkip;

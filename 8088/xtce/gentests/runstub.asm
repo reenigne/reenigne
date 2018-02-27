@@ -54,6 +54,7 @@ patchLoop:
   ; Start refresh at requested rate
   mov al,(1 << 6) | 0x30 | (2 << 1)
   out 0x43,al
+  jmp $+2  ; Reset queue for sniffer decoder
   mov al,dl
   out 0x41,al
   mov al,0

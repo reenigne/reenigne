@@ -38,17 +38,48 @@ test0:
   in al,0x62
 
   and ax,0x3030
-  cmp ax,0x1030
+  cmp ax,0x2020
   jne .fail
   and bx,0x3030
-  cmp ax,0x0010
+  cmp bx,0x1030
   jne .fail
   and cx,0x3030
-  cmp cx,0x2000
+  cmp cx,0x0010
   jne .fail
   and dx,0x3030
-  cmp dx,0x2020
+  cmp dx,0x2000
   jne .fail
+
+; Reading from port 0x63 seems to give unpredictable results, so we'll skip
+; it for now.
+;  in al,0x63
+;  mov ah,al
+;  in al,0x63
+;  mov bl,al
+;  in al,0x63
+;  mov bh,al
+;  in al,0x63
+;  mov cl,al
+;  in al,0x63
+;  mov ch,al
+;  in al,0x63
+;  mov dl,al
+;  in al,0x63
+;  mov dh,al
+;  in al,0x63
+;
+;  and ax,0x3030
+;  cmp ax,0x1030
+;  jne .fail
+;  and bx,0x3030
+;  cmp bx,0x0010
+;  jne .fail
+;  and cx,0x3030
+;  cmp cx,0x2000
+;  jne .fail
+;  and dx,0x3030
+;  cmp dx,0x2020
+;  jne .fail
   int 0xff
 .fail:
   int 0xfe

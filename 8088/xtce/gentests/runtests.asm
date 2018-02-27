@@ -89,7 +89,7 @@ notDone:
   call doMeasurement
   mov ax,bx
   neg ax
-  sub ax,4713  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4713+773  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed
@@ -179,7 +179,7 @@ flushLoop2:
 loopTop2:
   jmp loopTop
 
-doMeasurement:                ; si points to testcase data
+doMeasurement:
   mov ax,cs
   add ax,0x1000
   mov es,ax
@@ -309,6 +309,26 @@ doneNops:
   stosw
 
 %if 0
+    push di
+    push si
+    push ds
+    push cx
+    push ax
+
+    mov cx,22
+.dump:
+    lodsw
+    outputHex
+    loop .dump
+
+    pop ax
+    pop cx
+    pop ds
+    pop si
+    pop di
+%endif
+
+%if 0
 ;  cmp word[sniffer],0x8000
 ;  jne .noDump
     push di
@@ -391,7 +411,7 @@ doneNops:
   mov dx,[cs:countedCycles]
   outputByte
   outputByte
-  mov dx,6 ;(238 + 888)*3
+  mov dx,6 + 773*3
   outputByte
   outputByte
   pop dx
@@ -441,6 +461,7 @@ patchLoop:
   ; Start refresh at requested rate
   mov al,(1 << 6) | BOTH | (2 << 1)
   out 0x43,al
+  jmp $+2  ; Reset queue for sniffer decoder
   mov al,dl
   out 0x41,al
   mov al,0
