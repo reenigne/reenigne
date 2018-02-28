@@ -14,8 +14,39 @@ test0:
 ;  out 0x63,al
 
   in al,0x61
+  and al,0xfc
+  out 0x61,al
   or al,3
   out 0x61,al
+
+;  mov al,0xb4
+;  out 0x43,al
+;  mov al,2
+;  out 0x42,al
+;  mov al,0
+;  out 0x42,al
+
+;  mov al,0xb4
+;  out 0x43,al
+;  mov al,2
+;  out 0x42,al
+;  mov al,0
+;  out 0x42,al
+
+;  mov al,0xb4
+;  out 0x43,al
+;  mov al,2
+;  out 0x42,al
+;  mov al,0
+;  out 0x42,al
+
+;  mov al,0xb4
+;  out 0x43,al
+;  mov al,2
+;  out 0x42,al
+;  mov al,0
+;  out 0x42,al
+
   mov al,0x94
   out 0x43,al
   mov al,2

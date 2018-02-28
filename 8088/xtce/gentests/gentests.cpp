@@ -830,8 +830,6 @@ private:
     int _lastOffset;
 };
 
-static const int initialPITPhase = 0;
-
 class SnifferDecoder
 {
 public:
@@ -1180,6 +1178,7 @@ private:
         stateCounting,
         stateWaitingForGate,
         stateGateRose,
+        stateLoadDelay,
         statePulsing
     };
     struct Counter
@@ -1196,24 +1195,8 @@ private:
         }
         void write(Byte data)
         {
-            switch (_control & 0x30) {
-                case 0x10:
-                    load(data);
-                    break;
-                case 0x20:
-                    load(data << 8);
-                    break;
-                case 0x30:
-                    if (_firstByte) {
-                        _lowByte = data;
-                        _firstByte = false;
-                    }
-                    else {
-                        load((data << 8) + _lowByte);
-                        _firstByte = true;
-                    }
-                    break;
-            }
+            _writeByte = data;
+            _haveWriteByte = true;
         }
         Byte read()
         {
@@ -1245,6 +1228,11 @@ private:
         {
             switch (_control & 0x0e) {
                 case 0x00:  // Interrupt on Terminal Count
+                    if (_state == stateLoadDelay) {
+                        _state = stateCounting;
+                        _value = _count;
+                        break;
+                    }
                     if (_gate && _state == stateCounting) {
                         countDown();
                         if (_value == 0)
@@ -1252,6 +1240,10 @@ private:
                     }
                     break;
                 case 0x02:  // Programmable One-Shot
+                    if (_state == stateLoadDelay) {
+                        _state = stateWaitingForGate;
+                        break;
+                    }
                     if (_state == stateGateRose) {
                         _output = false;
                         _value = _count;
@@ -1265,6 +1257,11 @@ private:
                     break;
                 case 0x04:  
                 case 0x0c:  // Rate Generator
+                    if (_state == stateLoadDelay) {
+                        _state = stateCounting;
+                        _value = _count;
+                        break;
+                    }
                     if (_gate && _state == stateCounting) {
                         countDown();
                         if (_value == 1)
@@ -1277,6 +1274,11 @@ private:
                     break;
                 case 0x06:  
                 case 0x0e:  // Square Wave Rate Generator
+                    if (_state == stateLoadDelay) {
+                        _state = stateCounting;
+                        _value = _count;
+                        break;
+                    }
                     if (_gate && _state == stateCounting) {
                         if ((_value & 1) != 0) {
                             if (!_output) {
@@ -1294,6 +1296,11 @@ private:
                     }
                     break;
                 case 0x08:  // Software Triggered Strobe
+                    if (_state == stateLoadDelay) {
+                        _state = stateCounting;
+                        _value = _count;
+                        break;
+                    }
                     if (_state == statePulsing) {
                         _output = true;
                         _state = stateWaitingForCount;
@@ -1307,6 +1314,10 @@ private:
                     }
                     break;
                 case 0x0a:  // Hardware Triggered Strobe
+                    if (_state == stateLoadDelay) {
+                        _state = stateWaitingForGate;
+                        break;
+                    }
                     if (_state == statePulsing) {
                         _output = true;
                         _state = stateWaitingForCount;
@@ -1326,6 +1337,27 @@ private:
                         }
                     }
                     break;
+            }
+            if (_haveWriteByte) {
+                _haveWriteByte = false;
+                switch (_control & 0x30) {
+                    case 0x10:
+                        load(_writeByte);
+                        break;
+                    case 0x20:
+                        load(_writeByte << 8);
+                        break;
+                    case 0x30:
+                        if (_firstByte) {
+                            _lowByte = _writeByte;
+                            _firstByte = false;
+                        }
+                        else {
+                            load((_writeByte << 8) + _lowByte);
+                            _firstByte = true;
+                        }
+                        break;
+                }
             }
         }
         void countDown()
@@ -1354,30 +1386,30 @@ private:
             switch (_control & 0x0e) {
                 case 0x00:  // Interrupt on Terminal Count
                     if (_state == stateWaitingForCount)
-                        _state = stateCounting;
+                        _state = stateLoadDelay;
                     _output = false;
                     break;
                 case 0x02:  // Programmable One-Shot
                     if (_state != stateCounting)
-                        _state = stateWaitingForGate;
+                        _state = stateLoadDelay;
                     break;
                 case 0x04:  
                 case 0x0c:  // Rate Generator
                     if (_state == stateWaitingForCount)
-                        _state = stateCounting;
+                        _state = stateLoadDelay;
                     break;
                 case 0x06:  
                 case 0x0e:  // Square Wave Rate Generator
                     if (_state == stateWaitingForCount)
-                        _state = stateCounting;
+                        _state = stateLoadDelay;
                     break;
                 case 0x08:  // Software Triggered Strobe
                     if (_state == stateWaitingForCount)
-                        _state = stateCounting;
+                        _state = stateLoadDelay;
                     break;
                 case 0x0a:  // Hardware Triggered Strobe
                     if (_state != stateCounting)
-                        _state = stateWaitingForGate;
+                        _state = stateLoadDelay;
                     break;
 
             }
@@ -1462,6 +1494,8 @@ private:
         bool _firstByte;
         bool _latched;
         State _state;
+        Byte _writeByte;
+        bool _haveWriteByte;
     };
 
     Counter _counters[3];
@@ -2161,7 +2195,7 @@ public:
         _pic.reset();
         _pit.reset();
         _ppi.reset();
-        _pitPhase = initialPITPhase;
+        _pitPhase = 2;
         _lastCounter0Output = false;
         _lastCounter1Output = false;
         _counter2Output = false;
@@ -2182,8 +2216,6 @@ public:
         ++_pitPhase;
         if (_pitPhase == 4) {
             _pitPhase = 0;
-            _counter2Gate = _ppi.getB(0);
-            _pit.setGate(2, _counter2Gate);
             _pit.wait();
             bool counter0Output = _pit.getOutput(0);
             if (_lastCounter0Output != counter0Output)
@@ -2206,6 +2238,7 @@ public:
             if (_speakerCycle == 0) {
                 _speakerOutput = _nextSpeakerOutput;
                 _ppi.setC(4, _speakerOutput);
+                updatePPI();
             }
         }
     }
@@ -2236,6 +2269,12 @@ public:
                     _ppi.write(_address & 3, data);
                     updatePPI();
                     break;
+                case 0x80:
+                    _dmaPages[_address & 3] = data;
+                    break;
+                case 0xa0:
+                    _nmiEnabled = (data & 0x80) != 0;
+                    break;
             }
         }
         else
@@ -2257,6 +2296,7 @@ public:
                         updatePPI();
                         return b;
                     }
+                    
             }
             return 0xff;
         }
@@ -2269,7 +2309,7 @@ public:
     bool interruptPending() { return _pic.interruptPending(); }
     int pitBits()
     {
-        return (_pitPhase == 0 || _pitPhase == 3 ? 1 : 0) +
+        return (_pitPhase == 1 || _pitPhase == 2 ? 1 : 0) +
             (_counter2Gate ? 2 : 0) + (_pit.getOutput(2) ? 4 : 0);
     }
 private:
@@ -2287,13 +2327,18 @@ private:
     }
     void updatePPI()
     {
-        do {
-            bool speakerMask = _ppi.getB(1);
-            if (speakerMask == _speakerMask)
-                break;
+        bool speakerMask = _ppi.getB(1);
+        if (speakerMask != _speakerMask) {
             _speakerMask = speakerMask;
             setSpeakerOutput();
-        } while (true);
+        }
+        _counter2Gate = _ppi.getB(0);
+        _pit.setGate(2, _counter2Gate);
+    }
+    DWord dmaAddressHigh(int channel)
+    {
+        static const int pageRegister[4] = {0x83, 0x83, 0x81, 0x82};
+        return _dmaPages[pageRegister[channel]] << 16;
     }
 
     Array<Byte> _ram;
@@ -2318,6 +2363,8 @@ private:
     int _dmaCycles;
     int _dmaType;
     int _speakerCycle;
+    Byte _dmaPages[4];
+    bool _nmiEnabled;
 };
 
 class Emulator
