@@ -1590,9 +1590,9 @@ public:
                 case initializationStateICW2:
                     _icw2 = data;
                     if (cascadeMode())
-                        checkICW4Needed();
-                    else
                         _initializationState = initializationStateICW3;
+                    else
+                        checkICW4Needed();
                     break;
                 case initializationStateICW3:
                     _icw3 = data;
@@ -2319,10 +2319,9 @@ private:
         if (_nextSpeakerOutput != o) {
             if (_speakerOutput == o)
                 _speakerCycle = 0;
-            else {
-                _speakerCycle = o ? 2 : 1;
-                _nextSpeakerOutput = o;
-            }
+            else
+                _speakerCycle = o ? 3 : 2;
+            _nextSpeakerOutput = o;
         }
     }
     void updatePPI()
@@ -2401,7 +2400,7 @@ public:
         Byte* ram = _bus.ram() + (testSegment << 4);
         for (int i = 0; i < stub.count(); ++i)
             ram[i] = stub[i];
-        _stopIP = 0xbd;
+        _stopIP = 0xcd;
     }
 private:
     void run()
@@ -2436,7 +2435,7 @@ private:
         _prefetching = true;
         _transferStarting = false;
         _log = "";
-        _logSkip = 1041;
+        _logSkip = 1041 + 92;
         _synchronousDone = true;
         _ip = 0;
         _nmiRequested = false;
@@ -4326,7 +4325,8 @@ public:
                 Test t;
                 t.read(p);
                 int l = t.length();
-                p += t.length();
+                p += l;
+                i += l;
                 setTime(t, t.cycles());
             }
         }
@@ -4340,7 +4340,10 @@ public:
         Byte* p = &d[0];
         for (auto i : _time) {
             Test t = i.key();
-            t.output(p);
+            int c = i.value();
+            p[0] = c & 0xff;
+            p[1] = c >> 8;
+            t.output(p + 2);
             p += t.length();
         }
         file.save(&d[0], size);

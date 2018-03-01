@@ -69,16 +69,16 @@ test0:
   in al,0x62
 
   and ax,0x3030
-  cmp ax,0x2020
+  cmp ax,0x3020
   jne .fail
   and bx,0x3030
-  cmp bx,0x1030
+  cmp bx,0x1010
   jne .fail
   and cx,0x3030
-  cmp cx,0x0010
+  cmp cx,0x0000
   jne .fail
   and dx,0x3030
-  cmp dx,0x2000
+  cmp dx,0x2020
   jne .fail
 
 ; Reading from port 0x63 seems to give unpredictable results, so we'll skip
@@ -111,6 +111,15 @@ test0:
 ;  and dx,0x3030
 ;  cmp dx,0x2020
 ;  jne .fail
+
+  mov al,0xb4
+  out 0x43,al
+  mov al,0x6e  ; low
+  out 0x42,al
+  mov al,0xf9  ; high
+  out 0x42,al
+
+
   int 0xff
 .fail:
   int 0xfe

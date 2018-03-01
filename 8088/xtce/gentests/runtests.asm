@@ -42,7 +42,7 @@ LENGTH EQU 2048
   out 0x20,al  ; Set ICW1
   mov al,0x08  ; Interrupt vector address
   out 0x21,al  ; Set ICW2
-  mov al,0x0f  ; 8086/808 mode, auto-EOI, buffered mode/master, not special fully nested mode
+  mov al,0x0f  ; 8086/8088 mode, auto-EOI, buffered mode/master, not special fully nested mode
   out 0x21,al  ; Set ICW4
   mov al,0xbc  ; Enable IRQs 0 (timer), 1 (keyboard) and 6 (floppy disk).
   out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
@@ -89,7 +89,7 @@ notDone:
   call doMeasurement
   mov ax,bx
   neg ax
-  sub ax,4713+773  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4725-92  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed

@@ -12,6 +12,17 @@ cpu 8086
   mov word[3*4],int3handler
   mov [3*4+2],cs
 
+  ; Enable auto-EOI
+  mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
+  out 0x20,al  ; Set ICW1
+  mov al,0x08  ; Interrupt vector address
+  out 0x21,al  ; Set ICW2
+  mov al,0x0f  ; 8086/8088 mode, auto-EOI, buffered mode/master, not special fully nested mode
+  out 0x21,al  ; Set ICW4
+  mov al,0xbc  ; Enable IRQs 0 (timer), 1 (keyboard) and 6 (floppy disk).
+  out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
+
+
   ; Code executed on real hardware starts here
 
   jmp $+2
