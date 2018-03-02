@@ -1189,7 +1189,7 @@ private:
             _count = 0;
             _firstByte = true;
             _latched = false;
-            _output = false;
+            _output = true;
             _control = 0x30;
             _state = stateWaitingForCount;
         }
@@ -3090,12 +3090,12 @@ private:
                 }
                 break;
             case 0x9b: // WAIT
-                if (!_repeating)
-                    wait(1);
-                wait(5);
+                //if (!_repeating)
+                //    wait(1);
+                wait(1);
                 if (interruptPending()) {
                     //--_ip;
-                    wait(13);
+                    wait(6); //13);
                     _snifferDecoder.queueOperation(2);
                     checkInterrupts2(3);
                 }
