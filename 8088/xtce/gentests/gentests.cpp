@@ -3090,12 +3090,12 @@ private:
                 }
                 break;
             case 0x9b: // WAIT
-                //if (!_repeating)
-                //    wait(1);
-                wait(1);
+                if (!_repeating)
+                    wait(2);
+                wait(5);
                 if (interruptPending()) {
                     //--_ip;
-                    wait(6); //13);
+                    wait(7);
                     _snifferDecoder.queueOperation(2);
                     checkInterrupts2(3);
                 }
@@ -3507,7 +3507,7 @@ private:
                 }
                 wait(2);
                 if (interruptPending()) {
-                    wait(7);
+                    wait(1);
                     checkInterrupts2(3);
                 }
                 else {
