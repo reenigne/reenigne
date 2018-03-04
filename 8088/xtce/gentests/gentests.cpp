@@ -4783,29 +4783,31 @@ public:
         int maxTests = 1000;
         int availableLength = 0xf300 - testProgram.count();
         Array<int> cycleCounts(_tests.count());
+        bool reRunAllBad = false;
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
             int tests = 0;
-            for (int i = nextTest; i < newNextTest; ++i) {
-                int nl = totalLength + _tests[i].length();
-                int cycles = emulator.expected(_tests[i]);
+            AppendableArray<int> runningTests;
+            for (int i = nextTest; i < _tests.count(); ++i) {
                 if (i % 100 == 99)
                     printf(".");
+                int cycles = emulator.expected(_tests[i]);
                 _tests[i].setCycles(cycles);
                 cycleCounts[i] = emulator.instructionCycles();
                 int cached = _cache.getTime(_tests[i]);
                 if (cycles != cached) {
-                    ++tests;
+                    int nl = totalLength + _tests[i].length();
                     if (nl > availableLength) {
                         newNextTest = i;
                         break;
                     }
+                    ++tests;
+                    runningTests.append(i);
                     totalLength = nl;
-                    if (cached != -1) {
+                    if (cached != -1 && !reRunAllBad) {
                         // This test will fail unless the cache is bad.
                         // Just run the one to get a sniffer log.
-                        nextTest = i;
                         newNextTest = i + 1;
                         break;
                     }
@@ -4814,26 +4816,24 @@ public:
                         break;
                     }
                 }
-                else
-                    nextTest = i + 1;
-
             }
-            if (nextTest == newNextTest)
+            if (tests == 0)
                 break;
             Array<Byte> output(totalLength + 2);
             Byte* p = &output[0];
             *p = totalLength;
             p[1] = totalLength >> 8;
             p += 2;
-            for (int i = nextTest; i < newNextTest; ++i) {
-                int cycles = _tests[i].cycles() - 210;
+            for (int i = 0; i < runningTests.count(); ++i) {
+                int t = runningTests[i];
+                int cycles = _tests[t].cycles() - 210;
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
-                _tests[i].output(p);
-                p += _tests[i].length() - 2;
+                _tests[t].output(p);
+                p += _tests[t].length() - 2;
 
-                //console.write(emulator.log(_tests[i]));
+                //console.write(emulator.log(_tests[t]));
                 //return;
             }
 
@@ -4868,11 +4868,11 @@ public:
                     Space::parse(&s);
                     if (!Space::parseNumber(&s, &result))
                         throw Exception("Cannot parse number of failing test");
-                    int n = result.floor() + nextTest;
+                    int n = runningTests[result.floor()];
 
                     console.write(decimal(n) + "\n");
                     _tests[n].write();
-                    dumpCache(nextTest, n);
+                    dumpCache(runningTests, n);
 
                     String expected = emulator.log(_tests[n]);
                     String expected1;
@@ -4949,7 +4949,7 @@ public:
                 if (c == -1)
                     throw Exception("Test was inconclusive");
             } while (true);
-            dumpCache(nextTest, newNextTest);
+            dumpCache(runningTests, newNextTest);
 
             if (maxTests < 1000000)
                 maxTests *= 2;
@@ -5580,11 +5580,14 @@ private:
                 return false;
         } while (true);
     }
-    void dumpCache(int first, int n)
+    void dumpCache(AppendableArray<int> runningTests, int n)
     {
-        for (int i = first; i < n; ++i)
-            _cache.setTime(_tests[i], _tests[i].cycles());
-
+        for (int i = 0; i < runningTests.count(); ++i) {
+            int t = runningTests[i];
+            if (t == n)
+                break;
+            _cache.setTime(_tests[t], _tests[t].cycles());
+        }
         _cache.save(_cacheFile);
     }
 
