@@ -4784,6 +4784,7 @@ public:
         int availableLength = 0xf300 - testProgram.count();
         Array<int> cycleCounts(_tests.count());
         bool reRunAllBad = false;
+        bool expectedFail = false;
         do {
             int totalLength = 0;
             int newNextTest = _tests.count();
@@ -4809,6 +4810,7 @@ public:
                         // This test will fail unless the cache is bad.
                         // Just run the one to get a sniffer log.
                         newNextTest = i + 1;
+                        expectedFail = true;
                         break;
                     }
                     if (tests >= maxTests) {
@@ -4950,6 +4952,8 @@ public:
                     throw Exception("Test was inconclusive");
             } while (true);
             dumpCache(runningTests, newNextTest);
+            if (expectedFail)
+                reRunAllBad = true;
 
             if (maxTests < 1000000)
                 maxTests *= 2;
