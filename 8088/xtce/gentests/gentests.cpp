@@ -1842,6 +1842,20 @@ public:
     }
     bool getHoldRequestLine()
     {
+        if (_channel != -1)
+            return true;
+        if (disabled())
+            return false;
+        for (int i = 0; i < 4; ++i) {
+            int channel = i;
+            if (rotatingPriority())
+                channel = (channel + _priorityChannel) & 3;
+            if ((_request & (1 << channel)) != 0) {
+                _channel = channel;
+                _priorityChannel = (channel + 1) & 3;
+                return true;
+            }
+        }
     }
     void setHoldAcknowledgeLine(bool state)
     {
@@ -1973,6 +1987,7 @@ private:
     Byte _request;  // Only 4 bits used
     bool _high;
     int _channel;
+    int _priorityChannel;
     bool _needHighAddress;
 };
 
