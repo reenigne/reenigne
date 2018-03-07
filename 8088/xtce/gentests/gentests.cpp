@@ -2256,6 +2256,11 @@ public:
                 updatePPI();
             }
         }
+        if (!_dma && _dmac.getHoldRequestLine()) {
+            _dmaCountA = 2;
+            _dmaStarting = true;
+        }
+
     }
     bool ready()
     {
@@ -2379,6 +2384,8 @@ private:
     int _speakerCycle;
     Byte _dmaPages[4];
     bool _nmiEnabled;
+    int _dmaCountA;
+    bool _dmaStarting;
 };
 
 class Emulator
