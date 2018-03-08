@@ -2218,6 +2218,7 @@ public:
         _speakerMask = false;
         _speakerOutput = false;
         _dma = false;
+        _passiveOrHalt = true;
     }
     void startAccess(DWord address, int type)
     {
@@ -2256,6 +2257,12 @@ public:
                 updatePPI();
             }
         }
+        if (_dmaCountB > 1)
+            --_dmaCountB;
+        if (_dmaCountA > 1)
+            --_dmaCountA;
+        if (_dmaStarting && _passiveOrHalt)
+            _dmaCountB = 1;
         if (!_dma && _dmac.getHoldRequestLine()) {
             _dmaCountA = 2;
             _dmaStarting = true;
@@ -2332,6 +2339,7 @@ public:
         return (_pitPhase == 1 || _pitPhase == 2 ? 1 : 0) +
             (_counter2Gate ? 2 : 0) + (_pit.getOutput(2) ? 4 : 0);
     }
+    void setPassiveOrHalt(bool v) { _passiveOrHalt = v; }
 private:
     void setSpeakerOutput()
     {
@@ -2386,6 +2394,7 @@ private:
     bool _nmiEnabled;
     int _dmaCountA;
     bool _dmaStarting;
+    bool _passiveOrHalt;
 };
 
 class Emulator
@@ -2498,6 +2507,7 @@ private:
             _snifferDecoder.setData(data);
         }
         _busReady = true;
+        _bus.setPassiveOrHalt(true);
         _snifferDecoder.setStatus((int)ioPassive);
     }
     void wait(int cycles)
