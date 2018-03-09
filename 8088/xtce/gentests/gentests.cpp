@@ -2217,7 +2217,7 @@ public:
         _counter2Gate = false;
         _speakerMask = false;
         _speakerOutput = false;
-        _dma = false;
+        _dmaState = sIdle;
         _passiveOrHalt = true;
     }
     void startAccess(DWord address, int type)
@@ -2257,24 +2257,34 @@ public:
                 updatePPI();
             }
         }
-        if (_dmaCountB > 1)
-            --_dmaCountB;
-        if (_dmaCountA > 1)
-            --_dmaCountA;
-        if (_dmaStarting && _passiveOrHalt)
-            _dmaCountB = 1;
-        if (!_dma && _dmac.getHoldRequestLine()) {
-            _dmaCountA = 2;
-            _dmaStarting = true;
+        switch (_dmaState) {
+            case sIdle:
+                if (_dmac.getHoldRequestLine())
+                    _dmaState = sDREQ;
+                break;
+            case sDREQ:
+                _dmaState = _passiveOrHalt ? sHRQ : sHoldWait;
+                break;
+            case sHRQ:
+                _dmaState = sAEN;
+                break;
+            case sHoldWait:
+                if (_passiveOrHalt)
+                    _dmaState = sAEN;
+                break;
+            case sAEN: _dmaState = s0; break;
+            case s0: _dmaState = s1; break;
+            case s1: _dmaState = s2; break;
+            case s2: _dmaState = s3; break;
+            case s3: _dmaState = s4; break;
+            case s4: _dmaState = sDelayedT1; break;
+            case sDelayedT1: _dmaState = sDelayedT2; break;
+            case sDelayedT2: _dmaState = sDelayedT3; break;
+            case sDelayedT3: _dmaState = sIdle; break;
         }
-
     }
     bool ready()
     {
-        if (!_dma)
-            _dma = _dmac.dmaRequested(&_dmaAddress, &_dmaType, &_dmaCycles);
-        //if (_dma)
-        //    return false;
         if (_type == 1 || _type == 2)  // Read port, write port
             return _cycle > 2;  // System board adds a wait state for onboard IO devices
         return true;
@@ -2340,6 +2350,12 @@ public:
             (_counter2Gate ? 2 : 0) + (_pit.getOutput(2) ? 4 : 0);
     }
     void setPassiveOrHalt(bool v) { _passiveOrHalt = v; }
+    bool getAEN()
+    {
+        return _dmaState == sAEN || _dmaState == s0 || _dmaState == s1 ||
+            _dmaState == s2 || _dmaState == s3 || _dmaState == sWait ||
+            _dmaState == s4;
+    }
 private:
     void setSpeakerOutput()
     {
@@ -2368,6 +2384,24 @@ private:
         return _dmaPages[pageRegister[channel]] << 16;
     }
 
+    enum DMAState
+    {
+        sIdle,
+        sDREQ,
+        sHRQ,
+        sHoldWait,
+        sAEN,
+        s0,
+        s1,
+        s2,
+        s3,
+        sWait,
+        s4,
+        sDelayedT1,
+        sDelayedT2,
+        sDelayedT3
+    };
+
     Array<Byte> _ram;
     Array<Byte> _rom;
     DWord _address;
@@ -2385,16 +2419,14 @@ private:
     bool _speakerMask;
     bool _speakerOutput;
     bool _nextSpeakerOutput;
-    bool _dma;
     Word _dmaAddress;
     int _dmaCycles;
     int _dmaType;
     int _speakerCycle;
     Byte _dmaPages[4];
     bool _nmiEnabled;
-    int _dmaCountA;
-    bool _dmaStarting;
     bool _passiveOrHalt;
+    DMAState _dmaState;
 };
 
 class Emulator
@@ -2575,6 +2607,7 @@ private:
                     _ioNext._segment = 1;
                 }
                 if (_ioNext._type != ioPassive) {
+                    _bus.setPassiveOrHalt(_ioNext._type == ioHalt);
                     _snifferDecoder.setStatus((int)_ioNext._type);
                     _statusSet = true;
                 }
