@@ -841,7 +841,7 @@ public:
         _bus_dma = 0;        // NYI
         _bus_irq = 0xfc;     // NYI
         _bus_iochrdy = true; // Used for wait states, NYI
-        _bus_aen = false;    // Used for DMA, NYI
+        _bus_aen = false;    // Used for DMA
         _bus_tc = false;     // Used for DMA, NYI
 
         _t = 0;
@@ -1083,6 +1083,8 @@ public:
         _isaDataFloating = true;
     }
     void setPITBits(int bits) { _bus_pit = bits; }
+    void setAEN(bool aen) { _bus_aen = aen; }
+    void setDMA(UInt8 dma) { _bus_dma = dma; }
 private:
     Disassembler _disassembler;
 
@@ -1857,29 +1859,23 @@ public:
             }
         }
     }
-    void setHoldAcknowledgeLine(bool state)
-    {
-    }
-    bool getDMAAcknowledgeLine(int line)
-    {
-    }
     // Returns channel if DMA requested, else -1
-    int dmaRequested(Word* address, int* type, int* cycles)
-    {
-        if (_channel != -1) {
-            *address = _channels[_channel]._currentAddress;
-            *type = _channels[_channel]._mode & 0x0c;
-            if (!compressedTiming())
-                *cycles = 4;
-            else {
-                if (_needHighAddress)
-                    *cycles = 3;
-                else
-                    *cycles = 2;
-            }
-        }
-        return _channel;
-    }
+    //int dmaRequested(Word* address, int* type, int* cycles)
+    //{
+    //    if (_channel != -1) {
+    //        *address = _channels[_channel]._currentAddress;
+    //        *type = _channels[_channel]._mode & 0x0c;
+    //        if (!compressedTiming())
+    //            *cycles = 4;
+    //        else {
+    //            if (_needHighAddress)
+    //                *cycles = 3;
+    //            else
+    //                *cycles = 2;
+    //        }
+    //    }
+    //    return _channel;
+    //}
     Byte dmaRead()
     {
         if (memoryToMemory() && _channel == 1)
@@ -2356,6 +2352,10 @@ public:
             _dmaState == s2 || _dmaState == s3 || _dmaState == sWait ||
             _dmaState == s4;
     }
+    UInt8 getDMA()
+    {
+
+    }
 private:
     void setSpeakerOutput()
     {
@@ -2627,6 +2627,8 @@ private:
                 _prefetchedRemove = false;
             }
             if (_logging) {
+                _snifferDecoder.setAEN(_bus.getAEN());
+                _snifferDecoder.setDMA(_bus.getDMA());
                 _snifferDecoder.setPITBits(_bus.pitBits());
                 String l = _snifferDecoder.getLine();
                 if (_logSkip > 0)
