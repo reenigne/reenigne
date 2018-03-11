@@ -2234,8 +2234,9 @@ public:
                 _pic.setIRQLine(0, counter0Output);
             _lastCounter0Output = counter0Output;
             bool counter1Output = _pit.getOutput(1);
-            if (_lastCounter1Output != counter1Output)
+            if (_lastCounter1Output != counter1Output) {
                 _dmac.setDMARequestLine(0, counter1Output);
+            }
             _lastCounter1Output = counter1Output;
             bool counter2Output = _pit.getOutput(2);
             if (_counter2Output != counter2Output) {
@@ -2427,6 +2428,7 @@ private:
     bool _nmiEnabled;
     bool _passiveOrHalt;
     DMAState _dmaState;
+    Byte _dmaRequests;
 };
 
 class Emulator
