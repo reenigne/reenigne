@@ -1,18 +1,86 @@
 ; 1 channel
 
+SCHEME_X EQU 1
+SCHEME_Y EQU 0
+
 %macro interruptStart 1
 interrupt8_%1:
-  push ax
+    push ax
 patchPulseWidth_%1:
-  mov al,99
-  test al,al
-  jz %%noPort42
-  out 0x42,al
-%%noPort42:
+    mov al,99
+  %if SCHEME_X != 0
+    test al,al
+    jz %%noPort42
+  %endif
+    out 0x42,al
+  %%noPort42:
+patchPulseWidthNext_%1:
+    mov byte[cs:patchPulseWidth_%1 + 1],99
+  %if SCHEME_Y != 0
+    push bx
+    push cx
+  %endif
+%endmacro
 
+; ax = nextCount
+; bx = phaseA
+; bp = phaseB
+; si = phaseC
+; di = phaseD
+; cl = pulseWidthNext
+; ch = pulseWidthA
+; dl = pulseWidthB
+; dh = pulseWidthC
+
+%macro interruptEnd 1
+  %if SCHEME_Y != 0
+patchPhase_%1:
+    mov bx,9999
+patchLastCount_%1:
+    mov cx,9999
+    sub bx,cx
+  %endif
+patchCurrentCount_%1:
+  mov word[cs:patchLastCount_%1 + 1],9999
+  mov word[cs:patchCurrentCount_%1 + 4],ax
+  out 0x40,al
+  mov al,ah
+  out 0x40,al
+  %if SCHEME_Y != 0
+    pop cx
+    jnc %%noOldInterrupt
+patchInterruptCount_%1:
+    add bx,9999
+    mov [cs:patchPhase_%1 + 1],bx
+    pop bx
+patchOldInterrupt_%1:
+    jmp far 9999:9999
+  %%noOldInterrupt:
+    pop bx
+  %endif
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
+%endmacro
 
 
 interrupt8_1:
+  interruptStart 1
+patchCountA_1:
+  mov ax,9999
+patchPulseWidthA_1:
+  mov [cs:patchPulseWidthNext+4],99
+  interruptEnd 1
+
+
+interrupt8_2:
+  interruptStart 2
+patchCountA_2:
+  mov bx,
+
+
+
   push ax
 patchPulseWidth_1:
   mov al,99

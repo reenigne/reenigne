@@ -30,15 +30,17 @@ void interruptStart()
 
 void interruptEnd()
 {
-    outportb(0x40, nextCount & 0xff);
-    outportb(0x40, nextCount >> 8);
+#ifdef SCHEME_Y
     phase -= lastCount;
     if (phase < 0) {
         phase += interruptCount;
         doOldInterrupt();
     }
+#endif
     lastCount = currentCount;
     currentCount = nextCount;
+    outportb(0x40, nextCount & 0xff);
+    outportb(0x40, nextCount >> 8);
 }
 
 void interrupt8_1()  // Just finished counting down from lastCount, now counting down from currentCount
@@ -72,7 +74,7 @@ void interrupt8_2()
     goto done;
 nextB:
     nextCount = phaseB;
-    phaseB = countA;
+    phaseB = countB;
     pulseWidthNext = pulseWidthB;
     phaseA -= nextCount;
     if (phaseA < coalesceCount) {
@@ -95,7 +97,7 @@ void coalesceA()
     phaseA -= nextCount;
     if (phaseA < coalesceCount) {
         phaseA += countA;
-        pulseWidthNext += pulseWidthB;
+        pulseWidthNext += pulseWidthA;
     }
 }
 
@@ -113,7 +115,7 @@ void coalesceC()
     phaseC -= nextCount;
     if (phaseC < coalesceCount) {
         phaseC += countC;
-        pulseWidthNext += pulseWidthB;
+        pulseWidthNext += pulseWidthC;
     }
 }
 
@@ -161,7 +163,7 @@ void coalesceD()
     phaseD -= nextCount;
     if (phaseD < coalesceCount) {
         phaseD += countD;
-        pulseWidthNext += pulseWidthB;
+        pulseWidthNext += pulseWidthD;
     }
 }
 
@@ -214,3 +216,7 @@ done:
     interruptEnd(nextCount);
 }
 
+
+// We need the count and pulseWidth values once for each channel, but they're
+// not changed within the interrupt proper. Just update all copies when the
+// frequency or volume changes?
