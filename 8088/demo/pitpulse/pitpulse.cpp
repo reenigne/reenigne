@@ -58,40 +58,6 @@ Word phaseB;
 Word countB;
 Byte pulseWidthB;
 
-void interrupt8_2()
-{
-    interruptStart();
-    if (phaseB < phaseA)
-        goto nextB;
-    nextCount = phaseA;
-    phaseA = countA;
-    pulseWidthNext = pulseWidthA;
-    phaseB -= nextCount;
-    if (phaseB < coalesceCount) {
-        phaseB += countB;
-        pulseWidthNext += pulseWidthB;
-    }
-    goto done;
-nextB:
-    nextCount = phaseB;
-    phaseB = countB;
-    pulseWidthNext = pulseWidthB;
-    phaseA -= nextCount;
-    if (phaseA < coalesceCount) {
-        phaseA += countA;
-        pulseWidthNext += pulseWidthA;
-    }
-done:
-    interruptEnd();
-}
-
-
-// 3 channels
-
-Word phaseC;
-Word countC;
-Byte pulseWidthC;
-
 void coalesceA()
 {
     phaseA -= nextCount;
@@ -109,6 +75,32 @@ void coalesceB()
         pulseWidthNext += pulseWidthB;
     }
 }
+
+void interrupt8_2()
+{
+    interruptStart();
+    if (phaseB < phaseA)
+        goto nextB;
+    nextCount = phaseA;
+    phaseA = countA;
+    pulseWidthNext = pulseWidthA;
+    coalesceB();
+    goto done;
+nextB:
+    nextCount = phaseB;
+    phaseB = countB;
+    pulseWidthNext = pulseWidthB;
+    coalesceA();
+done:
+    interruptEnd();
+}
+
+
+// 3 channels
+
+Word phaseC;
+Word countC;
+Byte pulseWidthC;
 
 void coalesceC()
 {

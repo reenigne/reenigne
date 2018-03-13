@@ -2,6 +2,7 @@
 
 SCHEME_X EQU 1
 SCHEME_Y EQU 0
+consolidateCycles equ 100
 
 %macro interruptStart 1
 interrupt8_%1:
@@ -16,23 +17,31 @@ patchPulseWidth_%1:
   %%noPort42:
 patchPulseWidthNext_%1:
     mov byte[cs:patchPulseWidth_%1 + 1],99
+  push cx
   %if SCHEME_Y != 0
     push bx
-    push cx
   %endif
 %endmacro
 
 ; ax = nextCount
-; bx = phaseA
-; bp = phaseB
-; si = phaseC
-; di = phaseD
+; bx = phase0
+; bp = phase1
+; si = phase2
+; di = phase3
 ; cl = pulseWidthNext
-; ch = pulseWidthA
-; dl = pulseWidthB
-; dh = pulseWidthC
 
 %macro interruptEnd 1
+  mov [cs:patchPhase0_%1],bx
+  %if %1 > 1
+    mov [cs:patchPhase1_%1],bp
+    %if %1 > 2
+      mov [cs:patchPhase2_%1],si
+      %if %1 > 3
+        mov [cs:patchPhase3_%1],di]
+      %endif
+    %endif
+  %endif
+  mov byte[cs:patchPulseWidthNext_%1 + 4],cl
   %if SCHEME_Y != 0
 patchPhase_%1:
     mov bx,9999
@@ -47,153 +56,67 @@ patchCurrentCount_%1:
   mov al,ah
   out 0x40,al
   %if SCHEME_Y != 0
-    pop cx
     jnc %%noOldInterrupt
 patchInterruptCount_%1:
     add bx,9999
     mov [cs:patchPhase_%1 + 1],bx
     pop bx
+    pop cx
+    pop ax
 patchOldInterrupt_%1:
     jmp far 9999:9999
   %%noOldInterrupt:
     pop bx
   %endif
+  pop cx
   mov al,0x20
   out 0x20,al
   pop ax
   iret
 %endmacro
 
+%define register0 bx
+%define register1 bp
+%define register2 si
+%define register3 di
+
+%macro consolidate 2  ; channels channel
+    sub register%[%1],ax
+    cmp register%[%1],consolidateCycles
+    jae %%noConsolidate
+    add register%[%1],[cs:patchCount%2_%1 + 1]
+    add cl,[cs:patchPulseWidth%2_%1 + 1]
+  %%noConsolidate:
+%endmacro
+
+%macro consolidates 2  ; channels channel
+  %assign i 0
+  %rep %1
+    %if i != %2
+       consolidate %1 i
+    %endif
+    %assign i i+1
+  %endrep
+%endmacro
+
 
 interrupt8_1:
   interruptStart 1
-patchCountA_1:
+patchCount0_1:
   mov ax,9999
-patchPulseWidthA_1:
-  mov [cs:patchPulseWidthNext+4],99
+patchPulseWidth0_1:
+  mov cl,99
   interruptEnd 1
 
 
 interrupt8_2:
   interruptStart 2
-patchCountA_2:
-  mov bx,
-
-
-
-  push ax
-patchPulseWidth_1:
-  mov al,99
-  out 0x42,al
-
-  push bx
-patchNextCount_1:
+patchPhase0_2:
   mov bx,9999
-  mov al,bl
-  out 0x40,al
-  mov al,bh
-  out 0x40,al
+patchPhase1_2:
+  mov bp,9999
+  cmp bp,bx
+  jl next1
+  mov ax,bx
 
-
-patchPhase_1:
-  mov ax,9999
-patchCount_1:
-  sub ax,9999
-  jnc noCarry_1
-patchOuterCount_1:
-  add ax,9999
-  mov [cs:patchPhase_1+1],ax
-  pop ax
-patchOldInterrupt8_1:
-  jmp far 9999:9999
-noCarry_1:
-  mov al,0x20
-  out 0x20,al
-  pop ax
-  iret
-
-
-; 2 channels
-
-interrupt8_2:
-  push ax
-patchPulseWidth_2:
-  mov al,99
-  out 0x42,al
-
-  push bx
-patchNextCount_2:
-  mov bx,9999
-  mov al,bl
-  out 0x40,al
-  mov al,bh
-  out 0x40,al
-
-patchPhaseA_2:
-  mov ax,9999
-  sub ax,bx
-
-
-
-
-
-
-
-patchNextCountLow:
-  mov al,99
-  out 0x40,al
-patchNextCountHigh:
-  mov al,99
-  out 0x40,al
-
-patchPhaseA:
-  mov ax,9999
-patchFrequencyA:
-  sub ax,9999
-  jnc no
-
-
-
-  mov al,0x20
-  out 0x20,al
-  pop ax
-  iret
-doOldInterrupt:
-  pop ax
-  jmp far [oldInterrupt8]
-
-
-
-oldInterrupt8: dw 0, 0
-
-
-
-
-interrupt8:
-  push ax
-patchPulseWidth:
-  mov al,99
-  out 0x42,al
-patchNextCountLow:
-  mov al,99
-  out 0x40,al
-patchNextCountHigh:
-  mov al,99
-  out 0x40,al
-
-patchPhaseA:
-  mov ax,9999
-patchFrequencyA:
-  sub ax,9999
-  jnc no
-
-
-
-  mov al,0x20
-  out 0x20,al
-  pop ax
-  iret
-doOldInterrupt:
-  pop ax
-  jmp far [oldInterrupt8]
 
