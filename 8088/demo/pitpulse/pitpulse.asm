@@ -37,7 +37,7 @@ patchPulseWidthNext_%1:
     %if %1 > 2
       mov [cs:patchPhase2_%1],si
       %if %1 > 3
-        mov [cs:patchPhase3_%1],di]
+        mov [cs:patchPhase3_%1],di
       %endif
     %endif
   %endif
@@ -81,11 +81,11 @@ patchOldInterrupt_%1:
 %define register3 di
 
 %macro consolidate 2  ; channels channel
-    sub register%[%1],ax
-    cmp register%[%1],consolidateCycles
-    jae %%noConsolidate
-    add register%[%1],[cs:patchCount%2_%1 + 1]
-    add cl,[cs:patchPulseWidth%2_%1 + 1]
+    sub register%[%1],ax                         ; 2
+    cmp register%[%1],consolidateCycles          ; 3
+    jae %%noConsolidate                          ; 2
+    add register%[%1],[cs:patchCount%2_%1 + 1]   ; 7
+    add cl,[cs:patchPulseWidth%2_%1 + 1]         ; 6
   %%noConsolidate:
 %endmacro
 
@@ -116,7 +116,129 @@ patchPhase0_2:
 patchPhase1_2:
   mov bp,9999
   cmp bp,bx
-  jl next1
+  jl next1_2
   mov ax,bx
+patchCount0_2:
+  mov bx,9999
+patchPulseWidth0_2:
+  mov cl,99
+  consolidates 2 0
+  jmp done_2
+
+next1_2:
+  mov ax,bp
+patchCount1_2:
+  mov bp,9999
+patchPulseWidth1_2:
+  mov cl,99
+  consolidates 2 1
+
+done_2:
+  interruptEnd 2
+
+
+interrupt8_3:
+  interruptStart 3
+patchPhase0_3:
+  mov bx,9999
+patchPhase1_3:
+  mov bp,9999
+patchPhase2_3:
+  mov si,9999
+  cmp bp,bx
+  jl next12_3
+  cmp si,bx
+  jl next2_3
+  mov ax,bx
+patchCount0_3:
+  mov bx,9999
+patchPulseWidth0_3:
+  mov cl,99
+  consolidates 3 0
+  jmp done_3
+
+next12_3:
+  cmp si,bp
+  jl next2_3
+  mov ax,bp
+patchCount1_3:
+  mov bp,9999
+patchPulseWidth1_3:
+  mov cl,99
+  consolidates 3 1
+  jmp done_3
+
+next2_3:
+  mov ax,si
+patchCount2_3:
+  mov si,9999
+patchPulseWidth2_3:
+  mov cl,99
+  consolidates 3 2
+
+done_3:
+  interruptEnd 3
+
+
+interrupt8_4
+  interruptStart 4
+patchPhase0_4:
+  mov bx,9999
+patchPhase1_4:
+  mov bp,9999
+patchPhase2_4:
+  mov si,9999
+patchPhase3_4:
+  mov di,9999
+  cmp bp,bx
+  jl next123_4
+  cmp si,bx
+  jl next23_4
+  cmp di,bx
+  jl next3_4
+  mov ax,bx
+patchCount0_4:
+  mov bx,9999
+patchPulseWidth0_4:
+  mov cl,99
+  consolidates 4 0
+  jmp done_4
+
+next123_4:
+  cmp si,bp
+  jl next23_4
+  cmp di,bp
+  jl next3_4
+  mov ax,bp
+patchCount1_4:
+  mov bp,9999
+patchPulseWidth1_4:
+  mov cl,99
+  consolidates 4 1
+  jmp done_4
+
+next23_4:
+  cmp di,si
+  jl next3_4
+  mov ax,si
+patchCount2_4:
+  mov si,9999
+patchPulseWidth2_4:
+  mov cl,99
+  consolidates 4 2
+  jmp done_4
+
+next3_4:
+  mov ax,di
+patchCount3_4:
+  mov di,9999
+patchPulseWidth3_4:
+  mov cl,99
+  consolidates 4 3
+
+done_4:
+  interruptEnd 4
+
+
 
 

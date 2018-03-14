@@ -1173,6 +1173,7 @@ public:
         _counters[counter].setGate(gate);
     }
     bool getOutput(int counter) { return _counters[counter]._output; }
+    //int getMode(int counter) { return _counters[counter]._control; }
 private:
     enum State
     {
@@ -1858,7 +1859,9 @@ public:
                 return true;
             }
         }
+        return false;
     }
+    void dmaCompleted() { _channel = -1; }
     // Returns channel if DMA requested, else -1
     //int dmaRequested(Word* address, int* type, int* cycles)
     //{
@@ -2208,7 +2211,7 @@ public:
         _ppi.reset();
         _pitPhase = 2;
         _lastCounter0Output = false;
-        _lastCounter1Output = false;
+        _lastCounter1Output = true; //false;
         _counter2Output = false;
         _counter2Gate = false;
         _speakerMask = false;
@@ -2234,8 +2237,13 @@ public:
                 _pic.setIRQLine(0, counter0Output);
             _lastCounter0Output = counter0Output;
             bool counter1Output = _pit.getOutput(1);
-            if (_lastCounter1Output != counter1Output) {
-                _dmac.setDMARequestLine(0, counter1Output);
+            //if (counter1Output)
+            //    _dmaRequests |= 0x20;
+            //else
+            //    _dmaRequests &= 0xdf;
+            if (counter1Output && !_lastCounter1Output && !dack0()) {
+                _dmaRequests |= 1;
+                _dmac.setDMARequestLine(0, true);
             }
             _lastCounter1Output = counter1Output;
             bool counter2Output = _pit.getOutput(2);
@@ -2270,11 +2278,16 @@ public:
                     _dmaState = sAEN;
                 break;
             case sAEN: _dmaState = s0; break;
-            case s0: _dmaState = s1; break;
+            case s0:
+                if ((_dmaRequests & 1) != 0) {
+                    _dmaRequests &= 0xfe;
+                    _dmac.setDMARequestLine(0, false);
+                }
+                _dmaState = s1; break;
             case s1: _dmaState = s2; break;
             case s2: _dmaState = s3; break;
             case s3: _dmaState = s4; break;
-            case s4: _dmaState = sDelayedT1; break;
+            case s4: _dmaState = sDelayedT1; _dmac.dmaCompleted(); break;
             case sDelayedT1: _dmaState = sDelayedT2; break;
             case sDelayedT2: _dmaState = sDelayedT3; break;
             case sDelayedT3: _dmaState = sIdle; break;
@@ -2282,6 +2295,10 @@ public:
     }
     bool ready()
     {
+        if (_dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
+            _dmaState == sWait || _dmaState == s4 || _dmaState == sDelayedT1 ||
+            _dmaState == sDelayedT2 /*|| _dmaState == sDelayedT3*/)
+            return false;
         if (_type == 1 || _type == 2)  // Read port, write port
             return _cycle > 2;  // System board adds a wait state for onboard IO devices
         return true;
@@ -2355,9 +2372,26 @@ public:
     }
     UInt8 getDMA()
     {
-
+        return _dmaRequests | (dack0() ? 0x10 : 0);
+    }
+    String snifferExtra()
+    {
+        return ""; //hex(_pit.getMode(1), 4, false) + " ";
+    }
+    int getBusOperation()
+    {
+        switch (_dmaState) {
+            case s2: return 5;  // memr
+            case s3: return 2;  // iow
+        }
+        return 0;
     }
 private:
+    bool dack0()
+    {
+        return _dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
+            _dmaState == sWait;
+    }
     void setSpeakerOutput()
     {
         bool o = !(_counter2Output && _speakerMask);
@@ -2473,7 +2507,7 @@ private:
         _cycle = 0;
         ax() = 0;
         cx() = 0;
-        dx() = 0;
+        dx() = _test.refreshPeriod() + (_test.refreshPhase() << 8);
         bx() = 0;
         sp() = 0;
         bp() = 0;
@@ -2632,7 +2666,8 @@ private:
                 _snifferDecoder.setAEN(_bus.getAEN());
                 _snifferDecoder.setDMA(_bus.getDMA());
                 _snifferDecoder.setPITBits(_bus.pitBits());
-                String l = _snifferDecoder.getLine();
+                _snifferDecoder.setBusOperation(_bus.getBusOperation());
+                String l = _bus.snifferExtra() + _snifferDecoder.getLine();
                 if (_logSkip > 0)
                     --_logSkip;
                 else
