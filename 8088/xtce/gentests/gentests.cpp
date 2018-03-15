@@ -3379,16 +3379,22 @@ private:
                 writeEA(_data);
                 break;
             case 0xcc: // INT 3
-                wait(3);
+                wait(6);
                 interrupt(3);
                 break;
             case 0xcd: // INT
-                interrupt(fetchInstructionByte());
+                {
+                    Byte i = fetchInstructionByte();
+                    wait(3);
+                    if (_busState == tWait)
+                        wait(4);
+                    interrupt(i);
+                }
                 break;
             case 0xce: // INTO
                 wait(2);
                 if (of()) {
-                    wait(2);
+                    wait(5);
                     interrupt(4);
                 }
                 break;
@@ -3600,10 +3606,7 @@ private:
             case 0xf4: // HLT
                 if (!_repeating) {
                     prepareForRead();
-                    //wait(1);
-                    //if (_busState == t2 || _busState == t4)  // Really weird
-                    //    wait(1);
-                    if (_busState == t1 || _busState == t3)
+                    if (_busState == t1 || _busState == t3)  // Really weird
                         wait(1);
                     wait(2);
                     _prefetching = false;
@@ -3847,7 +3850,7 @@ private:
         wait(w);  // Some of these may actually be in the PIT or PIC
         busAccess(ioInterruptAcknowledge, 0);
         Byte i = busAccess(ioInterruptAcknowledge, 0);
-        wait(2);
+        wait(5);
         interrupt(i);
     }
 
@@ -3910,6 +3913,7 @@ private:
         if (h >= _source) {
             if (_useMemory)
                 wait(1);
+            wait(3);
             interrupt(0);
             return false;
         }
@@ -3945,6 +3949,7 @@ private:
         if (_opcode != 0xd4 && modRMReg() == 7) {
             wait(4);
             if (topBit(l)) {
+                wait(3);
                 interrupt(0);
                 return false;
             }
@@ -4069,8 +4074,6 @@ private:
     {
         _address = number << 2;
         _segment = 1;
-        wait(1);
-        wait(2);
         Word oldCS = cs();
         cs() = 0;
         Word newIP = busReadWord(ioReadMemory);
@@ -4087,7 +4090,11 @@ private:
         setTF(false);
         wait(5);
         push2(oldCS);
-        wait(5);
+
+        while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
+            wait(1);
+        wait(1);
+
         cs() = newCS;
         setIP(newIP);
         wait(2);
@@ -4488,7 +4495,7 @@ public:
         int groupSize;
         int noppingTests;
         static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
-        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 2 /*19*/; ++refreshPeriodIndex) {
+        for (int refreshPeriodIndex = 1; refreshPeriodIndex < 2 /*19*/; ++refreshPeriodIndex) {
             _refreshPeriod = refreshPeriods[refreshPeriodIndex];
             for (_refreshPhase = 0; _refreshPhase < 1 /* 4*_refreshPeriod*/; ++_refreshPhase) {
                 for (_group = 0; _group < 3; ++_group) {
