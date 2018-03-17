@@ -2530,6 +2530,7 @@ private:
         _queueWritePosition = 0;
         _queueBytes = 0;
         _queueWaitCycles = 0;
+        _queueFull = false;
         _segmentOverride = -1;
         _rep = 0;
         _lock = false;
@@ -2557,6 +2558,8 @@ private:
                 _queueData[_queueWritePosition] = data;
                 _queueWritePosition = (_queueWritePosition + 1) & 3;
                 _queueCycle = 4;
+                if (_queueBytes == 3)
+                    _queueFull = true;
             }
             else
                 _synchronousDone = true;
@@ -2638,7 +2641,7 @@ private:
             }
             int adjust = _queueCycle > 0 ? 1 : 0;
             if (!_statusSet && _busState != tFirstIdle) {
-                if (_ioNext._type == ioPassive && _queueBytes + adjust < 4 &&
+                if (_ioNext._type == ioPassive && !_queueFull && //_queueBytes + adjust < 4 &&
                     _prefetching && !_transferStarting &&
                     _queueWaitCycles == 0) {
                     _ioNext._type = ioCodeAccess;
@@ -2662,7 +2665,8 @@ private:
             if (_queueWaitCycles > 0)
                 --_queueWaitCycles;
             if (_prefetchedRemove) {
-                --_queueBytes;
+                //--_queueBytes;
+                _queueFull = false;
                 _prefetchedRemove = false;
             }
             ++_cycle;
@@ -2773,6 +2777,7 @@ private:
     {
         --_queueBytes;
         _queueReadPosition = (_queueReadPosition + 1) & 3;
+        _prefetchedRemove = true;
     }
     Byte fetchInstructionByte()
     {
@@ -2853,22 +2858,22 @@ private:
             if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
             _opcode = queueRead(0, true);
-                acknowledgeInstructionByte();
+            acknowledgeInstructionByte();
             wait(1);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
                 _modRM = queueRead(0); //1);
                 //acknowledgeInstructionByte();
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
-                    ++_queueWaitCycles;
+                //if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
+                    //++_queueWaitCycles;
                 if ((_modRM & 0xc0) == 0xc0) {
                     acknowledgeInstructionByte();
                     _useMemory = false;
                 }
                 else {
                     _useMemory = true;
-                    wait(1);
+                    //wait(1);
                     acknowledgeInstructionByte();
                     if ((_modRM & 0xc7) == 0x06) {
                         _address = fetchInstructionWord();
@@ -2930,17 +2935,24 @@ private:
                 }
                 if (_useMemory)
                     wait(2);
-                wait(1);
+                //wait(1);
                 doALUOperation();
                 if (_aluOperation != 7) {
                     if ((_opcode & 2) == 0) {
                         if (_useMemory)
                             wait(2);
                         writeEA(_data);
+                        if (!_useMemory)
+                            wait(2);
                     }
-                    else
+                    else {
                         setReg(_data);
+                        wait(2);
+                    }
                 }
+                else
+                    wait(2);
+                //wait(2);
                 break;
             case 0x04: case 0x05: case 0x0c: case 0x0d:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
@@ -4065,7 +4077,7 @@ private:
         wait(3);
         while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
             wait(1);
-        wait(2);
+        wait(3); //2);
         Word oldIP = ip();
         setIP(oldIP + delta);
         return oldIP;
@@ -4095,12 +4107,12 @@ private:
         push2(_flags & 0x0fd7);
         setIF(false);
         setTF(false);
-        wait(5);
+        wait(3); //5);
         push2(oldCS);
 
         while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
             wait(1);
-        wait(1);
+        wait(2);
 
         cs() = newCS;
         setIP(newIP);
@@ -4384,6 +4396,7 @@ private:
     int _queueWritePosition;
     int _queueBytes;
     int _queueWaitCycles;
+    bool _queueFull;
     Word _ip;
     bool _nmiRequested;
 
@@ -4480,19 +4493,19 @@ public:
         File("runtests.bin").readIntoArray(&testProgram);
         Array<Byte> runStub;
         File("runstub.bin").readIntoArray(&runStub);
-        {
-            Array<Byte> functional;
-            File("functional.bin").readIntoArray(&functional);
-            Byte* p = &functional[0];
-            int i = 0;
-            while (i < functional.count()) {
-                Test t;
-                t.read(p);
-                p += t.length();
-                i += t.length();
-                _tests.append(t);
-            }
-        }
+        //{
+        //    Array<Byte> functional;
+        //    File("functional.bin").readIntoArray(&functional);
+        //    Byte* p = &functional[0];
+        //    int i = 0;
+        //    while (i < functional.count()) {
+        //        Test t;
+        //        t.read(p);
+        //        p += t.length();
+        //        i += t.length();
+        //        _tests.append(t);
+        //    }
+        //}
 
         int groupStartCount = _tests.count();
 
@@ -4503,7 +4516,7 @@ public:
         int groupSize;
         int noppingTests;
         static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
-        for (int refreshPeriodIndex = 1; refreshPeriodIndex < 2 /*19*/; ++refreshPeriodIndex) {
+        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 2 /*19*/; ++refreshPeriodIndex) {
             _refreshPeriod = refreshPeriods[refreshPeriodIndex];
             for (_refreshPhase = 0; _refreshPhase < 1 /* 4*_refreshPeriod*/; ++_refreshPhase) {
                 for (_group = 0; _group < 3; ++_group) {

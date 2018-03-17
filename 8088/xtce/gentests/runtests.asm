@@ -89,7 +89,7 @@ notDone:
   call doMeasurement
   mov ax,bx
   neg ax
-  sub ax,4725-92  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4725-92 +12  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
   cmp ax,[si]
   jne testFailed
