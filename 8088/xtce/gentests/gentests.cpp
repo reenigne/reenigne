@@ -2777,7 +2777,8 @@ private:
     {
         --_queueBytes;
         _queueReadPosition = (_queueReadPosition + 1) & 3;
-        _prefetchedRemove = true;
+        _queueFull = false;
+        //_prefetchedRemove = true;
     }
     Byte fetchInstructionByte()
     {
@@ -2858,20 +2859,23 @@ private:
             if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
             _opcode = queueRead(0, true);
-            acknowledgeInstructionByte();
-            wait(1);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
-                _modRM = queueRead(0); //1);
-                //acknowledgeInstructionByte();
+                acknowledgeInstructionByte();
+                wait(1);
+                _modRM = queueRead(1);
                 //if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
                     //++_queueWaitCycles;
                 if ((_modRM & 0xc0) == 0xc0) {
+                    //acknowledgeInstructionByte();
+//                    wait(1);
                     acknowledgeInstructionByte();
                     _useMemory = false;
                 }
                 else {
+//                    wait(1);
+                    //acknowledgeInstructionByte();
                     _useMemory = true;
                     //wait(1);
                     acknowledgeInstructionByte();
@@ -2906,9 +2910,11 @@ private:
                 }
             }
             else {
+                acknowledgeInstructionByte();
+                //wait(1);
                 if ((_queueCycle == 2 || _queueCycle == 1) && _queueBytes == 3)  // Weird
                     _queueWaitCycles = 1 + _queueCycle;
-                wait(1);
+                wait(2);
                 //acknowledgeInstructionByte();
             }
             _wordSize = ((_opcode & 1) != 0);
