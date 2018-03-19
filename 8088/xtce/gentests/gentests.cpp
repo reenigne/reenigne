@@ -2572,6 +2572,37 @@ private:
     void wait(int cycles)
     {
         while (cycles > 0) {
+            int adjust = _queueCycle > 0 ? 1 : 0;
+            if (!_statusSet && _busState != tFirstIdle) {
+                if (_ioNext._type == ioPassive && !_queueFull && //_queueBytes + adjust < 4 &&
+                    _prefetching && !_transferStarting &&
+                    _queueWaitCycles == 0) {
+                    _ioNext._type = ioCodeAccess;
+                    _ioNext._address = physicalAddress(1, _ip + adjust);
+                    _ioNext._segment = 1;
+                }
+                if (_ioNext._type != ioPassive) {
+                    _bus.setPassiveOrHalt(_ioNext._type == ioHalt);
+                    _snifferDecoder.setStatus((int)_ioNext._type);
+                    _statusSet = true;
+                }
+            }
+
+            if (_queueCycle > 0) {
+                --_queueCycle;
+                if (_queueCycle == 0) {
+                    ++_queueBytes;
+                    ++_ip;
+                }
+            }
+            if (_queueWaitCycles > 0)
+                --_queueWaitCycles;
+            if (_prefetchedRemove) {
+                //--_queueBytes;
+                _queueFull = false;
+                _prefetchedRemove = false;
+            }
+
             if (_logging) {
                 _snifferDecoder.setAEN(_bus.getAEN());
                 _snifferDecoder.setDMA(_bus.getDMA());
@@ -2579,9 +2610,9 @@ private:
                 _snifferDecoder.setBusOperation(_bus.getBusOperation());
                 _snifferDecoder.setInterruptFlag(intf());
                 String l = _bus.snifferExtra() + _snifferDecoder.getLine();
-                if (_logSkip > 0)
-                    --_logSkip;
-                else
+                //if (_logSkip > 0)
+                //    --_logSkip;
+                //else
                     _log += l;
             }
             bool write = _ioInProgress._type == ioWriteMemory ||
@@ -2638,36 +2669,6 @@ private:
                             (int)_ioInProgress._type);
                     }
                 }
-            }
-            int adjust = _queueCycle > 0 ? 1 : 0;
-            if (!_statusSet && _busState != tFirstIdle) {
-                if (_ioNext._type == ioPassive && !_queueFull && //_queueBytes + adjust < 4 &&
-                    _prefetching && !_transferStarting &&
-                    _queueWaitCycles == 0) {
-                    _ioNext._type = ioCodeAccess;
-                    _ioNext._address = physicalAddress(1, _ip + adjust);
-                    _ioNext._segment = 1;
-                }
-                if (_ioNext._type != ioPassive) {
-                    _bus.setPassiveOrHalt(_ioNext._type == ioHalt);
-                    _snifferDecoder.setStatus((int)_ioNext._type);
-                    _statusSet = true;
-                }
-            }
-
-            if (_queueCycle > 0) {
-                --_queueCycle;
-                if (_queueCycle == 0) {
-                    ++_queueBytes;
-                    ++_ip;
-                }
-            }
-            if (_queueWaitCycles > 0)
-                --_queueWaitCycles;
-            if (_prefetchedRemove) {
-                //--_queueBytes;
-                _queueFull = false;
-                _prefetchedRemove = false;
             }
             ++_cycle;
             --cycles;
