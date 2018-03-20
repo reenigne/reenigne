@@ -1,6 +1,22 @@
 org 0
 cpu 8086
 
+testA:
+  dw 0     ; cycle count ignored (computed by emulator)
+  db 0     ; MUL queuefiller, no NOPs
+  db 0     ; Refresh period
+  db 0     ; Refresh phase
+  db .preambleEnd - ($+1)
+.preambleEnd:
+  db .instructionsEnd - ($+1)
+
+  out 0xe0,al
+
+.instructionsEnd:
+  db .fixupsEnd - ($+1)
+.fixupsEnd:
+
+
 test0:
   dw 0     ; cycle count ignored (computed by emulator)
   db 0x40  ; No queuefiller, no NOPs
