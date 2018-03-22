@@ -2572,6 +2572,19 @@ private:
     void wait(int cycles)
     {
         while (cycles > 0) {
+            if (_busState == tFirstIdle || _busState == tIdle) {
+                _snifferDecoder.setBusFloating();
+                if (_statusSet) {
+                    _ioInProgress = _ioNext;
+                    _ioNext._type = ioPassive;
+                    if (_ioInProgress._type != ioPassive) {
+                        _busState = t1;
+                        _snifferDecoder.setAddress(_ioInProgress._address);
+                        _bus.startAccess(_ioInProgress._address,
+                            (int)_ioInProgress._type);
+                    }
+                }
+            }
             int adjust = _queueCycle > 0 ? 1 : 0;
             if (!_statusSet && _busState != tFirstIdle) {
                 if (_ioNext._type == ioPassive && !_queueFull && //_queueBytes + adjust < 4 &&
@@ -2656,19 +2669,6 @@ private:
                 case tIdle:
                     _busState = tIdle;
                     break;
-            }
-            if (_busState == tFirstIdle || _busState == tIdle) {
-                _snifferDecoder.setBusFloating();
-                if (_statusSet) {
-                    _ioInProgress = _ioNext;
-                    _ioNext._type = ioPassive;
-                    if (_ioInProgress._type != ioPassive) {
-                        _busState = t1;
-                        _snifferDecoder.setAddress(_ioInProgress._address);
-                        _bus.startAccess(_ioInProgress._address,
-                            (int)_ioInProgress._type);
-                    }
-                }
             }
             ++_cycle;
             --cycles;
