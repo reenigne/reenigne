@@ -1872,6 +1872,12 @@ public:
         if (memoryToMemory() && _channel == 0)
             _temporary = data;
     }
+    Word address()
+    {
+        Word address = _channels[_channel]._currentAddress;
+        _channels[_channel].incrementAddress();
+        return address;
+    }
 private:
     struct Channel
     {
@@ -1918,6 +1924,14 @@ private:
             _currentAddress = 0;
             _currentWordCount = 0;
             _mode = 0;
+        }
+        void incrementAddress()
+        {
+            if (!addressDecrement())
+                ++_currentAddress;
+            else
+                --_currentAddress;
+            --_currentWordCount;
         }
         bool write() { return (_mode & 0x0c) == 4; }
         bool read() { return (_mode & 0x0c) == 8; }
