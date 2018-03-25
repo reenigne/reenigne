@@ -2387,7 +2387,7 @@ public:
         return 0;
     }
     bool getDMAS3() { return _dmaState == s3; }
-    DWord getDMAAdress()
+    DWord getDMAAddress()
     {
         return dmaAddressHigh(_dmac.channel()) + _dmac.address();
     }
@@ -2642,6 +2642,8 @@ private:
                 _snifferDecoder.setPITBits(_bus.pitBits());
                 _snifferDecoder.setBusOperation(_bus.getBusOperation());
                 _snifferDecoder.setInterruptFlag(intf());
+                if (_bus.getDMAS3())
+                    _snifferDecoder.setAddress(_bus.getDMAAddress());
                 String l = _bus.snifferExtra() + _snifferDecoder.getLine();
                 //if (_logSkip > 0)
                 //    --_logSkip;
