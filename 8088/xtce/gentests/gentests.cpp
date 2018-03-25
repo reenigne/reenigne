@@ -1878,6 +1878,7 @@ public:
         _channels[_channel].incrementAddress();
         return address;
     }
+    int channel() { return _channel; }
 private:
     struct Channel
     {
@@ -2384,6 +2385,11 @@ public:
             case s3: return 2;  // iow
         }
         return 0;
+    }
+    bool getDMAS3() { return _dmaState == s3; }
+    DWord getDMAAdress()
+    {
+        return dmaAddressHigh(_dmac.channel()) + _dmac.address();
     }
 private:
     bool dack0()
