@@ -2887,7 +2887,7 @@ private:
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
                 acknowledgeInstructionByte();
                 wait(1);
-                _modRM = queueRead(1);
+                _modRM = queueRead(0); //1);
                 //if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
                     //++_queueWaitCycles;
                 if ((_modRM & 0xc0) == 0xc0) {
