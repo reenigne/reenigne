@@ -2796,10 +2796,10 @@ private:
             wait(1);
         Byte byte = _queueData[(_queueReadPosition + offset) & 3];
         _snifferDecoder.queueOperation(first ? 1 : 3);
-        acknowledgeInstructionByte();
-        // Always wait at least one cycle so we don't fetch more than one byte
-        // from the queue per cycle.
-        wait(1);
+        //acknowledgeInstructionByte();
+        //// Always wait at least one cycle so we don't fetch more than one byte
+        //// from the queue per cycle.
+        //wait(1);
         return byte;
     }
     void acknowledgeInstructionByte()
@@ -2812,16 +2812,22 @@ private:
     Byte fetchInstructionByte()
     {
         Byte b = queueRead(0);
-        //acknowledgeInstructionByte();
+        acknowledgeInstructionByte();
+        if (_busState == tIdle && _busIdleCycles == 1 && _ioInProgress._type == ioCodeAccess && _queueWaitCycles == 0)
+            ++_queueWaitCycles;
+        //_prefetching = false;
+        wait(1);
+        //_prefetching = true;
         return b;
     }
     Word fetchInstructionWord()
     {
         Byte low = queueRead(0);
+        acknowledgeInstructionByte();
+        wait(1);
         Byte high = queueRead(1);
-        //acknowledgeInstructionByte();
-        //wait(1);
-        //acknowledgeInstructionByte();
+        acknowledgeInstructionByte();
+        wait(1);
         return (high << 8) | low;
     }
     Word fetchInstructionData()
@@ -2889,31 +2895,24 @@ private:
             if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
             _opcode = queueRead(0, true);
+            acknowledgeInstructionByte();
+            wait(1);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
-                //acknowledgeInstructionByte();
-                //wait(1);
                 if (_busState == tIdle && _busIdleCycles == 1 && _ioInProgress._type == ioCodeAccess)  // Weird
                     ++_queueWaitCycles;
-                _modRM = queueRead(0); //1);
-                if ((_modRM & 0xc0) == 0xc0) {
-                    //acknowledgeInstructionByte();
-//                    wait(1);
-                    //acknowledgeInstructionByte();
+                _modRM = queueRead(0);
+                acknowledgeInstructionByte();
+                wait(1);
+                if ((_modRM & 0xc0) == 0xc0)
                     _useMemory = false;
-                }
                 else {
-//                    wait(1);
-                    //acknowledgeInstructionByte();
                     _useMemory = true;
-                    //wait(1);
-                    //acknowledgeInstructionByte();
                     if ((_modRM & 0xc7) == 0x06) {
                         wait(1);
                         _address = fetchInstructionWord();
                         _segment = 3;
-                        //wait(1);
                     }
                     else {
                         wait(2);
@@ -2942,12 +2941,9 @@ private:
                 }
             }
             else {
-                //acknowledgeInstructionByte();
-                //wait(1);
                 wait(1);
                 if ((_queueCycle == 2 || _queueCycle == 1) && _queueBytes == 3)  // Weird
                     _queueWaitCycles = 1 + _queueCycle;
-                //acknowledgeInstructionByte();
             }
             _wordSize = ((_opcode & 1) != 0);
         }
@@ -2988,9 +2984,12 @@ private:
                     }
                     else {
                         setReg(_data);
-                        //wait(1);
-                        if (_useMemory)
-                            wait(2);
+                        wait(1);
+                        if (_useMemory) {
+                            wait(1);
+                            if (_wordSize)
+                                wait(1);
+                        }
                     }
                 }
                 else
@@ -3001,6 +3000,8 @@ private:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
             case 0x24: case 0x25: case 0x2c: case 0x2d:
             case 0x34: case 0x35: case 0x3c: case 0x3d: // alu A, imm
+                if (_busState == tIdle /*&& _busIdleCycles == 1*/)
+                    _queueWaitCycles += 2;
                 _data = fetchInstructionData();
                 _destination = getAccum();
                 _source = _data;
@@ -3148,6 +3149,8 @@ private:
                         _source = signExtend(queueRead(0));
                     else
                         _source = queueRead(0) | 0xff00;
+                    acknowledgeInstructionByte();
+                    wait(1);
                     wait(1);
                     //acknowledgeInstructionByte();
                 }
@@ -3427,6 +3430,8 @@ private:
                     _data = fetchInstructionWord();
                 else {
                     _data = queueRead(0);
+                    acknowledgeInstructionByte();
+                    wait(1);
                     wait(1);
                     //acknowledgeInstructionByte();
                 }
@@ -3655,7 +3660,8 @@ private:
                 }
                 break;
             case 0xeb: // JMP cb
-                //_prefetching = false;
+                if (_busState == tIdle && _busIdleCycles == 1 && _ioInProgress._type == ioCodeAccess)
+                    _prefetching = false;
                 _data = fetchInstructionByte();
                 jumpShort();
                 break;
@@ -3701,6 +3707,8 @@ private:
                         else {
                             wait(1);
                             _source = queueRead(0);
+                            acknowledgeInstructionByte();
+                            wait(1);
                             wait(1);
                             //acknowledgeInstructionByte();
                         }
@@ -3755,7 +3763,7 @@ private:
                 break;
             case 0xfa: case 0xfb: // CLISTI
                 setIF(_wordSize);
-                break;
+                break;                                            
             case 0xfc: case 0xfd: // CLDSTD
                 setDF(_wordSize);
                 break;
@@ -3919,28 +3927,6 @@ private:
         wait(5);
         interrupt(i);
     }
-
-    bool _logging;
-    Test _test;
-    String _log;
-    int _logSkip;
-    int _cycle;
-    BusEmulator _bus;
-    int _stopIP;
-    int _cycle1;
-    int _cycle2;
-    int _timeIP1;
-
-    enum BusState
-    {
-        t1,
-        t2,
-        t3,
-        tWait,
-        t4,
-        tIdle
-    };
-
     bool div(Word l, Word h)
     {
         int bitCount = 8;
@@ -4403,6 +4389,27 @@ private:
         _ip -= _queueBytes;
         return _ip;
     }
+
+    enum BusState
+    {
+        t1,
+        t2,
+        t3,
+        tWait,
+        t4,
+        tIdle
+    };
+    
+    bool _logging;
+    Test _test;
+    String _log;
+    int _logSkip;
+    int _cycle;
+    BusEmulator _bus;
+    int _stopIP;
+    int _cycle1;
+    int _cycle2;
+    int _timeIP1;
 
     Word _wordRegisters[8];
     Byte* _byteRegisters[8];
