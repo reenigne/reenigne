@@ -89,8 +89,14 @@ notDone:
   call doMeasurement
   mov ax,bx
   neg ax
-  sub ax,4725-92 +12 - 30  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   mov si,[testCaseOffset]
+  cmp byte[si+3],0
+  je adjustNoStub
+  sub ax,4725-92 +12 - 30  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  jmp doneAdjust
+adjustNoStub:
+  sub ax,4615 + 2095 ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+doneAdjust:
   cmp ax,[si]
   jne testFailed
 
@@ -381,6 +387,14 @@ doneNops:
 ;  push ax
 ;  popf
 
+  cmp dl,0
+  je snifferAdjustNoStub
+  mov word[cs:patchSnifferInitialWait+1],6 + 773*3
+  jmp snifferDoneAdjust
+snifferAdjustNoStub:
+  mov word[cs:patchSnifferInitialWait+1],6 + (773 + 858)*3
+snifferDoneAdjust:
+
   safeRefreshOff
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
   writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
@@ -411,7 +425,8 @@ doneNops:
   mov dx,[cs:countedCycles]
   outputByte
   outputByte
-  mov dx,6 + 773*3
+patchSnifferInitialWait:
+  mov dx,9999
   outputByte
   outputByte
   pop dx
