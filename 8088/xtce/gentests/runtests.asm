@@ -392,7 +392,7 @@ doneNops:
   mov word[cs:patchSnifferInitialWait+1],6 + 773*3
   jmp snifferDoneAdjust
 snifferAdjustNoStub:
-  mov word[cs:patchSnifferInitialWait+1],6 + (773 + 858)*3
+  mov word[cs:patchSnifferInitialWait+1],6 + (773 + 858 + 1)*3
 snifferDoneAdjust:
 
   safeRefreshOff

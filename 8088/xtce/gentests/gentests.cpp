@@ -2525,7 +2525,7 @@ private:
             Byte* r = _bus.ram() + (testSegment << 4);
             Byte* stopP = _test.outputCode(r);
             _stopIP = stopP - (r + 2);
-            _logSkip = 0;
+            _logSkip = 1;
         }
         else {
             Byte* ram = _bus.ram() + (testSegment << 4);
@@ -2541,16 +2541,16 @@ private:
 
         _busState = tIdle;
         _queueCycle = 0;
-        _ioInProgress._type = ioPassive;
-        _ioNext = _ioInProgress;
+        _io._type = ioPassive;
+        _ioNext = _io;
+        _ioLast = _io;
         _snifferDecoder.reset();
         _prefetchedRemove = false;
-        _statusSet = false;
         _prefetching = true;
         _transferStarting = false;
         _log = "";
-        _synchronousDone = true;
-        _synchronousStarted = false;
+        //_synchronousDone = true;
+        //_synchronousStarted = false;
         _ip = 0;
         _nmiRequested = false;
         _queueReadPosition = 0;
@@ -2564,7 +2564,6 @@ private:
         _lock = false;
         _completed = true;
         _repeating = false;
-        _busReady = false;
         _bus.reset();
 
         do {
@@ -2572,70 +2571,19 @@ private:
         } while ((_ip - _queueBytes != _stopIP || cs() != testSegment) && _cycle < 4096 /* 2048*/);
         _cycle2 = _cycle;
     }
-    void doBusAccess()
-    {
-        if (!_bus.ready())
-            return;
-        Byte data;
-        auto t = _ioInProgress._type;
-        if (t == ioInterruptAcknowledge || t == ioReadPort || t == ioReadMemory
-            || t == ioCodeAccess) {
-            data = _bus.read();
-            _ioInProgress._data = data;
-            if (_ioInProgress._type != ioCodeAccess)
-                _synchronousDone = true;
-            _snifferDecoder.setData(data);
-        }
-        _busReady = true;
-        _bus.setPassiveOrHalt(true);
-        _snifferDecoder.setStatus((int)ioPassive);
-    }
     void wait(int cycles)
     {
         while (cycles > 0) {
-            if (_busState == tFirstIdle || _busState == tIdle) {
-                _snifferDecoder.setBusFloating();
-                if (_statusSet) {
-                    _ioInProgress = _ioNext;
-                    _ioNext._type = ioPassive;
-                    if (_ioInProgress._type != ioPassive) {
-                        _busState = t1;
-                        _snifferDecoder.setAddress(_ioInProgress._address);
-                        _bus.startAccess(_ioInProgress._address,
-                            (int)_ioInProgress._type);
-                    }
-                }
-            }
-            if (!_statusSet && _busState != tFirstIdle) {
-                if (_ioNext._type == ioPassive && _queueHasSpace &&
-                    _prefetching && !_transferStarting &&
-                    _queueWaitCycles == 0) {
-                    _ioNext._type = ioCodeAccess;
-                    _ioNext._address = physicalAddress(1, _ip);
-                    ++_ip;
-                    _ioNext._segment = 1;
-                    if (_queueBytes == 3 || (_queueBytes == 2 && _ioInProgress._type == ioCodeAccess))
-                        _queueHasSpace = false;
-                }
-                if (_ioNext._type != ioPassive) {
-                    _bus.setPassiveOrHalt(_ioNext._type == ioHalt);
-                    _snifferDecoder.setStatus((int)_ioNext._type);
-                    _statusSet = true;
-                }
-            }
+            BusState nextState = _busState;
 
-            bool queueBytesIncreased = false;
             if (_queueCycle > 0) {
                 --_queueCycle;
-                if (_queueCycle == 0) {
-                    ++_queueBytes;
+                if (_queueCycle == 0)
                     _queueHasByte = true;
-                    queueBytesIncreased = true;
-                }
             }
             if (_queueWaitCycles > 0)
                 --_queueWaitCycles;
-            if (_prefetchedRemove && !queueBytesIncreased) {
+            if (_prefetchedRemove) {
                 --_queueBytes;
                 _queueHasSpace = true;
                 if (_queueBytes == 0)
@@ -2657,53 +2605,94 @@ private:
                 else
                     _log += l;
             }
-            bool write = _ioInProgress._type == ioWriteMemory ||
-                _ioInProgress._type == ioWritePort;
+            bool write = _io._type == ioWriteMemory ||
+                _io._type == ioWritePort;
             _bus.wait();
             switch (_busState) {
                 case t1:
-                    _snifferDecoder.setStatusHigh(_ioInProgress._segment);
-                    _snifferDecoder.setBusOperation((int)_ioInProgress._type);
+                    _snifferDecoder.setStatusHigh(_io._segment);
+                    _snifferDecoder.setBusOperation((int)_io._type);
                     if (write)
-                        _snifferDecoder.setData(_ioInProgress._data);
-                    _busState = t2;
+                        _snifferDecoder.setData(_io._data);
+                    nextState = t2t3tWaitNotLast;
                     break;
-                case t2:
-                    doBusAccess();
-                    _busState = t3;
-                    if (_ioInProgress._type != ioCodeAccess)
-                        _synchronousStarted = true;
-                    break;
-                case t3:
-                case tWait:
-                    _busState = tWait;
-                    if (_busReady) {
-                        _statusSet = false;
-                        _busState = t4;
-                        if (write) {
-                            _bus.write(_ioInProgress._data);
-                            _synchronousDone = true;
-                        }
+                case t2t3tWaitNotLast:
+                    if (!_bus.ready())
+                        break;
+                    nextState = t3tWaitLast;
+                    if (_io._type == ioInterruptAcknowledge ||
+                        _io._type == ioReadPort || _io._type == ioReadMemory ||
+                        _io._type == ioCodeAccess) {
+                        Byte data = _bus.read();
+                        _io._data = data;
+                        //if (_io._type != ioCodeAccess)
+                        //    _synchronousDone = true;
+                        _snifferDecoder.setData(data);
                     }
-                    else
-                        doBusAccess();
+                    _bus.setPassiveOrHalt(true);
+                    _snifferDecoder.setStatus((int)ioPassive);
+                    //if (_io._type != ioCodeAccess)
+                    //    _synchronousStarted = true;
+                    break;
+                case t3tWaitLast:
+                    nextState = t4;
+                    if (write) {
+                        _bus.write(_io._data);
+                        //_synchronousDone = true;
+                    }
                     break;
                 case t4:
-                    if (_ioInProgress._type == ioCodeAccess) {
-                        _queueData[_queueWritePosition] = _ioInProgress._data;
+                case t4StatusSet:
+                    if (_io._type == ioCodeAccess) {
+                        _queueData[_queueWritePosition] = _io._data;
                         _queueWritePosition = (_queueWritePosition + 1) & 3;
                         _queueCycle = 1;
+                        ++_queueBytes;
                     }
-
-                    //if (_ioInProgress._type == ioReadMemory || _ioInProgress._type == ioReadPort || _ioInProgress._type == ioInterruptAcknowledge)
+                    _ioLast = _io;
+                    _io._type = ioPassive;
+                    //if (_io._type == ioReadMemory || _io._type == ioReadPort || _io._type == ioInterruptAcknowledge)
                     //    _synchronousDone = true;
-                    _busState = tFirstIdle;
-                    _busReady = false;
+                    nextState = tFirstIdle;
                     break;
                 case tFirstIdle:
-                    _busState = tIdle;
+                    nextState = tSecondIdle;
+                    break;
+                case tSecondIdle:
+                    nextState = tIdle;
                     break;
             }
+            if (nextState == t4 || nextState == tSecondIdle || nextState == tIdle) {
+                int adjustedQueueBytes = _queueBytes + (nextState == t4 && _io._type == ioCodeAccess ? 1 : 0);
+                if (_ioNext._type == ioPassive && adjustedQueueBytes != 4 &&
+                    _prefetching && !_transferStarting && (nextState != tSecondIdle || _ioLast._type != ioCodeAccess || adjustedQueueBytes != 3) &&
+                    _queueWaitCycles == 0) {
+                    _ioNext._type = ioCodeAccess;
+                    _ioNext._address = physicalAddress(1, _ip);
+                    ++_ip;
+                    _ioNext._segment = 1;
+                }
+                if (_ioNext._type != ioPassive) {
+                    _bus.setPassiveOrHalt(_ioNext._type == ioHalt);
+                    _snifferDecoder.setStatus((int)_ioNext._type);
+                    if (nextState == t4)
+                        nextState = t4StatusSet;
+                    else
+                        nextState = tIdleStatusSet;
+                }
+            }
+            if (_busState == t4StatusSet || _busState == tIdleStatusSet) {
+                _io = _ioNext;
+                _ioNext._type = ioPassive;
+                if (_io._type != ioPassive) {
+                    nextState = t1;
+                    _snifferDecoder.setAddress(_io._address);
+                    _bus.startAccess(_io._address,
+                        (int)_io._type);
+                }
+            }
+
+            _busState = nextState;
             ++_cycle;
             --cycles;
         }
@@ -2734,12 +2723,15 @@ private:
             wait(1);
         _transferStarting = false;
         initIO(type, address);
-        _synchronousDone = false;
-        _synchronousStarted = false;
         do {
             wait(1);
-        } while (!_synchronousStarted);  // Done);
-        return _ioInProgress._data;
+        } while (_ioNext._type != ioPassive);
+        //_synchronousDone = false;
+        //_synchronousStarted = false;
+        //do {
+        //    wait(1);
+        //} while (!_synchronousStarted);  // Done);
+        return _io._data;
     }
     void busInit()
     {
@@ -2749,26 +2741,29 @@ private:
     Word busReadWord(IOType type)
     {
         busInit();
-        while (_ioNext._type != ioPassive || !_synchronousDone)
+        while (_ioNext._type != ioPassive) // || !_synchronousDone)
             wait(1);
         _transferStarting = false;
         initIO(type, _address);
-        _synchronousDone = false;
-        _synchronousStarted = false;
+        //_synchronousDone = false;
+        //_synchronousStarted = false;
         do {
             wait(1);
         } while (_ioNext._type != ioPassive);
+        // Now on T1 of the first fetch
         initIO(type, _address + 1);
         do {
             wait(1);
-        } while (!_synchronousDone);
-        Word result = _ioInProgress._data;
-        _synchronousDone = false;
-        _synchronousStarted = false;
+        } while (_busState != t3tWaitLast); //!_synchronousDone);
+        // Now on last T3/Tw of the first fetch
+        Word result = _io._data;
+        //_synchronousDone = false;
+        //_synchronousStarted = false;
         do {
             wait(1);
-        } while (!_synchronousDone);
-        return result | (_ioInProgress._data << 8);
+        } while (_ioNext._type != ioPassive && _busState != t3tWaitLast);
+        // Now on last T3/Tw of the second fetch
+        return result | (_io._data << 8);
     }
     void busWriteWord(IOType type)
     {
@@ -2778,7 +2773,7 @@ private:
         busAccess(type, _address + 1);
         do {
             wait(1);
-        } while (!_synchronousDone);
+        } while (_busState != t4 && _busState != t4StatusSet); //ioNext._type != ioPassive); //!_synchronousDone);
     }
     Byte busReadByte(IOType type)
     {
@@ -2786,7 +2781,7 @@ private:
         Byte r = busAccess(type, _address);
         do {
             wait(1);
-        } while (!_synchronousDone);
+        } while (_ioNext._type != ioPassive && _busState != t3tWaitLast); //!_synchronousDone);
         return r;
     }
     void busWriteByte(IOType type)
@@ -2795,46 +2790,38 @@ private:
         busAccess(type, _address);
         do {
             wait(1);
-        } while (!_synchronousDone);
+        } while (_busState != t4 && _busState != t4StatusSet); //ioNext._type != ioPassive); //!_synchronousDone);
     }
-    Byte queueRead(int offset, bool first = false)
+    Byte queueRead(bool first = false, bool doWait = true)
     {
-        offset = 0;
-        while (_queueBytes <= offset)
+        while (!_queueHasByte)
             wait(1);
-        Byte byte = _queueData[(_queueReadPosition + offset) & 3];
+        Byte byte = _queueData[(_queueReadPosition) & 3];
         _snifferDecoder.queueOperation(first ? 1 : 3);
-        //acknowledgeInstructionByte();
-        //// Always wait at least one cycle so we don't fetch more than one byte
-        //// from the queue per cycle.
-        //wait(1);
+        acknowledgeInstructionByte();
+        if (doWait) {
+            // Wait at least one cycle so we don't fetch more than one byte
+            // from the queue per cycle.
+            wait(1);
+        }
         return byte;
     }
     void acknowledgeInstructionByte()
     {
-        //--_queueBytes;
         _queueReadPosition = (_queueReadPosition + 1) & 3;
         _prefetchedRemove = true;
     }
     Byte fetchInstructionByte()
     {
-        Byte b = queueRead(0);
-        acknowledgeInstructionByte();
-        if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess && _queueWaitCycles == 0)
+        Byte b = queueRead();
+        if (_busState == tFirstIdle && _io._type == ioCodeAccess && _queueWaitCycles == 0)
             ++_queueWaitCycles;
-        //_prefetching = false;
-        wait(1);
-        //_prefetching = true;
         return b;
     }
     Word fetchInstructionWord()
     {
-        Byte low = queueRead(0);
-        acknowledgeInstructionByte();
-        wait(1);
-        Byte high = queueRead(1);
-        acknowledgeInstructionByte();
-        wait(1);
+        Byte low = queueRead();
+        Byte high = queueRead(false, false);
         return (high << 8) | low;
     }
     Word fetchInstructionData()
@@ -2901,17 +2888,13 @@ private:
         if (!_repeating) {
             if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
-            _opcode = queueRead(0, true);
-            acknowledgeInstructionByte();
-            wait(1);
+            _opcode = queueRead(true);
             static const DWord hasModRM[] = {
                 0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
             if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
+                if (_busState == tFirstIdle && _io._type == ioCodeAccess)  // Weird
                     ++_queueWaitCycles;
-                _modRM = queueRead(0);
-                acknowledgeInstructionByte();
-                wait(1);
+                _modRM = queueRead();
                 if ((_modRM & 0xc0) == 0xc0)
                     _useMemory = false;
                 else {
@@ -2922,7 +2905,7 @@ private:
                         _segment = 3;
                     }
                     else {
-                        wait(2);
+                        wait(1);
                         switch (_modRM & 7) {
                             case 0: wait(2); _address = bx() + si(); _segment = 3; break;
                             case 1: wait(3); _address = bx() + di(); _segment = 3; break;
@@ -2981,7 +2964,7 @@ private:
                 if (_aluOperation != 7) {
                     if ((_opcode & 2) == 0) {
                         if (_useMemory) {
-                            wait(3);
+                            wait(4);
                             if (_wordSize)
                                 wait(1);
                         }
@@ -2993,7 +2976,7 @@ private:
                         setReg(_data);
                         wait(1);
                         if (_useMemory) {
-                            wait(1);
+                            wait(3);
                             if (_wordSize)
                                 wait(1);
                         }
@@ -3007,7 +2990,7 @@ private:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
             case 0x24: case 0x25: case 0x2c: case 0x2d:
             case 0x34: case 0x35: case 0x3c: case 0x3d: // alu A, imm
-                if (_busState == tIdle || _busState == tFirstIdle)
+                if (_busState == tIdle || _busState == tIdleStatusSet || _busState == tFirstIdle || _busState == tSecondIdle)
                     _queueWaitCycles += 2;
                 _data = fetchInstructionData();
                 _destination = getAccum();
@@ -3147,19 +3130,16 @@ private:
                 readEA();
                 _destination = _data;
                 if (_useMemory)
-                    wait(2);
+                    wait(4);
                 if (_opcode == 0x81)
                     _source = fetchInstructionWord();
                 else {
                     wait(1);
                     if (_opcode == 0x83)
-                        _source = signExtend(queueRead(0));
+                        _source = signExtend(queueRead());
                     else
-                        _source = queueRead(0) | 0xff00;
-                    acknowledgeInstructionByte();
+                        _source = queueRead() | 0xff00;
                     wait(1);
-                    wait(1);
-                    //acknowledgeInstructionByte();
                 }
                 _aluOperation = modRMReg();
                 doALUOperation();
@@ -3423,11 +3403,11 @@ private:
                 readEA(true);
                 setReg(_data);
                 if (_useMemory)
-                    wait(2);
-                wait(3);
+                    wait(4);
+                wait(2);
                 readEA2();
                 _segmentRegisters[!_wordSize ? 3 : 0] = _data;
-                wait(2);
+                wait(4);
                 break;
             case 0xc6: case 0xc7: // MOV rm, imm
                 if (_useMemory)
@@ -3435,17 +3415,14 @@ private:
                 if (_wordSize)
                     _data = fetchInstructionWord();
                 else {
-                    _data = queueRead(0);
-                    acknowledgeInstructionByte();
+                    _data = queueRead();
                     wait(1);
-                    wait(1);
-                    //acknowledgeInstructionByte();
                 }
                 if (_useMemory) {
-                    if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)  // Weird
-                        _transferStarting = true;
+                    //if (_busState == tFirstIdle && _io._type == ioCodeAccess)  // Weird
+                    //    _transferStarting = true;
                     wait(1);
-                    _transferStarting = true;
+                    //_transferStarting = true;
                     if (!_wordSize)
                         prepareForRead();
                 }
@@ -3461,7 +3438,7 @@ private:
                 {
                     Byte i = fetchInstructionByte();
                     wait(3);
-                    if (_busState == tWait)
+                    if (_busState == t2t3tWaitNotLast)
                         wait(4);
                     interrupt(i);
                 }
@@ -3636,7 +3613,7 @@ private:
                 }
                 else {
                     if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {  // Weird
-                        _transferStarting = true;
+                        //_transferStarting = true;
                         wait(1);
                     }
                     //wait(1);
@@ -3666,7 +3643,7 @@ private:
                 }
                 break;
             case 0xeb: // JMP cb
-                if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+                if (_busState == tFirstIdle && _io._type == ioCodeAccess)
                     _prefetching = false;
                 _data = fetchInstructionByte();
                 jumpShort();
@@ -3682,7 +3659,7 @@ private:
             case 0xf4: // HLT
                 if (!_repeating) {
                     prepareForRead();
-                    if (_busState == t1 || _busState == t3)  // Really weird
+                    if (_busState == t1 || _busState == t3tWaitLast)  // Really weird
                         wait(1);
                     wait(2);
                     _prefetching = false;
@@ -3708,15 +3685,14 @@ private:
                     case 0:
                     case 1:  // TEST
                         wait(2);
+                        if (_useMemory)
+                            wait(2);
                         if (_wordSize)
                             _source = fetchInstructionWord();
                         else {
                             wait(1);
-                            _source = queueRead(0);
-                            acknowledgeInstructionByte();
+                            _source = queueRead();
                             wait(1);
-                            wait(1);
-                            //acknowledgeInstructionByte();
                         }
                         test(_data, _source);
                         if (_useMemory)
@@ -3849,7 +3825,7 @@ private:
                             wait(2);
                             if (_useMemory)
                                 wait(1);
-                            while ((_busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
+                            while ((_busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)
                                 wait(1);
                             if (!_wordSize) {
                                 if (_useMemory)
@@ -3867,7 +3843,7 @@ private:
                             wait(3);
                             if (_useMemory)
                                 wait(1);
-                            //while ((_busState != t4 && _busState != tIdle && _busState != tFirstIdle) || _ioNext._type != ioPassive)
+                            //while ((_busState != t4 && _busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)
                             //    wait(1);
                             Word newIP = _data;
                             readEA2();
@@ -3901,7 +3877,7 @@ private:
     }
     void prepareForRead()  // Not sure why this is necessary
     {
-        if (_busState == tFirstIdle && _ioInProgress._type == ioCodeAccess)
+        if (_busState == tFirstIdle && _io._type == ioCodeAccess)
             wait(1);
     }
     bool interruptPending()
@@ -4112,9 +4088,9 @@ private:
     {
         _prefetching = false;
         wait(1); //3);
-        while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
+        while ((_busState != tIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)  // Weird
             wait(1);
-        wait(4); //2);
+        wait(3); //2);
         Word oldIP = ip();
         setIP(oldIP + delta);
         return oldIP;
@@ -4146,7 +4122,7 @@ private:
         wait(4); //3); //5);
         push2(oldCS);
 
-        while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
+        while ((_busState != tIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)  // Weird
             wait(1);
         wait(3); //2);
         Word oldIP = ip();
@@ -4401,12 +4377,14 @@ private:
     enum BusState
     {
         t1,
-        t2,
-        t3,
-        tWait,
+        t2t3tWaitNotLast,
+        t3tWaitLast,
         t4,
+        t4StatusSet,
         tFirstIdle,
-        tIdle
+        tIdle,
+        tIdleStatusSet,
+        tSecondIdle
     };
     
     bool _logging;
@@ -4464,7 +4442,6 @@ private:
     bool _nmiRequested;
 
     BusState _busState;
-    bool _statusSet;
     bool _prefetching;
     bool _transferStarting;
 
@@ -4476,14 +4453,14 @@ private:
         int _segment;
     };
 
-    IOInformation _ioInProgress;
+    IOInformation _io;
     IOInformation _ioNext;
-    bool _synchronousDone;
-    bool _synchronousStarted;
+    IOInformation _ioLast;
+    //bool _synchronousDone;
+    //bool _synchronousStarted;
 
     int _segmentOverride;
 
-    bool _busReady;
     int _queueCycle;
 
     SnifferDecoder _snifferDecoder;
@@ -4991,11 +4968,17 @@ public:
                 if (i % 100 == 99)
                     printf(".");
                 int cycles = emulator.expected(_tests[i]);
-                _tests[i].setCycles(cycles);
+                Test t = _tests[i];
+                Instruction instruction = t.instruction(0);
+
+                if (instruction.opcode() == 0x00 && instruction.modrm() == 0x44)
+                    ++cycles;
+
+                t.setCycles(cycles);
                 cycleCounts[i] = emulator.instructionCycles();
-                int cached = _cache.getTime(_tests[i]);
+                int cached = _cache.getTime(t);
                 if (cycles != cached) {
-                    int nl = totalLength + _tests[i].length();
+                    int nl = totalLength + t.length();
                     if (nl > availableLength) {
                         newNextTest = i;
                         break;
