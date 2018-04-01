@@ -115,6 +115,11 @@ doneAdjust:
 
 testFailed:
   push ax
+
+  cmp byte[si+3],0
+  jne noStubAdjustCount
+  add ax,212
+noStubAdjustCount:
   mov [countedCycles],ax
 
   mov ax,[testCaseIndex]

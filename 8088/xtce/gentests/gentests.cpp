@@ -1147,6 +1147,11 @@ public:
         for (int i = 0; i < 3; ++i)
             _counters[i].reset();
     }
+    void stubInit()
+    {
+        for (int i = 0; i < 3; ++i)
+            _counters[i].stubInit();
+    }
     void write(int address, Byte data)
     {
         if (address == 3) {
@@ -1196,6 +1201,17 @@ private:
             _output = true;
             _control = 0x30;
             _state = stateWaitingForCount;
+        }
+        void stubInit()
+        {
+            _value = 0xffff;
+            _count = 0xffff;
+            _firstByte = true;
+            _latched = false;
+            _output = true;
+            _control = 0x34;
+            _state = stateCounting;
+            _gate = true;
         }
         void write(Byte data)
         {
@@ -1525,6 +1541,13 @@ public:
         _priority = 0;
         _rotateInAutomaticEOIMode = false;
         _initializationState = initializationStateNone;
+    }
+    void stubInit()
+    {
+        _icw1 = 0x13;
+        _icw2 = 0x08;
+        _icw4 = 0x0f;
+        _imr = 0xbc;
     }
     void write(int address, Byte data)
     {
@@ -2218,6 +2241,13 @@ public:
         _passiveOrHalt = true;
         _pitWrite = false;
     }
+    void stubInit()
+    {
+        _pic.stubInit();
+        _pit.stubInit();
+        _pitPhase = 2;
+        _lastCounter0Output = true;
+    }
     void startAccess(DWord address, int type)
     {
         _address = address;
@@ -2506,6 +2536,8 @@ public:
 private:
     void run()
     {
+        _bus.reset();
+
         _cycle = 0;
         ax() = 0;
         cx() = 0;
@@ -2520,21 +2552,28 @@ private:
         ss() = testSegment;
         ds() = testSegment;
         _flags = 0;
+        Word seg = testSegment + 0x1000;
 
         if (_test.refreshPeriod() == 0) {
-            Byte* r = _bus.ram() + (testSegment << 4);
+            _bus.stubInit();
+            Byte* r = _bus.ram() + (seg << 4);
             Byte* stopP = _test.outputCode(r);
             _stopIP = stopP - (r + 2);
             _logSkip = 1;
+            es() = seg;
+            cs() = seg;
+            ss() = seg;
+            ds() = seg;
         }
         else {
             Byte* ram = _bus.ram() + (testSegment << 4);
             for (int i = 0; i < _stub.count(); ++i)
                 ram[i] = _stub[i];
             _stopIP = 0xcd;
-            Byte* r = _bus.ram() + ((testSegment + 0x1000) << 4);
+            Byte* r = _bus.ram() + (seg << 4);
             Byte* stopP = _test.outputCode(r);
             _logSkip = 1041 + 92 + 17;
+            seg = testSegment;
         }
 
         _timeIP1 = _test.startIP();
@@ -2562,7 +2601,6 @@ private:
         _lock = false;
         _completed = true;
         _repeating = false;
-        _bus.reset();
 
         Word realIP;
         do {
@@ -2572,7 +2610,7 @@ private:
                 --realIP;
             if ((_busState == t1 || _busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet) && _io._type == ioCodeAccess)
                 --realIP;
-        } while ((realIP != _stopIP || cs() != testSegment) && _cycle < 4096 /* 2048*/);
+        } while ((realIP != _stopIP || cs() != seg) && _cycle < 4096 /* 2048*/);
         _cycle2 = _cycle;
     }
     void wait(int cycles)
@@ -2713,7 +2751,7 @@ private:
         _ioNext._data = static_cast<Byte>(_data);
         _ioNext._type = type;
     }
-    Byte busAccess(IOType type, Word address)
+    void busAccess(IOType type, Word address)
     {
         while (_ioNext._type != ioPassive)
             wait(1);
@@ -2722,16 +2760,15 @@ private:
         do {
             wait(1);
         } while (_ioNext._type != ioPassive);
-        return _io._data;
     }
-    void busInit()
+    void busInit(int initialDelay = 2)
     {
         _transferStarting = true;
-        wait(2);
+        wait(initialDelay);
     }
-    Word busReadWord(IOType type)
+    Word busReadWord(IOType type, int initialDelay = 2)
     {
-        busInit();
+        busInit(initialDelay);
         while (_ioNext._type != ioPassive)
             wait(1);
         _transferStarting = false;
@@ -2762,14 +2799,14 @@ private:
             wait(1);
         } while (_busState != t4 && _busState != t4StatusSet);
     }
-    Byte busReadByte(IOType type)
+    Byte busReadByte(IOType type, int initialDelay = 2)
     {
-        busInit();
-        Byte r = busAccess(type, _address);
+        busInit(initialDelay);
+        busAccess(type, _address);
         do {
             wait(1);
-        } while (_ioNext._type != ioPassive && _busState != t3tWaitLast);
-        return r;
+        } while (_ioNext._type != ioPassive || _busState != t3tWaitLast);
+        return _io._data;
     }
     void busWriteByte(IOType type)
     {
@@ -2817,12 +2854,12 @@ private:
             return fetchInstructionWord();
         return fetchInstructionByte();
     }
-    void busRead(IOType type = ioReadMemory)
+    void busRead(IOType type = ioReadMemory, int initialDelay = 2)
     {
         if (_wordSize)
-            _data = busReadWord(type);
+            _data = busReadWord(type, initialDelay);
         else
-            _data = busReadByte(type) | 0xff00;
+            _data = busReadByte(type, initialDelay) | 0xff00;
     }
     Word readByteRegister(int n)
     {
@@ -2877,7 +2914,7 @@ private:
                 _cycle1 = _cycle;
             _opcode = queueRead(true, false);
             bool fastInstruction = false;
-            if ((_opcode & 0xe7) == 0x07 || (_opcode & 0xf8) == 0x58)  // POP
+            if ((_opcode & 0xe7) == 0x07 || (_opcode & 0xf8) == 0x58 || _opcode == 0x9d)  // POP
                 fastInstruction = true;
             if (!fastInstruction) {
                 wait(1);
@@ -2886,10 +2923,14 @@ private:
                 if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
                     if (_busState == tFirstIdle && _io._type == ioCodeAccess)  // Weird
                         ++_queueWaitCycles;
-                    _modRM = queueRead();
+                    _modRM = queueRead(false, false);
+                    if (_opcode != 0x8f)
+                        wait(1);
                     if ((_modRM & 0xc0) == 0xc0)
                         _useMemory = false;
                     else {
+                        if (_opcode == 0x8f)
+                            wait(1);
                         _useMemory = true;
                         if ((_modRM & 0xc7) == 0x06) {
                             wait(1);
@@ -2957,11 +2998,8 @@ private:
                 doALUOperation();
                 if (_aluOperation != 7) {
                     if ((_opcode & 2) == 0) {
-                        if (_useMemory) {
+                        if (_useMemory)
                             wait(3);
-                            if (!_wordSize)
-                                wait(1);
-                        }
                         writeEA(_data);
                         if (!_useMemory)
                             wait(1);
@@ -2969,21 +3007,14 @@ private:
                     else {
                         setReg(_data);
                         wait(1);
-                        if (_useMemory) {
+                        if (_useMemory)
                             wait(2);
-                            if (!_wordSize)
-                                wait(1);
-                        }
                     }
                 }
                 else {
                     wait(1);
-                    if (_useMemory) {
+                    if (_useMemory)
                         wait(2);
-                        if (!_wordSize)
-                            wait(1);
-                    }
-
                 }
                 break;
             case 0x04: case 0x05: case 0x0c: case 0x0d:
@@ -3129,9 +3160,12 @@ private:
                 readEA();
                 _destination = _data;
                 if (_useMemory)
-                    wait(4);
-                if (_opcode == 0x81)
+                    wait(3);
+                if (_opcode == 0x81) {
+                    wait(1);
                     _source = fetchInstructionWord();
+                    wait(1);
+                }
                 else {
                     wait(1);
                     if (_opcode == 0x83)
@@ -3143,8 +3177,8 @@ private:
                 _aluOperation = modRMReg();
                 doALUOperation();
                 if (_aluOperation != 7) {
-                    if (_useMemory)
-                        wait(2);
+                    //if (_useMemory)
+                    //    wait(1);
                     writeEA(_data);
                 }
                 else {
@@ -3156,7 +3190,7 @@ private:
                 readEA();
                 test(_data, getReg());
                 if (_useMemory)
-                    wait(2);
+                    wait(4);
                 wait(1);
                 break;
             case 0x86: case 0x87: // XCHG rm, reg
@@ -3178,7 +3212,7 @@ private:
                 readEA();
                 setReg(_data);
                 if (_useMemory)
-                    wait(2);
+                    wait(4);
                 break;
             case 0x8c: // MOV rmw, segreg
                 _wordSize = true;
@@ -3189,24 +3223,24 @@ private:
             case 0x8d: // LEA rw, rmw
                 setReg(_address);
                 if (_useMemory)
-                    wait(2);
+                    wait(4);
                 break;
             case 0x8e: // MOV segreg, rmw
                 _wordSize = true;
                 readEA();
                 _segmentRegisters[modRMReg() & 3] = _data;
                 if (_useMemory)
-                    wait(2);
+                    wait(4);
                 break;
             case 0x8f: // POP rmw
                 if (_useMemory)
-                    wait(2);
-                wait(1);
+                    wait(3);
+                //wait(1);
                 _source = _address;
                 _data = pop2();  //Don't know why this doesn't do prepareForRead()
                 _address = _source;
                 wait(1);
-                if (_useMemory)
+                //if (_useMemory)
                     wait(2);
                 writeEA(_data);
                 break;
@@ -3232,12 +3266,13 @@ private:
             case 0x9a: // CALL cd
                 {
                     Word newIP = fetchInstructionWord();
+                    wait(1);
                     Word newCS = fetchInstructionWord();
                     _prefetching = false;
-                    wait(2);
+                    wait(3);
                     _wordSize = true;
                     push(cs());
-                    wait(5);
+                    wait(4);
                     Word oldIP = ip();
                     cs() = newCS;
                     setIP(newIP);
@@ -3246,13 +3281,13 @@ private:
                 }
                 break;
             case 0x9b: // WAIT
-                if (!_repeating)
-                    wait(2);
+                //if (!_repeating)
+                //    wait(3); //1); //4); //2);
                 wait(5);
                 if (interruptPending()) {
-                    wait(7);
+                    wait(8);
                     _snifferDecoder.queueOperation(2);
-                    checkInterrupts2(3);
+                    checkInterrupts2(2);
                 }
                 else {
                     _repeating = true;
@@ -3274,8 +3309,10 @@ private:
                 ah() = _flags & 0xd7;
                 break;
             case 0xa0: case 0xa1: // MOV A, [iw]
+                _transferStarting = true;
                 _address = fetchInstructionWord();
-                busRead();
+                //wait(1);
+                busRead(ioReadMemory, 1);
                 setAccum();
                 break;
             case 0xa2: case 0xa3: // MOV [iw], A
@@ -3598,7 +3635,7 @@ private:
             case 0xec: case 0xed: case 0xee: case 0xef: // INOUT
                 if ((_opcode & 8) == 0) {
                     _data = fetchInstructionByte();
-                    wait(1);
+                    //wait(1);
                 }
                 else
                     _data = dx();
@@ -3611,10 +3648,10 @@ private:
                     setAccum();
                 }
                 else {
-                    if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {  // Weird
-                        //_transferStarting = true;
-                        wait(1);
-                    }
+                    //if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {  // Weird
+                    //    //_transferStarting = true;
+                    //    wait(1);
+                    //}
                     //wait(1);
                     _data = getAccum();
                     busWrite(ioWritePort);
@@ -3634,6 +3671,7 @@ private:
             case 0xea: // JMP cp
                 {
                     Word newIP = fetchInstructionWord();
+                    wait(1);
                     Word newCS = fetchInstructionWord();
                     _prefetching = false;
                     wait(5);
@@ -3686,7 +3724,7 @@ private:
                     case 1:  // TEST
                         wait(2);
                         if (_useMemory)
-                            wait(2);
+                            wait(1);
                         if (_wordSize)
                             _source = fetchInstructionWord();
                         else {
@@ -3905,7 +3943,11 @@ private:
         _lock = false;
         wait(w);  // Some of these may actually be in the PIT or PIC
         busAccess(ioInterruptAcknowledge, 0);
-        Byte i = busAccess(ioInterruptAcknowledge, 0);
+        busAccess(ioInterruptAcknowledge, 0);
+        do {
+            wait(1);
+        } while (_ioNext._type != ioPassive || _busState != t3tWaitLast);
+        Byte i = _io._data;
         wait(5);
         interrupt(i);
     }
@@ -4109,7 +4151,7 @@ private:
         Word oldCS = cs();
         cs() = 0;
         Word newIP = busReadWord(ioReadMemory);
-        wait(2); //1);
+        wait(1);
         _address += 2;
         Word newCS = busReadWord(ioReadMemory);
         _prefetching = false;
