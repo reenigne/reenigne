@@ -2230,7 +2230,7 @@ public:
         _pic.reset();
         _pit.reset();
         _ppi.reset();
-        _pitPhase = 3; //2;
+        _pitPhase = 2; //3; //2;
         _lastCounter0Output = false;
         _lastCounter1Output = true;
         _counter2Output = false;
@@ -2534,6 +2534,17 @@ public:
     int instructionCycles() { return _cycle2 - _cycle1; }
     void setStub(Array<Byte> stub) { _stub = stub; }
 private:
+    Word getRealIP()
+    {
+        Word r = _ip - _queueBytes;
+        if (_busState == t4StatusSet || _busState == tIdleStatusSet)
+            --r;
+        if ((_busState == t1 || _busState == t2t3tWaitNotLast ||
+            _busState == t3tWaitLast || _busState == t4 ||
+            _busState == t4StatusSet) && _io._type == ioCodeAccess)
+            --r;
+        return r;
+    }
     void run()
     {
         _bus.reset();
@@ -2556,6 +2567,17 @@ private:
 
         if (_test.refreshPeriod() == 0) {
             _bus.stubInit();
+            Byte* ram = _bus.ram();
+            ram[3*4 + 0] = 0x00;  // int 3 handler at 0x400
+            ram[3*4 + 1] = 0x04;
+            ram[3*4 + 2] = 0x00;
+            ram[3*4 + 3] = 0x00;
+            ram[0x400] = 0x83;
+            ram[0x401] = 0xc4;
+            ram[0x402] = 0x04;  // ADD SP,+4
+            ram[0x403] = 0x9d;  // POPF
+            ram[0x404] = 0xcb;  // RETF
+
             Byte* r = _bus.ram() + (seg << 4);
             Byte* stopP = _test.outputCode(r);
             _stopIP = stopP - (r + 2);
@@ -2572,7 +2594,7 @@ private:
             _stopIP = 0xcd;
             Byte* r = _bus.ram() + (seg << 4);
             Byte* stopP = _test.outputCode(r);
-            _logSkip = 1041 + 92 + 17;
+            _logSkip = 1041 + 92;// + 17;
             seg = testSegment;
         }
 
@@ -2606,12 +2628,7 @@ private:
         Word realIP;
         do {
             executeOneInstruction();
-            realIP = _ip - _queueBytes;
-            if (_busState == t4StatusSet || _busState == tIdleStatusSet)
-                --realIP;
-            if ((_busState == t1 || _busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet) && _io._type == ioCodeAccess)
-                --realIP;
-        } while ((realIP != _stopIP || cs() != seg) && _cycle < 4096 /* 2048*/);
+        } while ((getRealIP() != _stopIP || cs() != seg) && _cycle < 4096 /* 2048*/);
         _cycle2 = _cycle;
     }
     void wait(int cycles)
@@ -2912,11 +2929,18 @@ private:
         else
             _wordRegisters[modRMReg2()] = _data;
     }
+    void waitForBusIdle()
+    {
+        while ((_busState != tIdle && _busState != tFirstIdle &&
+            _busState != tSecondIdle && _busState != t4 /*&&
+            _busState != t3tWaitLast*/) || _ioNext._type != ioPassive)
+            wait(1);
+    }
 
     void executeOneInstruction()
     {
         if (!_repeating) {
-            if (static_cast<UInt16>(_ip - _queueBytes) == _timeIP1 && cs() == testSegment + 0x1000)
+            if (getRealIP() == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
             _opcode = queueRead(true, false);
             bool fastInstruction = false;
@@ -3343,12 +3367,17 @@ private:
                 if (!_repeating) {
                     if (_busState == tFirstIdle)  // Weird
                         wait(1);
+                    if ((_opcode & 8) == 0 && _rep != 0)
+                        wait(1);
                 }
-                prepareForRead();
                 if (repAction()) {
                     wait(1);
+                    if ((_opcode & 8) != 0)
+                        wait(1);
                     break;
-                }
+                }             
+                if (_rep != 0 && (_opcode & 8) != 0)
+                    wait(1);
                 lods();
                 if ((_opcode & 8) == 0) {
                     wait(1);
@@ -3360,21 +3389,20 @@ private:
                 }
                 if (_rep == 0) {
                     wait(3);
-                    if ((_opcode & 8) != 0)
-                        wait(1);
+                        if ((_opcode & 8) != 0)
+                            wait(1);
                     break;
                 }
                 _repeating = true;
                 break;
             case 0xa6: case 0xa7: // CMPS
             case 0xae: case 0xaf: // SCAS
-                //if (!_repeating) {
-                //    if (_busState == tFirstIdle)  // Weird
-                //        wait(1);
-                //}
-                // prepareForRead();  // Don't know why this doesn't happen here.
-                if (repAction())
+                if (repAction()) {
+                    wait(2); //1);
                     break;
+                }
+                if (_rep != 0)
+                    wait(1);
                 wait(1);
                 _destination = getAccum();
                 if ((_opcode & 8) == 0) {
@@ -3396,7 +3424,7 @@ private:
                 }
                 if (zf() == (_rep == 1)) {
                     _completed = true;
-                    wait(3);
+                    wait(4); //3);
                     break;
                 }
                 _repeating = true;
@@ -3410,12 +3438,16 @@ private:
                 if (!_repeating) {
                     if (_busState == tFirstIdle)  // Weird
                         wait(1);
+                    if (_rep != 0)
+                        wait(1);
                 }
-                prepareForRead();
+                //prepareForRead();
                 if (repAction()) {
                     wait(1);
                     break;
                 }
+                //if (_rep != 0)
+                //    wait(1);
                 _data = ax();
                 stos();
                 if (_rep == 0) {
@@ -3480,30 +3512,18 @@ private:
                     wait(2);
                 if (_wordSize)
                     _data = fetchInstructionWord();
-                else {
+                else
                     _data = queueRead();
-                    //wait(1);
-                }
                 if (_useMemory) {
                     if (!_wordSize) {
-                        if (_busState != t3tWaitLast) {
+                        if (_busState != t3tWaitLast)
                             _transferStarting = true;
-                            //wait(1);
-                        }
                         if (_busState == t4)
                             wait(1);
-                        //if (_busState == tFirstIdle && _io._type == ioCodeAccess)  // Weird
-                        //    _transferStarting = true;
-                        //if (!_wordSize)
                         wait(1);
                     }
-                    else {
+                    else
                         wait(1);
-                    }
-
-                    //_transferStarting = true;
-                    //if (!_wordSize)
-                    //    prepareForRead();
                 }
                 else
                     wait(1);
@@ -3516,22 +3536,22 @@ private:
             case 0xcd: // INT
                 {
                     Byte i = fetchInstructionByte();
-                    wait(2); //3);
-                    //if (_busState == t2t3tWaitNotLast)
-                    //    wait(4);
+                    _transferStarting = true;
+                    wait(2);
+                    //waitForBusIdle();
                     interrupt(i);
                 }
                 break;
             case 0xce: // INTO
                 wait(2);
                 if (of()) {
-                    wait(5);
+                    wait(4);
                     interrupt(4);
                 }
                 break;
             case 0xcf: // IRET
                 {
-                    wait(1); //2);
+                    wait(1);
                     _prefetching = false;
                     Word newIP = pop();
                     wait(3);
@@ -3647,6 +3667,7 @@ private:
                 wait(2);
                 _segment = 3;
                 al() = busReadByte(ioReadMemory);
+                wait(1);
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
@@ -3679,10 +3700,8 @@ private:
                 break;
             case 0xe4: case 0xe5: case 0xe6: case 0xe7:
             case 0xec: case 0xed: case 0xee: case 0xef: // INOUT
-                if ((_opcode & 8) == 0) {
+                if ((_opcode & 8) == 0)
                     _data = fetchInstructionByte();
-                    //wait(1);
-                }
                 else
                     _data = dx();
                 _segment = 7;
@@ -3698,10 +3717,6 @@ private:
                     setAccum();
                 }
                 else {
-                    //if ((_opcode & 8) != 0 && _queueWaitCycles == 2) {  // Weird
-                    //    //_transferStarting = true;
-                    //    wait(1);
-                    //}
                     if ((_opcode & 8) == 0 || _busState == tFirstIdle)
                         wait(1);
                     _data = getAccum();
@@ -3731,9 +3746,6 @@ private:
                 }
                 break;
             case 0xeb: // JMP cb
-                //if (_busState == tFirstIdle && _io._type == ioCodeAccess)
-                //    _prefetching = false;
-                //_data = queueRead(false, false);
                 _data = fetchInstructionByte();
                 jumpShort();
                 wait(1);
@@ -3749,11 +3761,10 @@ private:
             case 0xf4: // HLT
                 if (!_repeating) {
                     prepareForRead();
-                    if (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle) //1 || _busState == t3tWaitLast)  // Really weird
+                    if (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle)  // Really weird
                         wait(1);
-                    //wait(2);
                     _prefetching = false;
-                    wait(3); //4);
+                    wait(3);
                 }
                 wait(2);
                 if (interruptPending()) {
@@ -3770,7 +3781,6 @@ private:
                 break;
             case 0xf6: case 0xf7: // math
                 readEA();
-                //wait(1);
                 switch (modRMReg()) {
                     case 0:
                     case 1:  // TEST
@@ -3779,10 +3789,8 @@ private:
                             wait(1);
                         if (_wordSize)
                             _source = fetchInstructionWord();
-                        else {
-                            //wait(1);
+                        else
                             _source = queueRead();
-                        }
                         wait(1);
                         test(_data, _source);
                         if (_useMemory)
@@ -3826,10 +3834,8 @@ private:
                         if (_useMemory)
                             wait(1);
                         _source = _data;
-                        if (div(al(), ah())) {
-                            if (_useMemory)
-                                wait(1);
-                        }
+                        if (div(al(), ah()))
+                            wait(1);
                         break;
                 }
                 break;
@@ -3868,24 +3874,12 @@ private:
                         {
                             wait(1);
                             _prefetching = false;
-                            //if (_useMemory) {
-                            //    wait(1);
-                            //    if (_busState == t1)
-                            //        wait(2);
-                            //    wait(5);
-                            //}
-                            //else {
-                            //    wait(1);
-                            //    if (_busState == t1)
-                            //        wait(3);
-                            //    wait(4);
-                            //}
                             wait(4);
                             if (_useMemory)
                                 wait(1);
                             while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
                                 wait(1);
-                            wait(1); //2);
+                            wait(1);
 
                             if (!_wordSize) {
                                 if (_useMemory)
@@ -3913,20 +3907,15 @@ private:
 
                             wait(1);
                             _prefetching = false;
-                            if (_useMemory) {
+                            wait(1);
+                            if (_useMemory)
                                 wait(1);
-                                if (_busState == t1)
-                                    wait(3);
-                                wait(2);
-                                //while (_busState != tIdle || _ioNext._type != ioPassive)  // Weird
-                                //    wait(1);
-                            }
-                            else {
-                                wait(2);
-                            }
+                            while ((_busState != tIdle && _busState != tSecondIdle && _busState != tFirstIdle && _busState != tIdleStatusSet) || _ioNext._type != ioPassive)  // Weird
+                                wait(1);
+                            wait(1);
 
                             push2(cs());
-                            wait(4); //5);
+                            wait(4);
                             Word oldIP = ip();
                             cs() = newCS;
                             setIP(newIP);
@@ -3954,30 +3943,21 @@ private:
                         break;
                     case 5:  // JMP rmd
                         {
-                            wait(1);
+                            wait(2);
                             _prefetching = false;
-
-                            if (_useMemory) {
+                            wait(1);
+                            if (_useMemory)
                                 wait(1);
-                                if (_busState == t1)
-                                    wait(1);
-                                wait(2);
-                                //while ((_busState != t4 && _busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)
-                                //    wait(1);
-                            }
-                            else {
-                                wait(1);
-                            }
+                            waitForBusIdle();
 
                             Word newIP = _data;
                             readEA2();
                             if (!_wordSize)
                                 _data |= 0xff00;
                             Word newCS = _data;
-                            wait(1); //2);
+                            wait(1);
                             cs() = newCS;
                             setIP(newIP);
-                            //wait(1);
                         }
                         break;
                     case 6:  // PUSH rm
@@ -4289,14 +4269,15 @@ private:
             t = 0;
         }
         if (t == 0) {
-            wait(2);
+            //if (!_repeating)
+                wait(1);
             _completed = true;
             _repeating = false;
             return true;
         }
         --cx();
         _completed = false;
-        wait(3);
+        wait(2);
         if (!_repeating)
             wait(2);
         return false;
