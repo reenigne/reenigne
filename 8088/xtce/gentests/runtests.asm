@@ -92,7 +92,7 @@ notDone:
   mov si,[testCaseOffset]
   cmp byte[si+3],0
   je adjustNoStub
-  sub ax,4725-92 +12 - 30  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4725-92 +12 - 30 + 2  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   jmp doneAdjust
 adjustNoStub:
   sub ax,4615 + 2095 ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
