@@ -2256,7 +2256,6 @@ public:
     }
     void wait()
     {
-        ++_cycle;
         ++_pitPhase;
         if (_pitPhase == 4) {
             _pitPhase = 0;
@@ -2328,8 +2327,9 @@ public:
             _dmaState == sWait || _dmaState == s4 || _dmaState == sDelayedT1 ||
             _dmaState == sDelayedT2 /*|| _dmaState == sDelayedT3*/)
             return false;
+        ++_cycle;
         if (_type == 1 || _type == 2)  // Read port, write port
-            return _cycle > 2;  // System board adds a wait state for onboard IO devices
+            return _cycle > 1;  // System board adds a wait state for onboard IO devices
         return true;
     }
     void write(Byte data)
@@ -2591,7 +2591,7 @@ private:
             Byte* ram = _bus.ram() + (testSegment << 4);
             for (int i = 0; i < _stub.count(); ++i)
                 ram[i] = _stub[i];
-            _stopIP = 0xcf;
+            _stopIP = 0xd1;
             Byte* r = _bus.ram() + (seg << 4);
             Byte* stopP = _test.outputCode(r);
             _logSkip = 1041 + 92;// + 17;
@@ -2773,14 +2773,16 @@ private:
             wait(1);
         } while (_ioNext._type != ioPassive);
     }
-    void busInit()
+    void busInit(bool initDelay = true)
     {
-        _transferStarting = true;
-        wait(2);
+        if (initDelay) {
+            _transferStarting = true;
+            wait(2);
+        }
     }
-    Word busReadWord(IOType type)
+    Word busReadWord(IOType type, bool initDelay = true)
     {
-        busInit();
+        busInit(initDelay);
         while (_ioNext._type != ioPassive)
             wait(1);
         _transferStarting = false;
@@ -2801,9 +2803,9 @@ private:
         // Now on last T3/Tw of the second fetch
         return result | (_io._data << 8);
     }
-    void busWriteWord(IOType type)
+    void busWriteWord(IOType type, bool initDelay = true)
     {
-        busInit();
+        busInit(initDelay);
         busAccess(type, _address);
         _data >>= 8;
         busAccess(type, _address + 1);
@@ -2811,18 +2813,18 @@ private:
             wait(1);
         } while (_busState != t3tWaitLast);
     }
-    Byte busReadByte(IOType type)
+    Byte busReadByte(IOType type, bool initDelay = true)
     {
-        busInit();
+        busInit(initDelay);
         busAccess(type, _address);
         do {
             wait(1);
         } while (_ioNext._type != ioPassive || _busState != t3tWaitLast);
         return _io._data;
     }
-    void busWriteByte(IOType type)
+    void busWriteByte(IOType type, bool initDelay = true)
     {
-        busInit();
+        busInit(initDelay);
         busAccess(type, _address);
         do {
             wait(1);
@@ -2864,12 +2866,12 @@ private:
             return fetchInstructionWord();
         return fetchInstructionByte();
     }
-    void busRead(IOType type = ioReadMemory)
+    void busRead(IOType type = ioReadMemory, bool initDelay = true)
     {
         if (_wordSize)
-            _data = busReadWord(type);
+            _data = busReadWord(type, initDelay);
         else
-            _data = busReadByte(type) | 0xff00;
+            _data = busReadByte(type, initDelay) | 0xff00;
     }
     Word readByteRegister(int n)
     {
@@ -2878,10 +2880,10 @@ private:
             r = (r >> 8) + (r << 8);
         return r;
     }
-    void readEA(bool memoryOnly = false)
+    void readEA(bool memoryOnly = false, bool initDelay = true)
     {
         if (_useMemory) {
-            busRead();
+            busRead(ioReadMemory, initDelay);
             return;
         }
         if (!memoryOnly) {
@@ -2896,19 +2898,18 @@ private:
         _address += 2;
         busRead();
     }
-    void busWrite(IOType type = ioWriteMemory)
+    void busWrite(IOType type = ioWriteMemory, bool initDelay = true)
     {
         if (_wordSize)
-            busWriteWord(type);
+            busWriteWord(type, initDelay);
         else
-            busWriteByte(type);
+            busWriteByte(type, initDelay);
     }
-    void writeEA(Word data, int w = 0)
+    void writeEA(Word data, bool initDelay = true)
     {
         _data = data;
-        wait(w);
         if (_useMemory) {
-            busWrite();
+            busWrite(ioWriteMemory, initDelay);
             return;
         }
         if (!_wordSize)
@@ -3000,9 +3001,17 @@ private:
             case 0x28: case 0x29: case 0x2a: case 0x2b:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
-                //if ((_modRM & 0xc7) == 0x06)
-                //    prepareForAccess();
-                readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 _aluOperation = (_opcode >> 3) & 7;
                 if ((_opcode & 2) == 0) {
                     _destination = _data;
@@ -3018,10 +3027,8 @@ private:
                 doALUOperation();
                 if (_aluOperation != 7) {
                     if ((_opcode & 2) == 0) {
-                        if (_useMemory) {
-                            //wait(2);
+                        if (_useMemory)
                             prepareForAccess();
-                        }
                         writeEA(_data);
                         if (!_useMemory)
                             wait(1);
@@ -3173,7 +3180,17 @@ private:
                 }
                 break;
             case 0x80: case 0x81: case 0x82: case 0x83: // alu rm, imm
-                readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 _destination = _data;
                 if (_useMemory)
                     wait(3);
@@ -3193,37 +3210,109 @@ private:
                 wait(1);
                 _aluOperation = modRMReg();
                 doALUOperation();
-                if (_aluOperation != 7)
-                    writeEA(_data);
+                if (_aluOperation != 7) {
+                    if (_useMemory) {
+                        wait(1);
+                        if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                            _transferStarting = true;
+                            wait(1);
+                        }
+                        else {
+                            _transferStarting = true;
+                            wait(1);
+                            waitForBusIdle();
+                            wait(1);
+                        }
+                    }
+                    writeEA(_data, false);
+                }
                 else {
                     if (_useMemory)
                         wait(1);
                 }
                 break;
             case 0x84: case 0x85: // TEST rm, reg
-                readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 test(_data, getReg());
                 if (_useMemory)
                     wait(2); //4);
                 wait(2);
                 break;
             case 0x86: case 0x87: // XCHG rm, reg
-                readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 _source = getReg();
                 setReg(_data);
                 wait(3);
                 if (_useMemory)
-                    wait(3);
-                writeEA(_source);
+                    wait(2); //3);
+
+                if (_useMemory) {
+                    wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+                writeEA(_source, false);
                 break;
             case 0x88: case 0x89: // MOV rm, reg
                 wait(1);
                 if (_useMemory)
-                    wait(3);
-                writeEA(getReg());
+                    wait(2); //3);
+
+                if (_useMemory) {
+                    wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+                writeEA(getReg(), false);
                 break;
             case 0x8a: case 0x8b: // MOV reg, rm
-                readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 setReg(_data);
                 wait(1);
                 if (_useMemory)
@@ -3233,8 +3322,22 @@ private:
                 _wordSize = true;
                 wait(1);
                 if (_useMemory)
-                    wait(2);
-                writeEA(_segmentRegisters[modRMReg() & 3]);
+                    wait(1); //2);
+
+                if (_useMemory) {
+                    wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+                writeEA(_segmentRegisters[modRMReg() & 3], false);
                 break;
             case 0x8d: // LEA rw, rmw
                 setReg(_address);
@@ -3255,10 +3358,37 @@ private:
                     wait(2);
                 wait(1);
                 _source = _address;
-                _data = pop2();
+
+                //if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                //}
+                //if (_useMemory)
+                    wait(1); //2);
+
+                _data = pop2(false);
                 _address = _source;
-                wait(3);
-                writeEA(_data);
+                wait(2); //3);
+
+                if (_useMemory) {
+                    wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+                writeEA(_data, false);
                 break;
             case 0x90: case 0x91: case 0x92: case 0x93:
             case 0x94: case 0x95: case 0x96: case 0x97: // XCHG AX, rw
@@ -3690,10 +3820,27 @@ private:
                     setAccum();
                 }
                 else {
-                    if ((_opcode & 8) == 0 || _busState == tFirstIdle)
-                        wait(1);
+                    if ((_opcode & 8) == 0) {
+                        if (_busState == t4StatusSet || _busState == t1 || _busState == t3tWaitLast || _busState == tSecondIdle || _busState == tIdleStatusSet) {
+                            wait(1);
+                            _transferStarting = true;
+                            wait(2);
+                        }
+                        else {
+                            _transferStarting = true;
+                            waitForBusIdle();
+                            wait(1);
+                        }
+                    }
+                    else {
+                        if (_busState == tFirstIdle)
+                            wait(1);
+                        _transferStarting = true;
+                        wait(2);
+                    }
+
                     _data = getAccum();
-                    busWrite(ioWritePort);
+                    busWrite(ioWritePort, false);
                 }
                 break;
             case 0xe8: // CALL cw
@@ -4278,12 +4425,12 @@ private:
             wait(1);
         return pop2();
     }
-    Word pop2()
+    Word pop2(bool initDelay = true)
     {
         _address = sp();
         sp() += 2;
         _segment = 2;
-        return busReadWord(ioReadMemory);
+        return busReadWord(ioReadMemory, initDelay);
     }
     void setCOMul(bool carry)
     {
