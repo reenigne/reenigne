@@ -2240,6 +2240,7 @@ public:
         _dmaState = sIdle;
         _passiveOrHalt = true;
         _pitWrite = false;
+        _lock = false;
     }
     void stubInit()
     {
@@ -2292,13 +2293,13 @@ public:
                     _dmaState = sDREQ;
                 break;
             case sDREQ:
-                _dmaState = _passiveOrHalt ? sHRQ : sHoldWait;
+                _dmaState = (_passiveOrHalt && !_lock) ? sHRQ : sHoldWait;
                 break;
             case sHRQ:
                 _dmaState = sAEN;
                 break;
             case sHoldWait:
-                if (_passiveOrHalt)
+                if (_passiveOrHalt && !_lock)
                     _dmaState = sAEN;
                 break;
             case sAEN: _dmaState = s0; break;
@@ -2422,6 +2423,7 @@ public:
     {
         return dmaAddressHigh(_dmac.channel()) + _dmac.address();
     }
+    void setLock(bool lock) { _lock = lock; }
 private:
     bool dack0()
     {
@@ -2501,6 +2503,7 @@ private:
     Byte _dmaRequests;
     Byte _data;
     bool _pitWrite;
+    bool _lock;
 };
 
 class Emulator
@@ -2622,8 +2625,8 @@ private:
         _lock = false;
         _completed = true;
         _repeating = false;
+        _clearLock = false;
 
-        Word realIP;
         do {
             executeOneInstruction();
         } while ((getRealIP() != _stopIP || cs() != seg) && _cycle < 4096 /* 2048*/);
@@ -2893,10 +2896,10 @@ private:
                 _data = _wordRegisters[modRMReg2()];
         }
     }
-    void readEA2()
+    void readEA2(bool initDelay = true)
     {
         _address += 2;
-        busRead();
+        busRead(ioReadMemory, initDelay);
     }
     void busWrite(IOType type = ioWriteMemory, bool initDelay = true)
     {
@@ -2927,8 +2930,10 @@ private:
     void prepareForAccess()
     {
         wait(1);
-        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet)
+        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet  || _busState == t1 || _busState == t4) {
             wait(1);
+            _transferStarting = true;
+        }
         else {
             _transferStarting = true;
             wait(1);
@@ -2942,6 +2947,11 @@ private:
             if (getRealIP() == _timeIP1 && cs() == testSegment + 0x1000)
                 _cycle1 = _cycle;
             _opcode = queueRead(true);
+            if (_clearLock) {
+                _lock = false;
+                _clearLock = false;
+                _bus.setLock(false);
+            }
             bool fastInstruction = false;
             if ((_opcode & 0xe7) == 0x07 || (_opcode & 0xf8) == 0x58 || _opcode == 0x9d || (_opcode & 0xfd) == 0xc1 || (_opcode & 0xfe) == 0xec)  // POP
                 fastInstruction = true;
@@ -3415,9 +3425,22 @@ private:
                     wait(1);
                     Word newCS = fetchInstructionWord();
                     _prefetching = false;
-                    wait(3);
+
+                    wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        //wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        //wait(1);
+                    }
+
+                    wait(5);
                     _wordSize = true;
-                    push(cs());
+                    push2(cs(), false);
                     wait(4);
                     Word oldIP = ip();
                     cs() = newCS;
@@ -3431,9 +3454,9 @@ private:
                     wait(1);
                 wait(5);
                 if (interruptPending()) {
-                    wait(8);
+                    wait(7);
                     _snifferDecoder.queueOperation(2);
-                    checkInterrupts2(2);
+                    checkInterrupts2(3);
                 }
                 else {
                     _repeating = true;
@@ -3445,7 +3468,16 @@ private:
                 push((_flags & 0x0fd7) | 0xf000);
                 break;
             case 0x9d: // POPF
-                _flags = pop() | 2;
+                _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
+                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                }
+                else {
+                    wait(1);
+                    waitForBusIdle();
+                }
+                wait(2);
+
+                _flags = pop2(false) | 2;
                 break;
             case 0x9e: // SAHF
                 _flags = (_flags & 0xff02) | ah();
@@ -3481,9 +3513,22 @@ private:
                 }             
                 if (_rep != 0 && (_opcode & 8) != 0)
                     wait(1);
+
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                    wait(1);
+
                 lods();
                 if ((_opcode & 8) == 0) {
                     wait(1);
+
+                    _transferStarting = true;
+                    wait(2);
                     stos();
                 }
                 else {
@@ -3509,6 +3554,15 @@ private:
                 wait(1);
                 _destination = getAccum();
                 if ((_opcode & 8) == 0) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                    wait(1);
+
                     lods();
                     wait(1);
                     _destination = _data;
@@ -3549,6 +3603,20 @@ private:
                     break;
                 }
                 _data = ax();
+
+                //_transferStarting = true;
+                //wait(2);
+                    //wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
                 stos();
                 if (_rep == 0) {
                     wait(3);
@@ -3576,7 +3644,63 @@ private:
                     if ((_opcode & 9) == 9)
                         wait(1);
                     _prefetching = false;
-                    Word newIP = pop();
+
+                    //switch (_opcode) {
+                    //    case 0xc0: case 0xc2:
+                            _transferStarting = true;
+                            if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
+                                wait(1);
+                            _transferStarting = true;
+                            if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                            }
+                            else {
+                                waitForBusIdle();
+                                //wait(1);
+                            }
+                            wait(2);
+                    //        break;
+                    //    case 0xc1: case 0xc3:
+                    //        _transferStarting = true;
+                    //        if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
+                    //            wait(1);
+                    //        _transferStarting = true;
+                    //        if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    //        }
+                    //        else {
+                    //            waitForBusIdle();
+                    //            //wait(1);
+                    //        }
+                    //        wait(2);
+                    //        break;
+                    //    case 0xc8: case 0xca:
+                    //        _transferStarting = true;
+                    //        if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
+                    //            wait(1);
+                    //        _transferStarting = true;
+                    //        if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    //        }
+                    //        else {
+                    //            waitForBusIdle();
+                    //            //wait(1);
+                    //        }
+                    //        wait(2);
+                    //        break;
+                    //    case 0xc9: case 0xcb:
+                    //        _transferStarting = true;
+                    //        if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
+                    //            wait(1);
+                    //        _transferStarting = true;
+                    //        if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    //        }
+                    //        else {
+                    //            waitForBusIdle();
+                    //            //wait(1);
+                    //        }
+                    //        wait(2);
+                    //        break;
+                    //}
+
+                    Word newIP = pop2(false);
                     wait(2);
                     Word newCS;
                     if ((_opcode & 8) == 0)
@@ -3602,7 +3726,17 @@ private:
                 if (_useMemory)
                     wait(2);
                 wait(2);
-                readEA2();
+
+                _transferStarting = true;
+                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                }
+                else {
+                    waitForBusIdle();
+                    //wait(1);
+                }
+                wait(2);
+
+                readEA2(false);
                 _segmentRegisters[!_wordSize ? 3 : 0] = _data;
                 wait(1);
                 break;
@@ -3611,20 +3745,33 @@ private:
                 if (_useMemory)
                     wait(2);
                 _data = fetchInstructionData();
+
                 if (_useMemory) {
                     if (!_wordSize) {
                         if (_busState != t3tWaitLast)
                             _transferStarting = true;
                         if (_busState == t4)
                             wait(1);
+                    }
+                }
+                wait(1);
+
+                if (_useMemory) {
+                    //wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
                         wait(1);
                     }
-                    else
+                    else {
+                        _transferStarting = true;
                         wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
                 }
-                else
-                    wait(1);
-                writeEA(_data);
+
+
+                writeEA(_data, false);
                 break;
             case 0xcc: // INT 3
                 wait(5);
@@ -3668,9 +3815,25 @@ private:
                 }
                 break;
             case 0xd0: case 0xd1: case 0xd2: case 0xd3: // rot rm
-                if (!_useMemory)
+                //if (!_useMemory)
+                //    wait(1);
+                //readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        //wait(1);
+                    }
+                    wait(2);
+                }
+                else
                     wait(1);
-                readEA();
+
+                readEA(false, false);
+
+
                 if ((_opcode & 2) == 0) {
                     _source = 1;
                     wait(_useMemory ? 4 : 0);
@@ -3745,7 +3908,22 @@ private:
                         wait(4);
                     --_source;
                 }
-                writeEA(_data);
+
+                if (_useMemory) {
+                    //wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                writeEA(_data, false);
                 break;
             case 0xd4: // AAM
                 _source = fetchInstructionByte();
@@ -3860,8 +4038,13 @@ private:
                     wait(1);
                     Word newCS = fetchInstructionWord();
                     _prefetching = false;
-                    wait(5);
+                    //wait(5);
                     cs() = newCS;
+
+                    wait(2);
+                    waitForBusIdle();
+                    wait(3);
+
                     setIP(newIP);
                 }
                 break;
@@ -3872,6 +4055,7 @@ private:
                 break;
             case 0xf0: case 0xf1: // LOCK
                 _lock = true;
+                _bus.setLock(true);
                 _completed = false;
                 break;
             case 0xf2: case 0xf3: // REP
@@ -3899,7 +4083,17 @@ private:
                 _flags ^= 1;
                 break;
             case 0xf6: case 0xf7: // math
-                readEA();
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 switch (modRMReg()) {
                     case 0:
                     case 1:  // TEST
@@ -3924,7 +4118,22 @@ private:
                             _destination = 0;
                             sub();
                         }
-                        writeEA(_data);
+
+                        if (_useMemory) {
+                            //wait(1);
+                            if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                                _transferStarting = true;
+                                wait(1);
+                            }
+                            else {
+                                _transferStarting = true;
+                                wait(1);
+                                waitForBusIdle();
+                                wait(1);
+                            }
+                        }
+
+                        writeEA(_data, false);
                         break;
                     case 4:  // MUL
                     case 5:  // IMUL
@@ -3965,7 +4174,17 @@ private:
                 setDF(_wordSize);
                 break;
             case 0xfe: case 0xff: // misc
-                readEA(modRMReg() == 3 || modRMReg() == 5);
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(modRMReg() == 3 || modRMReg() == 5, false);
                 switch (modRMReg()) {
                     case 0:  // INC rm
                     case 1:  // DEC rm
@@ -3984,7 +4203,22 @@ private:
                         wait(2);
                         if (_useMemory)
                             wait(2);
-                        writeEA(_data);
+
+                        if (_useMemory) {
+                            //wait(1);
+                            if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                                _transferStarting = true;
+                                wait(1);
+                            }
+                            else {
+                                _transferStarting = true;
+                                wait(1);
+                                waitForBusIdle();
+                                wait(1);
+                            }
+                        }
+
+                        writeEA(_data, false);
                         break;
                     case 2:  // CALL rm
                         {
@@ -4082,7 +4316,23 @@ private:
                             wait(1);
 
                         wait(4);
-                        push2(_data);
+
+                        //if (_useMemory) {
+                            //wait(1);
+                            if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                                _transferStarting = true;
+                                wait(2);
+                            }
+                            else {
+                                _transferStarting = true;
+                                wait(1);
+                                waitForBusIdle();
+                                wait(1);
+                            }
+                            //wait(1);
+                        //}
+
+                        push2(_data, false);
                         break;
                 }
                 break;
@@ -4091,7 +4341,8 @@ private:
             _repeating = false;
             _segmentOverride = -1;
             _rep = 0;
-            _lock = false;
+            if (_lock)
+                _clearLock = true;
             checkInterrupts();
         }
     }
@@ -4117,10 +4368,15 @@ private:
         _repeating = false;
         _completed = true;
         _segmentOverride = 1;
-        _lock = false;
         wait(w);  // Some of these may actually be in the PIT or PIC
         busAccess(ioInterruptAcknowledge, 0);
+        wait(1);
+        _bus.setLock(true);  // 8088 datasheet says LOCK set/cleared on T2. TODO: Modify sniffer so we can check
         busAccess(ioInterruptAcknowledge, 0);
+        wait(1);
+        _bus.setLock(false);
+        _lock = false;
+        _clearLock = false;
         do {
             wait(1);
         } while (_ioNext._type != ioPassive || _busState != t3tWaitLast);
@@ -4328,7 +4584,23 @@ private:
         _segment = 1;
         Word oldCS = cs();
         cs() = 0;
-        Word newIP = busReadWord(ioReadMemory);
+
+        //_transferStarting = true;
+        //if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+        //}
+        //else {
+        //    wait(1);
+        //    waitForBusIdle();
+        //}
+        //wait(2);
+//            _transferStarting = true;
+        //prepareForAccess();
+        //wait(1);
+
+        _transferStarting = true;
+        wait(2);
+
+        Word newIP = busReadWord(ioReadMemory, false);
         wait(1);
         _address += 2;
         Word newCS = busReadWord(ioReadMemory);
@@ -4395,14 +4667,14 @@ private:
     {
         _address = si();
         _segment = 3;
-        busRead();
+        busRead(ioReadMemory, false);
         si() = stringIncrement();
     }
     void stos()
     {
         _address = di();
         _segment = 0;
-        busWrite();
+        busWrite(ioWriteMemory, false);
         di() = stringIncrement();
     }
     void push(Word data)
@@ -4410,13 +4682,13 @@ private:
         wait(2);
         push2(data);
     }
-    void push2(Word data)
+    void push2(Word data, bool initDelay = true)
     {
         _data = data;
         sp() -= 2;
         _address = sp();
         _segment = 2;
-        busWrite();
+        busWrite(ioWriteMemory, initDelay);
     }
     Word pop()
     {
@@ -4654,6 +4926,7 @@ private:
     bool _lock;
     bool _repeating;
     bool _completed;
+    bool _clearLock;
     int _segment;
 
     Byte _queueData[4];
