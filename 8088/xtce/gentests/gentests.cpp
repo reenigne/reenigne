@@ -2241,6 +2241,7 @@ public:
         _passiveOrHalt = true;
         _pitWrite = false;
         _lock = false;
+        _lastNonDMAReady = true;
     }
     void stubInit()
     {
@@ -2296,10 +2297,14 @@ public:
                 _dmaState = (_passiveOrHalt && !_lock) ? sHRQ : sHoldWait;
                 break;
             case sHRQ:
-                _dmaState = sAEN;
+                _dmaState = _lastNonDMAReady /*nonDMAReady()*/ ? sAEN : sPreAEN;
                 break;
             case sHoldWait:
                 if (_passiveOrHalt && !_lock)
+                    _dmaState = _lastNonDMAReady /*nonDMAReady()*/ ? sAEN : sPreAEN;
+                break;
+            case sPreAEN:
+                if (_lastNonDMAReady /*nonDMAReady()*/)
                     _dmaState = sAEN;
                 break;
             case sAEN: _dmaState = s0; break;
@@ -2321,6 +2326,11 @@ public:
             _pit.write(_address & 3, _data);
             _pitWrite = false;
         }
+
+        // The following only happens for 5160s with the U90 fix and 5150s with the UI101 fix as described in
+        // http://www.vcfed.org/forum/showthread.php?29211-Purpose-of-U90-in-XT-second-revision-board
+        if (_type == 2 && (_address & 0x3e0) == 0x000)
+            _lastNonDMAReady = nonDMAReady();
     }
     bool ready()
     {
@@ -2329,9 +2339,7 @@ public:
             _dmaState == sDelayedT2 /*|| _dmaState == sDelayedT3*/)
             return false;
         ++_cycle;
-        if (_type == 1 || _type == 2)  // Read port, write port
-            return _cycle > 1;  // System board adds a wait state for onboard IO devices
-        return true;
+        return nonDMAReady();
     }
     void write(Byte data)
     {
@@ -2425,6 +2433,16 @@ public:
     }
     void setLock(bool lock) { _lock = lock; }
 private:
+    bool okayToDMA()
+    {
+        return _passiveOrHalt && !_lock && nonDMAReady();
+    }
+    bool nonDMAReady()
+    {
+        if (_type == 1 || _type == 2)  // Read port, write port
+            return _cycle > 1;  // System board adds a wait state for onboard IO devices
+        return true;
+    }
     bool dack0()
     {
         return _dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
@@ -2463,6 +2481,7 @@ private:
         sDREQ,
         sHRQ,
         sHoldWait,
+        sPreAEN,
         sAEN,
         s0,
         s1,
@@ -2504,6 +2523,7 @@ private:
     Byte _data;
     bool _pitWrite;
     bool _lock;
+    bool _lastNonDMAReady;
 };
 
 class Emulator
@@ -3069,7 +3089,17 @@ private:
                 push(_segmentRegisters[_opcode >> 3]);
                 break;
             case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-                _segmentRegisters[_opcode >> 3] = pop();
+
+                _transferStarting = true;
+                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                }
+                else {
+                    wait(1);
+                    waitForBusIdle();
+                }
+                wait(2);
+
+                _segmentRegisters[_opcode >> 3] = pop2(false);
                 wait(1);
                 break;
             case 0x26: case 0x2e: case 0x36: case 0x3e: // segreg:
@@ -3154,11 +3184,37 @@ private:
             case 0x50: case 0x51: case 0x52: case 0x53:
             case 0x54: case 0x55: case 0x56: case 0x57: // PUSH rw
                 _wordSize = true;
-                push(rw());
+
+                wait(2);
+                //_transferStarting = true;
+                //wait(2);
+                    //wait(1);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                        _transferStarting = true;
+                        wait(1);
+                    }
+                    else {
+                        _transferStarting = true;
+                        wait(1);
+                        waitForBusIdle();
+                        wait(1);
+                    }
+
+                push2(rw(), false);
                 break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                rw() = pop();
+
+                _transferStarting = true;
+                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                }
+                else {
+                    wait(1);
+                    waitForBusIdle();
+                }
+                wait(2);
+
+                rw() = pop2(false);
                 wait(1);
                 break;
             case 0x60: case 0x61: case 0x62: case 0x63:
@@ -3357,7 +3413,18 @@ private:
                 break;
             case 0x8e: // MOV segreg, rmw
                 _wordSize = true;
-                readEA();
+
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        wait(1);
+                    }
+                }
+
+                readEA(false, false);
                 _segmentRegisters[modRMReg() & 3] = _data;
                 wait(1);
                 if (_useMemory)
@@ -3721,7 +3788,19 @@ private:
                 break;
             case 0xc4: case 0xc5: // LsS rw, rmd
                 _wordSize = true;
-                readEA(true);
+
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        //wait(1);
+                    }
+                    wait(2);
+                }
+
+                readEA(true, false);
                 setReg(_data);
                 if (_useMemory)
                     wait(2);
@@ -3774,13 +3853,13 @@ private:
                 writeEA(_data, false);
                 break;
             case 0xcc: // INT 3
-                wait(5);
+                wait(4);
                 interrupt(3);
                 break;
             case 0xcd: // INT
                 {
                     Byte i = fetchInstructionByte();
-                    prepareForAccess();
+                    //prepareForAccess();
 
                     //wait(1);
                     //if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet)
@@ -3790,13 +3869,14 @@ private:
                     //    wait(1);
                     //    waitForBusIdle();
                     //}
+                    wait(1);
                     interrupt(i);
                 }
                 break;
             case 0xce: // INTO
                 wait(2);
                 if (of()) {
-                    wait(4);
+                    wait(3); //4);
                     interrupt(4);
                 }
                 break;
@@ -3954,7 +4034,19 @@ private:
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
                 _wordSize = true;
-                readEA();
+
+                if (_useMemory) {
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                    }
+                    else {
+                        waitForBusIdle();
+                        //wait(1);
+                    }
+                    wait(2);
+                }
+
+                readEA(false, false);
                 wait(1);
                 if (_useMemory)
                     wait(2);
@@ -4250,7 +4342,18 @@ private:
                             if (_useMemory)
                                 wait(1);
                             Word newIP = _data;
-                            readEA2();
+
+                            _transferStarting = true;
+                            if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                            }
+                            else {
+                                waitForBusIdle();
+                                //wait(1);
+                            }
+                            wait(2);
+
+                            readEA2(false);
+
                             if (!_wordSize)
                                 _data |= 0xff00;
                             Word newCS = _data;
@@ -4381,7 +4484,7 @@ private:
             wait(1);
         } while (_ioNext._type != ioPassive || _busState != t3tWaitLast);
         Byte i = _io._data;
-        wait(5);
+        wait(4);
         interrupt(i);
     }
     bool div(Word l, Word h)
@@ -4419,7 +4522,7 @@ private:
         wait(8);
         _source &= sizeMask();
         if (h >= _source) {
-            wait(2); //3);
+            wait(1); //2); //3);
             if (_opcode != 0xd4)
                 wait(1);
             interrupt(0);
@@ -4459,7 +4562,7 @@ private:
             if (topBit(l)) {
                 if (!_useMemory)
                     wait(1);
-                wait(2);
+                wait(1); //2);
                 interrupt(0);
                 return false;
             }
@@ -4594,11 +4697,17 @@ private:
         //}
         //wait(2);
 //            _transferStarting = true;
-        //prepareForAccess();
-        //wait(1);
-
-        _transferStarting = true;
-        wait(2);
+        wait(1);
+            _transferStarting = true;
+        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet  || _busState == t1 || _busState == t4) {
+            wait(1);
+        }
+        else {
+            _transferStarting = true;
+            wait(1);
+            waitForBusIdle();
+        }
+        wait(1);
 
         Word newIP = busReadWord(ioReadMemory, false);
         wait(1);

@@ -13,7 +13,10 @@ public:
     {
         mixin(static_cast<UInt32>(t.hash_code()));
     }
-    Hash& mixin(UInt32 v) { _h = (_h ^ v) * 0x01000193; return *this; }
+    Hash& mixin(UInt8 v) { _h = (_h ^ v) * 0x01000193; return *this; }
+    Hash& mixin(UInt16 v) { return mixin(static_cast<UInt8>(v)).mixin(static_cast<UInt8>(v >> 8)); }
+    Hash& mixin(UInt32 v) { return mixin(static_cast<UInt16>(v)).mixin(static_cast<UInt16>(v >> 16)); }
+    Hash& mixin(int v) { return mixin(static_cast<UInt32>(v)); }
     operator UInt32() const { return _h; }
 private:
     UInt32 _h;

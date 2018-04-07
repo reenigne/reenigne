@@ -160,13 +160,14 @@ private:
     int row(const Key& key) const { return ::hash(key) % this->allocated(); }
     Entry* lookup(const Key& key)
     {
-        if (this->allocated() == 0)
+        int n = this->allocated();
+        if (n == 0)
             return 0;
         int r = row(key);
-        for (int i = 0; i < this->allocated(); ++i) {
+        for (int i = 0; i < n; ++i) {
             // We have a decent hash function so linear probing should work
             // fine.
-            r = (r + 1)%this->allocated();
+            r = (r + 1)%n;
             Entry* e = data(r);
             if (e->key() == key || e->key() == Key())
                 return e;
