@@ -52,7 +52,7 @@ public:
         auto e = lookup(key);
         if (e != 0 && e->key() == key)
             return e->value();
-        if (count() >= this->allocated()*3/4) {
+        if (count() >= this->allocated()*3/8) {
             int n = this->allocated()*2;
             if (n == 0)
                 n = 1;
@@ -165,25 +165,26 @@ private:
             return 0;
         int r = row(key);
         for (int i = 0; i < n; ++i) {
-            // We have a decent hash function so linear probing should work
-            // fine.
-            r = (r + 1)%n;
             Entry* e = data(r);
             if (e->key() == key || e->key() == Key())
                 return e;
+            // We have a decent hash function so linear probing should work
+            // fine.
+            r = (r + 1)%n;
         }
         return 0;
     }
     const Entry* lookup(const Key& key) const
     {
-        if (this->allocated() == 0)
+        int n = this->allocated();
+        if (n == 0)
             return 0;
         int r = row(key);
-        for (int i = 0; i < this->allocated(); ++i) {
-            r = (r + 1)%this->allocated();
+        for (int i = 0; i < n; ++i) {
             const Entry* e = data(r);
             if (e->key() == key || e->key() == Key())
                 return e;
+            r = (r + 1)%n;
         }
         return 0;
     }

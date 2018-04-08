@@ -215,6 +215,14 @@ public:
       : _queueFiller(queueFiller), _nops(nops), _usesCH(false),
         _noLESNop(false), _refreshPeriod(0), _refreshPhase(0)
     { }
+    Test copy()
+    {
+        Test t(*this);
+        t._preamble = _preamble.copy();
+        t._instructions = _instructions.copy();
+        t._fixups = _fixups.copy();
+        return t;
+    }
     void addInstruction(Instruction instruction)
     {
         _instructions.append(instruction);
@@ -2638,6 +2646,7 @@ private:
         _queueReadPosition = 0;
         _queueWritePosition = 0;
         _queueBytes = 0;
+        _queueEmptied = false;
         _queueHasSpace = true;
         _queueHasByte = false;
         _segmentOverride = -1;
@@ -2646,6 +2655,9 @@ private:
         _completed = true;
         _repeating = false;
         _clearLock = false;
+        _ioToFillQueue = false;
+        _ioToFillQueuePopulated = false;
+        _ioToFillQueuePopulated1 = false;
 
         do {
             executeOneInstruction();
@@ -2657,10 +2669,14 @@ private:
         while (cycles > 0) {
             BusState nextState = _busState;
 
+            bool queueEmptied = _queueEmptied;
+            _queueEmptied = false;
             if (_prefetchedRemove) {
                 --_queueBytes;
                 _queueHasSpace = true;
                 _prefetchedRemove = false;
+                if (_queueBytes == 0)
+                    _queueEmptied = true;
             }
             if (_delayedPrefetchedRemove) {
                 _prefetchedRemove = true;
@@ -2679,10 +2695,22 @@ private:
                     if (write)
                         _snifferDecoder.setData(_io._data);
                     nextState = t2t3tWaitNotLast;
+                    _ioWasDelayed = false;
+                    _ioToFillQueuePopulated1 = false;
+                    _ioToFillQueuePopulated = false;
+                    _ioToFillQueue = false;
                     break;
                 case t2t3tWaitNotLast:
-                    if (!_bus.ready())
+                    if (!_ioToFillQueuePopulated && _ioToFillQueuePopulated1) {
+                        _ioToFillQueue =  (_queueBytes == 3 && _io._type == ioCodeAccess);
+                        _ioToFillQueuePopulated = true;
+                    }
+                    if (!_ioToFillQueuePopulated1)
+                        _ioToFillQueuePopulated1 = true;
+                    if (!_bus.ready()) {
+                        _ioWasDelayed = true;
                         break;
+                    }
                     nextState = t3tWaitLast;
                     if (_io._type == ioInterruptAcknowledge ||
                         _io._type == ioReadPort || _io._type == ioReadMemory ||
@@ -2713,12 +2741,13 @@ private:
                     break;
                 case tFirstIdle:
                     nextState = tSecondIdle;
+                    _ioWasDelayed = false;
                     break;
                 case tSecondIdle:
                     nextState = tIdle;
                     break;
             }
-            if (nextState == t4 || nextState == tSecondIdle || nextState == tIdle) {
+            if ((nextState == t4 && (!_ioToFillQueue || _queueBytes > 2 /*|| !queueEmptied*/ /*_queueBytes != 0*/ /*(!_ioWasDelayed || _io._type != ioCodeAccess)*/)) || nextState == tSecondIdle || nextState == tIdle) {
                 int adjustedQueueBytes = _queueBytes + (nextState == t4 && _io._type == ioCodeAccess ? 1 : 0);
                 if (_ioNext._type == ioPassive && adjustedQueueBytes != 4 &&
                     _prefetching && !_transferStarting && (nextState != tSecondIdle || _ioLast._type != ioCodeAccess || adjustedQueueBytes != 3)) {
@@ -3031,14 +3060,27 @@ private:
             case 0x28: case 0x29: case 0x2a: case 0x2b:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
+                //if (_useMemory) {
+                //    wait(1);
+                //    _transferStarting = true;
+                //    if (_busState == t4StatusSet || _busState == t1) {
+                //    }
+                //    else {
+                //        waitForBusIdle();
+                //        wait(1);
+                //    }
+                //}
                 if (_useMemory) {
-                    _transferStarting = true;
-                    if (_busState == t4StatusSet || _busState == t1) {
+                    _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
+                    if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                        wait(1);
                     }
                     else {
+                        wait(1);
                         waitForBusIdle();
                         wait(1);
                     }
+                    wait(1);
                 }
 
                 readEA(false, false);
@@ -3545,6 +3587,7 @@ private:
                 wait(2);
 
                 _flags = pop2(false) | 2;
+                wait(1);
                 break;
             case 0x9e: // SAHF
                 _flags = (_flags & 0xff02) | ah();
@@ -3557,6 +3600,7 @@ private:
                 _address = fetchInstructionWord();
                 busRead(ioReadMemory);
                 setAccum();
+                wait(1);
                 break;
             case 0xa2: case 0xa3: // MOV [iw], A
                 _address = fetchInstructionWord();
@@ -4974,6 +5018,8 @@ private:
         _delayedPrefetchedRemove = false;
         wait(1);
         _prefetching = true;
+        _ioToFillQueue = false;
+        _queueEmptied = false;
     }
     Word ip()
     {
@@ -5044,6 +5090,7 @@ private:
     int _queueReadPosition;
     int _queueWritePosition;
     int _queueBytes;
+    bool _queueEmptied;
     bool _queueHasSpace;
     bool _queueHasByte;
     Word _ip;
@@ -5064,6 +5111,10 @@ private:
     IOInformation _io;
     IOInformation _ioNext;
     IOInformation _ioLast;
+    bool _ioWasDelayed;
+    bool _ioToFillQueue;
+    bool _ioToFillQueuePopulated;
+    bool _ioToFillQueuePopulated1;
 
     int _segmentOverride;
 
@@ -5153,6 +5204,8 @@ public:
         //    }
         //}
 
+        console.write("Generating testcases\n");
+
         int groupStartCount = _tests.count();
 
         static const Byte modrms[] = {
@@ -5162,10 +5215,10 @@ public:
         int groupSize;
         int noppingTests;
         static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
-        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 2 /*19*/; ++refreshPeriodIndex) {
+        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 2; ++refreshPeriodIndex) {
             _refreshPeriod = refreshPeriods[refreshPeriodIndex];
-            for (_refreshPhase = 0; _refreshPhase < 1 /* 4*_refreshPeriod*/; ++_refreshPhase) {
-                for (_group = 0; _group < 3; ++_group) {
+            for (_refreshPhase = 0; _refreshPhase < max(1, min(2, 4*_refreshPeriod)); ++_refreshPhase) {
+                for (_group = 0; _group < 6; ++_group) {
                     // Basic tests
                     for (int i = 0; i < 0x100; ++i) {
                         Instruction instruction(i);
@@ -5555,8 +5608,11 @@ public:
             }
         }
 
+        console.write("Loading cache\n");
         _cacheFile = File("cache.dat");
         _cache.load(_cacheFile);
+
+        console.write("Running tests\n");
 
         Emulator emulator;
         emulator.setStub(runStub);
@@ -5595,6 +5651,8 @@ public:
                     runningTests.append(i);
                     totalLength = nl;
                     if (cached != -1 && !reRunAllBad) {
+                        console.write("\nFailing test " + decimal(i) + "\n");
+
                         // This test will fail unless the cache is bad.
                         // Just run the one to get a sniffer log.
                         newNextTest = i + 1;
@@ -5750,6 +5808,8 @@ public:
                 break;
 
         } while (true);
+
+        console.write(decimal(_tests.count()) + "\n");
 
         return;
 
@@ -5954,6 +6014,8 @@ private:
         //        break;
         //}
 
+        t = t.copy();
+
         switch (_group) {
             case 0:
                 break;
@@ -5963,6 +6025,16 @@ private:
             case 2:
                 t.addInstruction(Instruction(0x88, 0xc0));
                 t.addInstruction(Instruction(0, 0));
+                break;
+            case 3:
+                for (int i = 0; i < 4; ++i)
+                    t.addInstruction(Instruction(4, 0));
+                break;
+            case 4:
+                t.addInstruction(Instruction(0, 0));
+                break;
+            case 5:
+                t.addInstruction(Instruction(5, 0));
                 break;
         }
 
