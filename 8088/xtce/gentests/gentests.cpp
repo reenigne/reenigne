@@ -1,6 +1,7 @@
 #include "alfe/main.h"
 #include "alfe/space.h"
 #include "alfe/hash_table.h"
+#include "alfe/set.h"
 #include <random>
 
 static const UInt16 testSegment = 0xa8;
@@ -480,6 +481,7 @@ public:
                 return false;
         return true;
     }
+    bool operator!=(const Test& other) const { return !(*this == other); }
     UInt32 hash() const
     {
         Hash h(typeid(Test));
@@ -5177,846 +5179,453 @@ public:
         }
         file.save(&d[0], size);
     }
+    void dumpStats()
+    {
+        _time.dumpStats(File("cacheDump.bin"));
+    }
 private:
     HashTable<Test, int> _time;
 };
 
-class Program : public ProgramBase
+static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11,
+    10, 9, 8, 7, 6, 5, 4, 3, 2};
+
+class TestGenerator
 {
 public:
-    void run()
+    TestGenerator() : _section(-1), _suffix(0), _nopCount(0), _opcode(0),
+        _m(0), _i(0), _subsection(-1), _d(0, 65535), _refreshPeriod(0),
+        _refreshPhase(0)
     {
-        Array<Byte> testProgram;
-        File("runtests.bin").readIntoArray(&testProgram);
-        Array<Byte> runStub;
-        File("runstub.bin").readIntoArray(&runStub);
-        //{
-        //    Array<Byte> functional;
-        //    File("functional.bin").readIntoArray(&functional);
-        //    Byte* p = &functional[0];
-        //    int i = 0;
-        //    while (i < functional.count()) {
-        //        Test t;
-        //        t.read(p);
-        //        p += t.length();
-        //        i += t.length();
-        //        _tests.append(t);
-        //    }
-        //}
+        Array<Byte> functional;
+        File("functional.bin").readIntoArray(&functional);
+        Byte* p = &functional[0];
+        int i = 0;
+        while (i < functional.count()) {
+            Test t;
+            t.read(p);
+            p += t.length();
+            i += t.length();
+            _functional.append(t);
+        }
 
-        console.write("Generating testcases\n");
+        auto s = File("fails.dat").tryOpenRead();
+        if (s.valid()) {
+            UInt64 size = s.size();
+            if (size > 0x7fffffff)
+                throw Exception("fails.dat too large.");
+            int ss = static_cast<int>(size);
+            Array<Byte> d(ss);
+            Byte* p = &d[0];
+            s.read(p, ss);
+            int i = 0;
+            while (i < ss) {
+                Test t;
+                t.read(p);
+                int l = t.length();
+                p += l;
+                i += l;
+                _fails.append(t);
+                _inFails.add(t);
+            }
+        }
 
-        int groupStartCount = _tests.count();
+        increment();
+    }
+    Test getNextTest()
+    {
+        // Section 0: tests that previously failed, most recent failures first.
+        if (_section == 0) {  
+            Test t = _fails[_i];
+            increment();
+            return t;
+        }
+        do {
+            Test t = getNextTest1();
+            if (t == Test())
+                return t;
+            if (!_inFails.has(t))
+                return t;
+        } while (true);
+    }
+    void dumpFailed(Test f)
+    {
+        int size = 0;
+        for (auto i : _fails)
+            size += i.length();
+        if (f != Test() && !_inFails.has(f))
+            size += f.length();
+        Array<Byte> d(size);
+        Byte* p = &d[0];
+        if (f != Test()) {
+            p[0] = 0;
+            p[1] = 0;
+            f.output(p + 2);
+            p += f.length();
+        }
 
+        for (auto t : _fails) {
+            if (f == Test() || f != t) {
+                p[0] = 0;
+                p[1] = 0;
+                t.output(p + 2);
+                p += t.length();
+            }
+        }
+        File("fails.dat").save(&d[0], size);
+    }
+
+private:
+    Test getNextTest1()
+    {
+        Test t;
+        Instruction i;
+        switch (_section) {
+            case 1:  // Functional tests
+                t = _functional[_i];
+                break;
+            case 2:  // Main section tests without DMA
+            case 6:  // Main section tests with DMA
+                t = getMainTest();
+                break;
+            case 3:  // 1000 input pairs for each multiply instruction
+                t.setNops(0);
+                t.addInstruction(Instruction(_opcode, _m));
+                {
+                    Word a = _d(_generator);
+                    t.preamble(0xb8);
+                    t.preamble(a & 0xff);
+                    t.preamble(a >> 8);  // MOV AX,a
+                }
+                {
+                    Word b = _d(_generator);
+                    t.preamble(0xba);
+                    t.preamble(b & 0xff);
+                    t.preamble(b >> 8);  // MOV DX,a
+                }
+                t.setQueueFiller(1);
+                break;
+            case 4:  // 1000 input pairs for each divide instruction
+                t.setNops(0);
+                t.addInstruction(Instruction(_opcode, _m));
+
+                t.preamble(0x1e);  // PUSH DS
+                t.preamble(0x31);
+                t.preamble(0xdb);  // XOR BX,BX
+                t.preamble(0x8e);
+                t.preamble(0xdb);  // MOV DS,BX
+                t.preamble(0xc7);
+                t.preamble(0x47);
+                t.preamble(0x00);
+                t.preamble(0x02);
+                t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                t.preamble(0x8c);
+                t.preamble(0x4f);
+                t.preamble(0x02);  // MOV [BX+0x02],CS
+                t.preamble(0x1f);  // POP DS
+                t.fixup(0x08);
+                {
+                    Word a = _d(_generator);
+                    t.preamble(0xb8);
+                    t.preamble(a & 0xff);
+                    t.preamble(a >> 8);  // MOV AX,a
+                }
+                {
+                    Word b = _d(_generator);
+                    t.preamble(0xba);
+                    t.preamble(b & 0xff);
+                    t.preamble(b >> 8);  // MOV DX,a
+                }
+                {
+                    Word c = _d(_generator);
+                    t.preamble(0xbb);
+                    t.preamble(c & 0xff);
+                    t.preamble(c >> 8);  // MOV BX,a
+                }
+                t.setQueueFiller(1);
+                break;
+            case 5:  // 1000 input pairs for each of AAM and AAD
+                i = Instruction(_opcode);
+                {
+                    Word b = _d(_generator);
+                    i.setImmediate(b & 0xff);
+                }
+                t.setNops(0);
+
+                if (_opcode == 0xd4) {
+                    t.preamble(0x1e);  // PUSH DS
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);
+                    t.preamble(0x00);
+                    t.preamble(0x02);
+                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                    t.preamble(0x8c);
+                    t.preamble(0x4f);
+                    t.preamble(0x02);  // MOV [BX+0x02],CS
+                    t.preamble(0x1f);  // POP DS
+                    t.fixup(0x08);
+                }
+
+                t.addInstruction(i);
+                {
+                    Word a = _d(_generator);
+                    t.preamble(0xb8);
+                    t.preamble(a & 0xff);
+                    t.preamble(a >> 8);  // MOV AX,a
+                }
+                t.setQueueFiller(1);
+                break;
+        }
+        increment();
+        return t;
+    }
+    Test getMainTest()
+    {
         static const Byte modrms[] = {
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
             0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
             0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
-        int groupSize;
-        int noppingTests;
-        static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2};
-        for (int refreshPeriodIndex = 0; refreshPeriodIndex < 2; ++refreshPeriodIndex) {
-            _refreshPeriod = refreshPeriods[refreshPeriodIndex];
-            for (_refreshPhase = 0; _refreshPhase < max(1, min(2, 4*_refreshPeriod)); ++_refreshPhase) {
-                for (_group = 0; _group < 6; ++_group) {
-                    // Basic tests
-                    for (int i = 0; i < 0x100; ++i) {
-                        Instruction instruction(i);
-                        if (instruction.hasModrm()) {
-                            int jj = 1;
-                            if (instruction.isGroup())
-                                jj = 8;
-                            for (int m = 0; m < 25; ++m) {
-                                for (int j = 0; j < jj; ++j)
-                                    addTest(Instruction(i, modrms[m] + (j << 3)));
-                            }
-                        }
-                        else
-                            addTest(instruction);
-                    }
-                    // CBW/CWD tests
-                    for (int i = 0x98; i < 0x9a; ++i) {
-                        Instruction instruction(i);
-                        Test t;
-                        t.setQueueFiller(1);
-                        t.addInstruction(instruction);
-                        t.preamble(0xb8);
-                        t.preamble(0xff);
-                        t.preamble(0xff);  // MOV AX,-1
-                        addTestWithNops(t);
-                    }
-                    // INTO overflow test
-                    {
-                        Instruction instruction(0xce);
-                        Test t;
-                        t.setQueueFiller(2);
-                        t.addInstruction(instruction);
-                        t.preamble(0x31);
-                        t.preamble(0xdb);  // XOR BX,BX
-                        t.preamble(0x8e);
-                        t.preamble(0xdb);  // MOV DS,BX
-                        t.preamble(0xc7);
-                        t.preamble(0x47);
-                        t.preamble(0x10);
-                        t.preamble(0x01);
-                        t.preamble(0x00);  // MOV WORD[BX+0x10],0001
-                        t.preamble(0x8c);
-                        t.preamble(0x4f);
-                        t.preamble(0x12);  // MOV [BX+0x12],CS
-                        t.fixup(0x07);
 
-                        t.preamble(0xb8);
-                        t.preamble(0xff);
-                        t.preamble(0xff);  // MOV AX,0xFFFF
-                        t.preamble(0xb1);
-                        t.preamble(0x10);  // MOV CL,16
-                        t.preamble(0xd3);
-                        t.preamble(0xe0);  // SHL AX,CL
-                        addTestWithNops(t);
-                    }
-                    // Shift/rotate with various counts
-                    for (int i = 0xd2; i < 0xd4; ++i) {
-                        for (int m = 0; m < 25; ++m) {
-                            for (int j = 0; j < 8; ++j) {
-                                for (int c = 0; c < 5; ++c) {
-                                    Instruction instruction(i, modrms[m] + (j << 3));
-                                    Test t;
-                                    t.addInstruction(instruction);
-                                    t.preamble(0xb1);
-                                    t.preamble(c);
-                                    addTestWithNops(t);
-                                }
-                            }
-                        }
-                    }
-                    // LOOP with CX==1
-                    for (int i = 0xe0; i < 0xe4; ++i) {
-                        Instruction instruction(i);
-                        Test t;
-                        t.addInstruction(instruction);
-                        t.preamble(0xb9);
-                        t.preamble(0x01);
-                        t.preamble(0x00);  // MOV CX,1
-                        t.setUsesCH();
-                        addTestWithNops(t);
-                    }
-                    // String operations with various counts
-                    for (int r = 0xf2; r < 0xf4; ++r) {
-                        for (int i = 0xa4; i < 0xb0; ++i) {
-                            int t = i & 0x0e;
-                            if (t == 8)
-                                continue;
-                            for (int c = 0; c < 5; ++c) {
-                                Instruction instruction(r);
-                                Test t;
-                                t.addInstruction(instruction);
-                                Instruction i2(i);
-                                t.addInstruction(i2);
-                                t.preamble(0x90);  // NOP
-                                t.preamble(0xb8);
-                                t.preamble(0xa8);
-                                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
-                                t.preamble(0xb9);
-                                t.preamble(c);
-                                t.preamble(0x00);  // MOV CX,c
-                                t.preamble(0xbe);
-                                t.preamble(0x00);
-                                t.preamble(0x40);  // MOV SI,0x4000
-                                t.preamble(0xbf);
-                                t.preamble(0x00);
-                                t.preamble(0x60);  // MOV DI,0x6000
-                                t.preamble(0xbb);
-                                t.preamble(0x00);
-                                t.preamble(0xc0);  // MOV BX,0xc000
-                                t.setUsesCH();
-                                switch ((r << 8) + i) {
-                                    case 0xf2a6:  // REPNE CMPSB
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x04);  // MOV AX,0x0403
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x40);  // MOV DI,0x4000
-                                        t.preamble(0xb8);
-                                        t.preamble(0x02);
-                                        t.preamble(0x03);  // MOV AX,0x0302
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x04);
-                                        t.preamble(0x04);  // MOV AX,0x0404
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                    case 0xf2a7:  // REPNE CMPSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x04);  // MOV AX,0x0403
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x40);  // MOV DI,0x4000
-                                        t.preamble(0xb8);
-                                        t.preamble(0x02);
-                                        t.preamble(0x03);  // MOV AX,0x0302
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x04);  // MOV AX,0x0403
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                    case 0xf2ae:  // REPNE SCASB
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x00);  // MOV AX,0x0003
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                    case 0xf2af:  // REPNE SCASW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x00);
-                                        t.preamble(0x00);  // MOV AX,0x0000
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                    case 0xf3a6:  // REPE CMPSB
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x04);  // MOV AX,0x0403
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x40);  // MOV DI,0x4000
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x03);  // MOV AX,0x0303
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                    case 0xf3a7:  // REPE CMPSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x04);  // MOV AX,0x0403
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x40);  // MOV DI,0x4000
-                                        t.preamble(0xb8);
-                                        t.preamble(0x01);
-                                        t.preamble(0x02);  // MOV AX,0x0201
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x03);
-                                        t.preamble(0x03);  // MOV AX,0x0303
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                    case 0xf3ae:  // REPE SCASB
-                                    case 0xf3af:  // REPE SCASW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x00);
-                                        t.preamble(0x00);  // MOV AX,0x0000
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xb8);
-                                        t.preamble(0x00);
-                                        t.preamble(0x01);  // MOV AX,0x0100
-                                        t.preamble(0xab);  // STOSW
-                                        t.preamble(0xbf);
-                                        t.preamble(0x00);
-                                        t.preamble(0x60);  // MOV DI,0x6000
-                                        break;
-                                }
-                                addTestWithNops(t);
-                            }
-                        }
-                    }
-                    for (int i = 0xf6; i < 0xf8; ++i) {
-                        for (int m = 0xc0; m < 0xff; ++m) {
-                            Instruction instruction(i, m);
-                            Test t;
-                            t.addInstruction(instruction);
-
-                            if ((m & 0x30) == 0x30) {
-                                t.preamble(0x1e);  // PUSH DS
-                                t.preamble(0x31);
-                                t.preamble(0xdb);  // XOR BX,BX
-                                t.preamble(0x8e);
-                                t.preamble(0xdb);  // MOV DS,BX
-                                t.preamble(0xc7);
-                                t.preamble(0x47);
-                                t.preamble(0x00);
-                                t.preamble(0x02);
-                                t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                                t.preamble(0x8c);
-                                t.preamble(0x4f);
-                                t.preamble(0x02);  // MOV [BX+0x02],CS
-                                t.preamble(0x1f);  // POP DS
-                                t.fixup(0x08);
-                            }
-                            addTestWithNops(t);
-                        }
-                    }
-                    if (_group == 0)
-                        groupSize = _tests.count() - groupStartCount;
-                }
-                if (_refreshPeriod == 0 && _refreshPhase == 0)
-                    noppingTests = _tests.count() - groupStartCount;
-            }
-        }
-
-        _refreshPhase = 0;
-        std::mt19937 generator;
-        std::uniform_int_distribution<int> d(0, 65535);
-        // Multiply
-        for (int i = 0xf6; i < 0xf8; ++i) {
-            for (int m = 0xe2; m < 0xf2; m += 8) {
-                for (int v = 0; v < 1000; ++v) {
-                    Instruction instruction(i, m);
-                    Test t;
-                    t.setNops(0);
-                    t.addInstruction(instruction);
-                    Word a = d(generator);
-                    t.preamble(0xb8);
-                    t.preamble(a & 0xff);
-                    t.preamble(a >> 8);  // MOV AX,a
-                    Word b = d(generator);
-                    t.preamble(0xba);
-                    t.preamble(b & 0xff);
-                    t.preamble(b >> 8);  // MOV DX,a
-                    t.setQueueFiller(1);
-                    addTest0(t);
-                }
-            }
-        }
-        // Divide
-        for (int i = 0xf6; i < 0xf8; ++i) {
-            for (int m = 0xf3; m < 0xff; m += 8) {
-                for (int v = 0; v < 1000; ++v) {
-                    Instruction instruction(i, m);
-                    Test t;
-                    t.setNops(0);
-                    t.addInstruction(instruction);
-
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);
-                    t.preamble(0x00);
-                    t.preamble(0x02);
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f);
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
-
-                    Word a = d(generator);
-                    t.preamble(0xb8);
-                    t.preamble(a & 0xff);
-                    t.preamble(a >> 8);  // MOV AX,a
-                    Word b = d(generator);
-                    t.preamble(0xba);
-                    t.preamble(b & 0xff);
-                    t.preamble(b >> 8);  // MOV DX,a
-                    Word c = d(generator);
-                    t.preamble(0xbb);
-                    t.preamble(c & 0xff);
-                    t.preamble(c >> 8);  // MOV BX,a
-                    t.setQueueFiller(1);
-                    addTest0(t);
-                }
-            }
-        }
-        // AAM and AAD
-        for (int i = 0xd4; i < 0xd6; ++i) {
-            for (int v = 0; v < 1000; ++v) {
-                Instruction instruction(i);
-                Word b = d(generator);
-                instruction.setImmediate(b & 0xff);
-                Test t;
-                t.setNops(0);
-
-                if (i == 0xd4) {
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);
-                    t.preamble(0x00);
-                    t.preamble(0x02);
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f);
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
-                }
-
-                t.addInstruction(instruction);
-                Word a = d(generator);
+        Test t;
+        Instruction i;
+        switch (_subsection) {
+            case 0:  // Basic tests
+                t = testForInstruction(
+                    Instruction(_opcode, modrms[_m] + (_r << 3)));
+                break;
+            case 1:  // CBW/CWD tests
+                t.addInstruction(Instruction(_opcode));
                 t.preamble(0xb8);
-                t.preamble(a & 0xff);
-                t.preamble(a >> 8);  // MOV AX,a
+                t.preamble(0xff);
+                t.preamble(0xff);  // MOV AX,-1
                 t.setQueueFiller(1);
-                addTest0(t);
-            }
-        }
-
-        console.write("Loading cache\n");
-        _cacheFile = File("cache.dat");
-        _cache.load(_cacheFile);
-
-        console.write("Running tests\n");
-
-        Emulator emulator;
-        emulator.setStub(runStub);
-
-        int nextTest = 0;
-        int maxTests = 1000;
-        int availableLength = 0xf300 - testProgram.count();
-        Array<int> cycleCounts(_tests.count());
-        bool reRunAllBad = false;
-        bool expectedFail = false;
-        do {
-            int totalLength = 0;
-            int newNextTest = _tests.count();
-            int tests = 0;
-            AppendableArray<int> runningTests;
-            for (int i = nextTest; i < _tests.count(); ++i) {
-                if (i % 100 == 99)
-                    printf(".");
-                Test t = _tests[i];
-                int cycles = emulator.expected(t);
-                Instruction instruction = t.instruction(0);
-
-                //if (instruction.opcode() == 0x00 && instruction.modrm() == 0x44)
-                //    ++cycles;
-
-                _tests[i].setCycles(cycles);
-                cycleCounts[i] = emulator.instructionCycles();
-                int cached = _cache.getTime(t);
-                if (cycles != cached) {
-                    int nl = totalLength + t.length();
-                    if (nl > availableLength) {
-                        newNextTest = i;
-                        break;
-                    }
-                    ++tests;
-                    runningTests.append(i);
-                    totalLength = nl;
-                    if (cached != -1 && !reRunAllBad) {
-                        console.write("\nFailing test " + decimal(i) + "\n");
-
-                        // This test will fail unless the cache is bad.
-                        // Just run the one to get a sniffer log.
-                        newNextTest = i + 1;
-                        expectedFail = true;
-                        break;
-                    }
-                    if (tests >= maxTests) {
-                        newNextTest = i + 1;
-                        break;
-                    }
-                }
-            }
-            if (tests == 0)
                 break;
-            Array<Byte> output(totalLength + 2);
-            Byte* p = &output[0];
-            *p = totalLength;
-            p[1] = totalLength >> 8;
-            p += 2;
-            for (int i = 0; i < runningTests.count(); ++i) {
-                int t = runningTests[i];
-                int cycles = _tests[t].cycles() - 210;
-                p[0] = cycles;
-                p[1] = cycles >> 8;
-                p += 2;
-                _tests[t].output(p);
-                p += _tests[t].length() - 2;
+            case 2:  // INTO overflow test
+                t.setQueueFiller(2);
+                t.addInstruction(Instruction(0xce));
+                t.preamble(0x31);
+                t.preamble(0xdb);  // XOR BX,BX
+                t.preamble(0x8e);
+                t.preamble(0xdb);  // MOV DS,BX
+                t.preamble(0xc7);
+                t.preamble(0x47);
+                t.preamble(0x10);
+                t.preamble(0x01);
+                t.preamble(0x00);  // MOV WORD[BX+0x10],0001
+                t.preamble(0x8c);
+                t.preamble(0x4f);
+                t.preamble(0x12);  // MOV [BX+0x12],CS
+                t.fixup(0x07);
 
-                //console.write(emulator.log(_tests[t]));
-                //return;
-            }
-
-            {
-                auto h = File("runtest.bin").openWrite();
-                h.write(testProgram);
-                h.write(output);
-            }
-            NullTerminatedWideString data(String("cmd /c run.bat"));
-
-            {
-                PROCESS_INFORMATION pi;
-                ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
-
-                STARTUPINFO si;
-                ZeroMemory(&si, sizeof(STARTUPINFO));
-                si.cb = sizeof(STARTUPINFO);
-
-                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
-                    0, NULL, NULL, &si, &pi) != 0);
-                CloseHandle(pi.hThread);
-                WindowsHandle hProcess = pi.hProcess;
-                IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
-                    WAIT_OBJECT_0);
-            }
-
-            String result = File("runtests.output").contents();
-            CharacterSource s(result);
-            do {
-                if (parse(&s, "FAIL")) {
-                    Rational result;
-                    Space::parse(&s);
-                    if (!Space::parseNumber(&s, &result))
-                        throw Exception("Cannot parse number of failing test");
-                    int n = runningTests[result.floor()];
-
-                    console.write(decimal(n) + "\n");
-                    _tests[n].write();
-                    dumpCache(runningTests, n);
-
-                    String expected = emulator.log(_tests[n]);
-                    String expected1;
-
-                    String observed;
-                    CharacterSource e(expected);
-                    int skipLines = 4;
-                    do {
-                        int oc = s.get();
-                        if (oc == -1)
-                            break;
-                        if (oc == '\n')
-                            --skipLines;
-                    } while (skipLines > 0);
-
-                    int c = _tests[n].cycles() - 5;
-                    int line = 0;
-                    int column = 1;
-
-                    do {
-                        int ec = e.get();
-                        if (ec == -1)
-                            break;
-                        ++column;
-                        /*if ((column >= 7 && column < 20) || column >= 23)*/ {
-                            //if (line < c)
-                                expected1 += codePoint(ec);
-                        }
-                        if (ec == '\n') {
-                            ++line;
-                            column = 1;
-                        }
-                    } while (true);
-                    line = 0;
-                    column = 1;
-                    do {
-                        int oc = s.get();
-                        if (oc == -1)
-                            break;
-                        ++column;
-                        /*if ((column >= 7 && column < 20) || column >= 23)*/ {
-                            //if (line < c)
-                                observed += codePoint(oc);
-                        }
-                        if (oc == '\n') {
-                            ++line;
-                            if (column == 1)
-                                break;
-                            column = 1;
-                        }
-                    } while (true);
-
-                    File("expected.txt").openWrite().write(expected1);
-                    File("observed.txt").openWrite().write(observed);
-
-                    PROCESS_INFORMATION pi;
-                    ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
-
-                    STARTUPINFO si;
-                    ZeroMemory(&si, sizeof(STARTUPINFO));
-                    si.cb = sizeof(STARTUPINFO);
-
-                    NullTerminatedWideString data(
-                        String("q observed.txt expected.txt"));
-
-                    IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
-                        0, NULL, NULL, &si, &pi) != 0);
-
-                    exit(1);
-                }
-                if (parse(&s, "PASS"))
-                    break;
-                int c = s.get();
-                if (c == -1)
-                    throw Exception("Test was inconclusive");
-            } while (true);
-            dumpCache(runningTests, newNextTest);
-            if (expectedFail)
-                reRunAllBad = true;
-
-            if (maxTests < 1000000)
-                maxTests *= 2;
-            nextTest = newNextTest;
-            if (nextTest == _tests.count())
+                t.preamble(0xb8);
+                t.preamble(0xff);
+                t.preamble(0xff);  // MOV AX,0xFFFF
+                t.preamble(0xb1);
+                t.preamble(0x10);  // MOV CL,16
+                t.preamble(0xd3);
+                t.preamble(0xe0);  // SHL AX,CL
                 break;
-
-        } while (true);
-
-        console.write(decimal(_tests.count()) + "\n");
-
-        return;
-
-
-        Array<bool> useTest(noppingTests);
-        for (int i = 0; i < noppingTests; ++i) {
-            bool use = true;
-            int t = (i % groupSize)/nopCounts;
-            if (t == 2007 || t == 2480)  // skip WAIT and HLT
-                use = false;
-            if (_tests[i].queueFiller() != 0)  // skip tests with non-standard queue fillers
-                use = false;
-            Instruction inst = _tests[i].instruction(0);
-            int o = inst.opcode();
-            if ((o & 0xe0) == 0x60 || (o >= 0xe0 && o < 0xe4))  // skip conditional jump, time depends on flags
-                use = false;
-            if (o == 0xf2 || o == 0xf3)  // skip REP loops, need setup
-                use = false;
-            int op = inst.modrm() & 0x38;
-            if ((o >= 0xf6 && o < 0xf8) || op >= 0x20)  // multiplies and divides are not the way to go
-                use = false;
-            if (o >= 0xfe && op >= 0x10 && op < 0x30)  // CALL/JMP EA are awkward
-                use = false;
-
-            useTest[i] = use;
-        }
-
-        // Look for a nopcount column that has the same timings as another one
-        Array<bool> useNop(nopCounts);
-        for (int c1 = 0; c1 < nopCounts; ++c1) {
-            useNop[c1] = true;
-            for (int c2 = 0; c2 < nopCounts; ++c2) {
-                if (c2 == c1)
-                    continue;
-                bool found = true;
-                for (int t = 0; t < noppingTests; t += nopCounts) {
-                    if (!useTest[t])
-                        continue;
-                    if (cycleCounts[t + c1] != cycleCounts[t + c2]) {
-                        found = false;
-                        //console.write("To distinguish between " + decimal(c1) + " and " + decimal(c2) + " look at test " + decimal(t) + " ");
-                        //_tests[t].write();
+            case 3:  // Shift/rotate with various counts
+                i = Instruction(_opcode, modrms[_m] + (_r << 3));
+                t.addInstruction(i);
+                t.preamble(0xb1);
+                t.preamble(_count);
+                break;
+            case 4:  // LOOP with CX==1
+                i = Instruction(_opcode);
+                t.addInstruction(i);
+                t.preamble(0xb9);
+                t.preamble(0x01);
+                t.preamble(0x00);  // MOV CX,1
+                t.setUsesCH();
+                break;
+            case 5:  // String operations with various counts
+                i = Instruction(_rep);
+                t.addInstruction(i);
+                t.addInstruction(Instruction(_opcode));
+                t.preamble(0x90);  // NOP
+                t.preamble(0xb8);
+                t.preamble(0xa8);
+                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
+                t.preamble(0xb9);
+                t.preamble(_count);
+                t.preamble(0x00);  // MOV CX,c
+                t.preamble(0xbe);
+                t.preamble(0x00);
+                t.preamble(0x40);  // MOV SI,0x4000
+                t.preamble(0xbf);
+                t.preamble(0x00);
+                t.preamble(0x60);  // MOV DI,0x6000
+                t.preamble(0xbb);
+                t.preamble(0x00);
+                t.preamble(0xc0);  // MOV BX,0xc000
+                t.setUsesCH();
+                switch ((_rep << 8) + _opcode) {
+                    case 0xf2a6:  // REPNE CMPSB
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x04);  // MOV AX,0x0403
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x40);  // MOV DI,0x4000
+                        t.preamble(0xb8);
+                        t.preamble(0x02);
+                        t.preamble(0x03);  // MOV AX,0x0302
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x04);
+                        t.preamble(0x04);  // MOV AX,0x0404
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
                         break;
-                    }
-                }       
-                if (found) {
-                    printf("nopcounts %i and %i are identical\n", c1, c2);
-                }
-            }
-        }
-        //useNop[12] = false;
-        useNop[13] = false;
-        useNop[14] = false;
-        useNop[15] = false;
-        File("nopping.dat").save(cycleCounts);
-
-        AppendableArray<int> uniqueTests;
-        for (int i = 0; i < noppingTests; i += nopCounts) {
-            if (!useTest[i])
-                continue;
-            bool isUnique = true;
-            for (int j = 0; j < i; j += nopCounts) {
-                if (!useTest[j])
-                    continue;
-                bool isMatch = true;
-                for (int k = 0; k < nopCounts; ++k) {
-                    if (!useNop[k])
-                        continue;
-                    if (cycleCounts[i + k] != cycleCounts[j + k]) {
-                        isMatch = false;
+                    case 0xf2a7:  // REPNE CMPSW
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x04);  // MOV AX,0x0403
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x40);  // MOV DI,0x4000
+                        t.preamble(0xb8);
+                        t.preamble(0x02);
+                        t.preamble(0x03);  // MOV AX,0x0302
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x04);  // MOV AX,0x0403
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
                         break;
-                    }
-                }
-                if (isMatch) {
-                    isUnique = false;
-                    break;
-                }
-            }
-            if (isUnique)
-                uniqueTests.append(i);
-        }
-        printf("Unique tests found: %i\n", uniqueTests.count());
-        {
-            auto ws = File("uniques.dat").openWrite();
-            for (int i = 0; i < uniqueTests.count(); ++i) {
-                for (int j = 0; j < nopCounts; ++j) {
-                    if (!useNop[j])
-                        continue;
-                    Byte b = cycleCounts[uniqueTests[i] + j];
-                    ws.write(b);
-                }
-            }
-        }
-
-        for (int setSize = 1;; ++setSize) {
-            printf("Trying set size %i\n",setSize);
-            Array<int> setMembers(setSize);
-            for (int i = 0; i < setSize; ++i)
-                setMembers[i] = i;
-            bool tryNextSize = false;
-            do {
-                bool working = true;
-                for (int i = 0; i < nopCounts; ++i) {
-                    if (!useNop[i])
-                        continue;
-                    for (int j = i + 1; j < nopCounts; ++j) {
-                        if (!useNop[j])
-                            continue;
-                        bool canDistinguish = false;
-                        for (int k = 0; k < setSize; ++k) {
-                            int t = uniqueTests[setMembers[k]];
-                            if (cycleCounts[t + i] != cycleCounts[t + j]) {
-                                canDistinguish = true;
-                                break;
-                            }
-                        }
-                        if (!canDistinguish) {
-                            i = nopCounts;
-                            working = false;
-                            break;
-                        }
-                    }
-                }
-                if (working) {
-                    console.write("Found a set that works:\n");
-                    for (int i = 0; i < setSize; ++i) {
-                        int u = setMembers[i];
-                        int t = uniqueTests[u];
-                        console.write(decimal(t) + ": ");
-                        _tests[t].write();
-                        console.write("\n");
-                    }
-                    console.write("\n");
-                    break;
-                }
-                bool foundDigit = false;
-                for (int d = setSize - 1; d >= 0; --d) {
-                    if (d == 0)
-                        printf(".");
-                    ++setMembers[d];
-                    if (setMembers[d] != uniqueTests.count() - ((setSize - 1) - d)) {
-                        foundDigit = true;
-                        for (int i = d + 1; i < setSize; ++i)
-                            setMembers[i] = setMembers[i - 1] + 1;
+                    case 0xf2ae:  // REPNE SCASB
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x00);  // MOV AX,0x0003
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
                         break;
-                    }
+                    case 0xf2af:  // REPNE SCASW
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x00);
+                        t.preamble(0x00);  // MOV AX,0x0000
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
+                        break;
+                    case 0xf3a6:  // REPE CMPSB
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x04);  // MOV AX,0x0403
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x40);  // MOV DI,0x4000
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x03);  // MOV AX,0x0303
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
+                        break;
+                    case 0xf3a7:  // REPE CMPSW
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x04);  // MOV AX,0x0403
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x40);  // MOV DI,0x4000
+                        t.preamble(0xb8);
+                        t.preamble(0x01);
+                        t.preamble(0x02);  // MOV AX,0x0201
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x03);
+                        t.preamble(0x03);  // MOV AX,0x0303
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
+                        break;
+                    case 0xf3ae:  // REPE SCASB
+                    case 0xf3af:  // REPE SCASW
+                        t.preamble(0xb8);
+                        t.preamble(0x00);
+                        t.preamble(0x00);  // MOV AX,0x0000
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xb8);
+                        t.preamble(0x00);
+                        t.preamble(0x01);  // MOV AX,0x0100
+                        t.preamble(0xab);  // STOSW
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
+                        break;
                 }
-                if (!foundDigit) {
-                    tryNextSize = true;
-                    break;
+                break;
+            case 6:  // Math instructions with all registers
+                t.addInstruction(Instruction(_opcode, _m));
+                if ((_m & 0x30) == 0x30) {
+                    t.preamble(0x1e);  // PUSH DS
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);
+                    t.preamble(0x00);
+                    t.preamble(0x02);
+                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                    t.preamble(0x8c);
+                    t.preamble(0x4f);
+                    t.preamble(0x02);  // MOV [BX+0x02],CS
+                    t.preamble(0x1f);  // POP DS
+                    t.fixup(0x08);
                 }
-            } while (true);
-            if (!tryNextSize)
                 break;
         }
-    }
-private:
-    void addTest0(Test t)
-    {
-        t.setRefreshPeriod(_refreshPeriod);
-        t.setRefreshPhase(_refreshPhase);
-        _tests.append(t);
-    }
-    void addTest1(Test t)
-    {
-        //switch (_group) {
-        //    case 0:
-        //        break;
-        //    case 1:
-        //        t.addInstruction(Instruction(0, 4));
-        //        break;
-        //    case 2:
-        //        t.addInstruction(Instruction(0x90));
-        //        t.addInstruction(Instruction(0x90));
-        //        t.addInstruction(Instruction(0x90));
-        //        t.addInstruction(Instruction(0x90));
-        //        t.addInstruction(Instruction(0, 4));
-        //        t.addInstruction(Instruction(5, 0));
-        //        break;
-        //}
-
-        //switch (_group) {
-        //    case 0:
-        //        break;
-        //    case 1:
-        //        t.addInstruction(Instruction(4, 0));
-        //        break;
-        //    case 2:
-        //        t.addInstruction(Instruction(0x88, 0xc0));
-        //        t.addInstruction(Instruction(4, 0));
-        //        break;
-        //}
-
-        //switch (_group) {
-        //    case 0:
-        //        break;
-        //    case 1:
-        //        t.addInstruction(Instruction(0, 0));
-        //        break;
-        //    case 2:
-        //        t.addInstruction(Instruction(5, 0));
-        //        break;
-        //}
-
-        t = t.copy();
-
-        switch (_group) {
+        t.setNops(_nopCount > 11 ? _nopCount + 1 : _nopCount);
+        switch (_suffix) {
             case 0:
                 break;
             case 1:
@@ -6036,18 +5645,229 @@ private:
             case 5:
                 t.addInstruction(Instruction(5, 0));
                 break;
+            case 6:
+                t.addInstruction(Instruction(0, 4));
+                break;
+            case 7:
+                t.addInstruction(Instruction(0x90));
+                t.addInstruction(Instruction(0x90));
+                t.addInstruction(Instruction(0x90));
+                t.addInstruction(Instruction(0x90));
+                t.addInstruction(Instruction(0, 4));
+                t.addInstruction(Instruction(5, 0));
+                break;
+            case 8:
+                t.addInstruction(Instruction(0x88, 0xc0));
+                t.addInstruction(Instruction(4, 0));
+                break;
         }
-
-        addTest0(t);
+        t.setRefreshPeriod(refreshPeriods[_refreshPeriod]);
+        t.setRefreshPhase(_refreshPhase);
+        return t;
     }
-    void addTestWithNops(Test t)
+    bool incrementModrm()
     {
-        for (int nops = 0; nops < nopCounts; ++nops) {
-            t.setNops(nops > 11 ? nops + 1 : nops);
-            addTest1(t);
+        ++_r;
+        int maxR = 1;
+        Instruction i(_opcode);
+        if (i.hasModrm() && i.isGroup())
+            maxR = 8;
+        if (_r < maxR)
+            return true;
+        _r = 0;
+        ++_m;
+        int maxM = 1;
+        if (Instruction(_opcode).hasModrm())
+            maxM = 25;
+        if (_m < maxM)
+            return true;
+        _m = 0;
+        return false;
+    }
+    bool incrementMain()
+    {
+        ++_nopCount;
+        if (_nopCount < nopCounts)
+            return true;
+        _nopCount = 0;
+        ++_suffix;
+        if (_suffix < 6)
+            return true;
+        _suffix = 0;
+
+        if (_subsection == 0) {  // Basic tests
+            if (incrementModrm())
+                return true;
+            ++_opcode;
+            if (_opcode < 0x100)
+                return true;
+            _subsection = 1;
+            _opcode = 0x98;
+        }
+        if (_subsection == 1) {  // CBW/CWD tests
+            ++_opcode;
+            if (_opcode < 0x9a)
+                return true;
+            _subsection = 2;
+        }
+        if (_subsection == 2) {  // INTO overflow test
+            _subsection = 3;
+            _count = 0;
+            _opcode = 0xd2;
+            _r = 0;
+            _m = 0;
+        }
+        if (_subsection == 3) {  // Shift/rotate with various counts
+            ++_count;
+            if (_count < 5)
+                return true;
+            _count = 0;
+            if (incrementModrm())
+                return true;
+            ++_opcode;
+            if (_opcode < 0xd4)
+                return true;
+            _subsection = 4;
+            _opcode = 0xe0;
+        }
+        if (_subsection == 4) {  // LOOP with CX==1
+            ++_opcode;
+            if (_opcode < 0xe4)
+                return true;
+            _subsection = 5;
+            _opcode = 0xa4;
+            _rep = 0xf2;
+        }
+        if (_subsection == 5) {  // String operations with various counts
+            ++_count;
+            if (_count < 5)
+                return true;
+            _count = 0;
+            do {
+                ++_opcode;
+            } while ((_opcode & 0x0e) == 8);
+            if (_opcode < 0xb0)
+                return true;
+            _opcode = 0xa4;
+            ++_rep;
+            if (_rep < 0xf4)
+                return true;
+            _subsection = 6;
+            _opcode = 0xf6;
+            _m = 0xc0;
+        }
+        if (_subsection == 6) {  // Math instructions with all registers
+            ++_m;
+            if (_m < 0x100)
+                return true;
+            _m = 0;
+            ++_opcode;
+            if (_opcode < 0xf8)
+                return true;
+            _section = 3;
+            _opcode = 0xf6;
+            _m = 0xe2;
+            _count = -1;
+            // _groupSize = _c - _groupStartCount;
+        }
+        return false;
+    }
+    void increment()
+    {
+        if (_section == -1) {
+            _section = 0;
+            _i = -1;
+        }
+        if (_section == 0) {
+            ++_i;
+            if (_i < _fails.count())
+                return;
+            _section = 1;
+            _i = -1;
+        }
+        if (_section == 1) {
+            ++_i;
+            if (_i < _functional.count())
+                return;
+            _section = 2;
+            _opcode = 0;
+            _m = 0;
+            _r = 0;
+            _nopCount = -1;
+            _suffix = 0;
+            _subsection = 0;
+            _refreshPeriod = 0;
+            _refreshPhase = 0;
+            //_groupStartCount = _c;
+        }
+        if (_section == 2) {  // Main section tests without DMA
+            if (incrementMain())
+                return;
+        }
+        if (_section == 3) {  // 1000 input pairs for each multiply instruction
+            ++_count;
+            if (_count < 1000)
+                return;
+            _count = 0;
+            _m += 8;
+            if (_m < 0xf2)
+                return;
+            _m = 0xe2;
+            ++_opcode;
+            if (_opcode < 0xf8)
+                return;
+            _section = 4;
+            _opcode = 0xf6;
+            _m = 0xf3;
+            _count = -1;
+        }
+        if (_section == 4) {  // 1000 input pairs for each divide instruction
+            ++_count;
+            if (_count < 1000)
+                return;
+            _count = 0;
+            _m += 8;
+            if (_m < 0xff)
+                return;
+            ++_opcode;
+            if (_opcode < 0xf8)
+                return;
+            _section = 5;
+            _opcode = 0xd4;
+            _count = -1;
+        }
+        if (_section == 5) {
+            ++_count;
+            if (_count < 1000)
+                return;
+            _count = 0;
+            ++_opcode;
+            if (_opcode < 0xd6)
+                return;
+            _section = 6;
+            _opcode = 0;
+            _m = 0;
+            _r = 0;
+            _nopCount = -1;
+            _suffix = 0;
+            _subsection = 0;
+            _refreshPeriod = 1;
+            _refreshPhase = 0;
+        }
+        if (_section == 6) {
+            if (incrementMain())
+                return;
+            ++_refreshPhase;
+            if (_refreshPhase < 4*refreshPeriods[_refreshPeriod])
+                return;
+            _refreshPhase = 0;
+            ++_refreshPeriod;
+            if (_refreshPeriod < 19)
+                return;
+            // Put any later stages here
         }
     }
-    void addTest(Instruction i)
+    Test testForInstruction(Instruction i)
     {
         Test t(0, 0);
         Byte opcode = i.opcode();
@@ -6427,8 +6247,406 @@ private:
                 }
                 break;
         }
-        addTestWithNops(t);
+        return t;
     }
+
+    int _section;
+    int _subsection;
+    int _suffix;
+    int _nopCount;
+    int _opcode;
+    int _m;
+    int _i;
+    int _r;
+    int _refreshPeriod;
+    int _refreshPhase;
+    int _count;
+    int _rep;
+    int _groupStartCount;
+
+    std::mt19937 _generator;
+    std::uniform_int_distribution<int> _d;
+
+    AppendableArray<Test> _functional;
+
+    AppendableArray<Test> _fails;
+    Set<Test> _inFails;
+};
+
+class Program : public ProgramBase
+{
+public:
+    void run()
+    {
+        Array<Byte> testProgram;
+        File("runtests.bin").readIntoArray(&testProgram);
+        Array<Byte> runStub;
+        File("runstub.bin").readIntoArray(&runStub);
+
+        console.write("Generating testcases\n");
+
+        console.write("Loading cache\n");
+        _cacheFile = File("cache.dat");
+        _cache.load(_cacheFile);
+        _cache.dumpStats();
+
+        console.write("Running tests\n");
+
+        Emulator emulator;
+        emulator.setStub(runStub);
+
+        int nextTest = 0;
+        int maxTests = 1000;
+        int availableLength = 0xf300 - testProgram.count();
+        Array<int> cycleCounts(_tests.count());
+        bool reRunAllBad = false;
+        bool expectedFail = false;
+        do {
+            int totalLength = 0;
+            int newNextTest = _tests.count();
+            int tests = 0;
+            AppendableArray<int> runningTests;
+            for (int i = nextTest; i < _tests.count(); ++i) {
+                if (i % 100 == 99)
+                    printf(".");
+                Test t = _tests[i];
+                int cycles = emulator.expected(t);
+                Instruction instruction = t.instruction(0);
+
+                //if (instruction.opcode() == 0x00 && instruction.modrm() == 0x44)
+                //    ++cycles;
+
+                _tests[i].setCycles(cycles);
+                cycleCounts[i] = emulator.instructionCycles();
+                int cached = _cache.getTime(t);
+                if (cycles != cached) {
+                    int nl = totalLength + t.length();
+                    if (nl > availableLength) {
+                        newNextTest = i;
+                        break;
+                    }
+                    ++tests;
+                    runningTests.append(i);
+                    totalLength = nl;
+                    if (cached != -1 && !reRunAllBad) {
+                        console.write("\nFailing test " + decimal(i) + "\n");
+
+                        // This test will fail unless the cache is bad.
+                        // Just run the one to get a sniffer log.
+                        newNextTest = i + 1;
+                        expectedFail = true;
+                        break;
+                    }
+                    if (tests >= maxTests) {
+                        newNextTest = i + 1;
+                        break;
+                    }
+                }
+            }
+            if (tests == 0)
+                break;
+            Array<Byte> output(totalLength + 2);
+            Byte* p = &output[0];
+            *p = totalLength;
+            p[1] = totalLength >> 8;
+            p += 2;
+            for (int i = 0; i < runningTests.count(); ++i) {
+                int t = runningTests[i];
+                int cycles = _tests[t].cycles() - 210;
+                p[0] = cycles;
+                p[1] = cycles >> 8;
+                p += 2;
+                _tests[t].output(p);
+                p += _tests[t].length() - 2;
+
+                //console.write(emulator.log(_tests[t]));
+                //return;
+            }
+
+            {
+                auto h = File("runtest.bin").openWrite();
+                h.write(testProgram);
+                h.write(output);
+            }
+            NullTerminatedWideString data(String("cmd /c run.bat"));
+
+            {
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+                STARTUPINFO si;
+                ZeroMemory(&si, sizeof(STARTUPINFO));
+                si.cb = sizeof(STARTUPINFO);
+
+                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
+                    0, NULL, NULL, &si, &pi) != 0);
+                CloseHandle(pi.hThread);
+                WindowsHandle hProcess = pi.hProcess;
+                IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
+                    WAIT_OBJECT_0);
+            }
+
+            String result = File("runtests.output").contents();
+            CharacterSource s(result);
+            do {
+                if (parse(&s, "FAIL")) {
+                    Rational result;
+                    Space::parse(&s);
+                    if (!Space::parseNumber(&s, &result))
+                        throw Exception("Cannot parse number of failing test");
+                    int n = runningTests[result.floor()];
+
+                    console.write(decimal(n) + "\n");
+                    _tests[n].write();
+                    dumpCache(runningTests, n);
+                    _generator.dumpFailed(_tests[n]);
+
+                    String expected = emulator.log(_tests[n]);
+                    String expected1;
+
+                    String observed;
+                    CharacterSource e(expected);
+                    int skipLines = 4;
+                    do {
+                        int oc = s.get();
+                        if (oc == -1)
+                            break;
+                        if (oc == '\n')
+                            --skipLines;
+                    } while (skipLines > 0);
+
+                    int c = _tests[n].cycles() - 5;
+                    int line = 0;
+                    int column = 1;
+
+                    do {
+                        int ec = e.get();
+                        if (ec == -1)
+                            break;
+                        ++column;
+                        /*if ((column >= 7 && column < 20) || column >= 23)*/ {
+                            //if (line < c)
+                                expected1 += codePoint(ec);
+                        }
+                        if (ec == '\n') {
+                            ++line;
+                            column = 1;
+                        }
+                    } while (true);
+                    line = 0;
+                    column = 1;
+                    do {
+                        int oc = s.get();
+                        if (oc == -1)
+                            break;
+                        ++column;
+                        /*if ((column >= 7 && column < 20) || column >= 23)*/ {
+                            //if (line < c)
+                                observed += codePoint(oc);
+                        }
+                        if (oc == '\n') {
+                            ++line;
+                            if (column == 1)
+                                break;
+                            column = 1;
+                        }
+                    } while (true);
+
+                    File("expected.txt").openWrite().write(expected1);
+                    File("observed.txt").openWrite().write(observed);
+
+                    PROCESS_INFORMATION pi;
+                    ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+                    STARTUPINFO si;
+                    ZeroMemory(&si, sizeof(STARTUPINFO));
+                    si.cb = sizeof(STARTUPINFO);
+
+                    NullTerminatedWideString data(
+                        String("q observed.txt expected.txt"));
+
+                    IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
+                        0, NULL, NULL, &si, &pi) != 0);
+
+                    exit(1);
+                }
+                if (parse(&s, "PASS"))
+                    break;
+                int c = s.get();
+                if (c == -1)
+                    throw Exception("Test was inconclusive");
+            } while (true);
+            dumpCache(runningTests, newNextTest);
+            if (expectedFail)
+                reRunAllBad = true;
+
+            if (maxTests < 1000000)
+                maxTests *= 2;
+            nextTest = newNextTest;
+            if (nextTest == _tests.count())
+                break;
+
+        } while (true);
+
+        console.write(decimal(_tests.count()) + "\n");
+        _generator.dumpFailed(Test());
+
+        return;
+
+
+    //    Array<bool> useTest(noppingTests);
+    //    for (int i = 0; i < noppingTests; ++i) {
+    //        bool use = true;
+    //        int t = (i % groupSize)/nopCounts;
+    //        if (t == 2007 || t == 2480)  // skip WAIT and HLT
+    //            use = false;
+    //        if (_tests[i].queueFiller() != 0)  // skip tests with non-standard queue fillers
+    //            use = false;
+    //        Instruction inst = _tests[i].instruction(0);
+    //        int o = inst.opcode();
+    //        if ((o & 0xe0) == 0x60 || (o >= 0xe0 && o < 0xe4))  // skip conditional jump, time depends on flags
+    //            use = false;
+    //        if (o == 0xf2 || o == 0xf3)  // skip REP loops, need setup
+    //            use = false;
+    //        int op = inst.modrm() & 0x38;
+    //        if ((o >= 0xf6 && o < 0xf8) || op >= 0x20)  // multiplies and divides are not the way to go
+    //            use = false;
+    //        if (o >= 0xfe && op >= 0x10 && op < 0x30)  // CALL/JMP EA are awkward
+    //            use = false;
+
+    //        useTest[i] = use;
+    //    }
+
+    //    // Look for a nopcount column that has the same timings as another one
+    //    Array<bool> useNop(nopCounts);
+    //    for (int c1 = 0; c1 < nopCounts; ++c1) {
+    //        useNop[c1] = true;
+    //        for (int c2 = 0; c2 < nopCounts; ++c2) {
+    //            if (c2 == c1)
+    //                continue;
+    //            bool found = true;
+    //            for (int t = 0; t < noppingTests; t += nopCounts) {
+    //                if (!useTest[t])
+    //                    continue;
+    //                if (cycleCounts[t + c1] != cycleCounts[t + c2]) {
+    //                    found = false;
+    //                    //console.write("To distinguish between " + decimal(c1) + " and " + decimal(c2) + " look at test " + decimal(t) + " ");
+    //                    //_tests[t].write();
+    //                    break;
+    //                }
+    //            }       
+    //            if (found) {
+    //                printf("nopcounts %i and %i are identical\n", c1, c2);
+    //            }
+    //        }
+    //    }
+    //    //useNop[12] = false;
+    //    useNop[13] = false;
+    //    useNop[14] = false;
+    //    useNop[15] = false;
+    //    File("nopping.dat").save(cycleCounts);
+
+    //    AppendableArray<int> uniqueTests;
+    //    for (int i = 0; i < noppingTests; i += nopCounts) {
+    //        if (!useTest[i])
+    //            continue;
+    //        bool isUnique = true;
+    //        for (int j = 0; j < i; j += nopCounts) {
+    //            if (!useTest[j])
+    //                continue;
+    //            bool isMatch = true;
+    //            for (int k = 0; k < nopCounts; ++k) {
+    //                if (!useNop[k])
+    //                    continue;
+    //                if (cycleCounts[i + k] != cycleCounts[j + k]) {
+    //                    isMatch = false;
+    //                    break;
+    //                }
+    //            }
+    //            if (isMatch) {
+    //                isUnique = false;
+    //                break;
+    //            }
+    //        }
+    //        if (isUnique)
+    //            uniqueTests.append(i);
+    //    }
+    //    printf("Unique tests found: %i\n", uniqueTests.count());
+    //    {
+    //        auto ws = File("uniques.dat").openWrite();
+    //        for (int i = 0; i < uniqueTests.count(); ++i) {
+    //            for (int j = 0; j < nopCounts; ++j) {
+    //                if (!useNop[j])
+    //                    continue;
+    //                Byte b = cycleCounts[uniqueTests[i] + j];
+    //                ws.write(b);
+    //            }
+    //        }
+    //    }
+
+    //    for (int setSize = 1;; ++setSize) {
+    //        printf("Trying set size %i\n",setSize);
+    //        Array<int> setMembers(setSize);
+    //        for (int i = 0; i < setSize; ++i)
+    //            setMembers[i] = i;
+    //        bool tryNextSize = false;
+    //        do {
+    //            bool working = true;
+    //            for (int i = 0; i < nopCounts; ++i) {
+    //                if (!useNop[i])
+    //                    continue;
+    //                for (int j = i + 1; j < nopCounts; ++j) {
+    //                    if (!useNop[j])
+    //                        continue;
+    //                    bool canDistinguish = false;
+    //                    for (int k = 0; k < setSize; ++k) {
+    //                        int t = uniqueTests[setMembers[k]];
+    //                        if (cycleCounts[t + i] != cycleCounts[t + j]) {
+    //                            canDistinguish = true;
+    //                            break;
+    //                        }
+    //                    }
+    //                    if (!canDistinguish) {
+    //                        i = nopCounts;
+    //                        working = false;
+    //                        break;
+    //                    }
+    //                }
+    //            }
+    //            if (working) {
+    //                console.write("Found a set that works:\n");
+    //                for (int i = 0; i < setSize; ++i) {
+    //                    int u = setMembers[i];
+    //                    int t = uniqueTests[u];
+    //                    console.write(decimal(t) + ": ");
+    //                    _tests[t].write();
+    //                    console.write("\n");
+    //                }
+    //                console.write("\n");
+    //                break;
+    //            }
+    //            bool foundDigit = false;
+    //            for (int d = setSize - 1; d >= 0; --d) {
+    //                if (d == 0)
+    //                    printf(".");
+    //                ++setMembers[d];
+    //                if (setMembers[d] != uniqueTests.count() - ((setSize - 1) - d)) {
+    //                    foundDigit = true;
+    //                    for (int i = d + 1; i < setSize; ++i)
+    //                        setMembers[i] = setMembers[i - 1] + 1;
+    //                    break;
+    //                }
+    //            }
+    //            if (!foundDigit) {
+    //                tryNextSize = true;
+    //                break;
+    //            }
+    //        } while (true);
+    //        if (!tryNextSize)
+    //            break;
+    //    }
+    }
+private:
     bool parse(CharacterSource* s, String m)
     {
         CharacterSource ss = *s;
@@ -6455,12 +6673,11 @@ private:
         _cache.save(_cacheFile);
     }
 
-    AppendableArray<Test> _tests;
+
+    //AppendableArray<Test> _tests;
 
     File _cacheFile;
     Cache _cache;
-    int _group;
 
-    int _refreshPeriod;
-    int _refreshPhase;
+    TestGenerator _generator;
 };

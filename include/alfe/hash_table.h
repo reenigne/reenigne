@@ -32,6 +32,10 @@ template<class Key, class Value> class HashTableBody
 public:
     virtual void justSetSize(int size) const = 0;
     void preDestroy() const { justSetSize(this->_allocated); }
+
+    HashTableBody() : _misses(0) { }
+
+    mutable uint64_t _misses;
 };
 
 template<class Key, class Value> class HashTable
@@ -52,7 +56,7 @@ public:
         auto e = lookup(key);
         if (e != 0 && e->key() == key)
             return e->value();
-        if (count() >= this->allocated()*3/8) {
+        if (count() >= this->allocated()*3/4) {
             int n = this->allocated()*2;
             if (n == 0)
                 n = 1;
@@ -156,6 +160,18 @@ public:
         }
         return true;
     }
+    void dumpStats(File file)
+    {
+        console.write("Misses: " + decimal(static_cast<int>(this->body()->_misses)) + "," + decimal(static_cast<int>(this->body()->_misses >> 32)) + "\n");
+        console.write("Entries: " + decimal(count()) + "\n");
+        int n = this->allocated();
+        console.write("Size: " + decimal(n) + "\n");
+        auto o = file.openWrite();
+        for (int i = 0; i < n; ++i) {
+            UInt8 present = !(data(i)->key() == Key()) ? 255 : 0;
+            o.write(present);
+        }
+    }
 private:
     int row(const Key& key) const { return ::hash(key) % this->allocated(); }
     Entry* lookup(const Key& key)
@@ -171,6 +187,7 @@ private:
             // We have a decent hash function so linear probing should work
             // fine.
             r = (r + 1)%n;
+            ++this->body()->_misses;
         }
         return 0;
     }
@@ -185,6 +202,7 @@ private:
             if (e->key() == key || e->key() == Key())
                 return e;
             r = (r + 1)%n;
+            ++this->body()->_misses;
         }
         return 0;
     }
