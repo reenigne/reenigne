@@ -135,10 +135,10 @@ test0:
   mov al,0xf9  ; high
   out 0x42,al
 
-
-  int 0xff
+;
+;  int 0xff
 .fail:
-  int 0xfe
+;  int 0xfe
 
 .instructionsEnd:
   db .fixupsEnd - ($+1)

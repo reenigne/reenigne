@@ -176,6 +176,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\include\alfe\array.h" />
     <ClInclude Include="..\..\..\include\alfe\file.h" />
+    <ClInclude Include="..\..\..\include\alfe\hash_table.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\include\alfe.natvis" />

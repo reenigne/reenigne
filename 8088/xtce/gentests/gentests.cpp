@@ -144,7 +144,8 @@ public:
     bool isGroup()
     {
         int o = _opcode & 0xfe;
-        return o == 0xf6 || o == 0xfe || o == 0x80 || o == 0x82;
+        return o == 0xf6 || o == 0xfe || o == 0x80 || o == 0x82 || o == 0xd0 ||
+            o == 0xd2;
     }
     void write()
     {
@@ -3120,7 +3121,7 @@ private:
             case 0x24: case 0x25: case 0x2c: case 0x2d:
             case 0x34: case 0x35: case 0x3c: case 0x3d: // alu A, imm
                 _data = fetchInstructionData();
-                _destination = getAccum();
+                _destination = getAccum();                                 
                 _source = _data;
                 _aluOperation = (_opcode >> 3) & 7;
                 doALUOperation();
@@ -3133,15 +3134,21 @@ private:
                 push(_segmentRegisters[_opcode >> 3]);
                 break;
             case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-
                 _transferStarting = true;
-                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                if (_segmentOverride != -1) {
+                    _segmentOverride = -1;
+                    wait(2);
                 }
                 else {
-                    wait(1);
-                    waitForBusIdle();
+                    if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                        wait(2);
+                    }
+                    else {
+                        wait(1);
+                        waitForBusIdle();
+                        wait(2);
+                    }
                 }
-                wait(2);
 
                 _segmentRegisters[_opcode >> 3] = pop2(false);
                 wait(1);
@@ -5274,10 +5281,16 @@ public:
         }
         File("fails.dat").save(&d[0], size);
     }
+    bool finished() { return _section == 8; }
 
 private:
     Test getNextTest1()
     {
+        static const Byte modrms[] = {
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+            0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
+            0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
+
         Test t;
         Instruction i;
         switch (_section) {
@@ -5286,7 +5299,653 @@ private:
                 break;
             case 2:  // Main section tests without DMA
             case 6:  // Main section tests with DMA
-                t = getMainTest();
+            case 7:  // Main section tests with override
+                if (_segment != -1)
+                    t.addInstruction(Instruction((_segment << 3) + 0x26));
+                switch (_subsection) {
+                    case 0:  // Basic tests
+                        i = Instruction(_opcode, modrms[_m] + (_r << 3));
+                        switch (_opcode) {
+                            case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
+                                t.preamble(_opcode - 1);  // PUSH segreg
+                                break;
+                            case 0x58: case 0x59: case 0x5a: case 0x5b:
+                            case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
+                                t.preamble(_opcode - 8);  // PUSH rw
+                                break;
+                            case 0x8f: // POP rmw
+                                t.preamble(0x50);  // PUSH AX
+                                break;
+                            case 0x9b: // WAIT
+                                t.preamble(0x31);
+                                t.preamble(0xdb);  // XOR BX,BX
+                                t.preamble(0x8e);
+                                t.preamble(0xdb);  // MOV DS,BX
+                                t.preamble(0xc7);
+                                t.preamble(0x47);
+                                t.preamble(0x20);
+                                t.fixup();
+                                t.preamble(0x01);
+                                t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                                t.preamble(0x8c);
+                                t.preamble(0x4f);
+                                t.preamble(0x22);  // MOV [BX+0x22],CS
+                                t.preamble(0xb0);
+                                t.preamble(0x14);  // MOV AL,0x14
+                                t.preamble(0xe6);
+                                t.preamble(0x43);  // OUT 0x43,AL
+                                t.preamble(0xb0);
+                                t.preamble(0x43);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                                t.preamble(0xe6);
+                                t.preamble(0x40);  // OUT 0x40,AL
+                                t.preamble(0xfb);  // STI
+                                break;
+                            case 0x9d: // POPF
+                                t.preamble(0x9c);  // PUSHF
+                                break;
+                            case 0x9a: // CALL cp
+                            case 0xea: // JMP cp
+                                i.setImmediate(
+                                    ((static_cast<DWord>(testSegment + 0x1000)) << 16) + 5);
+                                t.fixup(0x81);
+                                break;
+                            case 0xa4: case 0xa5: case 0xa6: case 0xa7: case 0xaa: case 0xab:
+                            case 0xac: case 0xad: // MOVS/CMPS/STOS/LODS/SCAS
+                                t.preamble(0x90);  // NOP
+                                t.preamble(0xb8);
+                                t.preamble(0xa8);
+                                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
+                                t.setUsesCH();
+                                break;
+                            case 0xc0: case 0xc2: // RET iw
+                                t.preamble(0xb8);  // MOV AX,3
+                                t.fixup();
+                                t.preamble(0x03);
+                                t.preamble(0x00);
+                                t.preamble(0x50);  // PUSH AX
+                                break;
+                            case 0xc1: case 0xc3: // RET
+                                t.preamble(0xb8);  // MOV AX,1
+                                t.fixup();
+                                t.preamble(0x01);
+                                t.preamble(0x00);
+                                t.preamble(0x50);  // PUSH AX
+                                break;
+                            case 0xc5:  // LDS
+                                t.preamble(0xc7);
+                                t.preamble(0x07);
+                                t.preamble(0x00);
+                                t.preamble(0x00);  // MOV WORD[BX],0000
+                                t.preamble(0x8c);
+                                t.preamble(0x4f);
+                                t.preamble(0x02);  // MOV WORD[BX+2],CS
+                                break;
+                            case 0xc8: case 0xca: // RETF iw
+                                t.preamble(0x0e);  // PUSH CS
+                                t.preamble(0xb8);  // MOV AX,3
+                                t.fixup();
+                                t.preamble(0x03);
+                                t.preamble(0x00);
+                                t.preamble(0x50);  // PUSH AX
+                                break;
+                            case 0xc9: case 0xcb: // RETF
+                                t.preamble(0x0e);  // PUSH CS
+                                t.preamble(0xb8);  // MOV AX,1
+                                t.fixup();
+                                t.preamble(0x01);
+                                t.preamble(0x00);
+                                t.preamble(0x50);  // PUSH AX
+                                break;
+                            case 0xcc: case 0xcd: // INT
+                                if (_opcode == 0xcd)
+                                    i.setImmediate(3);
+                                t.preamble(0x31);
+                                t.preamble(0xdb);  // XOR BX,BX
+                                t.preamble(0x8e);
+                                t.preamble(0xdb);  // MOV DS,BX
+                                t.preamble(0xc7);
+                                t.preamble(0x47);
+                                t.preamble(0x0c);
+                                t.fixup();
+                                t.preamble(_opcode - 0xcb);
+                                t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
+                                t.preamble(0x8c);
+                                t.preamble(0x4f);
+                                t.preamble(0x0e);  // MOV [BX+0x0E],CS
+                                break;
+                            case 0xcf: // IRET
+                                t.preamble(0x9c);  // PUSHF
+                                t.preamble(0x0e);  // PUSH CS
+                                t.preamble(0xb8);  // MOV AX,1
+                                t.fixup();
+                                t.preamble(0x01);
+                                t.preamble(0x00);
+                                t.preamble(0x50);  // PUSH AX
+                                break;
+                            case 0xd4: case 0xd5: // AAx
+                                i.setImmediate(10);
+                                break;
+                            case 0xe4: case 0xe5: case 0xe6: case 0xe7: // IN/OUT ib
+                                i.setImmediate(0xe0);
+                                break;
+                            case 0xf4: // HLT
+                                t.preamble(0x31);
+                                t.preamble(0xdb);  // XOR BX,BX
+                                t.preamble(0x8e);
+                                t.preamble(0xdb);  // MOV DS,BX
+                                t.preamble(0xc7);
+                                t.preamble(0x47);
+                                t.preamble(0x20);
+                                t.fixup();
+                                t.preamble(0x01);
+                                t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                                t.preamble(0x8c);
+                                t.preamble(0x4f);
+                                t.preamble(0x22);  // MOV [BX+0x22],CS
+                                t.preamble(0xb0);
+                                t.preamble(0x14);  // MOV AL,0x14
+                                t.preamble(0xe6);
+                                t.preamble(0x43);  // OUT 0x43,AL
+                                t.preamble(0xb0);
+                                t.preamble(0x3f);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                                t.preamble(0xe6);
+                                t.preamble(0x40);  // OUT 0x40,AL
+                                t.preamble(0xfb);  // STI
+                                break;
+                            case 0xf6: case 0xf7:
+                                if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
+                                    t.preamble(0x1e);  // PUSH DS
+                                    t.preamble(0x31);
+                                    t.preamble(0xdb);  // XOR BX,BX
+                                    t.preamble(0x8e);
+                                    t.preamble(0xdb);  // MOV DS,BX
+                                    t.preamble(0xc7);
+                                    t.preamble(0x47);
+                                    t.preamble(0x00);
+                                    t.fixup();
+                                    t.preamble(i.length());
+                                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                                    t.preamble(0x8c);
+                                    t.preamble(0x4f);
+                                    t.preamble(0x02);  // MOV [BX+0x02],CS
+                                    t.preamble(0x1f);  // POP DS
+                                }
+                                break;
+                            case 0xfe: case 0xff:
+                                switch (i.modrm() & 0x38) {
+                                    case 0x10:  // CALL rm
+                                        t.preamble(0xc6);
+                                        t.preamble(0x47);
+                                        t.preamble(0xc0);
+                                        t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
+
+                                        t.preamble(0xb8);
+                                        t.fixup();
+                                        t.preamble(i.length());
+                                        t.preamble(0x00);  // MOV AX,0x0002
+                                        t.preamble(0x50);  // PUSH AX
+                                        t.preamble(0x58);  // POP AX
+
+                                        t.preamble(0xc7);
+                                        t.preamble(0x07);
+                                        t.preamble(0xc0);
+                                        t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
+
+                                        t.preamble(0x8c);
+                                        t.preamble(0x4f);
+                                        t.preamble(0x02);  // MOV [BX+2],CS  // make it far
+                                        break;
+                                    case 0x18:  // CALL rmd
+                                        if ((i.modrm() & 0xc0) != 0xc0) { // CALL md
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x31);
+                                            t.preamble(0xdb);  // XOR BX,BX
+                                            t.preamble(0x8e);
+                                            t.preamble(0xdb);  // MOV DS,BX
+                                            t.preamble(0xc6);
+                                            t.preamble(0x47);
+                                            t.preamble(0xdf);
+                                            t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
+                                            t.preamble(0x1f);  // POP DS
+                                            t.preamble(0xc6);
+                                            t.preamble(0x47);
+                                            t.preamble(0x04);
+                                            t.preamble(0xcb);  // MOV BYTE[BX+4],0xCB  // RETF
+
+                                            t.preamble(0xb8);
+                                            t.fixup();
+                                            t.preamble(i.length());
+                                            t.preamble(0x00);  // MOV AX,0x0002
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x50);  // PUSH AX
+                                            t.preamble(0x58);  // POP AX
+                                            t.preamble(0x1f);  // POP DS
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x07);
+                                            t.preamble(0xef);
+                                            t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x47);
+                                            t.preamble(0x02);
+                                            t.preamble(0xff);
+                                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+                                        }
+                                        else {  // CALL rd
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x31);
+                                            t.preamble(0xdb);  // XOR BX,BX
+                                            t.preamble(0x8e);
+                                            t.preamble(0xdb);  // MOV DS,BX
+                                            t.preamble(0xc6);
+                                            t.preamble(0x06);
+                                            t.preamble(0x70);
+                                            t.preamble(0xfe);
+                                            t.preamble(0xcb);  // MOV BYTE[BX+0xFE70],0xCB  // RETF
+                                            t.preamble(0x1f);  // POP DS
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x47);
+                                            t.preamble(0x02);
+                                            t.preamble(0xf7);
+                                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
+
+                                            t.preamble(0xb8);
+                                            t.fixup();
+                                            t.preamble(i.length());
+                                            t.preamble(0x00);  // MOV AX,0x0002
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x50);  // PUSH AX
+                                            t.preamble(0x58);  // POP AX
+                                            t.preamble(0x1f);  // POP DS
+
+                                            t.preamble(0xc6);
+                                            t.preamble(0x07);
+                                            t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
+                                            t.noLESNop();
+                                        }
+                                        break;
+                                    case 0x20:  // JMP rm
+                                        if ((i.modrm() & 0xc0) != 0xc0) {  // JMP m
+                                            t.preamble(0xc6);
+                                            t.preamble(0x47);
+                                            t.preamble(0xc0);
+                                            t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
+
+                                            t.preamble(0xb8);
+                                            t.fixup();
+                                            t.preamble(i.length());
+                                            t.preamble(0x00);  // MOV AX,0x0002
+                                            t.preamble(0x50);  // PUSH AX
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x07);
+                                            t.preamble(0xc0);
+                                            t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
+                                        }
+                                        else {  // JMP r
+                                            t.preamble(0xc6);
+                                            t.preamble(0x07);
+                                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
+
+                                            t.preamble(0xc6);
+                                            t.preamble(0x06);
+                                            t.preamble(0x00);
+                                            t.preamble(0xff);
+                                            t.preamble(0xc3);  // MOV BYTE[BX+0xFF00],0xC3  // RET
+
+                                            t.preamble(0xb8);
+                                            t.fixup();
+                                            t.preamble(i.length());
+                                            t.preamble(0x00);  // MOV AX,0x0002
+                                            t.preamble(0x50);  // PUSH AX
+                                        }
+                                        break;
+                                    case 0x28:  // JMP rmd
+                                        if ((i.modrm() & 0xc0) != 0xc0) {  // JMP md
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x31);
+                                            t.preamble(0xdb);  // XOR BX,BX
+                                            t.preamble(0x8e);
+                                            t.preamble(0xdb);  // MOV DS,BX
+                                            t.preamble(0xc6);
+                                            t.preamble(0x47);
+                                            t.preamble(0xdf);
+                                            t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
+                                            t.preamble(0x1f);  // POP DS
+
+                                            t.preamble(0xb8);
+                                            t.fixup();
+                                            t.preamble(i.length());
+                                            t.preamble(0x00);  // MOV AX,0x0002
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x50);  // PUSH AX
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x07);
+                                            t.preamble(0xef);
+                                            t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x47);
+                                            t.preamble(0x02);
+                                            t.preamble(0xff);
+                                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
+                                        }
+                                        else {  // JMP rd
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x31);
+                                            t.preamble(0xdb);  // XOR BX,BX
+                                            t.preamble(0x8e);
+                                            t.preamble(0xdb);  // MOV DS,BX
+                                            t.preamble(0xc6);
+                                            t.preamble(0x06);
+                                            t.preamble(0x70);
+                                            t.preamble(0xfe);
+                                            t.preamble(0xcb);  // MOV BYTE[BX+0xFE70],0xCB  // RETF
+                                            t.preamble(0x1f);  // POP DS
+
+                                            t.preamble(0xc7);
+                                            t.preamble(0x47);
+                                            t.preamble(0x02);
+                                            t.preamble(0xf7);
+                                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
+
+                                            t.preamble(0xb8);
+                                            t.fixup();
+                                            t.preamble(i.length());
+                                            t.preamble(0x00);  // MOV AX,0x0002
+                                            t.preamble(0x1e);  // PUSH DS
+                                            t.preamble(0x50);  // PUSH AX
+
+                                            t.preamble(0xc6);
+                                            t.preamble(0x07);
+                                            t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
+                                            t.noLESNop();
+                                        }
+                                        break;
+                                }
+                                break;
+                        }
+                        t.addInstruction(i);
+                        switch (_opcode) {
+                            case 0xf2: case 0xf3: // REP
+                                t.preamble(0xb9);
+                                t.preamble(0x05);
+                                t.preamble(0x00);  // MOV CX,5
+                                t.setUsesCH();
+                                t.addInstruction(Instruction(0xac));  // LODSB
+                                break;
+                        }
+
+                        break;
+                    case 1:  // CBW/CWD tests
+                        t.addInstruction(Instruction(_opcode));
+                        t.preamble(0xb8);
+                        t.preamble(0xff);
+                        t.preamble(0xff);  // MOV AX,-1
+                        t.setQueueFiller(1);
+                        break;
+                    case 2:  // INTO overflow test
+                        t.setQueueFiller(2);
+                        t.addInstruction(Instruction(0xce));
+                        t.preamble(0x31);
+                        t.preamble(0xdb);  // XOR BX,BX
+                        t.preamble(0x8e);
+                        t.preamble(0xdb);  // MOV DS,BX
+                        t.preamble(0xc7);
+                        t.preamble(0x47);
+                        t.preamble(0x10);
+                        t.preamble(0x01);
+                        t.preamble(0x00);  // MOV WORD[BX+0x10],0001
+                        t.preamble(0x8c);
+                        t.preamble(0x4f);
+                        t.preamble(0x12);  // MOV [BX+0x12],CS
+                        t.fixup(0x07);
+
+                        t.preamble(0xb8);
+                        t.preamble(0xff);
+                        t.preamble(0xff);  // MOV AX,0xFFFF
+                        t.preamble(0xb1);
+                        t.preamble(0x10);  // MOV CL,16
+                        t.preamble(0xd3);
+                        t.preamble(0xe0);  // SHL AX,CL
+                        break;
+                    case 3:  // Shift/rotate with various counts
+                        i = Instruction(_opcode, modrms[_m] + (_r << 3));
+                        t.addInstruction(i);
+                        t.preamble(0xb1);
+                        t.preamble(_count);
+                        break;
+                    case 4:  // LOOP with CX==1
+                        i = Instruction(_opcode);
+                        t.addInstruction(i);
+                        t.preamble(0xb9);
+                        t.preamble(0x01);
+                        t.preamble(0x00);  // MOV CX,1
+                        t.setUsesCH();
+                        break;
+                    case 5:  // String operations with various counts
+                        i = Instruction(_rep);
+                        t.addInstruction(i);
+                        t.addInstruction(Instruction(_opcode));
+                        t.preamble(0x90);  // NOP
+                        t.preamble(0xb8);
+                        t.preamble(0xa8);
+                        t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
+                        t.preamble(0xb9);
+                        t.preamble(_count);
+                        t.preamble(0x00);  // MOV CX,c
+                        t.preamble(0xbe);
+                        t.preamble(0x00);
+                        t.preamble(0x40);  // MOV SI,0x4000
+                        t.preamble(0xbf);
+                        t.preamble(0x00);
+                        t.preamble(0x60);  // MOV DI,0x6000
+                        t.preamble(0xbb);
+                        t.preamble(0x00);
+                        t.preamble(0xc0);  // MOV BX,0xc000
+                        t.setUsesCH();
+                        switch ((_rep << 8) + _opcode) {
+                            case 0xf2a6:  // REPNE CMPSB
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x02);
+                                t.preamble(0x03);  // MOV AX,0x0302
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x04);
+                                t.preamble(0x04);  // MOV AX,0x0404
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf2a7:  // REPNE CMPSW
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x02);
+                                t.preamble(0x03);  // MOV AX,0x0302
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf2ae:  // REPNE SCASB
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x00);  // MOV AX,0x0003
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf2af:  // REPNE SCASW
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x00);
+                                t.preamble(0x00);  // MOV AX,0x0000
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf3a6:  // REPE CMPSB
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x03);  // MOV AX,0x0303
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf3a7:  // REPE CMPSW
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x04);  // MOV AX,0x0403
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x40);  // MOV DI,0x4000
+                                t.preamble(0xb8);
+                                t.preamble(0x01);
+                                t.preamble(0x02);  // MOV AX,0x0201
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x03);
+                                t.preamble(0x03);  // MOV AX,0x0303
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                            case 0xf3ae:  // REPE SCASB
+                            case 0xf3af:  // REPE SCASW
+                                t.preamble(0xb8);
+                                t.preamble(0x00);
+                                t.preamble(0x00);  // MOV AX,0x0000
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xb8);
+                                t.preamble(0x00);
+                                t.preamble(0x01);  // MOV AX,0x0100
+                                t.preamble(0xab);  // STOSW
+                                t.preamble(0xbf);
+                                t.preamble(0x00);
+                                t.preamble(0x60);  // MOV DI,0x6000
+                                break;
+                        }
+                        break;
+                    case 6:  // Math instructions with all registers
+                        t.addInstruction(Instruction(_opcode, _m));
+                        if ((_m & 0x30) == 0x30) {
+                            t.preamble(0x1e);  // PUSH DS
+                            t.preamble(0x31);
+                            t.preamble(0xdb);  // XOR BX,BX
+                            t.preamble(0x8e);
+                            t.preamble(0xdb);  // MOV DS,BX
+                            t.preamble(0xc7);
+                            t.preamble(0x47);
+                            t.preamble(0x00);
+                            t.preamble(0x02);
+                            t.preamble(0x00);  // MOV WORD[BX+0x00],0002
+                            t.preamble(0x8c);
+                            t.preamble(0x4f);
+                            t.preamble(0x02);  // MOV [BX+0x02],CS
+                            t.preamble(0x1f);  // POP DS
+                            t.fixup(0x08);
+                        }
+                        break;
+                }
+                t.setNops(_nopCount > 11 ? _nopCount + 1 : _nopCount);
+                switch (_suffix) {
+                    case 0:
+                        t.addInstruction(Instruction(4, 0));
+                        break;
+                    case 1:
+                        t.addInstruction(Instruction(0x88, 0xc0));
+                        t.addInstruction(Instruction(0, 0));
+                        break;
+                    case 2:
+                        for (int i = 0; i < 4; ++i)
+                            t.addInstruction(Instruction(4, 0));
+                        break;
+                    case 3:
+                        break;
+                    case 4:
+                        t.addInstruction(Instruction(0, 0));
+                        break;
+                    case 5:
+                        t.addInstruction(Instruction(5, 0));
+                        break;
+                    case 6:
+                        t.addInstruction(Instruction(0, 4));
+                        break;
+                    case 7:
+                        t.addInstruction(Instruction(0x90));
+                        t.addInstruction(Instruction(0x90));
+                        t.addInstruction(Instruction(0x90));
+                        t.addInstruction(Instruction(0x90));
+                        t.addInstruction(Instruction(0, 4));
+                        t.addInstruction(Instruction(5, 0));
+                        break;
+                    case 8:
+                        t.addInstruction(Instruction(0x88, 0xc0));
+                        t.addInstruction(Instruction(4, 0));
+                        break;
+                }
+                t.setRefreshPeriod(refreshPeriods[_refreshPeriod]);
+                t.setRefreshPhase(_refreshPhase);
                 break;
             case 3:  // 1000 input pairs for each multiply instruction
                 t.setNops(0);
@@ -5383,288 +6042,6 @@ private:
         increment();
         return t;
     }
-    Test getMainTest()
-    {
-        static const Byte modrms[] = {
-            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-            0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
-            0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
-
-        Test t;
-        Instruction i;
-        switch (_subsection) {
-            case 0:  // Basic tests
-                t = testForInstruction(
-                    Instruction(_opcode, modrms[_m] + (_r << 3)));
-                break;
-            case 1:  // CBW/CWD tests
-                t.addInstruction(Instruction(_opcode));
-                t.preamble(0xb8);
-                t.preamble(0xff);
-                t.preamble(0xff);  // MOV AX,-1
-                t.setQueueFiller(1);
-                break;
-            case 2:  // INTO overflow test
-                t.setQueueFiller(2);
-                t.addInstruction(Instruction(0xce));
-                t.preamble(0x31);
-                t.preamble(0xdb);  // XOR BX,BX
-                t.preamble(0x8e);
-                t.preamble(0xdb);  // MOV DS,BX
-                t.preamble(0xc7);
-                t.preamble(0x47);
-                t.preamble(0x10);
-                t.preamble(0x01);
-                t.preamble(0x00);  // MOV WORD[BX+0x10],0001
-                t.preamble(0x8c);
-                t.preamble(0x4f);
-                t.preamble(0x12);  // MOV [BX+0x12],CS
-                t.fixup(0x07);
-
-                t.preamble(0xb8);
-                t.preamble(0xff);
-                t.preamble(0xff);  // MOV AX,0xFFFF
-                t.preamble(0xb1);
-                t.preamble(0x10);  // MOV CL,16
-                t.preamble(0xd3);
-                t.preamble(0xe0);  // SHL AX,CL
-                break;
-            case 3:  // Shift/rotate with various counts
-                i = Instruction(_opcode, modrms[_m] + (_r << 3));
-                t.addInstruction(i);
-                t.preamble(0xb1);
-                t.preamble(_count);
-                break;
-            case 4:  // LOOP with CX==1
-                i = Instruction(_opcode);
-                t.addInstruction(i);
-                t.preamble(0xb9);
-                t.preamble(0x01);
-                t.preamble(0x00);  // MOV CX,1
-                t.setUsesCH();
-                break;
-            case 5:  // String operations with various counts
-                i = Instruction(_rep);
-                t.addInstruction(i);
-                t.addInstruction(Instruction(_opcode));
-                t.preamble(0x90);  // NOP
-                t.preamble(0xb8);
-                t.preamble(0xa8);
-                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
-                t.preamble(0xb9);
-                t.preamble(_count);
-                t.preamble(0x00);  // MOV CX,c
-                t.preamble(0xbe);
-                t.preamble(0x00);
-                t.preamble(0x40);  // MOV SI,0x4000
-                t.preamble(0xbf);
-                t.preamble(0x00);
-                t.preamble(0x60);  // MOV DI,0x6000
-                t.preamble(0xbb);
-                t.preamble(0x00);
-                t.preamble(0xc0);  // MOV BX,0xc000
-                t.setUsesCH();
-                switch ((_rep << 8) + _opcode) {
-                    case 0xf2a6:  // REPNE CMPSB
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x04);  // MOV AX,0x0403
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x40);  // MOV DI,0x4000
-                        t.preamble(0xb8);
-                        t.preamble(0x02);
-                        t.preamble(0x03);  // MOV AX,0x0302
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x04);
-                        t.preamble(0x04);  // MOV AX,0x0404
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                    case 0xf2a7:  // REPNE CMPSW
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x04);  // MOV AX,0x0403
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x40);  // MOV DI,0x4000
-                        t.preamble(0xb8);
-                        t.preamble(0x02);
-                        t.preamble(0x03);  // MOV AX,0x0302
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x04);  // MOV AX,0x0403
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                    case 0xf2ae:  // REPNE SCASB
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x00);  // MOV AX,0x0003
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                    case 0xf2af:  // REPNE SCASW
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x00);
-                        t.preamble(0x00);  // MOV AX,0x0000
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                    case 0xf3a6:  // REPE CMPSB
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x04);  // MOV AX,0x0403
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x40);  // MOV DI,0x4000
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x03);  // MOV AX,0x0303
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                    case 0xf3a7:  // REPE CMPSW
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x04);  // MOV AX,0x0403
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x40);  // MOV DI,0x4000
-                        t.preamble(0xb8);
-                        t.preamble(0x01);
-                        t.preamble(0x02);  // MOV AX,0x0201
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x03);
-                        t.preamble(0x03);  // MOV AX,0x0303
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                    case 0xf3ae:  // REPE SCASB
-                    case 0xf3af:  // REPE SCASW
-                        t.preamble(0xb8);
-                        t.preamble(0x00);
-                        t.preamble(0x00);  // MOV AX,0x0000
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xb8);
-                        t.preamble(0x00);
-                        t.preamble(0x01);  // MOV AX,0x0100
-                        t.preamble(0xab);  // STOSW
-                        t.preamble(0xbf);
-                        t.preamble(0x00);
-                        t.preamble(0x60);  // MOV DI,0x6000
-                        break;
-                }
-                break;
-            case 6:  // Math instructions with all registers
-                t.addInstruction(Instruction(_opcode, _m));
-                if ((_m & 0x30) == 0x30) {
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);
-                    t.preamble(0x00);
-                    t.preamble(0x02);
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f);
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                    t.fixup(0x08);
-                }
-                break;
-        }
-        t.setNops(_nopCount > 11 ? _nopCount + 1 : _nopCount);
-        switch (_suffix) {
-            case 0:
-                break;
-            case 1:
-                t.addInstruction(Instruction(4, 0));
-                break;
-            case 2:
-                t.addInstruction(Instruction(0x88, 0xc0));
-                t.addInstruction(Instruction(0, 0));
-                break;
-            case 3:
-                for (int i = 0; i < 4; ++i)
-                    t.addInstruction(Instruction(4, 0));
-                break;
-            case 4:
-                t.addInstruction(Instruction(0, 0));
-                break;
-            case 5:
-                t.addInstruction(Instruction(5, 0));
-                break;
-            case 6:
-                t.addInstruction(Instruction(0, 4));
-                break;
-            case 7:
-                t.addInstruction(Instruction(0x90));
-                t.addInstruction(Instruction(0x90));
-                t.addInstruction(Instruction(0x90));
-                t.addInstruction(Instruction(0x90));
-                t.addInstruction(Instruction(0, 4));
-                t.addInstruction(Instruction(5, 0));
-                break;
-            case 8:
-                t.addInstruction(Instruction(0x88, 0xc0));
-                t.addInstruction(Instruction(4, 0));
-                break;
-        }
-        t.setRefreshPeriod(refreshPeriods[_refreshPeriod]);
-        t.setRefreshPhase(_refreshPhase);
-        return t;
-    }
     bool incrementModrm()
     {
         ++_r;
@@ -5686,12 +6063,20 @@ private:
     }
     bool incrementMain()
     {
+        int maxNopCount = nopCounts;
+        if (_section == 6 || _section == 7)
+            maxNopCount = 13;
         ++_nopCount;
-        if (_nopCount < nopCounts)
+        if (_nopCount < maxNopCount)
             return true;
         _nopCount = 0;
         ++_suffix;
-        if (_suffix < 6)
+        int maxSuffix = 9;
+        if (_section == 6)
+            maxSuffix = 3;
+        if (_section == 7)
+            maxSuffix = 2;
+        if (_suffix < maxSuffix)
             return true;
         _suffix = 0;
 
@@ -5703,19 +6088,22 @@ private:
                 return true;
             _subsection = 1;
             _opcode = 0x98;
+            return true;
         }
         if (_subsection == 1) {  // CBW/CWD tests
             ++_opcode;
             if (_opcode < 0x9a)
                 return true;
             _subsection = 2;
+            return true;
         }
         if (_subsection == 2) {  // INTO overflow test
             _subsection = 3;
-            _count = 0;
             _opcode = 0xd2;
             _r = 0;
             _m = 0;
+            _count = 0;
+            return true;
         }
         if (_subsection == 3) {  // Shift/rotate with various counts
             ++_count;
@@ -5729,6 +6117,7 @@ private:
                 return true;
             _subsection = 4;
             _opcode = 0xe0;
+            return true;
         }
         if (_subsection == 4) {  // LOOP with CX==1
             ++_opcode;
@@ -5737,6 +6126,8 @@ private:
             _subsection = 5;
             _opcode = 0xa4;
             _rep = 0xf2;
+            _count = 0;
+            return true;
         }
         if (_subsection == 5) {  // String operations with various counts
             ++_count;
@@ -5755,20 +6146,17 @@ private:
             _subsection = 6;
             _opcode = 0xf6;
             _m = 0xc0;
+            return true;
         }
         if (_subsection == 6) {  // Math instructions with all registers
             ++_m;
             if (_m < 0x100)
                 return true;
-            _m = 0;
+            _m = 0xc0;
             ++_opcode;
             if (_opcode < 0xf8)
                 return true;
-            _section = 3;
-            _opcode = 0xf6;
-            _m = 0xe2;
-            _count = -1;
-            // _groupSize = _c - _groupStartCount;
+            //// _groupSize = _c - _groupStartCount;
         }
         return false;
     }
@@ -5793,16 +6181,33 @@ private:
             _opcode = 0;
             _m = 0;
             _r = 0;
-            _nopCount = -1;
+            _nopCount = 0;
             _suffix = 0;
             _subsection = 0;
             _refreshPeriod = 0;
             _refreshPhase = 0;
+            return;
             //_groupStartCount = _c;
         }
         if (_section == 2) {  // Main section tests without DMA
             if (incrementMain())
                 return;
+        //++_suffix;
+        //if (_suffix < 6) {
+        //    _opcode = 0;
+        //    _m = 0;
+        //    _r = 0;
+        //    _nopCount = 0;
+        //    _subsection = 0;
+        //    return;
+        //}
+        //_suffix = 0;
+
+            _section = 3;
+            _opcode = 0xf6;
+            _m = 0xe2;
+            _count = 0;
+            return;
         }
         if (_section == 3) {  // 1000 input pairs for each multiply instruction
             ++_count;
@@ -5819,7 +6224,8 @@ private:
             _section = 4;
             _opcode = 0xf6;
             _m = 0xf3;
-            _count = -1;
+            _count = 0;
+            return;
         }
         if (_section == 4) {  // 1000 input pairs for each divide instruction
             ++_count;
@@ -5829,12 +6235,14 @@ private:
             _m += 8;
             if (_m < 0xff)
                 return;
+            _m = 0xf3;
             ++_opcode;
             if (_opcode < 0xf8)
                 return;
             _section = 5;
             _opcode = 0xd4;
-            _count = -1;
+            _count = 0;
+            return;
         }
         if (_section == 5) {
             ++_count;
@@ -5844,15 +6252,30 @@ private:
             ++_opcode;
             if (_opcode < 0xd6)
                 return;
+            _section = 7;
+            _opcode = 0;
+            _m = 0;
+            _r = 0;
+            _nopCount = 0;
+            _suffix = 0;
+            _subsection = 0;
+        }
+        if (_section == 7) {
+            if (incrementMain())
+                return;
+            ++_segment;
+            if (_segment < 4)
+                return;
             _section = 6;
             _opcode = 0;
             _m = 0;
             _r = 0;
-            _nopCount = -1;
+            _nopCount = 0;
             _suffix = 0;
             _subsection = 0;
             _refreshPeriod = 1;
             _refreshPhase = 0;
+            return;
         }
         if (_section == 6) {
             if (incrementMain())
@@ -5864,390 +6287,8 @@ private:
             ++_refreshPeriod;
             if (_refreshPeriod < 19)
                 return;
-            // Put any later stages here
+            _section = 8;
         }
-    }
-    Test testForInstruction(Instruction i)
-    {
-        Test t(0, 0);
-        Byte opcode = i.opcode();
-        switch (opcode) {
-            case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-                t.preamble(opcode - 1);  // PUSH segreg
-                break;
-            case 0x58: case 0x59: case 0x5a: case 0x5b:
-            case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                t.preamble(opcode - 8);  // PUSH rw
-                break;
-            case 0x8f: // POP rmw
-                t.preamble(0x50);  // PUSH AX
-                break;
-            case 0x9b: // WAIT
-                t.preamble(0x31);
-                t.preamble(0xdb);  // XOR BX,BX
-                t.preamble(0x8e);
-                t.preamble(0xdb);  // MOV DS,BX
-                t.preamble(0xc7);
-                t.preamble(0x47);
-                t.preamble(0x20);
-                t.fixup();
-                t.preamble(0x01);
-                t.preamble(0x00);  // MOV WORD[BX+0x20],1
-                t.preamble(0x8c);
-                t.preamble(0x4f);
-                t.preamble(0x22);  // MOV [BX+0x22],CS
-                t.preamble(0xb0);
-                t.preamble(0x14);  // MOV AL,0x14
-                t.preamble(0xe6);
-                t.preamble(0x43);  // OUT 0x43,AL
-                t.preamble(0xb0);
-                t.preamble(0x43);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
-                t.preamble(0xe6);
-                t.preamble(0x40);  // OUT 0x40,AL
-                t.preamble(0xfb);  // STI
-                break;
-            case 0x9d: // POPF
-                t.preamble(0x9c);  // PUSHF
-                break;
-            case 0x9a: // CALL cp
-            case 0xea: // JMP cp
-                i.setImmediate(
-                    ((static_cast<DWord>(testSegment + 0x1000)) << 16) + 5);
-                t.fixup(0x81);
-                break;
-            case 0xa4: case 0xa5: case 0xa6: case 0xa7: case 0xaa: case 0xab:
-            case 0xac: case 0xad: // MOVS/CMPS/STOS/LODS/SCAS
-                t.preamble(0x90);  // NOP
-                t.preamble(0xb8);
-                t.preamble(0xa8);
-                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
-                t.setUsesCH();
-                break;
-            case 0xc0: case 0xc2: // RET iw
-                t.preamble(0xb8);  // MOV AX,3
-                t.fixup();
-                t.preamble(0x03);
-                t.preamble(0x00);
-                t.preamble(0x50);  // PUSH AX
-                break;
-            case 0xc1: case 0xc3: // RET
-                t.preamble(0xb8);  // MOV AX,1
-                t.fixup();
-                t.preamble(0x01);
-                t.preamble(0x00);
-                t.preamble(0x50);  // PUSH AX
-                break;
-            case 0xc5:  // LDS
-                t.preamble(0xc7);
-                t.preamble(0x07);
-                t.preamble(0x00);
-                t.preamble(0x00);  // MOV WORD[BX],0000
-                t.preamble(0x8c);
-                t.preamble(0x4f);
-                t.preamble(0x02);  // MOV WORD[BX+2],CS
-                break;
-            case 0xc8: case 0xca: // RETF iw
-                t.preamble(0x0e);  // PUSH CS
-                t.preamble(0xb8);  // MOV AX,3
-                t.fixup();
-                t.preamble(0x03);
-                t.preamble(0x00);
-                t.preamble(0x50);  // PUSH AX
-                break;
-            case 0xc9: case 0xcb: // RETF
-                t.preamble(0x0e);  // PUSH CS
-                t.preamble(0xb8);  // MOV AX,1
-                t.fixup();
-                t.preamble(0x01);
-                t.preamble(0x00);
-                t.preamble(0x50);  // PUSH AX
-                break;
-            case 0xcc: case 0xcd: // INT
-                if (opcode == 0xcd)
-                    i.setImmediate(3);
-                t.preamble(0x31);
-                t.preamble(0xdb);  // XOR BX,BX
-                t.preamble(0x8e);
-                t.preamble(0xdb);  // MOV DS,BX
-                t.preamble(0xc7);
-                t.preamble(0x47);
-                t.preamble(0x0c);
-                t.fixup();
-                t.preamble(opcode - 0xcb);
-                t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
-                t.preamble(0x8c);
-                t.preamble(0x4f);
-                t.preamble(0x0e);  // MOV [BX+0x0E],CS
-                break;
-            case 0xcf: // IRET
-                t.preamble(0x9c);  // PUSHF
-                t.preamble(0x0e);  // PUSH CS
-                t.preamble(0xb8);  // MOV AX,1
-                t.fixup();
-                t.preamble(0x01);
-                t.preamble(0x00);
-                t.preamble(0x50);  // PUSH AX
-                break;
-            case 0xd4: case 0xd5: // AAx
-                i.setImmediate(10);
-                break;
-            case 0xe4: case 0xe5: case 0xe6: case 0xe7: // IN/OUT ib
-                i.setImmediate(0xe0);
-                break;
-            case 0xf4: // HLT
-                t.preamble(0x31);
-                t.preamble(0xdb);  // XOR BX,BX
-                t.preamble(0x8e);
-                t.preamble(0xdb);  // MOV DS,BX
-                t.preamble(0xc7);
-                t.preamble(0x47);
-                t.preamble(0x20);
-                t.fixup();
-                t.preamble(0x01);
-                t.preamble(0x00);  // MOV WORD[BX+0x20],1
-                t.preamble(0x8c);
-                t.preamble(0x4f);
-                t.preamble(0x22);  // MOV [BX+0x22],CS
-                t.preamble(0xb0);
-                t.preamble(0x14);  // MOV AL,0x14
-                t.preamble(0xe6);
-                t.preamble(0x43);  // OUT 0x43,AL
-                t.preamble(0xb0);
-                t.preamble(0x3f);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
-                t.preamble(0xe6);
-                t.preamble(0x40);  // OUT 0x40,AL
-                t.preamble(0xfb);  // STI
-                break;
-            case 0xf6: case 0xf7:
-                if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
-                    t.preamble(0x1e);  // PUSH DS
-                    t.preamble(0x31);
-                    t.preamble(0xdb);  // XOR BX,BX
-                    t.preamble(0x8e);
-                    t.preamble(0xdb);  // MOV DS,BX
-                    t.preamble(0xc7);
-                    t.preamble(0x47);
-                    t.preamble(0x00);
-                    t.fixup();
-                    t.preamble(i.length());
-                    t.preamble(0x00);  // MOV WORD[BX+0x00],0002
-                    t.preamble(0x8c);
-                    t.preamble(0x4f);
-                    t.preamble(0x02);  // MOV [BX+0x02],CS
-                    t.preamble(0x1f);  // POP DS
-                }
-                break;
-            case 0xfe: case 0xff:
-                switch (i.modrm() & 0x38) {
-                    case 0x10:  // CALL rm
-                        t.preamble(0xc6);
-                        t.preamble(0x47);
-                        t.preamble(0xc0);
-                        t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
-
-                        t.preamble(0xb8);
-                        t.fixup();
-                        t.preamble(i.length());
-                        t.preamble(0x00);  // MOV AX,0x0002
-                        t.preamble(0x50);  // PUSH AX
-                        t.preamble(0x58);  // POP AX
-
-                        t.preamble(0xc7);
-                        t.preamble(0x07);
-                        t.preamble(0xc0);
-                        t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
-
-                        t.preamble(0x8c);
-                        t.preamble(0x4f);
-                        t.preamble(0x02);  // MOV [BX+2],CS  // make it far
-                        break;
-                    case 0x18:  // CALL rmd
-                        if ((i.modrm() & 0xc0) != 0xc0) { // CALL md
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x31);
-                            t.preamble(0xdb);  // XOR BX,BX
-                            t.preamble(0x8e);
-                            t.preamble(0xdb);  // MOV DS,BX
-                            t.preamble(0xc6);
-                            t.preamble(0x47);
-                            t.preamble(0xdf);
-                            t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
-                            t.preamble(0x1f);  // POP DS
-                            t.preamble(0xc6);
-                            t.preamble(0x47);
-                            t.preamble(0x04);
-                            t.preamble(0xcb);  // MOV BYTE[BX+4],0xCB  // RETF
-
-                            t.preamble(0xb8);
-                            t.fixup();
-                            t.preamble(i.length());
-                            t.preamble(0x00);  // MOV AX,0x0002
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x50);  // PUSH AX
-                            t.preamble(0x58);  // POP AX
-                            t.preamble(0x1f);  // POP DS
-
-                            t.preamble(0xc7);
-                            t.preamble(0x07);
-                            t.preamble(0xef);
-                            t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
-
-                            t.preamble(0xc7);
-                            t.preamble(0x47);
-                            t.preamble(0x02);
-                            t.preamble(0xff);
-                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
-                        }
-                        else {  // CALL rd
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x31);
-                            t.preamble(0xdb);  // XOR BX,BX
-                            t.preamble(0x8e);
-                            t.preamble(0xdb);  // MOV DS,BX
-                            t.preamble(0xc6);
-                            t.preamble(0x06);
-                            t.preamble(0x70);
-                            t.preamble(0xfe);
-                            t.preamble(0xcb);  // MOV BYTE[BX+0xFE70],0xCB  // RETF
-                            t.preamble(0x1f);  // POP DS
-
-                            t.preamble(0xc7);
-                            t.preamble(0x47);
-                            t.preamble(0x02);
-                            t.preamble(0xf7);
-                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
-
-                            t.preamble(0xb8);
-                            t.fixup();
-                            t.preamble(i.length());
-                            t.preamble(0x00);  // MOV AX,0x0002
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x50);  // PUSH AX
-                            t.preamble(0x58);  // POP AX
-                            t.preamble(0x1f);  // POP DS
-
-                            t.preamble(0xc6);
-                            t.preamble(0x07);
-                            t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
-                            t.noLESNop();
-                        }
-                        break;
-                    case 0x20:  // JMP rm
-                        if ((i.modrm() & 0xc0) != 0xc0) {  // JMP m
-                            t.preamble(0xc6);
-                            t.preamble(0x47);
-                            t.preamble(0xc0);
-                            t.preamble(0xc3);  // MOV BYTE[BX-0x40],0xC3  // RET
-
-                            t.preamble(0xb8);
-                            t.fixup();
-                            t.preamble(i.length());
-                            t.preamble(0x00);  // MOV AX,0x0002
-                            t.preamble(0x50);  // PUSH AX
-
-                            t.preamble(0xc7);
-                            t.preamble(0x07);
-                            t.preamble(0xc0);
-                            t.preamble(0xff);  // MOV WORD[BX],0xFFC0  // pointer to RET
-                        }
-                        else {  // JMP r
-                            t.preamble(0xc6);
-                            t.preamble(0x07);
-                            t.preamble(0xc3);  // MOV BYTE[BX],0xC3  // RET
-
-                            t.preamble(0xc6);
-                            t.preamble(0x06);
-                            t.preamble(0x00);
-                            t.preamble(0xff);
-                            t.preamble(0xc3);  // MOV BYTE[BX+0xFF00],0xC3  // RET
-
-                            t.preamble(0xb8);
-                            t.fixup();
-                            t.preamble(i.length());
-                            t.preamble(0x00);  // MOV AX,0x0002
-                            t.preamble(0x50);  // PUSH AX
-                        }
-                        break;
-                    case 0x28:  // JMP rmd
-                        if ((i.modrm() & 0xc0) != 0xc0) {  // JMP md
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x31);
-                            t.preamble(0xdb);  // XOR BX,BX
-                            t.preamble(0x8e);
-                            t.preamble(0xdb);  // MOV DS,BX
-                            t.preamble(0xc6);
-                            t.preamble(0x47);
-                            t.preamble(0xdf);
-                            t.preamble(0xcb);  // MOV BYTE[BX+0xFFDF],0xCB  // RETF
-                            t.preamble(0x1f);  // POP DS
-
-                            t.preamble(0xb8);
-                            t.fixup();
-                            t.preamble(i.length());
-                            t.preamble(0x00);  // MOV AX,0x0002
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x50);  // PUSH AX
-
-                            t.preamble(0xc7);
-                            t.preamble(0x07);
-                            t.preamble(0xef);
-                            t.preamble(0xff);  // MOV WORD[BX],0xFFEF  // pointer to RETF
-
-                            t.preamble(0xc7);
-                            t.preamble(0x47);
-                            t.preamble(0x02);
-                            t.preamble(0xff);
-                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFFF  // pointer to RETF
-                        }
-                        else {  // JMP rd
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x31);
-                            t.preamble(0xdb);  // XOR BX,BX
-                            t.preamble(0x8e);
-                            t.preamble(0xdb);  // MOV DS,BX
-                            t.preamble(0xc6);
-                            t.preamble(0x06);
-                            t.preamble(0x70);
-                            t.preamble(0xfe);
-                            t.preamble(0xcb);  // MOV BYTE[BX+0xFE70],0xCB  // RETF
-                            t.preamble(0x1f);  // POP DS
-
-                            t.preamble(0xc7);
-                            t.preamble(0x47);
-                            t.preamble(0x02);
-                            t.preamble(0xf7);
-                            t.preamble(0xff);  // MOV WORD[BX+2],0xFFF7
-
-                            t.preamble(0xb8);
-                            t.fixup();
-                            t.preamble(i.length());
-                            t.preamble(0x00);  // MOV AX,0x0002
-                            t.preamble(0x1e);  // PUSH DS
-                            t.preamble(0x50);  // PUSH AX
-
-                            t.preamble(0xc6);
-                            t.preamble(0x07);
-                            t.preamble(0x00);  // MOV BYTE[BX],0x00  // Set address register to 0. [0] also used by NOP pattern 11 to make _data
-                            t.noLESNop();
-                        }
-                        break;
-                }
-                break;
-        }
-        t.addInstruction(i);
-        switch (opcode) {
-            case 0xf2: case 0xf3: // REP
-                t.preamble(0xb9);
-                t.preamble(0x05);
-                t.preamble(0x00);  // MOV CX,5
-                t.setUsesCH();
-                {
-                    Instruction i2(0xac);  // LODSB
-                    t.addInstruction(i2);
-                }
-                break;
-        }
-        return t;
     }
 
     int _section;
@@ -6263,6 +6304,7 @@ private:
     int _count;
     int _rep;
     int _groupStartCount;
+    int _segment;
 
     std::mt19937 _generator;
     std::uniform_int_distribution<int> _d;
@@ -6283,81 +6325,118 @@ public:
         Array<Byte> runStub;
         File("runstub.bin").readIntoArray(&runStub);
 
-        console.write("Generating testcases\n");
+        // Save all tests for comparison against previous implementation.
+        //{
+        //    int size = 0;
+        //    {
+        //        TestGenerator generator;
+        //        while (!generator.finished())
+        //            size += generator.getNextTest().length();
+        //    }
+        //    Array<Byte> d(size);
+        //    Byte* p = &d[0];
+        //    {
+        //        TestGenerator generator;
+        //        while (!generator.finished()) {
+        //            Test t = generator.getNextTest();
+        //            p[0] = 0;
+        //            p[1] = 0;
+        //            t.output(p + 2);
+        //            p += t.length();
+        //        }
+        //    }
+        //    File("tests.dat").save(&d[0], size);
+        //}
+
 
         console.write("Loading cache\n");
         _cacheFile = File("cache.dat");
         _cache.load(_cacheFile);
-        _cache.dumpStats();
+        //_cache.dumpStats();
 
         console.write("Running tests\n");
 
         Emulator emulator;
         emulator.setStub(runStub);
 
-        int nextTest = 0;
         int maxTests = 1000;
         int availableLength = 0xf300 - testProgram.count();
-        Array<int> cycleCounts(_tests.count());
+        //Array<int> cycleCounts(_tests.count());
         bool reRunAllBad = false;
         bool expectedFail = false;
+
+        Test retained;
+        bool haveRetained = false;
+        int totalCount = 0;
         do {
-            int totalLength = 0;
-            int newNextTest = _tests.count();
-            int tests = 0;
+            int bunchLength = 0;
+            AppendableArray<Test> bunch;
             AppendableArray<int> runningTests;
-            for (int i = nextTest; i < _tests.count(); ++i) {
-                if (i % 100 == 99)
+            do {
+                if (totalCount % 100 == 99)
                     printf(".");
-                Test t = _tests[i];
+                ++totalCount;
+                Test t;
+                if (haveRetained) {
+                    t = retained;
+                    haveRetained = false;
+                }
+                else {
+                    if (_generator.finished())
+                        break;
+                    t = _generator.getNextTest();
+                }
                 int cycles = emulator.expected(t);
                 Instruction instruction = t.instruction(0);
 
+                // Modify and uncomment to force a passing test to fail to see
+                // its sniffer log.
                 //if (instruction.opcode() == 0x00 && instruction.modrm() == 0x44)
                 //    ++cycles;
 
-                _tests[i].setCycles(cycles);
-                cycleCounts[i] = emulator.instructionCycles();
+                t.setCycles(cycles);
+                //t.setInstructionCycles(emulator.instructionCycles());
                 int cached = _cache.getTime(t);
                 if (cycles != cached) {
-                    int nl = totalLength + t.length();
+                    int nl = bunchLength + t.length();
                     if (nl > availableLength) {
-                        newNextTest = i;
+                        retained = t;
+                        haveRetained = true;
+                        --totalCount;
                         break;
                     }
-                    ++tests;
-                    runningTests.append(i);
-                    totalLength = nl;
+                    bunch.append(t);
+                    runningTests.append(totalCount - 1);
+                    bunchLength = nl;
                     if (cached != -1 && !reRunAllBad) {
-                        console.write("\nFailing test " + decimal(i) + "\n");
+                        console.write("\nFailing test " +
+                            decimal(totalCount - 1) + "\n");
 
                         // This test will fail unless the cache is bad.
                         // Just run the one to get a sniffer log.
-                        newNextTest = i + 1;
                         expectedFail = true;
                         break;
                     }
-                    if (tests >= maxTests) {
-                        newNextTest = i + 1;
+                    if (bunch.count() >= maxTests)
                         break;
-                    }
                 }
-            }
-            if (tests == 0)
+            } while (true);
+
+            if (bunch.count() == 0)
                 break;
-            Array<Byte> output(totalLength + 2);
+            Array<Byte> output(bunchLength + 2);
             Byte* p = &output[0];
-            *p = totalLength;
-            p[1] = totalLength >> 8;
+            *p = bunchLength;
+            p[1] = bunchLength >> 8;
             p += 2;
-            for (int i = 0; i < runningTests.count(); ++i) {
-                int t = runningTests[i];
-                int cycles = _tests[t].cycles() - 210;
+            for (int i = 0; i < bunch.count(); ++i) {
+                Test t = bunch[i];
+                int cycles = t.cycles() - 210;
                 p[0] = cycles;
                 p[1] = cycles >> 8;
                 p += 2;
-                _tests[t].output(p);
-                p += _tests[t].length() - 2;
+                t.output(p);
+                p += t.length() - 2;
 
                 //console.write(emulator.log(_tests[t]));
                 //return;
@@ -6394,14 +6473,16 @@ public:
                     Space::parse(&s);
                     if (!Space::parseNumber(&s, &result))
                         throw Exception("Cannot parse number of failing test");
-                    int n = runningTests[result.floor()];
+                    int index = result.floor();
+                    int n = runningTests[index];
+                    Test t = bunch[index];
 
                     console.write(decimal(n) + "\n");
-                    _tests[n].write();
-                    dumpCache(runningTests, n);
-                    _generator.dumpFailed(_tests[n]);
+                    t.write();
+                    dumpCache(bunch, index);
+                    _generator.dumpFailed(t);
 
-                    String expected = emulator.log(_tests[n]);
+                    String expected = emulator.log(t);
                     String expected1;
 
                     String observed;
@@ -6415,7 +6496,7 @@ public:
                             --skipLines;
                     } while (skipLines > 0);
 
-                    int c = _tests[n].cycles() - 5;
+                    int c = t.cycles() - 5;
                     int line = 0;
                     int column = 1;
 
@@ -6476,19 +6557,15 @@ public:
                 if (c == -1)
                     throw Exception("Test was inconclusive");
             } while (true);
-            dumpCache(runningTests, newNextTest);
+            dumpCache(bunch, bunch.count());
             if (expectedFail)
                 reRunAllBad = true;
 
             if (maxTests < 1000000)
                 maxTests *= 2;
-            nextTest = newNextTest;
-            if (nextTest == _tests.count())
-                break;
-
         } while (true);
 
-        console.write(decimal(_tests.count()) + "\n");
+        console.write(decimal(totalCount) + "\n");
         _generator.dumpFailed(Test());
 
         return;
@@ -6662,19 +6739,14 @@ private:
                 return false;
         } while (true);
     }
-    void dumpCache(AppendableArray<int> runningTests, int n)
+    void dumpCache(AppendableArray<Test> bunch, int count)
     {
-        for (int i = 0; i < runningTests.count(); ++i) {
-            int t = runningTests[i];
-            if (t == n)
-                break;
-            _cache.setTime(_tests[t], _tests[t].cycles());
+        for (int i = 0; i < count; ++i) {
+            Test t = bunch[i];
+            _cache.setTime(t, t.cycles());
         }
         _cache.save(_cacheFile);
     }
-
-
-    //AppendableArray<Test> _tests;
 
     File _cacheFile;
     Cache _cache;

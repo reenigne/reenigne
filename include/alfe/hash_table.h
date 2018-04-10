@@ -56,7 +56,9 @@ public:
         auto e = lookup(key);
         if (e != 0 && e->key() == key)
             return e->value();
-        if (count() >= this->allocated()*3/4) {
+        if (count() >= this->allocated()/2) {
+            //dumpStats(File("tempHash.dat"));
+
             int n = this->allocated()*2;
             if (n == 0)
                 n = 1;
@@ -162,6 +164,8 @@ public:
     }
     void dumpStats(File file)
     {
+        if (this->body() == 0)
+            return;
         console.write("Misses: " + decimal(static_cast<int>(this->body()->_misses)) + "," + decimal(static_cast<int>(this->body()->_misses >> 32)) + "\n");
         console.write("Entries: " + decimal(count()) + "\n");
         int n = this->allocated();
