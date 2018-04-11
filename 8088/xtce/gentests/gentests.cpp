@@ -436,6 +436,8 @@ public:
     {
         if (f == 0xff)
             f = _preamble.count();
+        if ((f & 0x80) != 0)
+            f += _instructions.count();
         _fixups.append(f);
     }
     void setQueueFiller(int queueFiller) { _queueFiller = queueFiller; }
@@ -3257,7 +3259,8 @@ private:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
 
                 _transferStarting = true;
-                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                    _segmentOverride = -1;
                 }
                 else {
                     wait(1);
@@ -3587,7 +3590,8 @@ private:
                 break;
             case 0x9d: // POPF
                 _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
-                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                    _segmentOverride = -1;
                 }
                 else {
                     wait(1);
@@ -3764,6 +3768,7 @@ private:
                     if ((_opcode & 9) == 9)
                         wait(1);
                     _prefetching = false;
+                    _segmentOverride = -1;
 
                     //switch (_opcode) {
                     //    case 0xc0: case 0xc2:
@@ -3935,6 +3940,7 @@ private:
                 break;
             case 0xcf: // IRET
                 {
+                    _segmentOverride = -1;
                     wait(1);
                     _prefetching = false;
                     Word newIP = pop();
@@ -4209,7 +4215,9 @@ private:
                 break;
             case 0xf4: // HLT
                 if (!_repeating) {
-                    if (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle)  // Really weird
+                    //if (_segmentOverride != -1)
+                    //    wait(1);
+                    if (_segmentOverride == -1 && (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle))  // Really weird
                         wait(1);
                     _prefetching = false;
                     wait(3);
@@ -4762,6 +4770,7 @@ private:
         }
         wait(1);
 
+        _segmentOverride = -1;
         Word newIP = busReadWord(ioReadMemory, false);
         wait(1);
         _address += 2;
@@ -5325,7 +5334,7 @@ private:
                                 t.preamble(0x47);
                                 t.preamble(0x20);
                                 t.fixup();
-                                t.preamble(0x01);
+                                t.preamble(0x01 + t.codeLength());
                                 t.preamble(0x00);  // MOV WORD[BX+0x20],1
                                 t.preamble(0x8c);
                                 t.preamble(0x4f);
@@ -5346,7 +5355,7 @@ private:
                             case 0x9a: // CALL cp
                             case 0xea: // JMP cp
                                 i.setImmediate(
-                                    ((static_cast<DWord>(testSegment + 0x1000)) << 16) + 5);
+                                    ((static_cast<DWord>(testSegment + 0x1000)) << 16) + 5 + t.codeLength());
                                 t.fixup(0x81);
                                 break;
                             case 0xa4: case 0xa5: case 0xa6: case 0xa7: case 0xaa: case 0xab:
@@ -5360,14 +5369,14 @@ private:
                             case 0xc0: case 0xc2: // RET iw
                                 t.preamble(0xb8);  // MOV AX,3
                                 t.fixup();
-                                t.preamble(0x03);
+                                t.preamble(0x03 + t.codeLength());
                                 t.preamble(0x00);
                                 t.preamble(0x50);  // PUSH AX
                                 break;
                             case 0xc1: case 0xc3: // RET
                                 t.preamble(0xb8);  // MOV AX,1
                                 t.fixup();
-                                t.preamble(0x01);
+                                t.preamble(0x01 + t.codeLength());
                                 t.preamble(0x00);
                                 t.preamble(0x50);  // PUSH AX
                                 break;
@@ -5384,7 +5393,7 @@ private:
                                 t.preamble(0x0e);  // PUSH CS
                                 t.preamble(0xb8);  // MOV AX,3
                                 t.fixup();
-                                t.preamble(0x03);
+                                t.preamble(0x03 + t.codeLength());
                                 t.preamble(0x00);
                                 t.preamble(0x50);  // PUSH AX
                                 break;
@@ -5392,7 +5401,7 @@ private:
                                 t.preamble(0x0e);  // PUSH CS
                                 t.preamble(0xb8);  // MOV AX,1
                                 t.fixup();
-                                t.preamble(0x01);
+                                t.preamble(0x01 + t.codeLength());
                                 t.preamble(0x00);
                                 t.preamble(0x50);  // PUSH AX
                                 break;
@@ -5407,7 +5416,7 @@ private:
                                 t.preamble(0x47);
                                 t.preamble(0x0c);
                                 t.fixup();
-                                t.preamble(_opcode - 0xcb);
+                                t.preamble(_opcode - 0xcb + t.codeLength());
                                 t.preamble(0x00);  // MOV WORD[BX+0x0C],0000
                                 t.preamble(0x8c);
                                 t.preamble(0x4f);
@@ -5418,7 +5427,7 @@ private:
                                 t.preamble(0x0e);  // PUSH CS
                                 t.preamble(0xb8);  // MOV AX,1
                                 t.fixup();
-                                t.preamble(0x01);
+                                t.preamble(0x01 + t.codeLength());
                                 t.preamble(0x00);
                                 t.preamble(0x50);  // PUSH AX
                                 break;
@@ -5437,7 +5446,7 @@ private:
                                 t.preamble(0x47);
                                 t.preamble(0x20);
                                 t.fixup();
-                                t.preamble(0x01);
+                                t.preamble(0x01 + t.codeLength());
                                 t.preamble(0x00);  // MOV WORD[BX+0x20],1
                                 t.preamble(0x8c);
                                 t.preamble(0x4f);
@@ -5463,7 +5472,7 @@ private:
                                     t.preamble(0x47);
                                     t.preamble(0x00);
                                     t.fixup();
-                                    t.preamble(i.length());
+                                    t.preamble(i.length() + t.codeLength());
                                     t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                                     t.preamble(0x8c);
                                     t.preamble(0x4f);
@@ -5481,7 +5490,7 @@ private:
 
                                         t.preamble(0xb8);
                                         t.fixup();
-                                        t.preamble(i.length());
+                                        t.preamble(i.length() + t.codeLength());
                                         t.preamble(0x00);  // MOV AX,0x0002
                                         t.preamble(0x50);  // PUSH AX
                                         t.preamble(0x58);  // POP AX
@@ -5514,7 +5523,7 @@ private:
 
                                             t.preamble(0xb8);
                                             t.fixup();
-                                            t.preamble(i.length());
+                                            t.preamble(i.length() + t.codeLength());
                                             t.preamble(0x00);  // MOV AX,0x0002
                                             t.preamble(0x1e);  // PUSH DS
                                             t.preamble(0x50);  // PUSH AX
@@ -5553,7 +5562,7 @@ private:
 
                                             t.preamble(0xb8);
                                             t.fixup();
-                                            t.preamble(i.length());
+                                            t.preamble(i.length() + t.codeLength());
                                             t.preamble(0x00);  // MOV AX,0x0002
                                             t.preamble(0x1e);  // PUSH DS
                                             t.preamble(0x50);  // PUSH AX
@@ -5575,7 +5584,7 @@ private:
 
                                             t.preamble(0xb8);
                                             t.fixup();
-                                            t.preamble(i.length());
+                                            t.preamble(i.length() + t.codeLength());
                                             t.preamble(0x00);  // MOV AX,0x0002
                                             t.preamble(0x50);  // PUSH AX
 
@@ -5597,7 +5606,7 @@ private:
 
                                             t.preamble(0xb8);
                                             t.fixup();
-                                            t.preamble(i.length());
+                                            t.preamble(i.length() + t.codeLength());
                                             t.preamble(0x00);  // MOV AX,0x0002
                                             t.preamble(0x50);  // PUSH AX
                                         }
@@ -5617,7 +5626,7 @@ private:
 
                                             t.preamble(0xb8);
                                             t.fixup();
-                                            t.preamble(i.length());
+                                            t.preamble(i.length() + t.codeLength());
                                             t.preamble(0x00);  // MOV AX,0x0002
                                             t.preamble(0x1e);  // PUSH DS
                                             t.preamble(0x50);  // PUSH AX
@@ -5654,7 +5663,7 @@ private:
 
                                             t.preamble(0xb8);
                                             t.fixup();
-                                            t.preamble(i.length());
+                                            t.preamble(i.length() + t.codeLength());
                                             t.preamble(0x00);  // MOV AX,0x0002
                                             t.preamble(0x1e);  // PUSH DS
                                             t.preamble(0x50);  // PUSH AX
@@ -5671,6 +5680,10 @@ private:
                         t.addInstruction(i);
                         switch (_opcode) {
                             case 0xf2: case 0xf3: // REP
+                                t.preamble(0x90);  // NOP
+                                t.preamble(0xb8);
+                                t.preamble(0xa8);
+                                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
                                 t.preamble(0xb9);
                                 t.preamble(0x05);
                                 t.preamble(0x00);  // MOV CX,5
@@ -5697,7 +5710,7 @@ private:
                         t.preamble(0xc7);
                         t.preamble(0x47);
                         t.preamble(0x10);
-                        t.preamble(0x01);
+                        t.preamble(0x01 + t.codeLength());
                         t.preamble(0x00);  // MOV WORD[BX+0x10],0001
                         t.preamble(0x8c);
                         t.preamble(0x4f);
@@ -5897,7 +5910,7 @@ private:
                             t.preamble(0xc7);
                             t.preamble(0x47);
                             t.preamble(0x00);
-                            t.preamble(0x02);
+                            t.preamble(0x02 + t.codeLength());
                             t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                             t.preamble(0x8c);
                             t.preamble(0x4f);
@@ -5976,7 +5989,7 @@ private:
                 t.preamble(0xc7);
                 t.preamble(0x47);
                 t.preamble(0x00);
-                t.preamble(0x02);
+                t.preamble(0x02 + t.codeLength());
                 t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                 t.preamble(0x8c);
                 t.preamble(0x4f);
@@ -6020,7 +6033,7 @@ private:
                     t.preamble(0xc7);
                     t.preamble(0x47);
                     t.preamble(0x00);
-                    t.preamble(0x02);
+                    t.preamble(0x02 + t.codeLength());
                     t.preamble(0x00);  // MOV WORD[BX+0x00],0002
                     t.preamble(0x8c);
                     t.preamble(0x4f);
@@ -6392,6 +6405,10 @@ public:
                 // Modify and uncomment to force a passing test to fail to see
                 // its sniffer log.
                 //if (instruction.opcode() == 0x00 && instruction.modrm() == 0x44)
+                //    ++cycles;
+                //if (instruction.opcode() == 0x26 && t.instruction(1).opcode() == 0xf2)
+                //    ++cycles;
+                //if (instruction.opcode() == 0xf2)
                 //    ++cycles;
 
                 t.setCycles(cycles);

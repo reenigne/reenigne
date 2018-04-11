@@ -182,6 +182,13 @@ lut: db 0x88,8
 
 
 testRoutine:
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  mov cx,5
+  es rep movsw
+
+
 ;  mov cx,2246
 ;  mov cx,4492
 ;  mov cx,8984
