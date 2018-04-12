@@ -3007,7 +3007,7 @@ private:
                 _bus.setLock(false);
             }
             bool fastInstruction = false;
-            if ((_opcode & 0xe7) == 0x07 || (_opcode & 0xf8) == 0x58 || _opcode == 0x9d || (_opcode & 0xfd) == 0xc1 || (_opcode & 0xfe) == 0xec)  // POP
+            if ((_opcode & 0xe7) == 0x07 || (_opcode & 0xf8) == 0x58 || _opcode == 0x9d || (_opcode & 0xfd) == 0xc1 || (_opcode & 0xfe) == 0xec || _opcode == 0xf4)  // POP
                 fastInstruction = true;
             if (!fastInstruction) {
                 static const DWord hasModRM[] = {
@@ -4215,12 +4215,19 @@ private:
                 break;
             case 0xf4: // HLT
                 if (!_repeating) {
-                    //if (_segmentOverride != -1)
-                    //    wait(1);
-                    if (_segmentOverride == -1 && (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle))  // Really weird
+                    if (_segmentOverride != -1) {
+                        if (_busState == t1 || _busState == t3tWaitLast || _busState == tIdleStatusSet)
+                            wait(1);
+                        _prefetching = false;
+                        wait(2);
+                    }
+                    else {
                         wait(1);
-                    _prefetching = false;
-                    wait(3);
+                        if (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle)  // Really weird
+                            wait(1);
+                        _prefetching = false;
+                        wait(3);
+                    }
                 }
                 wait(2);
                 if (interruptPending()) {
@@ -4496,6 +4503,7 @@ private:
                             //wait(1);
                         //}
 
+                        _segmentOverride = -1;
                         push2(_data, false);
                         break;
                 }
@@ -5309,8 +5317,12 @@ private:
             case 2:  // Main section tests without DMA
             case 6:  // Main section tests with DMA
             case 7:  // Main section tests with override
-                if (_segment != -1)
-                    t.addInstruction(Instruction((_segment << 3) + 0x26));
+                if (_segment != -1) {
+                    int seg = _segment;
+                    if ((_opcode & 0xfe) == 0xfe && _nopCount == 13 && seg == 0)
+                        seg = 1;
+                    t.addInstruction(Instruction((seg << 3) + 0x26));
+                }
                 switch (_subsection) {
                     case 0:  // Basic tests
                         i = Instruction(_opcode, modrms[_m] + (_r << 3));
@@ -5462,6 +5474,10 @@ private:
                                 t.preamble(0xfb);  // STI
                                 break;
                             case 0xf6: case 0xf7:
+                                t.preamble(0x90);  // NOP
+                                t.preamble(0xb8);
+                                t.preamble(0xa8);
+                                t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
                                 if ((i.modrm() & 0x30) == 0x30) {  // DIV/IDIV
                                     t.preamble(0x1e);  // PUSH DS
                                     t.preamble(0x31);
@@ -6372,7 +6388,7 @@ public:
         Emulator emulator;
         emulator.setStub(runStub);
 
-        int maxTests = 1000;
+        int maxTests = 859; //1000;
         int availableLength = 0xf300 - testProgram.count();
         //Array<int> cycleCounts(_tests.count());
         bool reRunAllBad = false;
