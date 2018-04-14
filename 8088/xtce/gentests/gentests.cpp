@@ -2814,7 +2814,7 @@ private:
     };
     void initIO(IOType type, DWord address)
     {
-        if (_forcedSegment == -1)
+        if (_forcedSegment != -1)
             _ioNext._segment = _forcedSegment;
         else {
             _ioNext._segment = _segment;
@@ -3573,11 +3573,16 @@ private:
                 }
                 break;
             case 0x9b: // WAIT
-                if (!_repeating)
-                    wait(1);
+                if (!_repeating) {
+                    //if (_logging)
+                    //    printf("_busState = %i\n",_busState);
+                    while (_busState != tIdle)
+                        wait(1);
+                    //wait(1);
+                }
                 wait(5);
                 if (interruptPending()) {
-                    wait(7);
+                    wait(11);
                     _snifferDecoder.queueOperation(2);
                     checkInterrupts2(3);
                 }
@@ -5152,7 +5157,7 @@ static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11,
 class TestGenerator
 {
 public:
-    TestGenerator() : _section(-1), _suffix(0), _nopCount(0), _opcode(0),
+    TestGenerator() : _section(0), _suffix(0), _nopCount(0), _opcode(0),
         _m(0), _i(0), _subsection(-1), _d(0, 65535), _refreshPeriod(0),
         _refreshPhase(0), _segment(-1)
     {
