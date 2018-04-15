@@ -180,26 +180,57 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  ; Enable auto-EOI
+  mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
+  out 0x20,al  ; Set ICW1
+  mov al,0x08  ; Interrupt vector address
+  out 0x21,al  ; Set ICW2
+  mov al,0x0f  ; 8086/8088 mode, auto-EOI, buffered mode/master, not special fully nested mode
+  out 0x21,al  ; Set ICW4
+  mov al,0xbc  ; Enable IRQs 0 (timer), 1 (keyboard) and 6 (floppy disk).
+  out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
+
   xor ax,ax
   mov ds,ax
   mov word[8*4],testIRQ0
-  mov al,0x34
+
+  mov al,0x54
   out 0x43,al
-  mov al,50
-  out 0x40,al
-  mov al,0
-  out 0x40,al
+  mov al,86
+  out 0x41,al
+  mov al,70
+  out 0x41,al
 
-  mov ax,0x3f3f
-  mul ah
-
+  mov al,0x14
+  out 0x43,al
+  mov al,70
+  out 0x40,al
   sti
 
+;  mov ax,0x0000
+;  mul ah
   wait
-testIRQ0:
-  mov al,0x20
-  out 0x20,al
-  add sp,6
+
+  mov ax,0x0000
+  mul ah
+  wait
+
+  mov ax,0x0101
+  mul ah
+  wait
+
+  mov ax,0x0303
+  mul ah
+  wait
+
+  mov ax,0x0707
+  mul ah
+  wait
+
+  mov ax,0x0f0f
+  mul ah
+  wait
+
 
   mov al,0x34
   out 0x43,al
@@ -211,3 +242,21 @@ testIRQ0:
   sti
 
   ret
+
+
+testIRQ0:
+;  push ax
+;  push bx
+;  mov al,0x20
+;  out 0x20,al
+;  mov bx,sp
+;  inc word[ss:bx+4]
+;  mov ax,[ss:bx+4]
+;  pop bx
+;  pop ax
+;  iret
+
+  mov bx,sp
+  inc byte[ss:bx]
+  iret
+

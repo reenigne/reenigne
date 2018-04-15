@@ -3578,11 +3578,11 @@ private:
                     //    printf("_busState = %i\n",_busState);
                     while (_busState != tIdle)
                         wait(1);
-                    //wait(1);
+                    wait(4);
                 }
                 wait(5);
                 if (interruptPending()) {
-                    wait(11);
+                    wait(6);
                     _snifferDecoder.queueOperation(2);
                     checkInterrupts2(3);
                 }
