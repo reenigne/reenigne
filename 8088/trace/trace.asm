@@ -196,13 +196,15 @@ testRoutine:
 
   mov al,0x54
   out 0x43,al
-  mov al,86
+  mov al,86-63
   out 0x41,al
   mov al,70
   out 0x41,al
 
   mov al,0x14
   out 0x43,al
+  mov al,70-63
+  out 0x40,al
   mov al,70
   out 0x40,al
   sti

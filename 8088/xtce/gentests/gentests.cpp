@@ -450,6 +450,7 @@ public:
         if (_nops == 14 && _noLESNop)
             _nops = 13;
     }
+    int nops() { reutrn _nops; }
     int startIP() { return _startIP; }
     void noLESNop() { _noLESNop = true; }
     Instruction instruction(int i) { return _instructions[i]; }
@@ -460,7 +461,7 @@ public:
 
     bool operator==(const Test& other) const
     {
-        if (_queueFiller != other._queueFiller || _nops != other._nops ||
+        if (_queueFiller != other._queueFiller || /*_nops != other._nops || */
             _refreshPeriod != other._refreshPeriod ||
             _refreshPhase != other._refreshPhase)
             return false;
@@ -484,11 +485,15 @@ public:
                 return false;
         return true;
     }
+    bool equalIncludingNops(const Test& other) const
+    {
+        return *this == other && _nops == other._nops;
+    }
     bool operator!=(const Test& other) const { return !(*this == other); }
     UInt32 hash() const
     {
         Hash h(typeid(Test));
-        h.mixin(_queueFiller).mixin(_nops);
+        //h.mixin(_queueFiller).mixin(_nops);
         int c = _preamble.count();
         h.mixin(c);
         for (int i = 0; i < c; ++i)
@@ -3576,13 +3581,13 @@ private:
                 if (!_repeating) {
                     //if (_logging)
                     //    printf("_busState = %i\n",_busState);
-                    while (_busState != tIdle)
-                        wait(1);
-                    wait(4);
+                    //while (_busState != tIdle)
+                    //    wait(1);
+                    wait(1);
                 }
                 wait(5);
                 if (interruptPending()) {
-                    wait(6);
+                    wait(7);
                     _snifferDecoder.queueOperation(2);
                     checkInterrupts2(3);
                 }
@@ -5091,18 +5096,26 @@ private:
 
 static const int nopCounts = 16;
 
+struct Measurements
+{
+    Measurements()
+    {
+        for (int i = 0; i < nopCounts; ++i)
+            _cycles[i] = -1;
+    }
+    SInt16 _cycles[nopCounts];
+};
+
 class Cache
 {
 public:
     void setTime(Test test, int time)
     {
-        _time.add(test, time);
+        _time[test]._cycles[test.nops()] = time;
     }
     int getTime(Test test)
     {
-        if (!_time.hasKey(test))
-            return -1;
-        return _time[test];
+        return _time[test]._cycles[test.nops()];
     }
     void load(File file)
     {
@@ -5135,11 +5148,13 @@ public:
         Byte* p = &d[0];
         for (auto i : _time) {
             Test t = i.key();
-            int c = i.value();
-            p[0] = c & 0xff;
-            p[1] = c >> 8;
-            t.output(p + 2);
-            p += t.length();
+            for (int j = 0; j < nopCounts; ++j) {
+                int c = i.value()._cycles[j];
+                p[0] = c & 0xff;
+                p[1] = c >> 8;
+                t.output(p + 2);
+                p += t.length();
+            }
         }
         file.save(&d[0], size);
     }
@@ -5148,7 +5163,7 @@ public:
         _time.dumpStats(File("cacheDump.bin"));
     }
 private:
-    HashTable<Test, int> _time;
+    HashTable<Test, Measurements> _time;
 };
 
 static const int refreshPeriods[19] = {0, 18, 19, 17, 16, 15, 14, 13, 12, 11,
@@ -5190,7 +5205,6 @@ public:
                 p += l;
                 i += l;
                 _fails.append(t);
-                _inFails.add(t);
             }
         }
 
@@ -5208,16 +5222,23 @@ public:
             Test t = getNextTest1();
             if (t == Test())
                 return t;
-            if (!_inFails.has(t))
+            if (!inFails(t))
                 return t;
         } while (true);
+    }
+    bool inFails(Test t)
+    {
+        for (int i = 0; i < _fails.count(); ++i) {
+            if (_fails[i].equalIncludingNops(t))
+                return true;
+        }
     }
     void dumpFailed(Test f)
     {
         int size = 0;
         for (auto i : _fails)
             size += i.length();
-        if (f != Test() && !_inFails.has(f))
+        if (f != Test() && !inFails(f))
             size += f.length();
         Array<Byte> d(size);
         Byte* p = &d[0];
@@ -5229,7 +5250,7 @@ public:
         }
 
         for (auto t : _fails) {
-            if (f == Test() || f != t) {
+            if (f == Test() || !f.equalIncludingNops(t)) {
                 p[0] = 0;
                 p[1] = 0;
                 t.output(p + 2);
@@ -6290,7 +6311,6 @@ private:
     AppendableArray<Test> _functional;
 
     AppendableArray<Test> _fails;
-    Set<Test> _inFails;
 };
 
 class Program : public ProgramBase
