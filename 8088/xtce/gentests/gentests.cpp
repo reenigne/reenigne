@@ -450,7 +450,7 @@ public:
         if (_nops == 14 && _noLESNop)
             _nops = 13;
     }
-    int nops() { reutrn _nops; }
+    int nops() { return _nops; }
     int startIP() { return _startIP; }
     void noLESNop() { _noLESNop = true; }
     Instruction instruction(int i) { return _instructions[i]; }
@@ -5232,6 +5232,7 @@ public:
             if (_fails[i].equalIncludingNops(t))
                 return true;
         }
+        return false;
     }
     void dumpFailed(Test f)
     {
