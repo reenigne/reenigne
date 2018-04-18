@@ -5142,18 +5142,25 @@ public:
     void save(File file)
     {
         int size = 0;
-        for (auto i : _time)
-            size += i.key().length();
+        for (auto i : _time) {
+            int l = i.key().length();
+            for (int j = 0; j < nopCounts; ++j) {
+                if (i.value()._cycles[j] != -1)
+                    size += l;
+            }
+        }
         Array<Byte> d(size);
         Byte* p = &d[0];
         for (auto i : _time) {
             Test t = i.key();
             for (int j = 0; j < nopCounts; ++j) {
                 int c = i.value()._cycles[j];
-                p[0] = c & 0xff;
-                p[1] = c >> 8;
-                t.output(p + 2);
-                p += t.length();
+                if (c != -1) {
+                    p[0] = c & 0xff;
+                    p[1] = c >> 8;
+                    t.output(p + 2);
+                    p += t.length();
+                }
             }
         }
         file.save(&d[0], size);
