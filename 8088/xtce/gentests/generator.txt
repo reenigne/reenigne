@@ -1,0 +1,49 @@
+nopCounts:
+  0-10: 90*N
+  11: 900228     changed by setNops() to 12 when _usesCH set
+  12: 900210     normally skipped
+  13: 90909037
+  14: c410       changed by output() (for real hardware and cache) and setNops() to 13 when _noLESNop set    not used for sections 6 and 7
+  15: 803800                                                                                                 not used for sections 6 and 7
+  16: f60000                                                                                                 not used for sections 6 and 7
+
+suffixes: (0-1 used by section 7, 0-2 by section 6 and all for section 2)
+  0: 0400
+  1: 88c00000
+  2: 0400040004000400
+  3: (nothing)
+  4: 0000
+  5: 050000
+  6: 0004
+  7: 909090900004050000
+  8: 88c00400
+
+Sections (in order of execution):
+  0: recently failed
+  1: Functional
+  2: Main section tests without DMA (nopCounts 0-16?)
+  3: 1000 input pairs for each multiply instruction
+  4: 1000 input pairs for each divide instruction
+  5: 1000 input pairs for each of AAM and AAD
+  7: Main section tests with override (nopCounts 0-13?)
+  6: Main section tests with DMA (nopCounts 0-13?)
+
+Subsections for sections 2, 6 and 7:
+  0: Basic tests
+  1: CBW/CWD negative bit extended
+  2: INTO overflow test
+  3: Shift/rotate with various counts
+  4: LOOP with CX==1
+  5: String operations with various counts
+  6: Math instructions with all registers
+
+
+UsesCH:
+  _section 2/6/7, _subSection 0, _opcode a4, a5, a6, a7, aa, ab, ac, ad (should be ae and af as well?)
+  _section 2/6/7, _subSection 0, _opcode f2, f3
+  _section 2/6/7, _subSection 4, 5
+
+noLESNop:
+  _section 2/6/7, _subsection 0, _opcode fe, ff, (_modrm & 0x38) == 0x18, (_modrm & 0xc0) == 0xc0
+  _section 2/6/7, _subsection 0, _opcode fe, ff, (_modrm & 0x38) == 0x28, (_modrm & 0xc0) == 0xc0
+
