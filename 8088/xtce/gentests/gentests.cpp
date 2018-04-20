@@ -867,6 +867,7 @@ public:
     {
         static const char qsc[] = ".IES";
         static const char sc[] = "ARWHCrwp";
+        static const char dmasc[] = " h:H";
         String line;
         if (_cpuDataFloating)
             line = String(hex(_cpu_ad >> 8, 3, false)) + "??";
@@ -875,15 +876,15 @@ public:
         line += " " +
             codePoint(qsc[_cpu_qs]) + codePoint(sc[_cpu_s]) +
             (_cpu_rqgt0 ? "G" : ".") + (_cpu_ready ? "." : "z") +
-            (_cpu_test ? "T" : ".") +
+            (_cpu_test ? "T" : ".") + (_cpu_lock ? "L" : ".") +
             "  " + hex(_bus_address, 5, false) + " ";
         if (_isaDataFloating)
             line += "??";
         else
             line += hex(_bus_data, 2, false);
-        line += " " + hex(_bus_dma, 2, false) +
-            " " + hex(_bus_irq, 2, false) + " " +
-            hex(_bus_pit, 1, false) + " " + (_bus_ior ? "R" : ".") +
+        line += " " + hex(_bus_dma, 2, false) + codePoint(dmasc[_dmas]) +
+            " " + hex(_bus_irq, 2, false) + (_int ? "I" : " ") + " " +
+            hex(_bus_pit, 1, false) + hex(_cga, 1, false) + " " + (_bus_ior ? "R" : ".") +
             (_bus_iow ? "W" : ".") + (_bus_memr ? "r" : ".") +
             (_bus_memw ? "w" : ".") + (_bus_iochrdy ? "." : "z") +
             (_bus_aen ? "D" : ".") +
@@ -1681,6 +1682,7 @@ public:
             _acknowledgedBytes = 0;
             if (autoEOI())
                 nonSpecificEOI(_rotateInAutomaticEOIMode);
+            _interruptPending = false;
             if (slaveOn(_interrupt))
                 return 0xff;  // Filled in by slave PIC
             return _interrupt + (_icw2 & 0xf8);
@@ -1696,6 +1698,7 @@ public:
         _acknowledgedBytes = 0;
         if (autoEOI())
             nonSpecificEOI(_rotateInAutomaticEOIMode);
+        _interruptPending = false;
         if (slaveOn(_interrupt))
             return 0xff;  // Filled in by slave PIC
         return _icw2;
@@ -1716,6 +1719,7 @@ public:
             _interruptPending = true;
     }
     bool interruptPending() const { return _interruptPending; }
+    UInt8 getIRQLines() { return _lines; }
 private:
     bool cascadeMode() { return (_icw1 & 2) == 0; }
     bool levelTriggered() { return (_icw1 & 8) != 0; }
@@ -2249,7 +2253,7 @@ public:
         _pic.reset();
         _pit.reset();
         _ppi.reset();
-        _pitPhase = 2; //3; //2;
+        _pitPhase = 2;
         _lastCounter0Output = false;
         _lastCounter1Output = true;
         _counter2Output = false;
@@ -2258,9 +2262,10 @@ public:
         _speakerOutput = false;
         _dmaState = sIdle;
         _passiveOrHalt = true;
-        _pitWrite = false;
+        //_pitWrite = false;
         _lock = false;
         _lastNonDMAReady = true;
+        _cgaPhase = 0;
     }
     void stubInit()
     {
@@ -2277,6 +2282,7 @@ public:
     }
     void wait()
     {
+        _cgaPhase = (_cgaPhase + 3) & 0x0f;
         ++_pitPhase;
         if (_pitPhase == 4) {
             _pitPhase = 0;
@@ -2341,12 +2347,12 @@ public:
             case sDelayedT2: _dmaState = sDelayedT3; break;
             case sDelayedT3: _dmaState = sIdle; break;
         }
-        if (_pitWrite) {
-            _pit.write(_address & 3, _data);
-            _pitWrite = false;
-        }
+        //if (_pitWrite) {
+        //    _pit.write(_address & 3, _data);
+        //    _pitWrite = false;
+        //}
 
-        // The following only happens for 5160s with the U90 fix and 5150s with the UI101 fix as described in
+        // The following only happens for 5160s with the U90 fix and 5150s with the U101 fix as described in
         // http://www.vcfed.org/forum/showthread.php?29211-Purpose-of-U90-in-XT-second-revision-board
         if (_type == 2 && (_address & 0x3e0) == 0x000)
             _lastNonDMAReady = nonDMAReady();
@@ -2371,9 +2377,9 @@ public:
                     _pic.write(_address & 1, data);
                     break;
                 case 0x40:
-                    _data = data;
-                    _pitWrite = true;
-                    //_pit.write(_address & 3, data);
+                    //_data = data;
+                    //_pitWrite = true;
+                    _pit.write(_address & 3, data);
                     break;
                 case 0x60:
                     _ppi.write(_address & 3, data);
@@ -2451,6 +2457,20 @@ public:
         return dmaAddressHigh(_dmac.channel()) + _dmac.address();
     }
     void setLock(bool lock) { _lock = lock; }
+    UInt8 getIRQLines() { return _pic.getIRQLines(); }
+    UInt8 getDMAS()
+    {
+        if (_dmaState == s0 || _dmaState == s1 || _dmaState == s2 ||
+            _dmaState == s3 || _dmaState == sWait || _dmaState == s4)
+            return 3;
+        if (_dmaState == sAEN)
+            return 1;
+        return 0;
+    }
+    UInt8 getCGA()
+    {
+        return _cgaPhase >> 2;
+    }
 private:
     bool okayToDMA()
     {
@@ -2539,16 +2559,17 @@ private:
     bool _passiveOrHalt;
     DMAState _dmaState;
     Byte _dmaRequests;
-    Byte _data;
-    bool _pitWrite;
+    //Byte _data;
+    //bool _pitWrite;
     bool _lock;
     bool _lastNonDMAReady;
+    Byte _cgaPhase;
 };
 
-class Emulator
+class CPUEmulator
 {
 public:
-    Emulator() : _logging(false)
+    CPUEmulator() : _logging(false)
     {
         ax() = 0x100;
         Byte* byteData = (Byte*)(&ax());
@@ -2700,7 +2721,7 @@ private:
             bool write = _io._type == ioWriteMemory ||
                 _io._type == ioWritePort;
             _bus.wait();
-            bool ready;
+            bool ready = true;
             switch (_busState) {
                 case t1:
                     _snifferDecoder.setStatusHigh(_io._segment);
@@ -2799,10 +2820,10 @@ private:
                     _snifferDecoder.setAddress(_bus.getDMAAddress());
                 _snifferDecoder.setReady(ready);
                 _snifferDecoder.setLock(_lock);
-                _snifferDecoder.setDMAS(0);
-                _snifferDecoder.setIRQs(0);
-                _snifferDecoder.setINT(false);
-                _snifferDecoder.setCGA(0);
+                _snifferDecoder.setDMAS(_bus.getDMAS());
+                _snifferDecoder.setIRQs(_bus.getIRQLines());
+                _snifferDecoder.setINT(_bus.interruptPending());
+                _snifferDecoder.setCGA(_bus.getCGA());
                 String l = _bus.snifferExtra() + _snifferDecoder.getLine();
                 if (_logSkip > 0)
                     --_logSkip;
@@ -3914,7 +3935,10 @@ private:
             case 0xd0: case 0xd1: case 0xd2: case 0xd3: // rot rm
                 if (_useMemory) {
                     _transferStarting = true;
-                    if (_busState == t4StatusSet || _busState == t1) {
+                    if (_logging)
+                        printf("%i\n",_busState);
+                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tFirstIdle) {
+                        wait(1);
                     }
                     else {
                         waitForBusIdle();
@@ -5134,10 +5158,12 @@ public:
             if (size > 0x7fffffff)
                 throw Exception("Cache too large.");
             int ss = static_cast<int>(size);
+            //printf("Loading cache, size %i\n", ss);
             Array<Byte> d(ss);
             Byte* p = &d[0];
             s.read(p, ss);
             int i = 0;
+            //int n = 0;
             while (i < ss) {
                 Test t;
                 t.read(p);
@@ -5145,8 +5171,20 @@ public:
                 p += l;
                 i += l;
                 setTime(t, t.cycles());
+                //++n;
             }
+            //printf("%i items loaded in %i records\n", n, _time.count());
         }
+
+        //int nn = 0;
+        //for (auto i : _time) {
+        //    int l = i.key().length();
+        //    for (int j = 0; j < nopCounts; ++j) {
+        //        if (i.value()._cycles[j] != -1)
+        //            ++nn;
+        //    }
+        //}
+        //printf("found %i items\n",nn);
     }
     void save(File file)
     {
@@ -5160,6 +5198,7 @@ public:
         }
         Array<Byte> d(size);
         Byte* p = &d[0];
+        //int n = 0;
         for (auto i : _time) {
             Test t = i.key();
             for (int j = 0; j < nopCounts; ++j) {
@@ -5167,11 +5206,14 @@ public:
                 if (c != -1) {
                     p[0] = c & 0xff;
                     p[1] = c >> 8;
+                    t.setNops(j);
                     t.output(p + 2);
                     p += t.length();
+                    //++n;
                 }
             }
         }
+        //printf("Saving cache, %i items, %i records, size %i\n",n,_time.count(),size);
         file.save(&d[0], size);
     }
     void dumpStats()
@@ -6383,7 +6425,7 @@ public:
 
         console.write("Running tests\n");
 
-        Emulator emulator;
+        CPUEmulator emulator;
         emulator.setStub(runStub);
 
         int maxTests = 859; //1000;
@@ -6596,7 +6638,7 @@ public:
                 maxTests *= 2;
         } while (true);
 
-        console.write(decimal(totalCount) + "\n");
+        console.write("Tests passing: " + decimal(totalCount) + "\n");
         _generator.dumpFailed(Test());
 
         return;
