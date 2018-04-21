@@ -2262,7 +2262,6 @@ public:
         _speakerOutput = false;
         _dmaState = sIdle;
         _passiveOrHalt = true;
-        //_pitWrite = false;
         _lock = false;
         _lastNonDMAReady = true;
         _cgaPhase = 0;
@@ -2347,10 +2346,6 @@ public:
             case sDelayedT2: _dmaState = sDelayedT3; break;
             case sDelayedT3: _dmaState = sIdle; break;
         }
-        //if (_pitWrite) {
-        //    _pit.write(_address & 3, _data);
-        //    _pitWrite = false;
-        //}
 
         // The following only happens for 5160s with the U90 fix and 5150s with the U101 fix as described in
         // http://www.vcfed.org/forum/showthread.php?29211-Purpose-of-U90-in-XT-second-revision-board
@@ -2377,8 +2372,6 @@ public:
                     _pic.write(_address & 1, data);
                     break;
                 case 0x40:
-                    //_data = data;
-                    //_pitWrite = true;
                     _pit.write(_address & 3, data);
                     break;
                 case 0x60:
@@ -2559,8 +2552,6 @@ private:
     bool _passiveOrHalt;
     DMAState _dmaState;
     Byte _dmaRequests;
-    //Byte _data;
-    //bool _pitWrite;
     bool _lock;
     bool _lastNonDMAReady;
     Byte _cgaPhase;
@@ -3660,8 +3651,22 @@ private:
             case 0xa2: case 0xa3: // MOV [iw], A
                 _address = fetchInstructionWord();
                 _data = getAccum();
+                //wait(1);
+
+                // Be careful changing this one, it's used in the stub. If the
+                // stub gets desynchronized, set logskip = 0 here and first
+                // patchSnifferInitialWait patch to 6 in runtests.asm.
                 wait(1);
-                busWrite();
+                _transferStarting = true;
+                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                }
+                else {
+                    waitForBusIdle();
+                    wait(2);
+                }
+                //wait(2);
+
+                busWrite(ioWriteMemory, false);
                 break;
             case 0xa4: case 0xa5: // MOVS
             case 0xac: case 0xad: // LODS
@@ -3736,7 +3741,17 @@ private:
                 wait(1);
                 _address = di();
                 _forcedSegment = 0;
-                busRead();
+
+                _transferStarting = true;
+                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                }
+                else {
+                    waitForBusIdle();
+                    wait(1);
+                }
+                wait(1);
+
+                busRead(ioReadMemory, false);
                 di() = stringIncrement();
                 _source = _data;
                 sub();
@@ -3935,15 +3950,17 @@ private:
             case 0xd0: case 0xd1: case 0xd2: case 0xd3: // rot rm
                 if (_useMemory) {
                     _transferStarting = true;
-                    if (_logging)
-                        printf("%i\n",_busState);
-                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tFirstIdle) {
-                        wait(1);
+
+                    if (_busState == t1 || _busState == t3tWaitLast ||  _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tFirstIdle) {
+                        if (_busState == t4)
+                            wait(1);
+                        wait(2);
                     }
                     else {
+                        wait(2);
                         waitForBusIdle();
+                        wait(1);
                     }
-                    wait(2);
                 }
                 else
                     wait(1);
@@ -4117,11 +4134,30 @@ private:
                 _segment = 7;
                 _address = _data;
                 if ((_opcode & 2) == 0) {
-                    if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess) {
-                        _transferStarting = true;
+                    printBusState();
+                    _transferStarting = true;
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == tFirstIdle) {
+                        if (_busState == t1 || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess))
+                            wait(1);
+                        else
+                            wait(2);
+
+                        //if (_busState != t1)
+                        //    wait(1);
+                        //wait(1);
+                    }
+                    else {
+                        waitForBusIdle();
                         wait(1);
                     }
-                    busRead(ioReadPort);
+                    wait(1);
+                    busRead(ioReadPort, false);
+
+                    //if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess) {
+                    //    _transferStarting = true;
+                    //    wait(1);
+                    //}
+                    //busRead(ioReadPort);
                     wait(1);
                     setAccum();
                 }
@@ -4139,6 +4175,16 @@ private:
                         }
                     }
                     else {
+                        //_transferStarting = true;
+                        //if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                        //}
+                        //else {
+                        //    waitForBusIdle();
+                        //    wait(1);
+                        //}
+                        //wait(1);
+
+
                         if (_busState == tFirstIdle)
                             wait(1);
                         _transferStarting = true;
@@ -4494,6 +4540,24 @@ private:
                 _clearLock = true;
             checkInterrupts();
         }
+    }
+    void printBusState()
+    {
+        if (!_logging)
+            return;
+        String s;
+        switch (_busState) {
+            case t1: s = "t1"; break;
+            case t2t3tWaitNotLast: s = "t2t3tWaitNotLast"; break;
+            case t3tWaitLast: s = "t3tWaitLast"; break;
+            case t4: s = "t4"; break;
+            case t4StatusSet: s = "t4StatusSet"; break;
+            case tFirstIdle: s = "tFirstIdle"; break;
+            case tSecondIdle: s = "tSecondIdle"; break;
+            case tIdle: s = "tIdle"; break;
+            case tIdleStatusSet: s = "tIdleStatusSet"; break;
+        }
+        console.write("Bus state: " + s + "\n");
     }
     bool interruptPending()
     {

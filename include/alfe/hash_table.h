@@ -33,9 +33,9 @@ public:
     virtual void justSetSize(int size) const = 0;
     void preDestroy() const { justSetSize(this->_allocated); }
 
-    HashTableBody() : _misses(0) { }
+    //HashTableBody() : _misses(0) { }
 
-    mutable uint64_t _misses;
+    //mutable uint64_t _misses;
 };
 
 template<class Key, class Value> class HashTable
@@ -164,17 +164,17 @@ public:
     }
     void dumpStats(File file)
     {
-        if (this->body() == 0)
-            return;
-        console.write("Misses: " + decimal(static_cast<int>(this->body()->_misses)) + "," + decimal(static_cast<int>(this->body()->_misses >> 32)) + "\n");
-        console.write("Entries: " + decimal(count()) + "\n");
-        int n = this->allocated();
-        console.write("Size: " + decimal(n) + "\n");
-        auto o = file.openWrite();
-        for (int i = 0; i < n; ++i) {
-            UInt8 present = !(data(i)->key() == Key()) ? 255 : 0;
-            o.write(present);
-        }
+        //if (this->body() == 0)
+        //    return;
+        //console.write("Misses: " + decimal(static_cast<int>(this->body()->_misses)) + "," + decimal(static_cast<int>(this->body()->_misses >> 32)) + "\n");
+        //console.write("Entries: " + decimal(count()) + "\n");
+        //int n = this->allocated();
+        //console.write("Size: " + decimal(n) + "\n");
+        //auto o = file.openWrite();
+        //for (int i = 0; i < n; ++i) {
+        //    UInt8 present = !(data(i)->key() == Key()) ? 255 : 0;
+        //    o.write(present);
+        //}
     }
 private:
     int row(const Key& key) const { return ::hash(key) % this->allocated(); }
@@ -191,7 +191,7 @@ private:
             // We have a decent hash function so linear probing should work
             // fine.
             r = (r + 1)%n;
-            ++this->body()->_misses;
+            //++this->body()->_misses;
         }
         return 0;
     }
@@ -206,7 +206,7 @@ private:
             if (e->key() == key || e->key() == Key())
                 return e;
             r = (r + 1)%n;
-            ++this->body()->_misses;
+            //++this->body()->_misses;
         }
         return 0;
     }
