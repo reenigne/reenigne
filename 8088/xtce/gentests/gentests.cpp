@@ -4134,7 +4134,7 @@ private:
                 _segment = 7;
                 _address = _data;
                 if ((_opcode & 2) == 0) {
-                    printBusState();
+                    //printBusState();
                     _transferStarting = true;
                     if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == tFirstIdle) {
                         if (_busState == t1 || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess))
@@ -4238,23 +4238,53 @@ private:
                 break;
             case 0xf4: // HLT
                 if (!_repeating) {
-                    if (_segmentOverride != -1) {
-                        if (_busState == t1 || _busState == t3tWaitLast || _busState == tIdleStatusSet)
-                            wait(1);
-                        _prefetching = false;
-                        wait(2);
-                    }
-                    else {
-                        wait(1);
-                        if (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle)  // Really weird
-                            wait(1);
-                        _prefetching = false;
-                        wait(3);
-                    }
-                }
-                wait(2);
-                if (interruptPending()) {
+                    //printBusState();
+
+                    if (_busState == tIdle || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess))
+                        _data = 1;
+                    else
+                        _data = 2;
+                    //switch (_busState) {
+                    //    case t1:
+                    //    case t2t3tWaitNotLast:
+                    //    case t3tWaitLast:
+                    //    case t4:
+                    //    case t4StatusSet:
+                    //    case tSecondIdle:
+                    //    case tIdleStatusSet:
+                    //        _data = 2;
+                    //        break;
+                    //    case tFirstIdle:
+                    //        _data = (_ioLast._type == ioCodeAccess ? 2 : 1);
+                    //        break;
+                    //    case tIdle: // default:
+                    //        _data = 1;
+                    //        break;
+                    //}
+
                     wait(1);
+                    _prefetching = false;
+                    //if (_segmentOverride != -1) {
+                    //    if (_busState == t1 || _busState == t3tWaitLast || _busState == tIdleStatusSet)
+                    //        wait(1);
+                    //    _prefetching = false;
+                    //    wait(2);
+                    //}
+                    //else {
+                    //    wait(1);
+                    //    printBusState();
+                    //    if (_busState == t2t3tWaitNotLast || _busState == t4StatusSet || _busState == tSecondIdle || _busState == tIdleStatusSet)  // Really weird
+                    //        wait(1);
+                    //    printBusState();
+                    //    _prefetching = false;
+                    //    if (_busState == t3tWaitLast)
+                    //        wait(1);
+                    //    wait(3);
+                    //}
+                }
+                wait(1); //2);
+                if (interruptPending()) {
+                    wait(_data);
                     checkInterrupts2(3);
                 }
                 else {
@@ -4268,7 +4298,14 @@ private:
             case 0xf6: case 0xf7: // math
                 if (_useMemory) {
                     _transferStarting = true;
-                    if (_busState == t4StatusSet || _busState == t1) {
+                    if (_opcode == 0xf6 && _modRM == 0x00)
+                        printBusState();
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == t4 || _busState == tFirstIdle) {
+                        if (_busState == t1 || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess))
+                            wait(1);
+                        else
+                            wait(2);
+                        wait(1);
                     }
                     else {
                         waitForBusIdle();
@@ -4359,7 +4396,9 @@ private:
             case 0xfe: case 0xff: // misc
                 if (_useMemory) {
                     _transferStarting = true;
-                    if (_busState == t4StatusSet || _busState == t1) {
+                    //printBusState();
+                    if (_busState == t4StatusSet || _busState == t1 || _busState == tFirstIdle || _busState == tIdleStatusSet) {
+                        wait(2);
                     }
                     else {
                         waitForBusIdle();
