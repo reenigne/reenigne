@@ -136,7 +136,24 @@ noStubAdjustCount:
   call outputDecimal
   outputCharacter 10
 
+  mov si,failMessage
+  mov cx,5
+  outputString
+  mov ax,[testCaseIndex]
+  call outputDecimal
+  outputCharacter ','
   mov ax,[countedCycles]
+  call outputDecimal
+
+  outputCharacter 10
+  outputCharacter 'x'
+
+  mov word[sniffer],0x8000
+
+  outputCharacter 6
+
+  mov ax,[countedCycles]
+  add ax,210
   mov si,[testCaseOffset]
   mov bx,[si]
   cmp ax,bx
@@ -148,20 +165,6 @@ noSatLow:
   mov ax,2047
 noSatHigh:
   mov [countedCycles],ax
-
-
-  mov si,failMessage
-  mov cx,5
-  outputString
-  mov ax,[testCaseIndex]
-  call outputDecimal
-
-  outputCharacter 10
-  outputCharacter 'x'
-
-  mov word[sniffer],0x8000
-
-  outputCharacter 6
 
   mov cx,16
 loopTop:
@@ -394,10 +397,10 @@ doneNops:
 
   cmp dl,0
   je snifferAdjustNoStub
-  mov word[cs:patchSnifferInitialWait+1],6 + 773*3
+  mov word[cs:patchSnifferInitialWait+1],6; + 773*3
   jmp snifferDoneAdjust
 snifferAdjustNoStub:
-  mov word[cs:patchSnifferInitialWait+1],6 + (773 + 858 + 1)*3
+  mov word[cs:patchSnifferInitialWait+1],6 + (773 + 858 + 1 + 1)*3
 snifferDoneAdjust:
 
   safeRefreshOff
