@@ -116,10 +116,10 @@ doneAdjust:
 testFailed:
   push ax
 
-  cmp byte[si+3],0
-  jne noStubAdjustCount
-  add ax,212
-noStubAdjustCount:
+;  cmp byte[si+3],0
+;  jne noStubAdjustCount
+;  add ax,212
+;noStubAdjustCount:
   mov [countedCycles],ax
 
   mov ax,[testCaseIndex]
@@ -152,9 +152,13 @@ noStubAdjustCount:
 
   outputCharacter 6
 
-  mov ax,[countedCycles]
-  add ax,210
-  mov si,[testCaseOffset]
+;  mov ax,[countedCycles]
+;  add ax,210
+;  mov si,[testCaseOffset]
+;  cmp byte[si+3],0
+;  jne noAdjustNoStub
+;  sub ax,212
+;noAdjustNoStub:
   mov bx,[si]
   cmp ax,bx
   jae noSatLow
@@ -397,7 +401,7 @@ doneNops:
 
   cmp dl,0
   je snifferAdjustNoStub
-  mov word[cs:patchSnifferInitialWait+1],6; + 773*3
+  mov word[cs:patchSnifferInitialWait+1],6 + 773*3
   jmp snifferDoneAdjust
 snifferAdjustNoStub:
   mov word[cs:patchSnifferInitialWait+1],6 + (773 + 858 + 1 + 1)*3
