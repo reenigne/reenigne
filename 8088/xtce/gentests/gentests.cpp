@@ -2883,7 +2883,15 @@ private:
             case 1:
             case 6:
                 _transferStarting = true;
-                wait(2);
+                //wait(2);
+                printBusState();
+                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                }
+                else {
+                    waitForBusIdle();
+                    wait(1);
+                }
+                wait(1);
                 break;
             case 2:
                 wait(1);
@@ -2920,61 +2928,46 @@ private:
             case 5:
                 {
                     if (_opcode == 0xcc) {
-                        //wait(2);
-                        //printBusState();
-                        //if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet  || _busState == t1 || _busState == t4 || _busState == tFirstIdle) {
-                        //    if (_busState == tFirstIdle /*|| _busState == t4StatusSet*/)
-                        //        wait(1);
-                        //    wait(4);
-                        //    _transferStarting = true;
-                        //    wait(2);
-                        //}
-                        //else {
-                        //    wait(2);
-                        //    _transferStarting = true;
-                        //    waitForBusIdle();
-                        //    wait(5); //2);
-                        //}
-
                         bool codeLast = _io._type == ioCodeAccess;
-                        if (_logging)
-                            console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        wait(1);
-                        if (_logging)
-                            console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        wait(1);
-                        if (_logging)
-                            console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        wait(1);
-                        if (_logging)
-                            console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        wait(1);
-                        if (_logging)
-                            console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        wait(1);
-                        if (_logging)
-                            console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        printBusState();
+                        //if (_logging)
+                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
+                        //wait(1);
+                        //if (_logging)
+                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
+                        //wait(1);
+                        //if (_logging)
+                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
+                        //wait(1);
+                        //if (_logging)
+                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
+                        //wait(1);
+                        //if (_logging)
+                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
+                        //wait(1);
+                        //if (_logging)
+                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
+                        //printBusState();
+
+                        wait(5);
                         if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || /*_busState == t1 ||*/ _busState == t4 || _busState == tFirstIdle) {
-                            if (_busState == tFirstIdle || (_busState == t4 && codeLast))
+                            if (/*_busState == tFirstIdle ||*/ (_busState == t4 && codeLast))
                                 wait(1);
                             wait(1);
                             _transferStarting = true;
-                            wait(2);
                         }
                         else {
-                            //wait(2);
                             _transferStarting = true;
                             waitForBusIdle();
-                            wait(2);
                         }
-
+                        wait(2);
                     }
                     else {
                         wait(2);
                         //printBusState();
                         _transferStarting = true;
                         if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet  || _busState == t1 || _busState == t4) {
+                            if (_busState == t4 && _opcode == 0xcd)
+                                wait(1);
                             wait(1);
                         }
                         else {
@@ -2999,7 +2992,8 @@ private:
                 }
                 break;
             case 8:
-                if (_busState == t4StatusSet || _busState == t1 || _busState == t3tWaitLast || _busState == tSecondIdle || _busState == tIdleStatusSet) {
+                //printBusState();
+                if (_busState == t4StatusSet || /*_busState == t1 ||*/ _busState == t3tWaitLast || _busState == tSecondIdle || _busState == tIdleStatusSet) {
                     wait(1);
                     _transferStarting = true;
                     wait(1);
@@ -3257,7 +3251,10 @@ private:
             case 38:
                 wait(4);
                 _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                printBusState();
+                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == t4 || _busState == tIdleStatusSet) {
+                    if (_busState == t4 && _ioLast._type == ioCodeAccess)
+                        wait(1);
                     wait(1);
                 }
                 else {
@@ -3281,10 +3278,19 @@ private:
             case 43:
                 wait(2);
                 _prefetching = false;
+                //_transferStarting = true;
+                //if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
+                //    wait(1);
+                //wait(2);
                 _transferStarting = true;
-                if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
+                //printBusState();
+                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                }
+                else {
                     wait(1);
-                wait(2);
+                    waitForBusIdle();
+                }
+                wait(1);
                 break;
             case 44:
             case 45:
@@ -4669,6 +4675,20 @@ private:
             checkInterrupts();
         }
     }
+    String stringForAccessType(IOType type)
+    {
+        switch (type) {
+            case ioInterruptAcknowledge: return "ioInterruptAcknowledge";
+            case ioReadPort: return "ioReadPort";
+            case ioWritePort: return "ioWritePort";
+            case ioHalt: return "ioHalt";
+            case ioCodeAccess: return "ioCodeAccess";
+            case ioReadMemory: return "ioReadMemory";
+            case ioWriteMemory: return "ioWriteMemory";
+            case ioPassive: return "ioPassive";
+        }
+        return "unknown: " + decimal(static_cast<int>(type));
+    }
     void printBusState()
     {
         if (!_logging)
@@ -4685,7 +4705,7 @@ private:
             case tIdle: s = "tIdle"; break;
             case tIdleStatusSet: s = "tIdleStatusSet"; break;
         }
-        console.write("Bus state: " + s + "\n");
+        console.write("Bus state: " + s + ", last = " + stringForAccessType(_ioLast._type) + ", current = " + stringForAccessType(_io._type) + "\n");
     }
     bool interruptPending()
     {
@@ -6584,7 +6604,7 @@ public:
         CPUEmulator emulator;
         emulator.setStub(runStub);
 
-        int maxTests = 859; //1000;
+        int maxTests = 1000;
         int availableLength = 0xf300 - testProgram.count();
         //Array<int> cycleCounts(_tests.count());
         bool reRunAllBad = false;
