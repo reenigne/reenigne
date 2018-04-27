@@ -2874,6 +2874,12 @@ private:
             wait(1);
         } while (_ioNext._type != ioPassive);
     }
+    void waitForBusIdle()
+    {
+        while (_busState == t2t3tWaitNotLast || _busState == t1 ||
+            _busState == tIdleStatusSet || _busState == t4StatusSet)
+            wait(1);
+    }
     void busInit()
     {
         switch (_accessNumber) {
@@ -2883,7 +2889,6 @@ private:
             case 1:
             case 6:
                 _transferStarting = true;
-                //wait(2);
                 printBusState();
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
                 }
@@ -2929,28 +2934,9 @@ private:
                 {
                     if (_opcode == 0xcc) {
                         bool codeLast = _io._type == ioCodeAccess;
-                        //if (_logging)
-                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        //wait(1);
-                        //if (_logging)
-                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        //wait(1);
-                        //if (_logging)
-                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        //wait(1);
-                        //if (_logging)
-                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        //wait(1);
-                        //if (_logging)
-                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        //wait(1);
-                        //if (_logging)
-                        //    console.write(decimal(_ioLast._type) + " " + decimal(_io._type) + "\n");
-                        //printBusState();
-
                         wait(5);
                         if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || /*_busState == t1 ||*/ _busState == t4 || _busState == tFirstIdle) {
-                            if (/*_busState == tFirstIdle ||*/ (_busState == t4 && codeLast))
+                            if (_busState == t4 && codeLast)
                                 wait(1);
                             wait(1);
                             _transferStarting = true;
@@ -3609,13 +3595,6 @@ private:
             *_byteRegisters[modRMReg2()] = static_cast<Byte>(_data);
         else
             _wordRegisters[modRMReg2()] = _data;
-    }
-    void waitForBusIdle()
-    {
-        while ((_busState != tIdle && _busState != tFirstIdle &&
-            _busState != tSecondIdle && _busState != t4 &&
-            _busState != t3tWaitLast) || _ioNext._type != ioPassive)
-            wait(1);
     }
     void executeOneInstruction()
     {
