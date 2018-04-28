@@ -2901,7 +2901,7 @@ private:
             case 2:
                 wait(1);
                 _transferStarting = true;
-                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == t3tWaitLast) {
                 }
                 else {
                     waitForBusIdle();
@@ -2935,7 +2935,7 @@ private:
                     if (_opcode == 0xcc) {
                         bool codeLast = _io._type == ioCodeAccess;
                         wait(5);
-                        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || /*_busState == t1 ||*/ _busState == t4 || _busState == tFirstIdle) {
+                        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == t4 || _busState == tFirstIdle) {
                             if (_busState == t4 && codeLast)
                                 wait(1);
                             wait(1);
@@ -2949,7 +2949,6 @@ private:
                     }
                     else {
                         wait(2);
-                        //printBusState();
                         _transferStarting = true;
                         if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet  || _busState == t1 || _busState == t4) {
                             if (_busState == t4 && _opcode == 0xcd)
@@ -2978,8 +2977,7 @@ private:
                 }
                 break;
             case 8:
-                //printBusState();
-                if (_busState == t4StatusSet || /*_busState == t1 ||*/ _busState == t3tWaitLast || _busState == tSecondIdle || _busState == tIdleStatusSet) {
+                if (_busState == t4StatusSet || _busState == t3tWaitLast || _busState == tSecondIdle || _busState == tIdleStatusSet) {
                     wait(1);
                     _transferStarting = true;
                     wait(1);
@@ -3044,9 +3042,6 @@ private:
                 _transferStarting = true;
                 {
                     bool codeLast = _ioLast._type == ioCodeAccess;
-                    //if (_opcode == 0x8c && _modRM == 0x04) {
-                    //    printBusState(); if (_logging) console.write(String(decimal(codeLast ? 1 : 0)) + "\n");
-                    //}
                     if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet) {
                         if (_busState == t4) {
                             if (codeLast)
@@ -3075,14 +3070,10 @@ private:
                 break;
             case 16:
                 if (!_wordSize) {
-                    //if (_busState != t3tWaitLast)
-                    //    _transferStarting = true;
                     if (_busState == t4)
                         wait(1);
                 }
                 wait(1);
-                //if (_opcode == 0xc6 && _modRM == 0x06)
-                //    printBusState();
                 _transferStarting = true;
                 if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tSecondIdle) {
                     wait(1);
@@ -3264,12 +3255,7 @@ private:
             case 43:
                 wait(2);
                 _prefetching = false;
-                //_transferStarting = true;
-                //if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
-                //    wait(1);
-                //wait(2);
                 _transferStarting = true;
-                //printBusState();
                 if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
                 }
                 else {
@@ -3287,9 +3273,7 @@ private:
                 break;
             case 46:
                 _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
-                //if (_opcode == 0x00 && _modRM == 0x01)
-                //    printBusState();
-                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle /*&& _ioLast._type != ioCodeAccess*/)) {
+                if (_busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || _busState == t1 || _busState == t3tWaitLast || _busState == tFirstIdle) {
                     if (_busState == t4)
                         wait(1);
                 }
@@ -3308,17 +3292,15 @@ private:
                 if (_busState == t4 || _busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == tFirstIdle) {
                     if (_busState == t4)
                         wait(1);
-                    wait(2);
+                    wait(1);
                 }
                 else {
                     waitForBusIdle();
-                    wait(1);
                 }
+                wait(1);
                 break;
             case 52:
                 _transferStarting = true;
-                //if (_opcode == 0xc4 && _modRM == 0x01)
-                //    printBusState();
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == t4) {
                     if (_busState == t4)
                         wait(1);
@@ -3343,7 +3325,6 @@ private:
                 break;
             case 54:
                 _transferStarting = true;
-                //printBusState();
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == t4) {
                     if (_busState == t4)
                         wait(1);
@@ -3413,6 +3394,7 @@ private:
                 wait(2);
                 break;
             case 60:
+                wait(4);
                 break;
             case 61:
                 break;
@@ -3596,6 +3578,42 @@ private:
         else
             _wordRegisters[modRMReg2()] = _data;
     }
+    void doModRM()
+    {
+        _modRM = queueRead();
+        _useMemory = (_modRM & 0xc0) != 0xc0;
+        if (!_useMemory)
+            return;
+        wait(1);
+        if ((_modRM & 0xc7) == 0x06) {
+            wait(1);
+            _address = fetchInstructionWord();
+            _segment = 3;
+            wait(1);
+            return;
+        }
+        switch (_modRM & 7) {
+            case 0: wait(2); _address = bx() + si(); _segment = 3; break;
+            case 1: wait(3); _address = bx() + di(); _segment = 3; break;
+            case 2: wait(3); _address = bp() + si(); _segment = 2; break;
+            case 3: wait(2); _address = bp() + di(); _segment = 2; break;
+            case 4:          _address =        si(); _segment = 3; break;
+            case 5:          _address =        di(); _segment = 3; break;
+            case 6:          _address = bp();        _segment = 2; break;
+            case 7:          _address = bx();        _segment = 3; break;
+        }
+        switch (_modRM & 0xc0) {
+            case 0x40:
+                wait(3);
+                _address += signExtend(fetchInstructionByte());
+                break;
+            case 0x80:
+                wait(3);
+                _address += fetchInstructionWord();
+                break;
+        }
+        wait(2);
+    }
     void executeOneInstruction()
     {
         _accessNumber = 0;
@@ -3610,46 +3628,6 @@ private:
                 _bus.setLock(false);
             }
             wait(1);
-            static const DWord hasModRM[] = {
-                0x33333333, 0x00000000, 0x000000ff, 0x8800f30c};
-            if ((hasModRM[_opcode >> 6] & (1 << ((_opcode >> 1) & 0x1f))) != 0) {
-                _modRM = queueRead();
-                if ((_modRM & 0xc0) == 0xc0)
-                    _useMemory = false;
-                else {
-                    _useMemory = true;
-                    wait(1);
-                    if ((_modRM & 0xc7) == 0x06) {
-                        wait(1);
-                        _address = fetchInstructionWord();
-                        _segment = 3;
-                    }
-                    else {
-                        switch (_modRM & 7) {
-                            case 0: wait(2); _address = bx() + si(); _segment = 3; break;
-                            case 1: wait(3); _address = bx() + di(); _segment = 3; break;
-                            case 2: wait(3); _address = bp() + si(); _segment = 2; break;
-                            case 3: wait(2); _address = bp() + di(); _segment = 2; break;
-                            case 4:          _address =        si(); _segment = 3; break;
-                            case 5:          _address =        di(); _segment = 3; break;
-                            case 6:          _address = bp();        _segment = 2; break;
-                            case 7:          _address = bx();        _segment = 3; break;
-                        }
-                        switch (_modRM & 0xc0) {
-                            case 0x40:
-                                wait(3);
-                                _address += signExtend(fetchInstructionByte());
-                                break;
-                            case 0x80:
-                                wait(3);
-                                _address += fetchInstructionWord();
-                                break;
-                        }
-                        wait(1);
-                    }
-                    wait(1);
-                }
-            }
             _wordSize = ((_opcode & 1) != 0);
         }
         _completed = true;
@@ -3662,6 +3640,7 @@ private:
             case 0x28: case 0x29: case 0x2a: case 0x2b:
             case 0x30: case 0x31: case 0x32: case 0x33:
             case 0x38: case 0x39: case 0x3a: case 0x3b: // alu rm, r / r, rm
+                doModRM();
                 _accessNumber = 46;
                 readEA();
                 _aluOperation = (_opcode >> 3) & 7;
@@ -3843,6 +3822,7 @@ private:
                 }
                 break;
             case 0x80: case 0x81: case 0x82: case 0x83: // alu rm, imm
+                doModRM();
                 _accessNumber = 47;
                 readEA();
                 _destination = _data;
@@ -3874,6 +3854,7 @@ private:
                 }
                 break;
             case 0x84: case 0x85: // TEST rm, reg
+                doModRM();
                 _accessNumber = 48;
                 readEA();
                 test(_data, getReg());
@@ -3882,6 +3863,7 @@ private:
                 wait(2);
                 break;
             case 0x86: case 0x87: // XCHG rm, reg
+                doModRM();
                 _accessNumber = 49;
                 readEA();
                 _source = getReg();
@@ -3891,11 +3873,13 @@ private:
                 writeEA(_source);
                 break;
             case 0x88: case 0x89: // MOV rm, reg
+                doModRM();
                 wait(1);
                 _accessNumber = 13;
                 writeEA(getReg());
                 break;
             case 0x8a: case 0x8b: // MOV reg, rm
+                doModRM();
                 _accessNumber = 50;
                 readEA();
                 setReg(_data);
@@ -3904,6 +3888,7 @@ private:
                     wait(2);
                 break;
             case 0x8c: // MOV rmw, segreg
+                doModRM();
                 _wordSize = true;
                 if (!_useMemory)
                     wait(1);
@@ -3911,12 +3896,14 @@ private:
                 writeEA(_segmentRegisters[modRMReg() & 3]);
                 break;
             case 0x8d: // LEA rw, rmw
+                doModRM();
                 setReg(_address);
                 wait(1);
                 if (_useMemory)
                     wait(2);
                 break;
             case 0x8e: // MOV segreg, rmw
+                doModRM();
                 _wordSize = true;
                 _accessNumber = 51;
                 readEA();
@@ -3926,11 +3913,12 @@ private:
                     wait(2);
                 break;
             case 0x8f: // POP rmw
-                if (_useMemory)
-                    wait(2);
+                doModRM();
                 wait(1);
                 _source = _address;
                 _accessNumber = 24;
+                if (_useMemory)
+                    wait(2);
                 _data = pop();
                 _address = _source;
                 wait(2);
@@ -3973,7 +3961,6 @@ private:
                     push(cs());
 
                     _accessNumber = 60;
-                    wait(4);
                     Word oldIP = ip();
                     cs() = newCS;
                     setIP(newIP);
@@ -3983,14 +3970,8 @@ private:
                 }
                 break;
             case 0x9b: // WAIT
-                if (!_repeating) {
-                    wait(1);
-                    //if (_logging)
-                    //    printf("_busState = %i\n",_busState);
-                    //while (_busState != tIdle)
-                    //    wait(1);
-                    wait(1);
-                }
+                if (!_repeating)
+                    wait(2);
                 wait(5);
                 if (interruptPending()) {
                     wait(7);
@@ -4183,6 +4164,7 @@ private:
                 }
                 break;
             case 0xc4: case 0xc5: // LsS rw, rmd
+                doModRM();
                 _wordSize = true;
                 _accessNumber = 52;
                 readEA(true);
@@ -4193,6 +4175,7 @@ private:
                 wait(1);
                 break;
             case 0xc6: case 0xc7: // MOV rm, imm
+                doModRM();
                 wait(1);
                 if (_useMemory)
                     wait(2);
@@ -4238,6 +4221,7 @@ private:
                 }
                 break;
             case 0xd0: case 0xd1: case 0xd2: case 0xd3: // rot rm
+                doModRM();
                 if (!_useMemory)
                     wait(1);
                 _accessNumber = 53;
@@ -4350,6 +4334,7 @@ private:
                 break;
             case 0xd8: case 0xd9: case 0xda: case 0xdb:
             case 0xdc: case 0xdd: case 0xde: case 0xdf: // esc i, r, rm
+                doModRM();
                 _wordSize = true;
                 _accessNumber = 54;
                 readEA();
@@ -4471,6 +4456,7 @@ private:
                 _flags ^= 1;
                 break;
             case 0xf6: case 0xf7: // math
+                doModRM();
                 _accessNumber = 55;
                 readEA();
                 switch (modRMReg()) {
@@ -4540,6 +4526,7 @@ private:
                 setDF(_wordSize);
                 break;
             case 0xfe: case 0xff: // misc
+                doModRM();
                 _accessNumber = 56;
                 readEA(modRMReg() == 3 || modRMReg() == 5);
                 switch (modRMReg()) {
@@ -6539,6 +6526,8 @@ private:
     AppendableArray<Test> _fails;
 };
 
+#define USE_REAL_HARDWARE 1
+
 class Program : public ProgramBase
 {
 public:
@@ -6626,6 +6615,13 @@ public:
                 //t.setInstructionCycles(emulator.instructionCycles());
                 int cached = _cache.getTime(t);
                 if (cycles != cached) {
+#if !USE_REAL_HARDWARE
+                    if (cached == -1)
+                        console.write(decimal(totalCount - 1) + " is not in cache.\n");
+                    else
+                        console.write(decimal(totalCount - 1) + " took " + decimal(cycles) + " cycles, cached value " + decimal(cached) + "\n");
+                    return;
+#else
                     int nl = bunchLength + t.length();
                     if (nl > availableLength) {
                         retained = t;
@@ -6647,9 +6643,11 @@ public:
                     }
                     if (bunch.count() >= maxTests)
                         break;
+#endif
                 }
             } while (true);
 
+#if USE_REAL_HARDWARE
             if (bunch.count() == 0)
                 break;
             Array<Byte> output(bunchLength + 2);
@@ -6810,6 +6808,7 @@ public:
 
             if (maxTests < 1000000)
                 maxTests *= 2;
+#endif
         } while (true);
 
         console.write("Tests passing: " + decimal(totalCount) + "\n");
