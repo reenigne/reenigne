@@ -11,7 +11,7 @@ class Instruction
 public:
     Instruction() { }
     Instruction(Byte opcode, Byte modrm = 0, Word offset = 0,
-        Word immediate = 0)
+        DWord immediate = 0)
       : _opcode(opcode), _modrm(modrm), _offset(offset), _immediate(immediate)
     { }
     bool hasModrm()
@@ -217,6 +217,16 @@ public:
       : _queueFiller(queueFiller), _nops(nops), _refreshPeriod(0),
         _refreshPhase(0)
     { }
+    Test(std::initializer_list<Instruction> instructions, int nopCount,
+        int refreshPeriod = 0, int refreshPhase = 0)
+    {
+        int n = instructions.size();
+        auto p = instructions.begin();
+        for (int i = 0; i < n; ++i)
+            _instructions.append(p[i]);
+        _refreshPeriod = refreshPeriod;
+        _refreshPhase = refreshPhase;
+    }
     Test copy()
     {
         Test t(*this);
