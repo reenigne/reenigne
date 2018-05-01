@@ -522,6 +522,12 @@ private:
     int _refreshPhase;
 };
 
+#define GENERATE_NEWFAILS 1
+
+#if GENERATE_NEWFAILS
+#include "fails.h"
+#endif
+
 class Disassembler
 {
 public:
@@ -5498,6 +5504,9 @@ public:
         File("fails.dat").save(&d[0], size);
     }
     bool finished() { return _section == 8; }
+#if GENERATE_NEWFAILS
+    bool inFailsArray() { return _inFailsArray; }
+#endif
 
 private:
     Test getNextTest1()
@@ -6527,6 +6536,9 @@ private:
     int _rep;
     int _groupStartCount;
     int _segment;
+#if GENERATE_NEWFAILS
+    bool _inFailsArray;
+#endif
 
     std::mt19937 _generator;
     std::uniform_int_distribution<int> _d;
@@ -6547,6 +6559,33 @@ public:
         File("runtests.bin").readIntoArray(&testProgram);
         Array<Byte> runStub;
         File("runstub.bin").readIntoArray(&runStub);
+
+#if GENERATE_NEWFAILS
+        CPUEmulator emulator;
+        emulator.setStub(runStub);
+        AppendableArray<Test> newFails;
+        for (int i = 0; i < 10000000; ++i) {
+            Test t = _generator.getNextTest();
+            if (!_generator.inFailsArray())
+                continue;
+            int cycles = emulator.expected(t);
+            t.setCycles(cycles);
+            bool alreadyThere = false;
+            for (int j = 0; j < newFails.count(); ++j) {
+                if (newFails[j].equalIncludingNops(t)) {
+                    alreadyThere = true;
+                    break;
+                }
+            }
+            if (alreadyThere) {
+                console.write("Test duplicated: ");
+                t.write();
+            }
+            else
+                newFails.append(t);
+        }
+        return;
+#endif
 
         // Save all tests for comparison against previous implementation.
         //{
@@ -6578,9 +6617,6 @@ public:
         //_cache.dumpStats();
 
         console.write("Running tests\n");
-
-        CPUEmulator emulator;
-        emulator.setStub(runStub);
 
         int maxTests = 1000;
         int availableLength = 0xf300 - testProgram.count();
