@@ -488,6 +488,20 @@ public:
     {
         return *this == other && _nops == other._nops;
     }
+    bool sameInstructions(const Test& other) const
+    {
+        if (_queueFiller != other._queueFiller || _nops != other._nops ||
+            _refreshPeriod != other._refreshPeriod ||
+            _refreshPhase != other._refreshPhase)
+            return false;
+        c = _instructions.count();
+        if (c != other._instructions.count())
+            return false;
+        for (int i = 0; i < c; ++i)
+            if (_instructions[i] != other._instructions[i])
+                return false;
+        return true;
+    }
     bool operator!=(const Test& other) const { return !(*this == other); }
     UInt32 hash() const
     {
@@ -6181,14 +6195,19 @@ private:
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
-                }
-                {
                     Word b = _d(_generator);
                     t.preamble(0xba);
                     t.preamble(b & 0xff);
                     t.preamble(b >> 8);  // MOV DX,a
+                    t.setQueueFiller(1);
+#if GENERATE_NEWFAILS
+                    for (int i = 0; i < sizeof(mulFails)/sizeof(mulFails[0]); ++i) {
+                        auto p = &mulFails[i];
+                        if (p->_test.sameInstructions(t) && a == p->_w1 && d == p->_w2)
+                            _inFailsArray = true;
+                    }
+#endif
                 }
-                t.setQueueFiller(1);
                 break;
             case 4:  // 1000 input pairs for each divide instruction
                 t.setNops(0);
