@@ -226,6 +226,8 @@ public:
             _instructions.append(p[i]);
         _refreshPeriod = refreshPeriod;
         _refreshPhase = refreshPhase;
+        _nops = nopCount & 31;
+        _queueFiller = nopCount >> 5;
     }
     Test copy()
     {
@@ -494,7 +496,7 @@ public:
             _refreshPeriod != other._refreshPeriod ||
             _refreshPhase != other._refreshPhase)
             return false;
-        c = _instructions.count();
+        int c = _instructions.count();
         if (c != other._instructions.count())
             return false;
         for (int i = 0; i < c; ++i)
@@ -5525,6 +5527,7 @@ public:
 private:
     Test getNextTest1()
     {
+        _inFailsArray = false;
         Test t;
         Instruction i;
         switch (_section) {
@@ -5916,7 +5919,13 @@ private:
                                 t.addInstruction(Instruction(0xac));  // LODSB
                                 break;
                         }
-
+#if GENERATE_NEWFAILS
+                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
+                            auto p = &mainFails[i];
+                            if (p->sameInstructions(t))
+                                _inFailsArray = true;
+                        }
+#endif
                         break;
                     case 1:  // CBW/CWD tests
                         t.addInstruction(Instruction(_opcode));
@@ -5924,6 +5933,13 @@ private:
                         t.preamble(0xff);
                         t.preamble(0xff);  // MOV AX,-1
                         t.setQueueFiller(1);
+#if GENERATE_NEWFAILS
+                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
+                            auto p = &mainFails[i];
+                            if (p->sameInstructions(t))
+                                _inFailsArray = true;
+                        }
+#endif
                         break;
                     case 2:  // INTO overflow test
                         t.setQueueFiller(2);
@@ -5949,6 +5965,8 @@ private:
                         t.preamble(0x10);  // MOV CL,16
                         t.preamble(0xd3);
                         t.preamble(0xe0);  // SHL AX,CL
+                        if (_section == 2)
+                            _inFailsArray = true;
                         break;
                     case 3:  // Shift/rotate with various counts
                         t.preamble(0x90);  // NOP
@@ -5966,6 +5984,13 @@ private:
                         t.preamble(0xb9);
                         t.preamble(0x01);
                         t.preamble(0x00);  // MOV CX,1
+#if GENERATE_NEWFAILS
+                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
+                            auto p = &mainFails[i];
+                            if (p->sameInstructions(t))
+                                _inFailsArray = true;
+                        }
+#endif
                         break;
                     case 5:  // String operations with various counts
                         i = Instruction(_rep);
@@ -6203,7 +6228,7 @@ private:
 #if GENERATE_NEWFAILS
                     for (int i = 0; i < sizeof(mulFails)/sizeof(mulFails[0]); ++i) {
                         auto p = &mulFails[i];
-                        if (p->_test.sameInstructions(t) && a == p->_w1 && d == p->_w2)
+                        if (p->_test.sameInstructions(t) && a == p->_w1 && b == p->_w2)
                             _inFailsArray = true;
                     }
 #endif
@@ -6233,20 +6258,29 @@ private:
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
-                }
-                {
                     Word b = _d(_generator);
                     t.preamble(0xba);
                     t.preamble(b & 0xff);
                     t.preamble(b >> 8);  // MOV DX,a
-                }
-                {
                     Word c = _d(_generator);
                     t.preamble(0xbb);
                     t.preamble(c & 0xff);
                     t.preamble(c >> 8);  // MOV BX,a
+                    t.setQueueFiller(1);
+#if GENERATE_NEWFAILS
+                    for (int i = 0; i < sizeof(divFails)/sizeof(divFails[0]); ++i) {
+                        auto p = &divFails[i];
+                        if (_opcode == 0xf6) {
+                            if (p->_test.sameInstructions(t) && a == p->_w1 && (b & 0xff) == p->_w3)
+                                _inFailsArray = true;
+                        }
+                        else {
+                            if (p->_test.sameInstructions(t) && a == p->_w1 && b == p->_w2 && c == p->_w3)
+                                _inFailsArray = true;
+                        }
+                    }
+#endif
                 }
-                t.setQueueFiller(1);
                 break;
             case 5:  // 1000 input pairs for each of AAM and AAD
                 i = Instruction(_opcode);
@@ -6280,6 +6314,13 @@ private:
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
+#if GENERATE_NEWFAILS
+                    for (int i = 0; i < sizeof(aamdFails)/sizeof(aamdFails[0]); ++i) {
+                        auto p = &aamdFails[i];
+                        if (p->_test.sameInstructions(t) && a == p->_w1)
+                            _inFailsArray = true;
+                    }
+#endif
                 }
                 t.setQueueFiller(1);
                 break;
