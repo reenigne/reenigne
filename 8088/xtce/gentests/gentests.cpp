@@ -5919,13 +5919,6 @@ private:
                                 t.addInstruction(Instruction(0xac));  // LODSB
                                 break;
                         }
-#if GENERATE_NEWFAILS
-                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
-                            auto p = &mainFails[i];
-                            if (p->sameInstructions(t))
-                                _inFailsArray = true;
-                        }
-#endif
                         break;
                     case 1:  // CBW/CWD tests
                         t.addInstruction(Instruction(_opcode));
@@ -5933,13 +5926,6 @@ private:
                         t.preamble(0xff);
                         t.preamble(0xff);  // MOV AX,-1
                         t.setQueueFiller(1);
-#if GENERATE_NEWFAILS
-                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
-                            auto p = &mainFails[i];
-                            if (p->sameInstructions(t))
-                                _inFailsArray = true;
-                        }
-#endif
                         break;
                     case 2:  // INTO overflow test
                         t.setQueueFiller(2);
@@ -5965,8 +5951,6 @@ private:
                         t.preamble(0x10);  // MOV CL,16
                         t.preamble(0xd3);
                         t.preamble(0xe0);  // SHL AX,CL
-                        if (_section == 2)
-                            _inFailsArray = true;
                         break;
                     case 3:  // Shift/rotate with various counts
                         t.preamble(0x90);  // NOP
@@ -5984,13 +5968,6 @@ private:
                         t.preamble(0xb9);
                         t.preamble(0x01);
                         t.preamble(0x00);  // MOV CX,1
-#if GENERATE_NEWFAILS
-                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
-                            auto p = &mainFails[i];
-                            if (p->sameInstructions(t))
-                                _inFailsArray = true;
-                        }
-#endif
                         break;
                     case 5:  // String operations with various counts
                         i = Instruction(_rep);
@@ -6211,6 +6188,32 @@ private:
                 }
                 t.setRefreshPeriod(refreshPeriods[_refreshPeriod]);
                 t.setRefreshPhase(_refreshPhase);
+#if GENERATE_NEWFAILS
+                switch (_subsection) {
+                    case 4:  // LOOP with CX==1
+                        for (int i = 0; i < sizeof(loopFails)/sizeof(loopFails[0]); ++i) {
+                            auto p = &loopFails[i];
+                            if (p->sameInstructions(t))
+                                _inFailsArray = true;
+                        }
+                        break;
+                    case 5:  // String operations with various counts
+                        for (int i = 0; i < sizeof(repFails)/sizeof(repFails[0]); ++i) {
+                            auto p = &repFails[i];
+                            if (p->_test.sameInstructions(t) && p->_w1 == _count)
+                                _inFailsArray = true;
+                        }
+                        break;
+                    case 0:  // Basic tests
+                    case 2:  // INTO overflow test
+                    case 6:  // Math instructions with all registers
+                        for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
+                            auto p = &mainFails[i];
+                            if (p->sameInstructions(t))
+                                _inFailsArray = true;
+                        }
+                }
+#endif
                 break;
             case 3:  // 1000 input pairs for each multiply instruction
                 t.setNops(0);
@@ -6271,7 +6274,7 @@ private:
                     for (int i = 0; i < sizeof(divFails)/sizeof(divFails[0]); ++i) {
                         auto p = &divFails[i];
                         if (_opcode == 0xf6) {
-                            if (p->_test.sameInstructions(t) && a == p->_w1 && (b & 0xff) == p->_w3)
+                            if (p->_test.sameInstructions(t) && a == p->_w1 && (c & 0xff) == p->_w2)
                                 _inFailsArray = true;
                         }
                         else {
@@ -6309,6 +6312,7 @@ private:
                 }
 
                 t.addInstruction(i);
+                t.setQueueFiller(1);
                 {
                     Word a = _d(_generator);
                     t.preamble(0xb8);
@@ -6322,7 +6326,6 @@ private:
                     }
 #endif
                 }
-                t.setQueueFiller(1);
                 break;
         }
         increment();
@@ -6359,7 +6362,7 @@ private:
         ++_suffix;
         int maxSuffix = 9;
         if (_section == 6)
-            maxSuffix = 3;
+            maxSuffix = 5; //3;
         if (_section == 7)
             maxSuffix = 2;
         if (_suffix < maxSuffix)
@@ -6582,6 +6585,10 @@ private:
         }
     }
 
+#if GENERATE_NEWFAILS
+    bool _inFailsArray;
+public:
+#endif
     int _section;
     int _subsection;
     int _suffix;
@@ -6596,9 +6603,6 @@ private:
     int _rep;
     int _groupStartCount;
     int _segment;
-#if GENERATE_NEWFAILS
-    bool _inFailsArray;
-#endif
 
     std::mt19937 _generator;
     std::uniform_int_distribution<int> _d;
@@ -6624,8 +6628,10 @@ public:
         CPUEmulator emulator;
         emulator.setStub(runStub);
         AppendableArray<Test> newFails;
-        for (int i = 0; i < 10000000; ++i) {
+        for (int i = 0; ; ++i) {
             Test t = _generator.getNextTest();
+            if (_generator._refreshPeriod == 2)
+                break;
             if (!_generator.inFailsArray())
                 continue;
             int cycles = emulator.expected(t);
@@ -6644,6 +6650,9 @@ public:
             else
                 newFails.append(t);
         }
+        console.write("Found tests: " + decimal(newFails.count()) + ":\n");
+        for (int i = 0; i < newFails.count(); ++i)
+            newFails[i].write();
         return;
 #endif
 
