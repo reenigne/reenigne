@@ -6362,7 +6362,7 @@ private:
         ++_suffix;
         int maxSuffix = 9;
         if (_section == 6)
-            maxSuffix = 5; //3;
+            maxSuffix = 6; //3;
         if (_section == 7)
             maxSuffix = 2;
         if (_suffix < maxSuffix)
