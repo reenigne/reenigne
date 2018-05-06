@@ -6353,8 +6353,8 @@ private:
     bool incrementMain()
     {
         int endNopCount = nopCounts;
-        if (_section == 6 || _section == 7)
-            endNopCount = 14;
+        //if (_section == 6 || _section == 7)
+        //    endNopCount = 14;
         ++_nopCount;
         if (_nopCount < endNopCount)
             return true;
