@@ -6185,6 +6185,9 @@ private:
                         t.addInstruction(Instruction(0x88, 0xc0));
                         t.addInstruction(Instruction(4, 0));
                         break;
+                    case 9:
+                        t.addInstruction(Instruction(0, 6));
+                        break;
                 }
                 t.setRefreshPeriod(refreshPeriods[_refreshPeriod]);
                 t.setRefreshPhase(_refreshPhase);
@@ -6360,7 +6363,7 @@ private:
             return true;
         _nopCount = 0;
         ++_suffix;
-        int maxSuffix = 9;
+        int maxSuffix = 10; //9;
         if (_section == 6)
             maxSuffix = 6; //3;
         if (_section == 7)
@@ -6396,7 +6399,7 @@ private:
         }
         if (_subsection == 3) {  // Shift/rotate with various counts
             ++_count;
-            if (_count < 5)
+            if (_count < 6 /*5*/)
                 return true;
             _count = 0;
             if (incrementModrm())
