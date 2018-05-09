@@ -6152,6 +6152,19 @@ private:
                         t.addInstruction(Instruction(0x46));
                         t.addInstruction(Instruction(0x07));
                         break;
+                    case 8:  // IN/OUT to DMA port
+                        {
+                            Instruction i(_opcode);
+                            i.setImmediate(0);
+                            t.addInstruction(i);
+                            t.preamble(0x31);
+                            t.preamble(0xd2);  // XOR DX,DX
+                        }
+                        break;
+                    case 9:  // REP without string instruction
+                        t.addInstruction(Instruction(0xf2));
+                        break;
+
                 }
                 t.setNops(_nopCount);
                 switch (_suffix) {
@@ -6214,6 +6227,7 @@ private:
                     case 0:  // Basic tests
                     case 1:  // CBW/CWD tests
                     case 2:  // INTO overflow test
+                    case 3:  // Shift/rotate with various counts
                     case 6:  // Math instructions with all registers
                     case 7:  // INC SI, POP ES
                         for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
@@ -6460,7 +6474,21 @@ private:
             _r = 0;
             return true;
         }
-        if (_subsection == 7)  // INC SI, POP DS
+        if (_subsection == 7) {  // INC SI, POP DS
+            _subsection = 8;
+            _opcode = 0xe4;
+            return true;
+        }
+        if (_subsection == 8) {  // IN/OUT to DMA port
+            ++_opcode;
+            if (_opcode == 0xe8)
+                _opcode = 0xec;
+            if (_opcode < 0xf0)
+                return true;
+            _subsection = 9;
+            return true;
+        }
+        if (_subsection == 9)
             _subsection = 0;
         return false;
     }
