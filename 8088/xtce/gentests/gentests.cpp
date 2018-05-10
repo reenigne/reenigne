@@ -6227,7 +6227,7 @@ private:
                     case 0:  // Basic tests
                     case 1:  // CBW/CWD tests
                     case 2:  // INTO overflow test
-                    case 3:  // Shift/rotate with various counts
+//                    case 3:  // Shift/rotate with various counts
                     case 6:  // Math instructions with all registers
                     case 7:  // INC SI, POP ES
                         for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
@@ -6486,6 +6486,7 @@ private:
             if (_opcode < 0xf0)
                 return true;
             _subsection = 9;
+            _opcode = 0;
             return true;
         }
         if (_subsection == 9)
