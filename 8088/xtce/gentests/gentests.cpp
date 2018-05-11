@@ -6230,6 +6230,8 @@ private:
 //                    case 3:  // Shift/rotate with various counts
                     case 6:  // Math instructions with all registers
                     case 7:  // INC SI, POP ES
+                    case 8:  // IN/OUT to DMA port
+                    case 9:  // REP without string instruction
                         for (int i = 0; i < sizeof(mainFails)/sizeof(mainFails[0]); ++i) {
                             auto p = &mainFails[i];
                             if (p->sameInstructions(t))
@@ -6489,7 +6491,7 @@ private:
             _opcode = 0;
             return true;
         }
-        if (_subsection == 9)
+        if (_subsection == 9)  // REP without string instruction
             _subsection = 0;
         return false;
     }
