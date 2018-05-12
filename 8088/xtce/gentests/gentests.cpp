@@ -6157,8 +6157,6 @@ private:
                             Instruction i(_opcode);
                             i.setImmediate(0);
                             t.addInstruction(i);
-                            t.preamble(0x31);
-                            t.preamble(0xd2);  // XOR DX,DX
                         }
                         break;
                     case 9:  // REP without string instruction
@@ -6421,7 +6419,7 @@ private:
         }
         if (_subsection == 3) {  // Shift/rotate with various counts
             ++_count;
-            if (_count < 6 /*5*/)
+            if (_count < 5)
                 return true;
             _count = 0;
             if (incrementModrm())
@@ -6445,7 +6443,7 @@ private:
         }
         if (_subsection == 5) {  // String operations with various counts
             ++_count;
-            if (_count < 5)
+            if (_count < 6 /*5*/)
                 return true;
             _count = 0;
             do {
@@ -6483,9 +6481,7 @@ private:
         }
         if (_subsection == 8) {  // IN/OUT to DMA port
             ++_opcode;
-            if (_opcode == 0xe8)
-                _opcode = 0xec;
-            if (_opcode < 0xf0)
+            if (_opcode < 0xe8)
                 return true;
             _subsection = 9;
             _opcode = 0;

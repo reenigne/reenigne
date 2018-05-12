@@ -180,6 +180,21 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  mov al,0xff
+  mov bl,0xff
+  imul bl
+  jo foo
+foo:
+  push ax
+  pop ax
+
+;  mov cx,1000
+;self:
+;  loop self
+
+  ret
+
+
   ; Enable auto-EOI
   mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
   out 0x20,al  ; Set ICW1
