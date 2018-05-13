@@ -81,22 +81,30 @@ public:
         _animated.setDrawWindow(this);
         _animated.setRate(60);
 
+        //int fracBits = 10; //11;
+        int frac = 0x600;
+
         Word squares[0x8000];
         for (int i = 0; i < 0x8000; ++i) {
             int ii = i * 2;
             int s;
             if (ii >= 0x8000)
                 ii -= 0x10000;
-            if (ii >= 0x2000 || ii <= -0x2000)
-                s = 0x8000;
-            else
-                s = ((ii*ii) >> 11) & 0xfffe;
+            //if (ii >= 0x1000 || ii <= -0x1000)
+            //    s = 0x2000;
+            //else
+                //s = ((ii*ii /*+ (1 << (fracBits - 1))*/) >> fracBits) & 0xfffe;
+            s = ((ii*ii /*+ (frac / 2)*/) / frac) & 0xfffe;
             squares[i] = s;
         }
         for (int yp = 0; yp < 201; ++yp) {
-            int b = (((yp - 100) << 11)*3/200) & -2;
+            //int b = (((yp - 100) << fracBits)*3/200) & -2;
+            //int b = (((yp - 100) << fracBits)*9/4/200) & -2;
+            int b = (((yp - 100) * frac)*9/4/200) & -2;
             for (int xp = 0; xp < 320; ++xp) {
-                int a = (((xp - 200) << 11)*4/320) & -2;
+                //int a = (((xp - 200) << fracBits)*4/320) & -2;
+                //int a = (((xp - 240) << fracBits)*3/320) & -2;
+                int a = (((xp - 240) * frac)*3/320) & -2;
                 int i;
                 int x = a;
                 int y = b;
@@ -104,7 +112,12 @@ public:
                     int xx = squares[(x >> 1) & 0x7fff];
                     int yy = squares[(y >> 1) & 0x7fff];
                     int zz = xx + yy;
-                    if ((zz & 0x8000) != 0)
+                    //if (zz & 0x10000)
+                    //    break;
+                    zz &= 0xffff;
+                    //if ((xx & 0x8000) | (yy & 0x8000) | (zz & 0x8000))
+                    //    break;
+                    if (zz > 0x1c00 /*0x1800*/ /*|| xx >= 0x2000 || yy >= 0x2000*/)
                         break;
                     int xyxy = squares[((x + y) >> 1) & 0x7fff];
                     int xy2 = xyxy - zz;

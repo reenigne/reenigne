@@ -1,0 +1,137 @@
+for (int yp = 0; yp < 200; ++yp) {
+  float b = yp*1.5/100 - 1.5;
+  for (int xp = 0; xp < 320; ++xp) {
+    float a = xp*4/320 - 2.5;
+    float x = a;
+    float y = b;
+    int i;
+    for (i = 0; i < 32; ++i) {
+      float u = x*x;
+      float v = y*y;
+      float w = 2*x*y;
+      y = w + b;
+      x = u - v + a;
+      if (u + v >= 4)
+        break;
+    }
+    if (i == 32)
+      c = 0;
+    else
+      c = i%3;
+    plot(x, y, c);
+  }
+}
+
+(x+y)*(x-y) = x*x-y*y
+(x+y)*(x+y) = x*x+y*y+2*x*y
+
+|c|^2(8|c|^2-3) <= 3/32 - Re(c)
+|c+1| <= 1/4
+
+Use a custom video mode with 202 scanlines. Compute 101, mirror 100, leave 1 blank
+
+Initially, largest value is 2.5*2.5 + 1.5*1.5 = 8.5
+Bailout condition is |z|>=4, i.e. x*x+y*y >= 16
+In square table, put 16 for all values <-4 or >4
+
+x in si
+y in bx
+b in dx
+a in es
+0x1c00 in sp
+
+loopTop:
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,sp
+  jae escaped
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+  loop loopTop
+
+Representable values: -16.0 to 15.9990234375 with precision 0.0009765625
+0x0002  0.0009765625
+0x0004  0.001953125
+0x0008  0.00390625
+0x0010  0.0078125
+0x0020  0.015625
+0x0040  0.03125
+0x0080  0.0625
+0x0100  0.125
+0x0200  0.25
+0x0400  0.5
+0x0800  1
+0x1000  2
+0x2000  4
+0x4000  8
+0x8000 16
+
+Problem: We can never escape at y==0. Separate algorithm?
+
+loopTopY0:
+  cmp si,0x4000
+  jge escaped
+  cmp si,-0x4000
+  jle escaped
+  mov si,[si] ; x*x
+  add si,a   ; x*x+a -> new x
+  loop loopTop
+
+
+Divide screen into 8x8 blocks
+Subdivide and evaluate block a at d,e,f if iteration count at a is different from b or c
+
+a...d...b
+........
+........
+........
+e...f...
+........
+........
+........
+c
+
+a.d.b
+....
+e.f.
+....
+c
+
+adb
+ef
+c
+
+More complicated algorithm:
+if (a == b) {
+  if (a == c) {
+    // No subdivision, colour entire block a
+  }
+  else {
+    // Evaluate at e and f. Set d==a. Subdivide.
+  }
+}
+else {
+  if (a == c) {
+    // Evaluate at d and f. Set e==a. Subdivide.
+  }
+  else {
+    if (b == c) {
+      // Evaluate at d and e. Set f==b. Subdivide.
+    }
+    else {
+      // Evaluate at d, e and f. Subdivide.
+    }
+  }
+}
+Need to keep 8 rows == 2560 bytes
+
+Plan:
+ See if basic rendering algorithm works on modern machine
+
+
+
