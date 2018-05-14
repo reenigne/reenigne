@@ -103,7 +103,7 @@ loopTop:
   dec dx
   outputByte
   outputByte
-  mov dx,18996; + 492*3   ;65534 ;
+  mov dx,18996-9; + 492*3   ;65534 ;
   outputByte
   outputByte
 

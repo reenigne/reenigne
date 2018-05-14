@@ -12,7 +12,7 @@ public:
         _sequencer.setROM(
             File(configFile->get<String>("cgaROM"), configPath.parent()));
 
-        _output->setConnector(0);          // RGBI
+        _output->setConnector(1);  // new composite,  0 for RGBI
         _output->setScanlineProfile(0);    // rectangle
         _output->setHorizontalProfile(0);  // rectangle
         _output->setScanlineWidth(1);
@@ -52,8 +52,8 @@ public:
         _vram[CGAData::registerVerticalTotalHigh] = 0;
         _vram[CGAData::registerVerticalDisplayedHigh] = 0;
         _vram[CGAData::registerVerticalSyncPositionHigh] = 0;
-        _vram[CGAData::registerMode] = 0x0a;
-        _vram[CGAData::registerPalette] = 0x30;
+        _vram[CGAData::registerMode] = 0x1a; //0x0a;
+        _vram[CGAData::registerPalette] = 0x0f; //0x30;
         _vram[CGAData::registerHorizontalTotal] = 57 /*114*/ - 1;
         _vram[CGAData::registerHorizontalDisplayed] = 40; //80;
         _vram[CGAData::registerHorizontalSyncPosition] = 45; //90;
@@ -94,21 +94,38 @@ public:
             //    s = 0x2000;
             //else
                 //s = ((ii*ii /*+ (1 << (fracBits - 1))*/) >> fracBits) & 0xfffe;
-            s = ((ii*ii /*+ (frac / 2)*/) / frac) & 0xfffe;
+            s = ((ii*ii + (frac / 2)) / frac) & 0xfffe;
             squares[i] = s;
         }
+        //Byte colourTable[] = {0x00,
+        //    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+        //    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+        //    0x11, 0x22};
+        //Byte colourTable[] = {0x00,
+        //    0xff, 0xee, 0xaa, 0xbb, 0x99, 0x88, 0x11, 0x33, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 
+        //    0xff, 0xee, 0xaa, 0xbb, 0x99, 0x88, 0x11, 0x33, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 
+        //    0xff, 0xee};
+        Byte colourTable[] = {0x00,
+            0xff, 0xff, 0xff, 0xff, 0xee, 0xee, 0xee, 0xee, 0xaa, 0xaa, 0xaa, 0xbb, 0xbb, 0xbb, 0x99, 
+            0x99, 0x99, 0x88, 0x88, 0x11, 0x11, 0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 
+            0xdd, 0xff};
+
+        int mode = 1;
+        int modeIncrements[] = {1, 2, 4};
+        int modeMasks[] = {0x80, 0xc0, 0xf0};
+
         for (int yp = 0; yp < 201; ++yp) {
             //int b = (((yp - 100) << fracBits)*3/200) & -2;
             //int b = (((yp - 100) << fracBits)*9/4/200) & -2;
             int b = (((yp - 100) * frac)*9/4/200) & -2;
-            for (int xp = 0; xp < 320; ++xp) {
+            for (int xp = 0; xp < 640; xp += modeIncrements[mode]) {
                 //int a = (((xp - 200) << fracBits)*4/320) & -2;
                 //int a = (((xp - 240) << fracBits)*3/320) & -2;
-                int a = (((xp - 240) * frac)*3/320) & -2;
+                int a = (((xp -  480) * frac)*3/640) & -2;
                 int i;
                 int x = a;
                 int y = b;
-                for (i = 0; i < 32; ++i) {
+                for (i = 32; i > 0; --i) {
                     int xx = squares[(x >> 1) & 0x7fff];
                     int yy = squares[(y >> 1) & 0x7fff];
                     int zz = xx + yy;
@@ -124,12 +141,9 @@ public:
                     y = xy2 + b;
                     x = a + xx - yy;
                 }
-                int c = 0;
-                if (i < 32)
-                    c = (i % 3) + 1;
-                int p = ((yp & 1) << 13) + (yp >> 1)*80 + (xp >> 2);
-                int s = ((xp & 3) << 1);
-                _vram[p] = (_vram[p] & ~(0xc0 >> s)) + ((c << 6) >> s);
+                int p = ((yp & 1) << 13) + (yp >> 1)*80 + (xp >> 3);
+                Byte m = modeMasks[mode] >> (xp & 7);
+                _vram[p] = (_vram[p] & ~m) + (colourTable[i] & m);
             }
         }
     }
