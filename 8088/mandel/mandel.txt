@@ -86,7 +86,7 @@ loopTopY0:
 Divide screen into 8x8 blocks
 Subdivide and evaluate block a at d,e,f if iteration count at a is different from b or c
 
-a...d...b
+a...d...b   s == 3
 ........
 ........
 ........
@@ -96,13 +96,13 @@ e...f...
 ........
 c
 
-a.d.b
+a.d.b       s == 2
 ....
 e.f.
 ....
 c
 
-adb
+adb         s == 1
 ef
 c
 
@@ -134,4 +134,40 @@ Plan:
  See if basic rendering algorithm works on modern machine
 
 
+
+0 128 256 384
+
+
+
+a.u.b
+.....
+v.w.p
+.....
+c.q.d
+
+if (a == b && a == c && a == d) {
+  Fill entire block with a
+  return;
+}
+if (a == b) u = a; else compute u
+if (a == c) v = a; else compute v
+if (b == d) p = b; else compute p
+if (c == d) q = c; else compute q
+if (u == v && u == p && u == q) w = u; else compute w
+subdivide(a, u, v, w);
+subdivide(u, b, w, p);
+subdivide(v, w, c, q);
+subdivide(w, p, q, d);
+
+
+TODO:
+  Optimization: Use bp-relative addressing in plotting routine to avoid cs: override?
+  Solid-guessing prototype
+  Solid-guessing implementation
+  Time
+  Lakes
+  Time
+  Composite
+  Time
+  Xaos: http://web.mit.edu/kolya/sipb/afs/root.afs/athena/activity/p/peckers/OldFiles/Programs/XaoS-2.2/doc/algorithm.txt
 
