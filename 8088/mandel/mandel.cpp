@@ -105,6 +105,8 @@ public:
         for (int i = 0; i < 385*129; ++i)
             _iters[i] = 0xff;
 
+        _totalIters = 0;
+
         // Coarse grid initially
         for (int yp = 0; yp < 256; yp += 128)
             for (int xp = 0; xp < 1024; xp += 256)
@@ -113,13 +115,22 @@ public:
         for (int xp = 0; xp < 768; xp += 256)
             subdivide(xp, 0, 7);
 
-        //for (int yp = 0; yp < 201; ++yp) {
-        //    int b = bFromYp(yp);
+        // Check that image is the same as the one we get with no guessing
+        //Array<Byte> vram2(0x4000);
+        //for (int i = 0; i < 0x4000; ++i)
+        //    vram2[i] = _vram[i];
+
+        //for (int yp = 0; yp < 101; ++yp) {
         //    for (int xp = 0; xp < 640; xp += modeIncrements[_mode]) {
-        //        int i = mandelIters(aFromXp(xp), b);
-        //        plot(xp, yp, i);
+        //        mandelIters(xp, yp);
+        //        //plot(xp, yp, _iters[(yp*385 + (xp >> 1) + 1) % (385*129)]);
         //    }
         //}
+
+        //for (int i = 0; i < 0x4000; ++i)
+        //    _vram[i] ^= vram2[i];
+
+        printf("%i\n", _totalIters);
     }
     ~MandelWindow() { join(); }
     void join() { _output->join(); }
@@ -142,6 +153,9 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
+    // aub
+    // vwp
+    // cqd
     void subdivide(int xp, int yp, int s)
     {
         int z = 1 << s;
@@ -149,38 +163,71 @@ private:
         int b = _iters[yp*385 + (xp >> 1) + z];
         int c = _iters[(yp + z)*385 + (xp >> 1)];
         int d = _iters[(yp + z)*385 + (xp >> 1) + z];
-        if (a == b && a == c || a == d) {
-            int w = 1 << s;
-            for (int y = 0; y < w; ++y)
-                for (int x = 0; x < w; ++x)
-                    plot(xp + (x << 1), yp + y, a);
+        if (a == b && a == c && a == d) {
+            //if (s == 5) {
+            //    printf("%i %i %i %i\n",a,b,c,d);
+            //}
+            //for (int y = 0; y < z; ++y)
+            //    for (int x = 0; x < z; ++x)
+            //        plot(xp + (x << 1), yp + y, s == 6 ? 0 : a);
+            for (int x = 0; x < z; ++x)
+                plot(xp + (x << 1), yp, a);
+            for (int y = 0; y < z; ++y)
+                plot(xp, yp + y, a);
             return;
         }
-        int h = 1 << (s - 1);
-        int u = (a == b ? a : mandelIters(xp + z, yp));
-        _iters[yp*385 + (xp >> 1) + h] = u;
-        int v = (a == c ? a : mandelIters(xp, yp + h));
-        _iters[(yp + h)*385 + (xp >> 1)] = v;
-        int p = (b == d ? d : mandelIters(xp + z + z, yp + h));
-        _iters[(yp + h)*385 + (xp >> 1) + z] = p;
-        int q = (c == d ? d : mandelIters(xp + z, yp + z));
-        _iters[(yp + z)*385 + (xp >> 1) + h] = q;
-        int w = (u == v && u == p && u == q ? u : mandelIters(xp + z, yp + h));
-        _iters[(yp + h)*385 + (xp >> 1) + h] = w;
+        int h = z >> 1;
+        //int u;
+        //if (a == b)
+        //    u = plot(xp + z, yp, a);
+        //else
+        //    u = mandelIters(xp + z, yp);
+        //int v;
+        //if (a == c)
+        //    v = plot(xp, yp + h, a);
+        //else
+        //    v = mandelIters(xp, yp + h);
+        //int p;
+        //if (b == d)
+        //    p = plot(xp + z + z, yp + h, d);
+        //else
+        //    p = mandelIters(xp + z + z, yp + h);
+        //int q;
+        //if (c == d)
+        //    q = plot(xp + z, yp + z, d);
+        //else
+        //    q = mandelIters(xp + z, yp + z);
+        //int w;
+        //if (u == v && u == p && u == q)
+        //    w = plot(xp + z, yp + h, u);
+        //else
+        //    w = mandelIters(xp + z, yp + h);
+
+        mandelIters(xp + z, yp);
+        mandelIters(xp, yp + h);
+        mandelIters(xp + z + z, yp + h);
+        mandelIters(xp + z, yp + z);
+        mandelIters(xp + z, yp + h);
+
         if (s > 1) {
             subdivide(xp, yp, s - 1);
-            subdivide(xp + z, yp, s - 1);
-            subdivide(xp, yp + h, s - 1);
-            subdivide(xp + z, yp + h, s - 1);
+            if (xp + z < 640)
+                subdivide(xp + z, yp, s - 1);
+            if (yp + h <= 100) {
+                subdivide(xp, yp + h, s - 1);
+                if (xp + z < 640)
+                    subdivide(xp + z, yp + h, s - 1);
+            }
         }
     }
-    void plot(int xp, int yp, int i)
+    int plot(int xp, int yp, int i)
     {
         _iters[yp*385 + (xp >> 1)] = i;
-        if (xp >= 320 || yp > 100)
-            return;
+        if (xp >= 640 || yp > 100)
+            return i;
         plot2(xp, yp+100, i);
         plot2(xp, 100-yp, i);
+        return i;
     }
     void plot2(int xp, int yp, int i)
     {
@@ -195,11 +242,11 @@ private:
     }
     int aFromXp(int xp)
     {
-        return (((xp - 240) * _frac)*3/320) & -2;
+        return (((xp - 480) * _frac)*3/640) & -2;
     }
     int bFromYp(int yp)
     {
-        return (((yp - 100) * _frac)*9/4/200) & -2;
+        return (((yp /*- 100*/) * _frac)*9/4/200) & -2;
     }
     int mandelIters(int xp, int yp)
     {
@@ -219,6 +266,7 @@ private:
                 break;
             y = (_squares[((x + y) >> 1) & 0x7fff] - zz) + b;
             x = a + xx - yy;
+            ++_totalIters;
         }
         plot(xp, yp, i);
         return i;
@@ -238,6 +286,7 @@ private:
     Byte* _vram;
     int _regs;
     int _frame;
+    int _totalIters;
 };
 
 class Program : public WindowProgram<MandelWindow>
