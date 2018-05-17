@@ -1,18 +1,19 @@
 cpu 8086
-;org 0x100
-org 0
+org 0x100
+;org 0
 
 MULTIPLIER equ 0x600
 
-  mov al,0x34
-  out 0x43,al
-  mov al,0
-  out 0x40,al
-  out 0x40,al
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8
-  mov [0x22],cs
+;  mov al,0x34
+;  out 0x43,al
+;  mov al,0
+;  out 0x40,al
+;  out 0x40,al
+;  xor ax,ax
+;  mov ds,ax
+;  mov word[0x20],interrupt8
+;  mov [0x22],cs
+
 ;  mov ax,[0x6c]
 ;  mov [cs:timer],ax
 
@@ -265,8 +266,9 @@ yOffsetTop:
 ;  mov ds,ax
 ;  mov ax,[0x6c]
 ;  sub ax,[cs:timer]
-  mov ax,[cs:timer]
-  int 0x63 ; outputHex
+
+;  mov ax,[cs:timer]
+;  int 0x63 ; outputHex
 
   mov ah,0
   int 0x16
@@ -278,13 +280,13 @@ yOffsetTop:
 yLoop2: jmp yLoop
 xLoop2: jmp xLoop
 
-interrupt8:
-  push ax
-  mov al,0x20
-  out 0x20,al
-  inc word[cs:timer]
-  pop ax
-  iret
+;interrupt8:
+;  push ax
+;  mov al,0x20
+;  out 0x20,al
+;  inc word[cs:timer]
+;  pop ax
+;  iret
 
 squareTableSegment: dw 0
 aTable:
@@ -325,7 +327,7 @@ yTable:
   dw 0x1f40
 maskTable:
   dw 0xc03f,0x30cf,0x0cf3,0x03fc
-timer: dw 0
+;timer: dw 0
 stackStart:
   times 128 db 0
 stackEnd:

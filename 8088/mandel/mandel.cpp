@@ -89,46 +89,46 @@ public:
                 ii -= 0x10000;
             _squares[i] = ((ii*ii + (_frac / 2)) / _frac) & 0xfffe;
         }
-        //Byte colourTable[] = {0x00,
-        //    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-        //    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-        //    0x11, 0x22};
-        //Byte colourTable[] = {0x00,
-        //    0xff, 0xee, 0xaa, 0xbb, 0x99, 0x88, 0x11, 0x33, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd,
-        //    0xff, 0xee, 0xaa, 0xbb, 0x99, 0x88, 0x11, 0x33, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd,
-        //    0xff, 0xee};
-
         _mode = 1;
         static int modeIncrements[] = {1, 2, 4};
 
-        _iters.allocate(385*129);
-        for (int i = 0; i < 385*129; ++i)
+        int initialShift = 5;
+        int initialGrid = 1 << initialShift;
+        int maxX = 320;
+        int maxY = 101;
+        _itersX = ((maxX + initialGrid - 1)/initialGrid)*initialGrid + 1;
+        int itersY = ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1;
+
+        _iters.allocate(_itersX*itersY);
+        for (int i = 0; i < _itersX*itersY; ++i)
             _iters[i] = 0xff;
 
         _totalIters = 0;
 
         // Coarse grid initially
-        for (int yp = 0; yp < 256; yp += 128)
-            for (int xp = 0; xp < 1024; xp += 256)
+        for (int yp = 0; yp < itersY; yp += initialGrid)
+            for (int xp = 0; xp < _itersX; xp += initialGrid)
                 mandelIters(xp, yp);
         // Progressively refine
-        for (int xp = 0; xp < 768; xp += 256)
-            subdivide(xp, 0, 7);
+        for (int yp = 0; yp < itersY - 1; yp += initialGrid)
+            for (int xp = 0; xp < _itersX - 1; xp += initialGrid)
+                subdivide(xp, yp, initialShift);
 
-        // Check that image is the same as the one we get with no guessing
+        ////Check that image is the same as the one we get with no guessing
         //Array<Byte> vram2(0x4000);
         //for (int i = 0; i < 0x4000; ++i)
         //    vram2[i] = _vram[i];
 
-        //for (int yp = 0; yp < 101; ++yp) {
-        //    for (int xp = 0; xp < 640; xp += modeIncrements[_mode]) {
+        //for (int i = 0; i < _itersX*itersY; ++i)
+        //    _iters[i] = 0xff;
+        //for (int yp = 0; yp < maxY; ++yp) {
+        //    for (int xp = 0; xp < maxX; ++xp)
         //        mandelIters(xp, yp);
-        //        //plot(xp, yp, _iters[(yp*385 + (xp >> 1) + 1) % (385*129)]);
-        //    }
         //}
 
         //for (int i = 0; i < 0x4000; ++i)
         //    _vram[i] ^= vram2[i];
+
 
         printf("%i\n", _totalIters);
     }
@@ -153,81 +153,60 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
+    int iters(int x, int y) { return _iters[y*_itersX + x]; }
     // aub
     // vwp
     // cqd
     void subdivide(int xp, int yp, int s)
     {
         int z = 1 << s;
-        int a = _iters[yp*385 + (xp >> 1)];
-        int b = _iters[yp*385 + (xp >> 1) + z];
-        int c = _iters[(yp + z)*385 + (xp >> 1)];
-        int d = _iters[(yp + z)*385 + (xp >> 1) + z];
+        int a = iters(xp, yp);
+        int b = iters(xp + z, yp);
+        int c = iters(xp, yp + z);
+        int d = iters(xp + z, yp + z);
         if (a == b && a == c && a == d) {
-            //if (s == 5) {
-            //    printf("%i %i %i %i\n",a,b,c,d);
-            //}
-            //for (int y = 0; y < z; ++y)
-            //    for (int x = 0; x < z; ++x)
-            //        plot(xp + (x << 1), yp + y, s == 6 ? 0 : a);
-            for (int x = 0; x < z; ++x)
-                plot(xp + (x << 1), yp, a);
             for (int y = 0; y < z; ++y)
-                plot(xp, yp + y, a);
+                for (int x = 0; x < z; ++x) {
+                    plot(xp + x, yp + y, a);
+                    //if (xp + x < 320 && 100 + yp + y <= 200)
+                    //    plot2(xp + x, 100 + yp + y, a);
+                }
+
+            //for (int x = 0; x < z; ++x)
+            //    if (xp + x < 320 && 100 + yp <= 200)
+            //        plot2(xp + x, 100 + yp, 1);
+            //for (int y = 0; y < z; ++y)
+            //    if (xp < 320 && 100 + yp + y <= 200)
+            //        plot2(xp, 100 + yp + y, 1);
+
             return;
         }
         int h = z >> 1;
-        //int u;
-        //if (a == b)
-        //    u = plot(xp + z, yp, a);
-        //else
-        //    u = mandelIters(xp + z, yp);
-        //int v;
-        //if (a == c)
-        //    v = plot(xp, yp + h, a);
-        //else
-        //    v = mandelIters(xp, yp + h);
-        //int p;
-        //if (b == d)
-        //    p = plot(xp + z + z, yp + h, d);
-        //else
-        //    p = mandelIters(xp + z + z, yp + h);
-        //int q;
-        //if (c == d)
-        //    q = plot(xp + z, yp + z, d);
-        //else
-        //    q = mandelIters(xp + z, yp + z);
-        //int w;
-        //if (u == v && u == p && u == q)
-        //    w = plot(xp + z, yp + h, u);
-        //else
-        //    w = mandelIters(xp + z, yp + h);
 
-        mandelIters(xp + z, yp);
+        mandelIters(xp + h, yp);
         mandelIters(xp, yp + h);
-        mandelIters(xp + z + z, yp + h);
-        mandelIters(xp + z, yp + z);
         mandelIters(xp + z, yp + h);
+        mandelIters(xp + h, yp + z);
+        mandelIters(xp + h, yp + h);
 
         if (s > 1) {
             subdivide(xp, yp, s - 1);
-            if (xp + z < 640)
-                subdivide(xp + z, yp, s - 1);
+            if (xp + h < 320)
+                subdivide(xp + h, yp, s - 1);
             if (yp + h <= 100) {
                 subdivide(xp, yp + h, s - 1);
-                if (xp + z < 640)
-                    subdivide(xp + z, yp + h, s - 1);
+                if (xp + h < 320)
+                    subdivide(xp + h, yp + h, s - 1);
             }
         }
     }
-    int plot(int xp, int yp, int i)
+    void plot(int xp, int yp, int i)
     {
-        _iters[yp*385 + (xp >> 1)] = i;
-        if (xp >= 640 || yp > 100)
-            return i;
+        _iters[yp*_itersX + xp] = i;
+        if (xp >= 320 || yp > 100)
+            return;
         plot2(xp, yp+100, i);
         plot2(xp, 100-yp, i);
-        return i;
     }
     void plot2(int xp, int yp, int i)
     {
@@ -236,22 +215,22 @@ private:
             0xaa, 0xbb, 0xbb, 0xbb, 0x99, 0x99, 0x99, 0x88, 0x88, 0x11, 0x11,
             0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 0xff};
         static int modeMasks[] = {0x80, 0xc0, 0xf0};
-        int p = ((yp & 1) << 13) + (yp >> 1)*80 + (xp >> 3);
-        Byte m = modeMasks[_mode] >> (xp & 7);
+        int p = ((yp & 1) << 13) + (yp >> 1)*80 + (xp >> 2);
+        Byte m = modeMasks[_mode] >> ((xp & 3) << 1);
         _vram[p] = (_vram[p] & ~m) + (colourTable[i] & m);
     }
     int aFromXp(int xp)
     {
-        return (((xp - 480) * _frac)*3/640) & -2;
+        return (((xp - 240) * _frac)*3/320) & -2;
     }
     int bFromYp(int yp)
     {
-        return (((yp /*- 100*/) * _frac)*9/4/200) & -2;
+        return ((yp * _frac)*9/4/200) & -2;
     }
-    int mandelIters(int xp, int yp)
+    void mandelIters(int xp, int yp)
     {
-        if (_iters[yp*385 + (xp >> 1)] != 0xff)
-            return _iters[yp*385 + (xp >> 1)];
+        if (iters(xp, yp) != 0xff)
+            return;
         int a = aFromXp(xp);
         int b = bFromYp(yp);
         int x = a;
@@ -269,8 +248,8 @@ private:
             ++_totalIters;
         }
         plot(xp, yp, i);
-        return i;
     }
+    int _itersX;
     int _mode;
     Array<Byte> _iters;
     Array<Word> _squares;

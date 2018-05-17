@@ -162,12 +162,23 @@ subdivide(w, p, q, d);
 
 TODO:
   Optimization: Use bp-relative addressing in plotting routine to avoid cs: override?
-  Solid-guessing prototype
   Solid-guessing implementation
   Time
   Lakes
   Time
-  Composite
-  Time
   Xaos: http://web.mit.edu/kolya/sipb/afs/root.afs/athena/activity/p/peckers/OldFiles/Programs/XaoS-2.2/doc/algorithm.txt
+
+
+Guessing: 100601 -> 100598 with initial grid 32x32
+No guessing: 347767
+Estimated time for guessing: 4.3 seconds
+
+
+
+How to deal with incorrect guesses?
+  Divide into 8 instead of 4?
+    Determine how many extra cycles this will take
+  Don't allow adjacent tiles to have sizes differing by 2?
+  Hard code some hacks?
+  Main lake optimization; use different iteration counts for cardioid and largest circle
 
