@@ -28,6 +28,11 @@ for (int yp = 0; yp < 200; ++yp) {
 |c|^2(8|c|^2-3) <= 3/32 - Re(c)
 |c+1| <= 1/4
 
+(x+1)*(x+1) + y*y <= 1/16
+
+(x*x + y*y)*(8*(x*x + y*y) - 3) <= 3/32 - x
+
+
 Use a custom video mode with 202 scanlines. Compute 101, mirror 100, leave 1 blank
 
 Initially, largest value is 2.5*2.5 + 1.5*1.5 = 8.5
@@ -167,9 +172,14 @@ TODO:
   Lakes
   Time
   Xaos: http://web.mit.edu/kolya/sipb/afs/root.afs/athena/activity/p/peckers/OldFiles/Programs/XaoS-2.2/doc/algorithm.txt
-
+    Use similar algorithm as mandel_quadtree and re-render from quadtree at each frame rather than trying to shift bits
+      At each frame, compute a horizontal plotting routine for each combination of x-position and grid width
 
 Guessing: 100601 -> 100598 with initial grid 32x32
+With main lake optimization 2: 99026
+With both main lake optimizations: 96961 iterations (saving of 3637 iterations) over 12462 pixels
+  Only faster if lake checks take <0.2918 of an iteration!
+
 No guessing: 347767
 Estimated time for guessing: 4.3 seconds
 
@@ -179,6 +189,26 @@ How to deal with incorrect guesses?
   Divide into 8 instead of 4?
     Determine how many extra cycles this will take
   Don't allow adjacent tiles to have sizes differing by 2?
+    Keep a stack of tiles to subdivide
   Hard code some hacks?
   Main lake optimization; use different iteration counts for cardioid and largest circle
+    Is this actually faster?
+
+
+center -1, radius 0.25 -> right edge at -0.75
+
+4*y = 2*sin(t) - sin(2*t)
+d/dt (4*y) = 2*cos(t) - 2*cos(2*t) = 0
+
+cos(t) = -1/2 or 1
+t = 2pi/3, -2pi/3, 0
+sin(2pi/3) = sqrt(3)/2
+sin(4pi/3) = -sqrt(3)/2
+4*y = sqrt(3) + sqrt(3)/2 = sqrt(3)*3/2
+y = sqrt(3)*3/8
+
+
+
+
+(x + 10*y)^2 == x^2 + 100*y^2 + 2*10*x*y = x^2 + 100*y^2 + 10*((x+y)^2 - (x-y)^2)/2
 

@@ -104,6 +104,9 @@ public:
             _iters[i] = 0xff;
 
         _totalIters = 0;
+        _iteratedPixels = 0;
+        for (int i = 0; i < 5; ++i)
+            _blockCounts[i] = 0;
 
         // Coarse grid initially
         for (int yp = 0; yp < itersY; yp += initialGrid)
@@ -118,19 +121,19 @@ public:
         //Array<Byte> vram2(0x4000);
         //for (int i = 0; i < 0x4000; ++i)
         //    vram2[i] = _vram[i];
-
         //for (int i = 0; i < _itersX*itersY; ++i)
         //    _iters[i] = 0xff;
         //for (int yp = 0; yp < maxY; ++yp) {
         //    for (int xp = 0; xp < maxX; ++xp)
         //        mandelIters(xp, yp);
         //}
-
         //for (int i = 0; i < 0x4000; ++i)
         //    _vram[i] ^= vram2[i];
 
 
-        printf("%i\n", _totalIters);
+        printf("%i %i\n", _totalIters, _iteratedPixels);
+        for (int i = 0; i < 5; ++i)
+            printf("%i\n", _blockCounts[i]);
     }
     ~MandelWindow() { join(); }
     void join() { _output->join(); }
@@ -159,6 +162,7 @@ private:
     // cqd
     void subdivide(int xp, int yp, int s)
     {
+        ++_blockCounts[s - 1];
         int z = 1 << s;
         int a = iters(xp, yp);
         int b = iters(xp + z, yp);
@@ -213,7 +217,7 @@ private:
         static Byte colourTable[] = {
             0x00, 0xff, 0xff, 0xff, 0xff, 0xee, 0xee, 0xee, 0xee, 0xaa, 0xaa,
             0xaa, 0xbb, 0xbb, 0xbb, 0x99, 0x99, 0x99, 0x88, 0x88, 0x11, 0x11,
-            0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 0xff};
+            0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 0xff, 0x00, 0x00};
         static int modeMasks[] = {0x80, 0xc0, 0xf0};
         int p = ((yp & 1) << 13) + (yp >> 1)*80 + (xp >> 2);
         Byte m = modeMasks[_mode] >> ((xp & 3) << 1);
@@ -231,8 +235,33 @@ private:
     {
         if (iters(xp, yp) != 0xff)
             return;
+        ++_iteratedPixels;
         int a = aFromXp(xp);
         int b = bFromYp(yp);
+
+        int bb = _squares[(b >> 1) & 0x7fff];
+        if (a < -_frac*3/4) {
+            int a1a1 = _squares[((a + _frac) >> 1) & 0x7fff];
+            if (a1a1 + bb <= _frac/16) {
+                plot(xp, yp, 33);
+                return;
+            }
+        }
+        else {
+            if (b <= static_cast<int>(_frac*sqrt(3)*3/8)) {
+                int aa = _squares[(a >> 1) & 0x7fff];
+                int c2 = aa + bb;
+                int d = 8*c2 - 3*_frac;
+                int e = _squares[((c2 + d) >> 1) & 0x7fff] - _squares[((c2 - d) >> 1) & 0x7fff];
+                if (e + 4*a <= 3*_frac/8) {
+                    plot(xp, yp, 34);
+                    return;
+                }
+            }
+        }
+
+
+
         int x = a;
         int y = b;
         int i;
@@ -249,6 +278,7 @@ private:
         }
         plot(xp, yp, i);
     }
+    int _blockCounts[5];
     int _itersX;
     int _mode;
     Array<Byte> _iters;
@@ -266,6 +296,7 @@ private:
     int _regs;
     int _frame;
     int _totalIters;
+    int _iteratedPixels;
 };
 
 class Program : public WindowProgram<MandelWindow>
