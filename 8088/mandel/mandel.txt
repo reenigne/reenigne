@@ -179,6 +179,8 @@ Guessing: 100601 -> 100598 with initial grid 32x32
 With main lake optimization 2: 99026
 With both main lake optimizations: 96961 iterations (saving of 3637 iterations) over 12462 pixels
   Only faster if lake checks take <0.2918 of an iteration!
+After avoiding some excess y > 100 points: 94207 iterations over 11819 pixels
+Going from maxY = 101 to 96 takes us to 92670 iters over 11273 pixels - not worth it
 
 No guessing: 347767
 Estimated time for guessing: 4.3 seconds
@@ -211,4 +213,26 @@ y = sqrt(3)*3/8
 
 
 (x + 10*y)^2 == x^2 + 100*y^2 + 2*10*x*y = x^2 + 100*y^2 + 10*((x+y)^2 - (x-y)^2)/2
+
+
+
+Plotted blocks:
+1026  2x2  4104
+ 361  4x4  5776
+  96  8x8  6144
+  24 16x16 6144
+   3 32x32 3072
+
+1510 elided blocks
+
+subdivide() calls:
+3310  2x2
+1200  4x4
+ 396  8x8
+ 130 16x16
+  40 32x32
+
+5076 total blocks
+3566 memory blocks == 28528 bytes
+
 

@@ -94,13 +94,13 @@ public:
 
         int initialShift = 5;
         int initialGrid = 1 << initialShift;
-        int maxX = 320;
-        int maxY = 101;
-        _itersX = ((maxX + initialGrid - 1)/initialGrid)*initialGrid + 1;
-        int itersY = ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1;
+        _maxX = 320;
+        _maxY = 101;
+        _itersX = ((_maxX + initialGrid - 1)/initialGrid)*initialGrid + 1;
+        _itersY = ((_maxY + initialGrid - 1)/initialGrid)*initialGrid + 1;
 
-        _iters.allocate(_itersX*itersY);
-        for (int i = 0; i < _itersX*itersY; ++i)
+        _iters.allocate(_itersX*_itersY);
+        for (int i = 0; i < _itersX*_itersY; ++i)
             _iters[i] = 0xff;
 
         _totalIters = 0;
@@ -109,11 +109,11 @@ public:
             _blockCounts[i] = 0;
 
         // Coarse grid initially
-        for (int yp = 0; yp < itersY; yp += initialGrid)
-            for (int xp = 0; xp < _itersX; xp += initialGrid)
+        for (int yp = 0; yp < _itersY; yp += initialGrid)
+            for (int xp = 0; xp < _itersX; xp += initialGrid)                                   
                 mandelIters(xp, yp);
         // Progressively refine
-        for (int yp = 0; yp < itersY - 1; yp += initialGrid)
+        for (int yp = 0; yp < _itersY - 1; yp += initialGrid)
             for (int xp = 0; xp < _itersX - 1; xp += initialGrid)
                 subdivide(xp, yp, initialShift);
 
@@ -171,7 +171,9 @@ private:
         if (a == b && a == c && a == d) {
             for (int y = 0; y < z; ++y)
                 for (int x = 0; x < z; ++x) {
+                    int i = iters(xp + x, yp + y);
                     plot(xp + x, yp + y, a);
+                    _iters[(yp + y)*_itersX + xp + x] = i;
                     //if (xp + x < 320 && 100 + yp + y <= 200)
                     //    plot2(xp + x, 100 + yp + y, a);
                 }
@@ -189,25 +191,23 @@ private:
 
         mandelIters(xp + h, yp);
         mandelIters(xp, yp + h);
-        mandelIters(xp + z, yp + h);
-        mandelIters(xp + h, yp + z);
         mandelIters(xp + h, yp + h);
+        mandelIters(xp + z, yp + h);
 
         if (s > 1) {
             subdivide(xp, yp, s - 1);
-            if (xp + h < 320)
-                subdivide(xp + h, yp, s - 1);
+            subdivide(xp + h, yp, s - 1);
             if (yp + h <= 100) {
+                mandelIters(xp + h, yp + z);
                 subdivide(xp, yp + h, s - 1);
-                if (xp + h < 320)
-                    subdivide(xp + h, yp + h, s - 1);
+                subdivide(xp + h, yp + h, s - 1);
             }
         }
     }
     void plot(int xp, int yp, int i)
     {
         _iters[yp*_itersX + xp] = i;
-        if (xp >= 320 || yp > 100)
+        if (xp >= _maxX || yp >= _maxY)
             return;
         plot2(xp, yp+100, i);
         plot2(xp, 100-yp, i);
@@ -260,8 +260,6 @@ private:
             }
         }
 
-
-
         int x = a;
         int y = b;
         int i;
@@ -279,7 +277,10 @@ private:
         plot(xp, yp, i);
     }
     int _blockCounts[5];
+    int _maxX;
+    int _maxY;
     int _itersX;
+    int _itersY;
     int _mode;
     Array<Byte> _iters;
     Array<Word> _squares;
