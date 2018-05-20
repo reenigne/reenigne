@@ -190,17 +190,19 @@ private:
         int h = z >> 1;
 
         mandelIters(xp + h, yp);
-        mandelIters(xp, yp + h);
-        mandelIters(xp + h, yp + h);
-        mandelIters(xp + z, yp + h);
+        if (s > 1 || yp < 100) {
+            mandelIters(xp, yp + h);
+            mandelIters(xp + h, yp + h);
+            mandelIters(xp + z, yp + h);
+        }
 
         if (s > 1) {
             subdivide(xp, yp, s - 1);
             subdivide(xp + h, yp, s - 1);
             if (yp + h <= 100) {
                 mandelIters(xp + h, yp + z);
-                subdivide(xp, yp + h, s - 1);
                 subdivide(xp + h, yp + h, s - 1);
+                subdivide(xp, yp + h, s - 1);
             }
         }
     }

@@ -99,16 +99,27 @@ aLoop:
 
   ; Create table of y addresses
 
-  xor ax,ax
+  mov ax,50*80
   mov bx,0x2000
-  mov dx,0x50-0x2000
-  mov cx,100
-yTableLoop:
+  mov dx,80-0x2000
+  mov cx,50
+yTableLoopLower:
   stosw
   add ax,bx
   stosw
   add ax,dx
-  loop yTableLoop
+  loop yTableLoopLower
+  stosw
+  stosw
+  mov ax,50*80
+  mov cx,50
+yTableLoopUpper:
+  stosw
+  sub ax,dx
+  stosw
+  sub ax,bx
+  loop yTableLoopUpper
+  stosw
   stosw
 
   ; Create table of itersX multiples
@@ -124,40 +135,51 @@ itersXTableLoop:
 
   ; Draw the fractal
 
+;  mov ds,[squareTableSegment]
+;
+;  mov cx,101
+;yLoop:
+;  push cx
+;  mov ax,cx
+;  dec ax
+;  mov si,ax
+;  mov dx,3456
+;  imul dx
+;  mov cx,200
+;  idiv cx
+;  and ax,0xfffe
+;  mov dx,ax
+;
+;  add si,si
+;  mov ax,[cs:yTableLower+si]
+;  mov [cs:yOffsetBottom+2],ax
+;  sub ax,[cs:yTableUpper+si]
+;  inc ax
+;  mov [cs:yOffsetTop+2],ax
+;
+;  mov cx,320
+;xLoop:
+;  push cx
+;  mov bx,320
+;  sub bx,cx
+;  add bx,bx
+;  mov es,[cs:bx+aTable]
+;
+;  mov si,es  ; x = a
+;  mov bx,dx  ; y = b
+;  mov cx,32
+
+
+
+
+mandelIters:
+  push ds
+  push bx
+  push si
   mov ds,[squareTableSegment]
 
-  mov cx,101
-yLoop:
-  push cx
-  mov ax,cx
-  dec ax
-  mov si,ax
-  mov dx,3456
-  imul dx
-  mov cx,200
-  idiv cx
-  and ax,0xfffe
-  mov dx,ax
 
-  add si,si
-  mov ax,[cs:yTable+200+si]
-  mov [cs:yOffsetBottom+2],ax
-  neg si
-  sub ax,[cs:yTable+200+si]
-  inc ax
-  mov [cs:yOffsetTop+2],ax
 
-  mov cx,320
-xLoop:
-  push cx
-  mov bx,320
-  sub bx,cx
-  add bx,bx
-  mov es,[cs:bx+aTable]
-
-  mov si,es  ; x = a
-  mov bx,dx  ; y = b
-  mov cx,32
 
   mov di,[si]  ; x*x
   mov bp,[bx]  ; y*y
@@ -258,40 +280,40 @@ notEscaped1:
   jae escaped
   dec cx
 escaped:
-  mov bx,cx
-  mov ah,[cs:colourTable+bx]
-
-  pop di
-  mov cx,di
-  neg di
-  add di,320
-  mov bx,di
-  shr di,1
-  shr di,1
-  mov si,0xb800
-  mov es,si
-
-  and bx,3
-  add bx,bx
-  mov bx,[cs:bx+maskTable]
-
-yOffsetBottom:
-  add di,9999
-  mov al,[es:di]
-  and ax,bx
-  or al,ah
-  stosb
-
-yOffsetTop:
-  sub di,9999
-  mov al,[es:di]
-  and al,bl
-  or al,ah
-  stosb
-
-  loop xLoop2
-  pop cx
-  loop yLoop2
+;  mov bx,cx
+;  mov ah,[cs:colourTable+bx]
+;
+;  pop di
+;  mov cx,di
+;  neg di
+;  add di,320
+;  mov bx,di
+;  shr di,1
+;  shr di,1
+;  mov si,0xb800
+;  mov es,si
+;
+;  and bx,3
+;  add bx,bx
+;  mov bx,[cs:bx+maskTable]
+;
+;yOffsetBottom:
+;  add di,9999
+;  mov al,[es:di]
+;  and ax,bx
+;  or al,ah
+;  stosb
+;
+;yOffsetTop:
+;  sub di,9999
+;  mov al,[es:di]
+;  and al,bl
+;  or al,ah
+;  stosb
+;
+;  loop xLoop2
+;  pop cx
+;  loop yLoop2
 
 ;  xor ax,ax
 ;  mov ds,ax
@@ -308,8 +330,8 @@ yOffsetTop:
   mov ax,0x4c00
   int 0x21
 
-yLoop2: jmp yLoop
-xLoop2: jmp xLoop
+;yLoop2: jmp yLoop
+;xLoop2: jmp xLoop
 
 ;interrupt8:
 ;  push ax
@@ -319,60 +341,37 @@ xLoop2: jmp xLoop
 ;  pop ax
 ;  iret
 
-
+; all the subdivide routines:
 ; assume DS points to iters array
 ; assume SI is yp*2
 ; assume BX is xp
 ; assume ES is 0xb800
-; subdivide5:
-%macro subdivide 2
-subdivide%1_%2:
-  %assign z (1 << %i)
-  mov ax,bx
-  add bx,[si+itersXTable]
-  mov al,[bx]
-  cmp al,[bx+z]
-  jne %%doSubdivide
-  cmp al,[bx+z*itersX]
-  jne %%doSubdivide
-  cmp al,[bx+z*(itersX+1)]
-  jne %%doSubdivide
-  mov di,ax
-  add di,[si+yTable+200]
-
-  times 4 stosw
-
-
-
-%endmacro
-
 
 doSubDivide5:
   lea bx,[di+16]
-  call mandelIters
+  call mandelIters   ; (16,0)
   add si,32
-  call mandelIters
-  sub bx,16
-  call mandelIters
-  add bx,32
-  call mandelIters
-  sub bx,32
-  call subdivide4
+  call mandelIters   ; (16,16)
   add bx,16
-  call subdivide4
-  cmp si,192+32
+  call mandelIters   ; (32,16)
+  sub bx,32
+  call mandelIters   ; (0,16)
+  sub si,32
+  call subdivide4    ;  (0,0)
+  add bx,16
+  call subdivide4    ;  (16,0)
+  cmp si,192
   je .noLowerHalf
   add si,64
-  call mandelIters
+  call mandelIters   ; (16,32)
   sub si,32
-  call subdivide4
+  call subdivide4    ;  (16,16)
   sub bx,16
-  call subdivide4
+  call subdivide4    ;  (0,16)
   sub si,32
   ret
 .noLowerHalf:
   sub bx,16
-  sub si,32
   ret
 
 subdivide5:
@@ -388,11 +387,16 @@ subdivide5:
 
   ; Fill square with colour
 
+  mov bx,colourTable
+  xlatb
   mov bx,di
-  add di,[si+yTable+200]
+  shr di,1
+  shr di,1
+  mov cx,di
+  add di,[si+yTableLower]
   mov ah,al
   mov dx,0x2000-8
-  mov bp,0x50-0x2000-8
+  mov bp,80-0x2000-8
 
   %rep 2
     times 4 stosw
@@ -411,6 +415,18 @@ subdivide5:
   %endrep
   add di,dx
   times 4 stosw
+
+  mov di,cx
+  add di,[si+yTableUpper+64]
+  %rep 15
+    times 4 stosw
+    add di,dx
+    times 4 stosw
+    add di,bp
+  %endrep
+  times 4 stosw
+  add di,dx
+  times 4 stosw
   ret
 
 .plotUpper:
@@ -427,50 +443,54 @@ subdivide5:
 
 doSubDivide4:
   lea bx,[di+8]
-  call mandelIters
+  call mandelIters   ; (8,0)
   add si,16
-  call mandelIters
-  sub bx,8
-  call mandelIters
-  add bx,16
-  call mandelIters
-  sub bx,16
-  call subdivide4
+  call mandelIters   ; (8,8)
   add bx,8
-  call subdivide4
-  cmp si,192+16
+  call mandelIters   ; (16,8)
+  sub bx,16
+  call mandelIters   ; (0,8)
+  sub si,16
+  call subdivide3    ;  (0,0)
+  add bx,8
+  call subdivide3    ;  (8,0)
+  cmp si,192
   je .noLowerHalf
   add si,32
-  call mandelIters
+  call mandelIters   ; (8,16)
   sub si,16
-  call subdivide4
+  call subdivide3    ;  (8,8)
   sub bx,8
-  call subdivide4
+  call subdivide3    ;  (0,8)
   sub si,16
   ret
 .noLowerHalf:
   sub bx,8
-  sub si,16
   ret
 
-subdivide5:
+subdivide4:
   mov di,bx
   add bx,[si+itersXTable]
   mov al,[bx]
   cmp al,[bx+16]
-  jne doSubdivide5
+  jne doSubdivide4
   cmp al,[bx+16*itersX]
-  jne doSubdivide5
+  jne doSubdivide4
   cmp al,[bx+16*(itersX+1)]
-  jne doSubdivide5
+  jne doSubdivide4
 
   ; Fill square with colour
 
+  mov bx,colourTable
+  xlatb
   mov bx,di
-  add di,[si+yTable+200]
+  shr di,1
+  shr di,1
+  mov cx,di
+  add di,[si+yTableLower]
   mov ah,al
   mov dx,0x2000-4
-  mov bp,0x50-0x2000-4
+  mov bp,80-0x2000-4
 
   %rep 2
     times 2 stosw
@@ -489,6 +509,18 @@ subdivide5:
   %endrep
   add di,dx
   times 2 stosw
+
+  mov di,cx
+  add di,[si+yTableUpper+32]
+  %rep 7
+    times 2 stosw
+    add di,dx
+    times 2 stosw
+    add di,bp
+  %endrep
+  times 2 stosw
+  add di,dx
+  times 2 stosw
   ret
 
 .plotUpper:
@@ -501,6 +533,318 @@ subdivide5:
   %endrep
   times 2 stosw
   ret
+
+
+doSubDivide3:
+  lea bx,[di+4]
+  call mandelIters   ; (4,0)
+  add si,8
+  call mandelIters   ; (4,4)
+  add bx,4
+  call mandelIters   ; (8,4)
+  sub bx,8
+  call mandelIters   ; (0,4)
+  sub si,8
+  call subdivide2    ;  (0,0)
+  add bx,4
+  call subdivide2    ;  (4,0)
+  cmp si,192
+  je .noLowerHalf
+  add si,16
+  call mandelIters   ; (4,8)
+  sub si,8
+  call subdivide2    ;  (4,4)
+  sub bx,4
+  call subdivide2    ;  (0,4)
+  sub si,8
+  ret
+.noLowerHalf:
+  sub bx,4
+  ret
+
+subdivide3:
+  mov di,bx
+  add bx,[si+itersXTable]
+  mov al,[bx]
+  cmp al,[bx+8]
+  jne doSubdivide3
+  cmp al,[bx+8*itersX]
+  jne doSubdivide3
+  cmp al,[bx+8*(itersX+1)]
+  jne doSubdivide3
+
+  ; Fill square with colour
+
+  mov bx,colourTable
+  xlatb
+  mov bx,di
+  shr di,1
+  shr di,1
+  mov cx,di
+  add di,[si+yTableLower]
+  mov ah,al
+  mov dx,0x2000-2
+  mov bp,80-0x2000-2
+
+  %rep 2
+    stosw
+    add di,dx
+    stosw
+    add di,bp
+  %endrep
+  stosw
+  cmp si,192
+  je .plotUpper
+  add di,dx
+  stosw
+  add di,bp
+  stosw
+  add di,dx
+  stosw
+
+  mov di,cx
+  add di,[si+yTableUpper+16]
+  %rep 3
+    stosw
+    add di,dx
+    stosw
+    add di,bp
+  %endrep
+  stosw
+  add di,dx
+  stosw
+
+  ret
+
+.plotUpper:
+  add di,-8000-2
+  %rep 2
+    stosw
+    add di,dx
+    stosw
+    add di,bp
+  %endrep
+  stosw
+  ret
+
+
+doSubDivide2:
+  lea bx,[di+2]
+  call mandelIters   ; (2,0)
+  add si,4
+  call mandelIters   ; (2,2)
+  inc bx
+  inc bx
+  call mandelIters   ; (4,2)
+  sub bx,4
+  call mandelIters   ; (0,2)
+  sub si,4
+  call subdivide1L   ;  (0,0)
+  inc bx
+  inc bx
+  call subdivide1R   ;  (2,0)
+  cmp si,200
+  je .noLowerHalf
+  add si,8
+  call mandelIters   ; (2,4)
+  dec si
+  dec si
+  dec bx
+  dec bx
+  call subdivide1L   ;  (0,2)
+  inc bx
+  inc bx
+  call subdivide1R   ;  (2,2)
+  dec si
+  dec si
+.noLowerHalf:
+  dec bx
+  dec bx
+  ret
+
+subdivide2:
+  mov di,bx
+  add bx,[si+itersXTable]
+  mov al,[bx]
+  cmp al,[bx+4]
+  jne doSubdivide2
+  cmp al,[bx+4*itersX]
+  jne doSubdivide2
+  cmp al,[bx+4*(itersX+1)]
+  jne doSubdivide2
+
+  ; Fill square with colour
+
+  mov bx,colourTable
+  xlatb
+  mov bx,di
+  shr di,1
+  shr di,1
+  mov cx,di
+  add di,[si+yTableLower]
+  mov dx,0x2000-1
+  mov bp,80-0x2000-1
+
+  stosb
+  cmp si,200
+  je .plotUpper
+  add di,dx
+  stosb
+  add di,bp
+  stosb
+  add di,dx
+  stosb
+
+  mov di,cx
+  add di,[si+yTableUpper+8]
+  stosb
+  add di,dx
+  stosb
+  add di,bp
+  stosb
+  add di,dx
+  stosb
+
+.plotUpper:
+  add di,-8000-1
+  stosb
+  ret
+
+
+doSubDivide1L:
+  lea bx,[di+1]
+  call mandelIters  ; (1,0)
+  inc si
+  inc si
+  call mandelIters  ; (1,1)
+  inc bx
+  call mandelIters  ; (2,1)
+  dec bx
+  dec bx
+  call mandelIters  ; (0,1)
+  inc bx
+  ins si
+  inc si
+  call mandelIters  ; (1,2)
+  sub si,4
+  dec bx
+  ret
+
+subdivide1L:
+  mov di,bx
+  add bx,[si+itersXTable]
+  mov al,[bx]
+  cmp al,[bx+2]
+  jne doSubdivide1L
+  cmp al,[bx+2*itersX]
+  jne doSubdivide1L
+  cmp al,[bx+2*(itersX+1)]
+  jne doSubdivide1L
+
+  ; Don't fill square with colour here - we'll do it in subdivide1R
+
+  mov [bx+1],al
+  mov [bx+itersX],al
+  mov [bx+itersX+1],al
+  ret
+
+
+doSubdivide1R:
+  push bx
+  lea bx,[di+1]
+  call mandelIters  ; (1,0)
+  inc si
+  inc si
+  call mandelIters  ; (1,1)
+  inc bx
+  call mandelIters  ; (2,1)
+  dec bx
+  dec bx
+  call mandelIters  ; (0,1)
+  inc bx
+  ins si
+  inc si
+  call mandelIters  ; (1,2)
+  sub si,4
+  pop bx
+  jmp plot1R
+
+subdivide1R:
+  mov di,bx
+  add bx,[si+itersXTable]
+  mov al,[bx]
+  cmp al,[bx+2]
+  jne doSubdivide1R
+  cmp al,[bx+2*itersX]
+  jne doSubdivide1R
+  cmp al,[bx+2*(itersX+1)]
+  jne doSubdivide1R
+
+  mov [bx+1],al
+  mov [bx+itersX],al
+  mov [bx+itersX+1],al
+
+plot1R:
+  mov cx,di
+  mov bp,si
+  lea si,[bx-2]
+  mov bx,colourTable
+  lodsb
+  xlatb
+  and al,0xc0
+  mov ah,al
+  lodsb
+  xlatb
+  and al,0x30
+  or ah,al
+  lodsb
+  xlatb
+  and al,0x0c
+  or ah,al
+  lodsb
+  xlatb
+  and al,0x03
+  or al,ah
+
+  shr di,1
+  shr di,1
+  mov dx,di
+  add di,[ds:bp+yTableLower]
+  stosb
+  mov di,dx
+  add di,[ds:bp+yTableUpper]
+  stosb
+
+  add si,itersX-4
+  lodsb
+  xlatb
+  and al,0xc0
+  mov ah,al
+  lodsb
+  xlatb
+  and al,0x30
+  or ah,al
+  lodsb
+  xlatb
+  and al,0x0c
+  or ah,al
+  lodsb
+  xlatb
+  and al,0x03
+  or al,ah
+
+  mov di,dx
+  add di,[ds:bp+yTableLower+2]
+  stosb
+  mov di,dx
+  add di,[ds:bp+yTableUpper+2]
+
+  mov bx,cx
+  mov si,bp
+  ret
+
+
+
 
 
 
@@ -519,8 +863,10 @@ section .bss
 squareTableSegment: resw 2
 aTable:
   resw 320
-yTable:
-  resw 201
+yTableLower:
+  resw 102
+yTableUpper:
+  resw 102
 itersXTable:
   resw itersY
 ;timer: dw 0

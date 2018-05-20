@@ -180,7 +180,8 @@ With main lake optimization 2: 99026
 With both main lake optimizations: 96961 iterations (saving of 3637 iterations) over 12462 pixels
   Only faster if lake checks take <0.2918 of an iteration!
 After avoiding some excess y > 100 points: 94207 iterations over 11819 pixels
-Going from maxY = 101 to 96 takes us to 92670 iters over 11273 pixels - not worth it
+(Going from maxY = 101 to 96 takes us to 92670 iters over 11273 pixels - not worth it)
+avoiding excess y == 101 points at level 1: 94051 iterations over 11760 pixels
 
 No guessing: 347767
 Estimated time for guessing: 4.3 seconds
@@ -235,4 +236,13 @@ subdivide() calls:
 5076 total blocks
 3566 memory blocks == 28528 bytes
 
+
+
+      subdivide5   y == 96 ? 5 : 32     times 4 stosw
+      subdivide4   y == 96 ? 5 : 16     times 2 stosw
+      subdivide3   y == 96 ? 5 : 8      stosw
+      subdivide2   y == 100 ? 1 : 4     stosb
+      subdivide2   y == 100 ? 1 : 4     stosb
+      subdivide1L  -                    -
+      subdivide1R  y == 100 ? 1 : 2     stosb
 
