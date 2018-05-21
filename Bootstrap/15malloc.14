@@ -1,0 +1,289 @@
+; This is the bootstrapping compiler step 15 (written in step 14 language)
+; This file contains the memory allocator. Slow and makes no attempt to avoid
+; fragmentation, but simple and low space overhead.
+
+
+
+; Initialize the heap - top of heap is in (arg).
+init_heap:
+  PUSH BP
+  MOV BP,SP
+  MOV AX,[BP+4]
+  MOV [heap_top],AX
+
+  MOV BX,static_end
+
+  ; word align the start of the heap
+  INC BX
+  AND BX,0fffe
+
+  INC BX
+  INC BX
+
+  SUB AX,BX
+
+  MOV [free_list],BX
+  MOV W[BX],0
+  MOV [BX-2],AX
+
+  MOV W[heap_size],AX-2
+
+  POP BP
+  RET
+
+
+
+; Allocate (arg) bytes from the heap and return a pointer in AX. On error print a diagnostic message and exit.
+malloc:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV AX,[BP+4]               ; requested size
+  CMP AX,0
+  JE malloc_done              ; 0 size is valid and returns a null pointer (this is so we can allocate 0-byte objects, which all exist at NULL).
+
+  ; Search for a free block of sufficient size
+
+  MOV BX,free_list
+  malloc_search_loop:
+  MOV SI,BX                   ; previous free block
+  MOV BX,[BX]                 ; trial free block
+  CMP BX,0                    ; was the previous block the last one?
+  JNE malloc_foundfreeblock
+  memory_error(AX)            ; yes - no suitable blocks were found so error
+  malloc_foundfreeblock:
+  CMP AX,[BX-2]               ; no - see if this block is big enough
+  JA malloc_search_loop       ; if not, try the next block
+
+  ; Okay, we have found a sufficiently large block.
+
+  MOV CX,[BX-2]               ; size of this block
+  SUB CX,AX                   ; how much of the block is left after this allocation
+  CMP CX,4
+  JAE malloc_no_expand
+  MOV AX,[BX-2]               ; expand allocation to avoid leaving a gap of less than 4 bytes (since such a gap would be too small to be part of the free list).
+
+  MOV DX,[BX]                 ; pointer to next free block
+  MOV [SI],DX                 ; update next pointer of previous block to point to next free block
+  MOV AX,BX                   ; set return value (length field of allocated block is already correct).
+  JMP malloc_done
+
+  malloc_no_expand:
+  INC AX
+  AND AX,0fffe                ; Allocate whole words only to preserve alignment.
+
+  malloc_got_final_size:
+
+  MOV CX,[BX-2]               ; size of this block
+  SUB CX,AX                   ; how much of the block is left after this allcation
+  DEC CX
+  DEC CX                      ; subtract 2 for the new length field - CX is now the actual length of the remainder block
+
+  MOV DI,BX
+  ADD DI,AX                   ; DI = address of length field of remainder block
+  MOV [DI],CX                 ; Store length of remainder block
+
+  INC DI
+  INC DI                      ; DI = remainder block
+  MOV DX,[BX]                 ; pointer to next free block
+  MOV [DI],DX                 ; Update next pointer of remainder block
+  MOV [SI],DI                 ; Update next pointer of previous pointer to point to remainder block
+  MOV [BX-2],AX               ; Set length field of new block
+  MOV AX,BX                   ; set return value
+
+malloc_done:
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Free a pointer returned by malloc.
+free:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV DI,[BP+4]               ; pointer to free
+  CMP DI,0
+  JE free_done                ; Freeing NULL pointers does nothing (free 0-byte object)
+
+  ; Search through the free list to find the right place in it for this block.
+
+  MOV BX,free_list
+  free_search_loop:
+  MOV SI,BX                   ; previous free block
+  MOV BX,[BX]                 ; trial free block
+  CMP BX,0                    ; was the previous block the last one?
+  JE free_last                ; if so, this is the right place
+  CMP BX,DI                   ; is this block after the one we want to free?
+  JB free_search_loop         ; if not, try the next block
+
+  ; If this block is adjacent to the next free block, consolidate
+
+  MOV AX,[DI-2]               ; Length of block to be freed
+  ADD AX,DI                   ; pointer to length field of following block
+  INC AX
+  INC AX                      ; add two to get the address of the following block
+  CMP AX,BX                   ; is this a free block (i.e. the next free block)?
+  JE free_consolidate_after
+
+  ; This block is followed by an allocated block.
+
+  MOV [DI],BX                 ; set the next pointer to the next block
+  JMP free_check_consolidate_before
+
+  ; Consolidate this block with the next block
+
+  free_consolidate_after:
+  MOV CX,[BX-2]               ; get length of following block
+  INC CX
+  INC CX                      ; add two because we're removing the length field of the following block
+  ADD [DI-2],CX               ; add this new space to the block we're freeing
+  MOV AX,[BX]                 ; pointer to new next free block
+  MOV [DI],AX                 ; update this block's next block
+  JMP free_check_consolidate_before
+
+  ; This is the last block in the chain.
+
+  free_last:
+  MOV [DI],BX                 ; set this block's next block to 0.
+
+  ; If the previous free block is adjacent to this block, consolidate.
+
+  free_check_consolidate_before:
+  CMP SI,free_list            ; is this block the first one
+  JE free_first               ; if so, there definitely no consolidating to do.
+
+  ; There is a previous free block.
+
+  MOV AX,SI                   ; the address of the previous block
+  ADD AX,[SI-2]               ; add the length of the previous block to get the address of the length field of the block following the previous block
+  INC AX
+  INC AX                      ; add 2 to get the address of the block following the previous block
+  CMP AX,DI                   ; is that this block?
+  JE free_consolidate_before
+
+  ; This block is preceeded by an allocated block.
+
+  MOV [SI],DI                 ; set the next pointer of the previous block to this block
+  JMP free_done
+
+  ; Consolidate the previous block with this block.
+
+  free_consolidate_before:
+  MOV CX,[SI-2]               ; get length of previous block
+  ADD CX,[DI-2]               ; add length of this block
+  INC CX
+  INC CX                      ; add two because we're removing the length field of this block
+  MOV [SI-2],CX               ; set the length of the previous block
+  MOV AX,[DI]                 ; get this block's next pointer
+  MOV [SI],AX                 ; update the previous block's next pointer
+  JMP free_done
+
+  ; This is the first block in the chain
+
+  free_first:
+  MOV [SI],DI                 ; update the first free block pointer
+
+  ; We are done.
+
+  free_done:
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Returns:
+; AX = the amount of available memory
+; BX = the total amount of memory in the heap
+; CX = the size of the largest allocatable block
+; DX = the number of free fragments
+; SI = the high water mark of memory (start of last free block)
+; DI = the fragmentation percentage (= 100*(BX-AX)/(SI-(start of heap)))
+memory_stats:
+  XOR AX,AX
+  XOR CX,CX
+  XOR DX,DX
+
+  MOV BX,free_list
+  memory_stats_loop:
+  MOV SI,BX
+  MOV BX,[BX]                 ; free block
+  CMP BX,0
+  JE memory_stats_done
+  INC DX
+  MOV DI,[BX-2]               ; size of block
+  ADD AX,DI                   ; add size to total size
+  CMP DI,CX                   ; is this the largest free block we've seen so far?
+  JBE memory_stats_loop       ; if not, ignore it
+  MOV CX,DI                   ; otherwise, record it
+  JMP memory_stats_loop
+
+  memory_stats_done:
+  MOV BX,[heap_size]
+
+  PUSH AX
+  PUSH BX
+  PUSH DX
+
+  XOR DX,DX
+  SUB AX,BX
+  NEG AX
+
+  MOV BX,100
+  MUL BX
+
+  MOV BX,static_end
+  INC BX
+  AND BX,0fffe
+  SUB BX,SI
+  NEG BX
+
+  DIV BX
+  MOV DI,AX
+
+  POP DX
+  POP BX
+  POP AX
+  RET
+
+
+
+; Prints diagnostic messages and exits the program when memory allocation fails.
+
+new_line: DB 0D DB 0A DB "$"
+
+memory_error:
+  PUSH BP
+  MOV BP,SP
+  CMP W[BP+4],0
+  JNE memory_error_nonfatal
+  error_exit("Heap corrupted.$")
+  memory_error_nonfatal:
+  printmsg("Out of memory.$") printmsg(new_line)
+  printmsg("Size requested = $") printnum([BP+4]) printmsg(new_line)
+  memory_stats()
+  PUSH DI
+  PUSH DX
+  PUSH CX
+  PUSH BX
+  printnum(AX) printmsg(" of $") POP AX printnum(AX) printmsg(" bytes available. Largest contiguous free block = $") POP AX printnum(AX) printmsg(".$") printmsg(new_line)
+  printmsg("Total free blocks = $") POP AX printnum(AX) printmsg(". Fragmentation = $") POP AX printnum(AX) printmsg("%.$") printmsg(new_line)
+  exit()
+  POP BP
+  RET
+
+
+
+free_list: DW 0
+heap_size: DW 0
+heap_top:  DW 0
+
+static_end:

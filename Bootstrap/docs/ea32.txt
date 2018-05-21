@@ -1,0 +1,34 @@
+[reg]            reg                   [reg  +ib]       040+reg            ib  [reg  +id]       080+reg            id
+[EBP]            040+EBP            ib [EBP  +ib]       040+EBP            ib  [EBP  +id]       080+EBP            id
+
+
+
+1 type of register (ESP):
+[ESP]            004 024               [ESP  +ib]       044 024            ib  [ESP  +id]       084 024            id
+
+1 type of register (reg):
+[reg*4]          004 085+8*reg      id [reg*4+ib]       004 085+8*reg      id  [reg*4+id]       004 085+8*reg      id
+[reg*8]          004 0c5+8*reg      id [reg*8+ib]       004 0c5+8*reg      id  [reg*8+id]       004 0c5+8*reg      id
+
+1 type of register (EBP):
+[EBP*4]          004 085+8*EBP      id [EBP*4+ib]       004 085+8*EBP      id  [EBP*4+id]       004 085+8*EBP      id
+[EBP*8]          004 0c5+8*EBP      id [EBP*8+ib]       004 0c5+8*EBP      id  [EBP*8+id]       004 0c5+8*EBP      id
+
+
+2 types of register (reg=EAX/ECX/EDX/EBX/EBP/ESI/EDI and reg2=EAX/ECX/EDX/EBX/ESP/ESI/EDI):
+[reg  +reg2]     004     8*reg+reg2    [reg  +reg2+ib]  044     8*reg+reg2 ib  [reg  +reg2+id]  084     8*reg+reg2 id
+[reg*2+reg2]     004 040+8*reg+reg2    [reg*2+reg2+ib]  044 040+8*reg+reg2 ib  [reg*2+reg2+id]  084 040+8*reg+reg2 id
+[reg*4+reg2]     004 080+8*reg+reg2    [reg*4+reg2+ib]  044 080+8*reg+reg2 ib  [reg*4+reg2+id]  084 080+8*reg+reg2 id
+[reg*8+reg2]     004 0c0+8*reg+reg2    [reg*8+reg2+ib]  044 0c0+8*reg+reg2 ib  [reg*8+reg2+id]  084 0c0+8*reg+reg2 id
+
+2 types of register (reg=EAX/ECX/EDX/EBX/EBP/ESI/EDI and EBP):
+[reg*2+EBP]      044 040+8*reg+EBP  ib [reg*2+EBP+ib]   044 040+8*reg+EBP  ib  [reg*2+EBP+id]   084 040+8*reg+EBP  id
+[reg*4+EBP]      044 080+8*reg+EBP  ib [reg*4+EBP+ib]   044 080+8*reg+EBP  ib  [reg*4+EBP+id]   084 080+8*reg+EBP  id
+[reg*8+EBP]      044 0c0+8*reg+EBP  ib [reg*8+EBP+ib]   044 0c0+8*reg+EBP  ib  [reg*8+EBP+id]   084 0c0+8*reg+EBP  id
+
+2 types of register (ESP and EBP):
+[EBP  +ESP]      004     8*EBP+ESP     [EBP  +ESP+ib]   044     8*EBP+ESP  ib  [EBP  +ESP+id]   084     8*EBP+ESP  id
+[EBP*2+ESP]      004 040+8*EBP+ESP     [EBP*2+ESP+ib]   044 040+8*EBP+ESP  ib  [EBP*2+ESP+id]   084 040+8*EBP+ESP  id
+[EBP*4+ESP]      004 080+8*EBP+ESP     [EBP*4+ESP+ib]   044 080+8*EBP+ESP  ib  [EBP*4+ESP+id]   084 080+8*EBP+ESP  id
+[EBP*8+ESP]      004 0c0+8*EBP+ESP     [EBP*8+ESP+ib]   044 0c0+8*EBP+ESP  ib  [EBP*8+ESP+id]   084 0c0+8*ESP+ESP  id
+

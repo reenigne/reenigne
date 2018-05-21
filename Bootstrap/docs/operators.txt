@@ -1,0 +1,103 @@
+investigate using operators closer to C++ ones
+
+^x    pointer type             x*          X*
+&x    reference type           x&          X&
+
+x^    dereference              *x          *x
+x^=y  assign to dereferenced   *x=y        *x=y
+x@    address-of               &x          &x
+x!y   xor                      x^y         x^y
+x!:=y xor assignment           x^=y        x^=y
+x:=y  assignment               x=y         x=y
+x=y   equality                 x==y        x==y
+x!=y  inequality               x!=y        x!=y
+x^.y  struct pointer member    x->y        x->y
+
+
+What                              C++                                   SPECS                                   Mine
+
+scope resolution                  class_name :: member
+scope resolution                  namespace_name :: member
+global                            :: name
+global                            :: qualified-name
+
+member selection                  object . member                       object . member                         object . member
+member selection                  pointer -> member                     pointer ^. member                       pointer -> member
+subscripting                      pointer [ expr ]                      pointer [ expr ]                        pointer [ expr ]
+function call                     expr ( expr_list )                    expr ( expr_list )                      expr ( expr_list )
+value construction                type ( expr_list )                    type ( expr_list )                      Type ( expr_list )
+post increment                    lvalue ++                             lvalue ++                               lvalue ++
+post decrement                    lvalue --                             lvalue --                               lvalue --
+type identification               typeid ( type )
+run-time type identification      typeid ( expr )
+run-time checked conversion       dynamic_cast < type > ( expr )
+compile-time checked conversion   static_cast < type > ( expr )
+unchecked conversion              reinterpret_cast < type > ( expr )    reinterpret_cast <[ type ]> ( expr )    reinterpret_cast [< type >] ( expr )
+const conversion                  const_cast < type > ( expr )
+
+size of object                    sizeof expr
+size of type                      sizeof ( type )
+pre increment                     ++ lvalue                             ++ lvalue                               ++ lvalue
+pre decrement                     -- lvalue                             -- lvalue                               -- lvalue
+complement                        ~ expr                                ~ expr                                  ~ expr
+not                               ! expr                                ! expr                                  ! expr
+unary minus                       - expr                                - expr                                  - expr
+unary plus                        + expr                                + expr                                  + expr
+address of                        & lvalue                              lvalue @                                & lvalue
+dereference                       * expr                                expr ^                                  * expr
+create (allocate)                 new type                              new type                                new type
+create (allocate and initialize)  new type ( expr-list )
+create (place)                    new ( expr-list ) type
+create (place and initialize)     new ( expr-list ) type ( expr-list )
+destroy (de-allocate)             delete expr                           delete expr                             (not an expression)
+destroy array                     delete[] pointer
+cast (type conversion)            ( type ) expr
+
+member selection                  object .* pointer-to-member
+member selection                  pointer ->* potiner-to-member
+
+multiply                          expr * expr                           expr * expr                             expr * expr
+divide                            expr / expr                           expr / expr                             expr / expr
+modulo (remainder)                expr % expr                           expr % expr                             expr % expr
+
+add (plus)                        expr + expr                           expr + expr                             expr + expr
+subtract (minus)                  expr - expr                           expr - expr                             expr - expr
+
+shift left                        expr << expr                          expr << expr                            expr << expr
+shift right                       expr >> expr                          expr >> expr                            expr >> expr
+
+less than                         expr < expr                           expr < expr                             expr < expr
+less than or equal                expr <= expr                          expr <= expr                            expr <= expr
+greater than                      expr > expr                           expr > expr                             expr > expr
+greater than or equal             expr >= expr                          expr >= expr                            expr >= expr
+
+equal                             expr == expr                          expr = expr                             expr == expr
+not equal                         expr != expr                          expr != expr                            expr != expr
+
+bitwise AND                       expr & expr                           expr & expr                             expr & expr
+
+bitwise exclusive OR              expr ^ expr                           expr ! expr                             expr ^ expr
+
+bitwise inclusive OR              expr | expr                           expr | expr                             expr | expr
+
+logical AND                       expr && expr                          expr && expr                            expr && expr
+
+logical inclusive OR              expr || expr                          expr || expr                            expr || expr
+
+simple assignment                 lvalue = expr                         lvalue := expr                          lvalue = expr
+multiply and assign               lvalue *= expr                        lvalue *:= expr                         lvalue *= expr
+divide and assign                 lvalue /= expr                        lvalue /:= expr                         lvalue /= expr
+modulo and assign                 lvalue %= expr                        lvalue %:= expr                         lvalue %= expr
+add and assign                    lvalue += expr                        lvalue +:= expr                         lvalue += expr
+subtract and assign               lvalue -= expr                        lvalue -:= expr                         lvalue -= expr
+shift left and assign             lvalue <<= expr                       lvalue <<:= expr                        lvalue <<= expr
+shift right and assign            lvalue >>= expr                       lvalue >>:= expr                        lvalue >>= expr
+AND and assign                    lvalue &= expr                        lvalue &:= expr                         lvalue &= expr
+inclusive OR and assign           lvalue |= expr                        lvalue |:= expr                         lvalue |= expr
+exclusive OR and assign           lvalue ^= expr                        lvalue !:= expr                         lvalue ^= expr
+
+conditional expression            expr ? expr : expr                    expr ? expr : expr                      expr ? expr : expr
+
+throw exception                   throw expr
+
+comma (sequencing)                expr , expr

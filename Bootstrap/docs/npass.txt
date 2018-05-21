@@ -1,0 +1,45 @@
+startofphase
+  lastPhase = true
+
+
+addsymbol
+  if (doesn't already exist)
+      add it
+      lastPhase = false
+  else
+      if (ip != value)
+          lastPhase = false
+
+
+emitJMP
+  if (firstPhase)
+      emitShortVersion
+  else
+      emitShortestWorkingVersion
+
+
+emitEA
+  if (firstPhase)
+      emitShortVersion
+  else
+      emitShortestWorkingVersion
+
+
+emitJcc
+  if (firstPhase)
+      emit Jcc destination
+  else
+      if (shortVersionFits)
+          emit Jcc destination
+      else
+          emit:
+              J(cc^1) 3
+              JMP destination (near)
+              templabel
+
+
+endofpass
+  if (lastPass)
+      done
+
+

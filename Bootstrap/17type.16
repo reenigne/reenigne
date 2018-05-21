@@ -1,0 +1,55 @@
+; TypeID structure EBX:
+; D[EBX]     - next    next TypeID in chain
+; D[EBX+4]   - type
+; D[EBX+8]   - inner   inner TypeID (for classes, pointers and named types)
+; D[EBX+0c]  - members number of members for class
+; D[EBX+010] - length  length of name (for classes, enums and named types)
+; EBX+014    - name    name of type (for classes, enums and named types)
+
+;  type:
+;      0 = Void
+;      3 = Byte   0b = Int3  013 = UInt3
+;      4 = Word   0c = Int4  014 = UInt4
+;      5 = DWord  0d = Int5  015 = UInt5
+;    020 = Bool
+;    021 = String
+;    022 = Char
+;    023 = class
+;    024 = enum
+;    025 = pointer
+;    080 = function
+
+
+
+function sizeOf(expr)
+{
+  PUSH EBX
+  PUSH ESI
+  MOV ESI,[expr]
+  switch (D[ESI+4]) {  ; expr->type
+    case 0:
+    case 021:
+    case 080: MOV EAX,-1
+
+    case 3:
+    case 0b:
+    case 013: MOV EAX,1
+
+    case 4:
+    case 0c:
+    case 014: MOV EAX,2
+
+    case 5:
+    case 0d:
+    case 015:
+    case 020:
+    case 024:
+    case 025: MOV EAX,4
+
+    case 023:
+
+
+  }
+  POP ESI
+  POP EBX
+}

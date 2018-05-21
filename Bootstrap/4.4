@@ -1,0 +1,238 @@
+0E        ;   0100 0E        PUSH CS
+1F        ;   0101 1F        POP DS
+BE8200    ;   0102 BE8200    MOV SI,082
+89F2      ;   0105 89F2      MOV DX,SI
+          ; fnloop1:
+AC        ;   0107 AC        LODSB
+3C20      ;   0108 3C20      CMP AL,020
+75FB      ;   010A 75FB      JNE fnloop1 (0107 - 010C = FB)
+30DB      ;   010C 30DB      XOR BL,BL
+885CFF    ;   010E 885CFF    MOV B[SI-1],BL
+89F7      ;   0111 89F7      MOV DI,SI
+          ; fnloop2:
+AC        ;   0113 AC        LODSB
+3C0D      ;   0114 3C0D      CMP AL,0d
+75FB      ;   0116 75FB      JNE fnloop2 (0113 - 0118 = FB)
+885CFF    ;   0118 885CFF    MOV B[SI-1],BL
+
+B8003D    ;   011B B8003D    MOV AX,03d00
+CD21      ;   011E CD21      INT 021
+720C      ;   0120 720C      JC fin2 (012E - 0122 = 0C)
+89C6      ;   0122 89C6      MOV SI,AX
+
+B43C      ;   0124 B43C      MOV AH,03c
+31C9      ;   0126 31C9      XOR CX,CX
+89FA      ;   0128 89FA      MOV DX,DI
+CD21      ;   012A CD21      INT 021
+7303      ;   012C 7303      JNC nofin (0131 - 012E = 03)
+          ; fin2:
+E98300    ;   012E E98300    JMP fin (01B4 - 0131 = 83)
+          ; nofin:
+89C7      ;   0131 89C7      MOV DI,AX
+
+32ED      ;   0133 32ED      XOR CH,CH
+32D2      ;   0135 32D2      XOR DL,DL
+
+          ; looptop:
+52        ;   0137 52        PUSH DX
+51        ;   0138 51        PUSH CX
+56        ;   0139 56        PUSH SI
+57        ;   013A 57        PUSH DI
+B43F      ;   013B B43F      MOV AH,03f
+89F3      ;   013D 89F3      MOV BX,SI
+B90100    ;   013F B90100    MOV CX,1
+BA0001    ;   0142 BA0001    MOV DX,0100
+CD21      ;   0145 CD21      INT 021
+85C0      ;   0147 85C0      TEST AX,AX
+7469      ;   0149 7469      JZ fin (01B4 - 014B = 69)
+
+A00001    ;   014B A00001    MOV AL,B[0100]
+
+3C3B      ;   014E 3C3B      CMP AL,3B
+7517      ;   0150 7517      JNZ nocomment (0169 - 0152 = 17)
+          ; comment:
+B43F      ;   0152 B43F      MOV AH,03f
+89F3      ;   0154 89F3      MOV BX,SI
+B90100    ;   0156 B90100    MOV CX,1
+BA0001    ;   0159 BA0001    MOV DX,0100
+CD21      ;   015C CD21      INT 021
+85C0      ;   015E 85C0      TEST AX,AX
+744E      ;   0160 744E      JZ fin (01B4 - 0166 = 4E)
+A00001    ;   0162 A00001    MOV AL,B[0100]
+3C0D      ;   0165 3C0D      CMP AL,0D
+75E9      ;   0167 75E9      JNZ comment (0152 - 0169 = E9)
+
+          ; nocomment:
+5F        ;   0169 5F        POP DI
+5E        ;   016A 5E        POP SI
+59        ;   016B 59        POP CX
+5A        ;   016C 5A        POP DX
+
+3C30      ;   016D 3C30      CMP AL,030
+7CC6      ;   016F 7CC6      JL looptop (137 - 171 = C6)
+3C39      ;   0171 3C39      CMP AL,039
+7E14      ;   0173 7E14      JLE number (189 - 175 = 14)
+3C41      ;   0175 3C41      CMP AL,041
+7CBE      ;   0177 7CBE      JL looptop (137 - 179 = BE)
+3C46      ;   0179 3C46      CMP AL,046
+7E0A      ;   017B 7E0A      JLE capital (187 - 17D = 0A)
+3C61      ;   017D 3C61      CMP AL,061
+7CB6      ;   017F 7CB6      JL looptop (137 - 181 = B6)
+3C66      ;   0181 3C66      CMP AL,066
+7FB2      ;   0183 7FB2      JG looptop (137 - 185 = B2)
+2C20      ;   0185 2C20      SUB AL,020
+          ; capital:
+2C07      ;   0187 2C07      SUB AL,7
+          ; number:
+2C30      ;   0189 2C30      SUB AL,030
+D0E2      ;   018B D0E2      SHL DL,1
+D0E2      ;   018D D0E2      SHL DL,1
+D0E2      ;   018F D0E2      SHL DL,1
+D0E2      ;   0191 D0E2      SHL DL,1
+08C2      ;   0193 08C2      OR DL,AL
+80F501    ;   0195 80F501    XOR CH,1
+759D      ;   0198 759D      JNZ looptop (137 - 19A = 9D)
+
+88160001  ;   019A 88160001  MOV B[0100],DL
+
+52        ;   019E 52        PUSH DX
+51        ;   019F 51        PUSH CX
+56        ;   01A0 56        PUSH SI
+57        ;   01A1 57        PUSH DI
+B440      ;   01A2 B440      MOV AH,040
+89FB      ;   01A4 89FB      MOV BX,DI
+B90100    ;   01A6 B90100    MOV CX,1
+BA0001    ;   01A9 BA0001    MOV DX,0100
+CD21      ;   01AC CD21      INT 021
+5F        ;   01AE 5F        POP DI
+5E        ;   01AF 5E        POP SI
+59        ;   01B0 59        POP CX
+5A        ;   01B1 5A        POP DX
+
+EB83      ;   01B2 EB83      JMP looptop (137 - 1B4 = 83)
+          ; fin:
+B44C      ;   01B4 B44C      MOV AH,04C
+CD21      ;   01B6 CD21      INT 021
+
+
+
+Everything below here is ignored (some will be turned into junk at the end of the file)
+
+  0100 0E        PUSH CS
+  0101 1F        POP DS
+  0102 BE8200    MOV SI,082
+  0105 89F2      MOV DX,SI
+fnloop1:
+  0107 AC        LODSB
+  0108 3C20      CMP AL,020
+  010A 75FB      JNE fnloop1 (0107 - 010C = FB)
+  010C 30DB      XOR BL,BL
+  010E 885CFF    MOV B[SI-1],BL
+  0111 89F7      MOV DI,SI
+fnloop2:
+  0113 AC        LODSB
+  0114 3C0D      CMP AL,0d
+  0116 75FB      JNE fnloop2 (0113 - 0118 = FB)
+  0118 885CFF    MOV B[SI-1],BL
+
+  011B B8003D    MOV AX,03d00
+  011E CD21      INT 021
+  0120 720C      JC fin2 (012E - 0122 = 0C)
+  0122 89C6      MOV SI,AX
+
+  0124 B43C      MOV AH,03c
+  0126 31C9      XOR CX,CX
+  0128 89FA      MOV DX,DI
+  012A CD21      INT 021
+  012C 7303      JNC nofin (0131 - 012E = 03)
+fin2:
+  012E E98300    JMP fin (01B4 - 0131 = 83)
+nofin:
+  0131 89C7      MOV DI,AX
+
+  0133 32ED      XOR CH,CH
+  0135 32D2      XOR DL,DL
+
+looptop:
+  0137 52        PUSH DX
+  0138 51        PUSH CX
+  0139 56        PUSH SI
+  013A 57        PUSH DI
+  013B B43F      MOV AH,03f
+  013D 89F3      MOV BX,SI
+  013F B90100    MOV CX,1
+  0142 BA0001    MOV DX,0100
+  0145 CD21      INT 021
+  0147 85C0      TEST AX,AX
+  0149 7469      JZ fin (01B4 - 014B = 69)
+
+  014B A00001    MOV AL,B[0100]
+
+  014E 3C3B      CMP AL,3B
+  0150 7517      JNZ nocomment (0169 - 0152 = 17)
+comment:
+  0152 B43F      MOV AH,03f
+  0154 89F3      MOV BX,SI
+  0156 B90100    MOV CX,1
+  0159 BA0001    MOV DX,0100
+  015C CD21      INT 021
+  015E 85C0      TEST AX,AX
+  0160 744E      JZ fin (01B4 - 0166 = 4E)
+  0162 A00001    MOV AL,B[0100]
+  0165 3C0D      CMP AL,0D
+  0167 75E9      JNZ comment (0152 - 0169 = E9)
+
+nocomment:
+  0169 5F        POP DI
+  016A 5E        POP SI
+  016B 59        POP CX
+  016C 5A        POP DX
+
+  016D 3C30      CMP AL,030
+  016F 7CC6      JL looptop (137 - 171 = C6)
+  0171 3C39      CMP AL,039
+  0173 7E14      JLE number (189 - 175 = 14)
+  0175 3C41      CMP AL,041
+  0177 7CBE      JL looptop (137 - 179 = BE)
+  0179 3C46      CMP AL,046
+  017B 7E0A      JLE capital (187 - 17D = 0A)
+  017D 3C61      CMP AL,061
+  017F 7CB6      JL looptop (137 - 181 = B6)
+  0181 3C66      CMP AL,066
+  0183 7FB2      JG looptop (137 - 185 = B2)
+  0185 2C20      SUB AL,020
+capital:
+  0187 2C07      SUB AL,7
+number:
+  0189 2C30      SUB AL,030
+  018B D0E2      SHL DL,1
+  018D D0E2      SHL DL,1
+  018F D0E2      SHL DL,1
+  0191 D0E2      SHL DL,1
+  0193 08C2      OR DL,AL
+  0195 80F501    XOR CH,1
+  0198 759D      JNZ looptop (137 - 19A = 9D)
+
+  019A 88160001  MOV B[0100],DL
+
+  019E 52        PUSH DX
+  019F 51        PUSH CX
+  01A0 56        PUSH SI
+  01A1 57        PUSH DI
+  01A2 B440      MOV AH,040
+  01A4 89FB      MOV BX,DI
+  01A6 B90100    MOV CX,1
+  01A9 BA0001    MOV DX,0100
+  01AC CD21      INT 021
+  01AE 5F        POP DI
+  01AF 5E        POP SI
+  01B0 59        POP CX
+  01B1 5A        POP DX
+
+  01B2 EB83      JMP looptop (137 - 1B4 = 83)
+fin:
+  01B4 B44C      MOV AH,04C
+  01B6 CD21      INT 021
+
+
+

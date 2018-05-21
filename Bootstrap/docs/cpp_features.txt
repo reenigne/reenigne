@@ -1,0 +1,24 @@
+Preprocessor:                               - no
+  Conditional compilation                   - compile-time code with the same syntax as run-time code
+  Including one source file into another    - include statement with multiple-include-guard semantics
+  Macros                                    - no
+  Macros with parameters                    - no
+  Undefining macros                         - no
+  Causing compile errors with #error        - maybe (e.g. some programs can only be compiled on 32-bit, or x86, or Windows, and libraries or embedded languages may want to cause custom error messsages)
+  Setting the compile line with #line       - no (single canonical source form)
+  Keyword substitues for operators          - no (source should be consistent)
+  Decimal literals                          - same as C++
+  Octal literals                            - no (octal rarely used nowadays and can cause confusion - compile-time code can substitute if absolutely necessary, as for binary and other bases)
+  Hexadecimal literals                      - yes (same as C++ to avoid confusion)
+  Floating-point literals                   - yes
+  Literal suffixes                          - not necessary - compiler detects type of a number and coerces appropriately
+  Character literals                        - yes
+  Wide character literals                   - not necessary - only ASCII characters permitted in source, coercion to wide
+  Escapes in character and string literals  - yes but the set of possible escapes is more limited
+Exception specifications                    - no (checked exceptions and exception contracts have been proven to be a bad idea)
+Templates/template-style casts              - use [< and >] instead of < and >
+Placement new                               - no
+Pointer to member                           - no
+RTTI                                        - no
+
+

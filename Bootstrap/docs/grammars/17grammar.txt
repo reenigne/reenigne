@@ -1,0 +1,115 @@
+// Characters
+
+Character := '\n' | ' '..'~';
+
+LowerCaseCharacter := 'a'..'z';
+
+UpperCaseCharacter := 'A'..'Z';
+
+DecimalDigit := '0'..'9';
+
+AlphanumericCharacter := LowerCaseCharacter | UpperCaseCharacter | '_' | DecimalDigit;
+
+
+// Space
+
+Space := ' ' | '\n' | '//' (Character-'\n')* | '/*' (Character-('*' | '/') | '*' Character-'/' | '/' Character-'*' | Space)* '*/';
+// This will be optionally matched after every double-quoted string token (like "foo"). Note that it is recursive because multi-line comments nest!
+// To match C-style (non-nesting comments), use CStyleMultilineComment := '/*' (Character-'*' | '*' Character-'/')* '*' '/';
+
+
+// Tokens
+
+HexadecimalNumber := '0x' ('a'..'f' | 'A'..'F' | DecimalDigit)+ [Space];
+
+DecimalNumber := DecimalDigit+ [Space];
+
+EscapedCharacter := '\\' ('\\' | '\'' | '"' | '`' | 'n');
+
+CharacterLiteral := '\'' ( Character-('\n' | '\\' | '\'') | EscapedCharacter )* '\'' [Space];
+
+StringLiteral := '"' ( Character-('\n' | '\\' | '"') | EscapedCharacter )* '"' [Space];
+
+_ := !AlphanumericCharacter [Space];
+
+Identifier :=
+    ( LowerCaseCharacter AlphanumericCharacter*>
+    | '`' ( Character-('\n' | '\\' | '`') | EscapedCharacter )* '`')
+  [Space];
+
+TypeName := UpperCaseCharacter AlphanumericCharacter* [Space];
+
+
+// Productions
+
+Value :=
+    ("++" | "--" | "+" | "-" | "!" | "~" | "*" | "&")* (
+      HexadecimalNumber
+    | DecimalNumber
+    | CharacterLiteral
+    | StringLiteral
+    | 'true' _
+    | 'false' _
+    | 'null' _
+    | 'sizeof' _ "(" TypeID ")"
+    | "#" "(" TypeID ")" "(" [Expression / ","] ")"
+    | "(" Assignment ")"
+    | Identifier
+    | ('truncate_cast' _ | 'reinterpret_cast' _) "[<" TypeID ">]" "(" Assignment ")" ) (
+      | "[" Assignment "]"
+      | "(" [Assignment \ ","] ")"
+      | ("." | "->") Identifier
+      | "++"
+      | "--"
+      )*
+    );
+
+Expression := Value
+  \ ("*" | "/" | "%")
+  \ ("+" | "-")
+  \ ("<<" | ">>")
+  \ ("<" | ">" | "<=" | ">=")
+  \ ("==" | "!=")
+  \ "&"
+  \ "^"
+  \ "|"
+  \ "&&"
+  \ "||" ["?" Expression ":" Expression];
+
+Assignment := (Value ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | ">>=" | "<<=" | "&=" | "|=" | "^="))* Expression;
+
+Statement :=
+    "{" Statement* "}"
+  | ('if' _ | 'unless' _) "(" Expression ")" Statement (('elseif' _ | 'elseunless' _) "(" Expression ")" Statement)* ['else' _ Statement]
+  | 'switch' _ "(" Expression ")" "{" (('case' _ Expression \ "," | 'default' _) ":" Statement)* "}"
+  | ( ['do' _ Statement] ('while' _ | 'until' _) "(" Expression
+    | 'for' _ "(" Statement [Expression] ";" [Assignment]
+    ) ")" Statement ['done' _ Statement]
+  | ( 'nothing' _
+    | Assignment
+    | ('break' _)* ('break' _ | 'continue' _)
+    | 'return' _ [Assignment]
+    | TypeID (Identifier ["=" Assignment]) \ ","
+    | 'include' _ StringLiteral
+    ) ";"
+  | TypeName "=" (
+      'class' _ "{" TypeID Identifier \ "," ";" "}"
+    | TypeID ";"
+    | 'enum' _ "{" Identifier \ "," "}" )
+  | TypeID Identifier "(" [(TypeID Identifier) / ","] ')' (Statement | 'from' _ Expression ["," Expression] ";")
+  | 'asm' _ AsmStatement
+  | 'forever' _ Statement;
+
+TypeID := (
+    'Void' _
+  | 'Byte' _ | 'Int3' _ | 'UInt3' _
+  | 'Word' _ | 'Int4' _ | 'UInt4' _
+  | 'DWord' _ | 'Int5' _ | 'UInt5' _
+  | 'Int' _ | 'UInt' _
+  | 'Bool' _
+  | 'String' _
+  | 'Char' _
+  | TypeName ) ("*" | "(" [TypeID / ","] ")")*;
+
+
+:= [Space] Statement*;

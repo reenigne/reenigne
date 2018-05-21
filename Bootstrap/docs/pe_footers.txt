@@ -1,0 +1,78 @@
+; Import address table
+
+import_address_table:
+
+WriteFile:    DW name_WriteFile DW 0
+GetStdHandle: DW name_GetStdHandle DW 0
+ExitProcess:  DW name_ExitProcess DW 0
+
+DW 0 DW 0
+
+; Data
+
+hello:
+DB "hello" DB 0a
+DW 0 DW 0 DW 0 DW 0 DW 0
+
+; Code
+
+entry:
+PUSH ECX
+PUSH 0
+LEA EAX,[ESP+4]
+PUSH EAX
+PUSH 6            ; size of hello
+PUSH hello
+PUSH -11          ; STD_OUTPUT_HANDLE
+CALL [GetStdHandle]
+PUSH EAX          ; result of GetStdHandle(STD_OUTPUT_HANDLE)
+CALL [WriteFile]
+PUSH 0
+CALL [ExitProcess]
+INT 3
+INT 3
+
+; Import table - Directory Table
+
+import_table:
+DW import_lookup_table_kernel32 DW 0  ; Import Lookup Table RVA
+DW 0 DW 0                             ; Time/Date stamp
+DW 0 DW 0                             ; Forwarder chain
+DW dll_name DW 0                      ; Name RVA
+DW import_address_table DW 0          ; Import Address Table RVA
+
+; Import Table - Null Directory Entry
+
+DW 0 DW 0
+DW 0 DW 0
+DW 0 DW 0
+DW 0 DW 0
+DW 0 DW 0
+
+; Import Lookup Table
+
+import_lookup_table_kernel32:
+DW name_WriteFile DW 0           ; Ordinal Name Flag = 0, Hint/Name Table RVA
+DW name_GetStdHandle DW 0        ; Ordinal Name Flag = 0, Hint/Name Table RVA
+DW name_ExitProcess DW 0         ; Ordinal Name Flag = 0, Hint/Name Table RVA
+DW 0 DW 0
+
+; Hint/Name Table
+
+name_ExitProcess:
+DW 0                    ; Hint
+DB "ExitProcess"  DB 0  ; Name
+                        ; Pad
+name_WriteFile:
+DW 0                    ; Hint
+DB "WriteFile"    DB 0  ; Name
+                        ; Pad
+name_GetStdHandle:
+DW 0                    ; Hint
+DB "GetStdHandle" DB 0  ; Name
+DB 0                    ; Pad
+
+dll_name:
+DB "KERNEL32.dll"
+
+

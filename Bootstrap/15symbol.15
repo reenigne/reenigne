@@ -1,0 +1,1151 @@
+; This is the bootstrapping compiler step 15 (written in step 15 language)
+; This file contains the code for symbol tables and structural programming elements
+
+
+; Format of symbol BX:
+;   W[BX]      subscope     Scope pointer
+;   W[BX+2]    dest         Destination
+;   W[BX+4]    next         Next entry pointer (0 if this is the last)
+;   W[BX+6]    frame        true if symbol is on stack rather than being static, then dest is offset from BP
+;   W[BX+8]    case_type    0 = normal named or anonymous  1 = case label (name contains value)  2 = default case label
+;   W[BX+0a]   length       Symbol length (0 for anonymous labels)
+;   BX+0c      name         Symbol string
+
+; Format of symbol table BX
+;   W[BX]      current      Pointer to last symbol returned by add_label
+;   W[BX+2]    parent       Pointer to parent symbol table
+;   W[BX+4]    first        Pointer to first entry
+;   W[BX+6]    break_dest   Symbol for break or return destination
+;   W[BX+8]    max_stack    Number of bytes to pop off stack at end of function
+;   W[BX+0a]   cur_stack    Offset from BP of next stack variable to allocate
+;   W[BX+0c]   stack        Number of bytes to add to function's cur_stack when leaving this scope
+
+global_table: DW 0   ; Pointer to global symbol table
+func_table:   DW 0   ; Pointer to current function's symbol table
+loop_table:   DW 0   ; Pointer to current loop's symbol table (for breaks)
+scope_table:  DW 0   ; Pointer to current scope's symbol table
+
+
+
+; This function assembles a block of statements.
+; It stops when the next token is not the start of a statement (i.e. '}' or 0)
+; statements := |
+;               statement statements
+
+function assemble_statements()
+{
+  parse_statement()
+  TEST AX,AX
+  JZ assemble_statements
+}
+
+
+
+; This function assembles a statement and returns false
+; If there is no statement, it returns true
+; statement := mnemonic <args> |
+;              identifier: |
+;              identifier(expr) |
+;              { statements } |
+;              function identifier(arg_list) statement |
+;              if (expr) statement |
+;              if (expr) statement else statement |
+;              while (expr) statement |
+;              do statement while (expr) |
+;              auto identifier |
+;              break |
+;              return expr |
+;              switch(expr) { case_blocks }
+
+function parse_statement()
+{
+  CMP B[token],'I'
+  JNE not_identifier
+
+  ; Identifier
+
+  get_next_token()                          ; Slurp the identifier
+  CMP B[token],':'
+  JE label
+  CMP B[token],'('
+  JE fncall
+  syntax_error()
+
+  ; Function call
+
+  fncall:
+  parse_fncall()
+  JMP ok
+
+  ; Label
+
+  label:
+  parse_label()
+  JMP ok
+
+
+  not_identifier:
+  CMP B[token],'M'
+  JNE not_mnemonic
+
+  ; Mnemonic
+
+  parse_mnemonic()
+  JMP ok
+
+
+  not_mnemonic:
+  CMP B[token],'R'
+  JNE not_register
+
+  ; Register
+
+  parse_register()
+  JMP ok
+
+
+  not_register:
+  CMP B[token],'{'
+  JNE not_scope
+
+  ; Scope
+
+  parse_scope()
+  JMP ok
+
+
+  not_scope:
+  CMP B[token],'K'
+  JE keyword
+
+  fail:
+  MOV AX,-1
+  JMP end
+
+  keyword:
+  MOV AL,[token+1]
+  CMP AL,'F'
+  JNE not_function
+
+  ; Function definition
+
+  parse_function()
+  JMP ok
+
+
+  not_function:
+  CMP AL,'I'
+  JNE not_if
+
+  ; if statement
+
+  parse_if()
+  JMP ok
+
+
+  not_if:
+  CMP AL,'W'
+  JNE not_while
+
+  ; while statement
+
+  parse_while()
+  JMP ok
+
+
+  not_while:
+  CMP AL,'O'
+  JNE not_do
+
+  ; do statement
+
+  parse_do()
+  JMP ok
+
+
+  not_do:
+  CMP AL,'A'
+  JNE not_auto
+
+  ; auto statement
+
+  parse_auto()
+  JMP ok
+
+
+  not_auto:
+  CMP AL,'B'
+  JNE not_break
+
+  ; break statement
+
+  parse_break()
+  JMP ok
+
+
+  not_break:
+  CMP AL,'R'
+  JNE not_return
+
+  ; return statement
+
+  parse_return()
+  JMP ok
+
+
+  not_return:
+  CMP AL,'S'
+  JNE fail
+
+  ; switch statement
+
+  parse_switch()
+
+  ok:
+  XOR AX,AX
+  end:
+}
+
+
+
+; This function parses a function call statement
+;             identifier(expr)
+
+function parse_fncall()
+{
+  MOV BX,malloc(4)
+  MOV B[BX],'N'
+  MOV B[BX+1],1
+  PUSH BX
+  find_label()
+  POP BX
+  MOV [BX+2],AX
+  parse_expr0p()
+  simplify()
+  gen_fncall(BX)
+  free_ast(BX)
+}
+
+
+
+; This function parses a label statement
+;             identifier:
+
+function parse_label()
+{
+  add_named_label()
+  get_next_token()                          ; Slurp the :
+}
+
+
+
+; This function parses a register (segment override) statement
+
+function parse_register()
+{
+  CMP B[token_arg],010
+  JGE segreg
+  error:
+  syntax_error()
+  segreg:
+  PUSH W[token_arg]
+  get_next_token()                          ; Slurp the reg
+  CMP B[token],':'
+  JNE error
+
+;   26             ES:
+;   2E             CS:
+;   36             SS:
+;   3E             DS:
+
+  POP DX
+  MOV CL,3
+  SHL DX,CL
+  SUB DX,05a
+  asm_byte(DX)
+  get_next_token()                          ; Slurp the :
+}
+
+
+
+; This function parses a scope statement (block)
+;             { statements }
+
+function parse_scope()
+{
+  get_next_token()                          ; Slurp the {
+  enter_scope()
+  assemble_statements()
+  leave_scope()
+  CMP B[token],'}'
+  JE ok
+
+  error_exit("Expected } on line: $")
+
+  ok:
+  get_next_token()                          ; Slurp the }
+}
+
+
+
+; Parse (and ignore) a '(' - error if it isnt there.
+
+function parse_open()
+{
+  CMP B[token],'('
+  JE succeed
+  error_exit("Expected ( on line: $")
+  succeed:
+  get_next_token()                          ; Slurp the (
+}
+
+
+
+; Parse (and ignore) a ')' - error if it isnt there.
+
+function parse_close()
+{
+  CMP B[token],')'
+  JE succeed
+  error_exit("Expected ) on line: $")
+  succeed:
+  get_next_token()                          ; Slurp the )
+}
+
+
+
+; This function parses a function definition statement
+;             function identifier(arg_list) statement
+; arg_list := |
+;             args
+; args := identifier |
+;         identifier,args
+
+function parse_function()
+{
+  auto outer_func
+  auto arg_offset
+
+  get_next_token()                          ; Slurp the function
+  CMP B[token],'I'
+  JE gotname
+
+  error_exit("Expected a function name on line: $")
+
+  gotname:
+  add_named_label()
+
+  MOV W[outer_func],[func_table]
+  enter_scope()
+  MOV W[func_table],[scope_table]
+
+
+  MOV W[arg_offset],4
+  get_next_token()                          ; Slurp the identifier
+  parse_open()
+
+  CMP B[token],')'
+  JE args_done
+
+  need_identifier:
+  CMP B[token],'I'
+  JE got_arg
+
+  error_exit("Argument expected on line: $")
+
+  got_arg:
+  add_auto([arg_offset])
+  ADD W[arg_offset],2
+
+  CMP B[token],','
+  JNE args_done
+  get_next_token()                          ; Slurp the comma
+  JMP need_identifier
+  args_done:
+
+
+  CMP B[first_phase],0
+  JE noinitmaxstack
+  MOV W[[func_table]+8],0        ; func_table->max_stack = 0
+  noinitmaxstack:
+  MOV W[[func_table]+0a],-2      ; func_table->cur_stack = -2
+
+  CMP W[[func_table]+8],0
+  JNE prolog
+  CMP W[arg_offset],4
+  JE skip_prolog
+
+  prolog:
+  asm_byte(055)                  ; assemble "PUSH BP"
+  asm_byte(089)
+  asm_byte(0e5)                  ; assemble "MOV BP,SP"
+  skip_prolog:
+
+  MOV DX,W[[func_table]+8]       ; func_table->max_stack
+  CMP DX,0
+  JE no_stack_vars
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JNE large_stack
+  PUSH AX
+  asm_byte(083)
+  asm_byte(0ec)
+  POP AX
+  asm_byte(AX)                   ; assemble "SUB SP,func_table->max_stack"
+  JMP no_stack_vars
+  large_stack:
+  PUSH DX
+  asm_byte(081)
+  asm_byte(0ec)
+  POP AX
+  asm_word(AX)                   ; assemble "SUB SP,func_table->max_stack"
+  no_stack_vars:
+
+
+  parse_close()
+  parse_statement()
+
+  MOV DX,[[func_table]+6]        ; func_table->break_dest
+  CMP DX,0
+  JE no_return
+  set_label(DX)
+  no_return:
+
+  CMP W[[func_table]+8],0        ; func_table->max_stack
+  JE no_stack_fixup
+
+  asm_byte(089)
+  asm_byte(0ec)                  ; assemble "MOV SP,BP"
+  JMP epilog
+  no_stack_fixup:
+
+  CMP W[arg_offset],4
+  JE skip_epilog
+
+  epilog:
+  asm_byte(05d)                  ; assemble "POP BP"
+  skip_epilog:
+  asm_byte(0c3)                  ; assemble "RET"
+  leave_scope()
+  MOV W[func_table],[outer_func]
+}
+
+
+
+; This function parses an "if" statement
+;             if (expr) statement
+;             if (expr) statement else statement
+
+function parse_if()
+{
+  auto skip
+  auto skip2
+
+  get_next_token()                          ; Slurp the if
+  parse_open()
+  parse_expr()
+  simplify()
+  gen_ea(BX,08b,0,2,1)           ; generate "MOV AX,expr"
+  free_ast(BX)
+  parse_close()
+  asm_byte(085)
+  asm_byte(0c0)                  ; assemble "TEST AX,AX"
+  MOV W[skip],add_anon_label()
+  gen_jcond(074,get_label([skip])) ; assemble "JZ skip"
+  parse_statement()
+
+  CMP B[token],'K'
+  JNE not_else
+  CMP B[token+1],'E'
+  JNE not_else
+
+  get_next_token()                          ; Slurp the else
+
+  MOV W[skip2],add_anon_label()
+  gen_jmp(get_label([skip2]))
+  JMP done_else
+
+  not_else:
+  MOV W[skip2],0
+
+  done_else:
+  set_label([skip])
+
+  CMP W[skip2],0
+  JE end
+
+  parse_statement()
+  set_label([skip2])
+
+  end:
+}
+
+
+
+; This function parses a "while" statement
+;             while (expr) statement
+;             while (expr) statement done statement
+
+function parse_while()
+{
+  auto loop_test
+  auto outer_loop
+  auto loop_top
+
+  get_next_token()                          ; Slurp the while
+  parse_open()
+  MOV W[loop_test],add_anon_label()
+  gen_jmp(get_label([loop_test]))
+  MOV W[outer_loop],[loop_table]
+  enter_scope()
+  MOV W[loop_table],[scope_table]
+  MOV W[loop_top],add_anon_label()
+  set_label([loop_top])
+
+  parse_expr()
+  simplify()
+  PUSH BX
+  parse_close()
+  parse_statement()
+  set_label([loop_test])
+
+  POP BX
+  gen_ea(BX,08b,0,2,1)           ; generate "MOV AX,expr"
+  free_ast(BX)
+  asm_byte(085)
+  asm_byte(0c0)                  ; assemble "TEST AX,AX"
+  gen_jcond(075,get_label([loop_top])) ; assemble "JNZ loop_top"
+
+  CMP B[token],'K'
+  JNE no_done
+  CMP B[token+1],'N'
+  JNE no_done
+
+  get_next_token()                          ; Slurp the done
+  parse_statement()
+
+  no_done:
+  MOV DX,[[scope_table]+6]       ; scope_table->break_dest
+  CMP DX,0
+  JE no_break
+
+  set_label(DX)                  ; set_label(scope_table->break_dest)
+
+  no_break:
+  leave_scope()
+  MOV W[loop_table],[outer_loop]
+}
+
+
+
+; This function parses a "do" statement
+;             do statement while (expr)
+
+function parse_do()
+{
+  auto outer_loop
+  auto loop_top
+
+  get_next_token()                          ; Slurp the do
+
+  MOV W[outer_loop],[loop_table]
+  enter_scope()
+  MOV W[loop_table],[scope_table]
+  MOV W[loop_top],add_anon_label()
+  set_label([loop_top])
+  parse_statement()
+
+  CMP B[token],'K'
+  JE keyword
+
+  no_while:
+  error_exit("Expected while on line: $")
+
+  keyword:
+  CMP B[token+1],'W'
+  JNE no_while
+
+  get_next_token()                          ; Slurp the while
+  parse_open()
+  parse_expr()
+  simplify()
+  gen_ea(BX,08b,0,2,1)           ; generate "MOV AX,expr"
+  free_ast(BX)
+  asm_byte(085)
+  asm_byte(0c0)                  ; assemble "TEST AX,AX"
+  gen_jcond(075,get_label([loop_top])) ; assemble "JNZ loop_top"
+  parse_close()
+
+  CMP B[token],'K'
+  JNE no_done
+  CMP B[token+1],'N'
+  JNE no_done
+
+  get_next_token()                          ; Slurp the done
+  parse_statement()
+
+  no_done:
+  MOV DX,[[loop_table]+6]        ; scope_table->break_dest
+  CMP DX,0
+  JE no_break
+
+  set_label(DX)                  ; set_label(scope_table->break_dest)
+
+  no_break:
+  leave_scope()
+  MOV W[loop_table],[outer_loop]
+}
+
+
+
+; This function parses an "auto" statement (stack variable definition)
+;             auto identifier
+
+function parse_auto()
+{
+  get_next_token()                          ; Slurp the auto
+  MOV BX,[func_table]
+  CMP BX,0
+  JNE in_func
+
+  error_exit("auto variables only possible in a function on line: $")
+
+  in_func:
+  MOV DX,[BX+0a]                 ; func_table->cur_stack
+  PUSH DX
+  PUSH BX
+  add_auto(DX)
+  POP BX
+  MOV AX,[BX+8]                  ; func_table->max_stack
+  POP DX
+  NEG DX
+  CMP DX,AX
+  JLE no_bump                    ; if (-func_table->cur_stack > func_table->max_stack) {
+
+  ADD W[BX+8],2                  ;   func_table->max_stack += 2
+  MOV B[last_phase],0            ;   last_phase = 0
+
+  no_bump:                       ; }
+  SUB W[BX+0a],2                 ; func_table->cur_stack -= 2
+  ADD W[[scope_table]+0c],2      ; scope_table->stack += 2
+}
+
+
+
+; This function parses a "break" statemnet
+;             break
+
+function parse_break()
+{
+  get_next_token()                          ; Slurp the break
+  PUSH SI
+  MOV SI,[loop_table]
+  CMP W[SI+6],0                  ; loop_table->break_dest
+  JNE got_label
+
+  MOV W[SI+6],add_anon_label()   ; loop_table->break_dest = add_anon_label()
+
+  got_label:
+  gen_jmp(get_label([SI+6]))     ; assemble "JMP loop_table->break_dest"
+  POP SI
+}
+
+
+
+; This function parses a "return" statement
+;             return expr
+
+function parse_return()
+{
+  get_next_token()                          ; Slurp the return
+  parse_expr()
+  simplify()
+  gen_ea(BX,08b,0,2,1)           ; generate "MOV AX,expr"
+  free_ast(BX)
+  PUSH SI
+  MOV SI,[func_table]
+  CMP W[SI+6],0                  ; func_table->break_dest
+  JNE got_label
+
+  MOV W[SI+6],add_anon_label()   ; func_table->break_dest = add_anon_label()
+
+  got_label:
+  gen_jmp(get_label([SI+6]))     ; assemble "JMP func_table->break_dest"
+  POP SI
+}
+
+
+
+; This function parses a "switch" statement
+;             switch(expr) { case_blocks }
+; case_blocks := case_block |
+;                case_blocks case_block
+; case_block := case_labels statement
+; case_labels := case_label |
+;                case_labels case_label
+; case_label := case expr |
+;               default
+
+function parse_switch()
+{
+  auto switch_data
+  auto switch_end
+  auto default_label
+  auto num_cases
+  auto num_defaults
+
+  enter_scope()
+  get_next_token()                          ; Slurp the switch
+  parse_open()
+  parse_expr()
+  simplify()
+  gen_ea(BX,08b,2,2,1)           ; assemble "MOV DX,expr"
+  free_ast(BX)
+  parse_close()
+  CMP B[token],'{'
+  JE got_openc
+
+  error_exit("Expected { on line: $")
+
+  got_openc:
+  get_next_token()                          ; Slurp the {
+
+  MOV W[num_cases],0
+  MOV W[num_defaults],0
+  MOV BX,[[scope_table]+4]       ; current = scope_table->first
+  count_cases:
+  CMP BX,0
+  JE count_cases_done            ; while (current != 0)
+
+  CMP W[BX+8],1                  ; current->case_type
+  JNE not_case
+  INC W[num_cases]
+  JMP count_next
+  not_case:
+  CMP W[BX+8],2                  ; current->case_type
+  JNE count_next
+  INC W[num_defaults]
+
+  count_next:
+  MOV BX,[BX+4]                  ; current = current->next
+  JMP count_cases
+  count_cases_done:
+
+  CMP W[num_defaults],1
+  JLE defaults_ok
+  error_exit("Only one default label allowed on line: $")
+  defaults_ok:
+
+  asm_byte(0b9)
+  asm_word(W[num_cases]+1)       ; assemble "MOV CX,num_cases+1"
+  asm_byte(056)                  ; assemble "PUSH SI"
+  MOV W[switch_data],add_anon_label()
+  asm_byte(0be)
+  asm_word(get_label([switch_data]))    ; assemble "MOV SI,switch_data"
+  asm_byte(0ad)                  ; assemble "switch_looptop: LODSW"
+  asm_byte(089)
+  asm_byte(0c3)                  ; assemble "MOV BX,AX"
+  asm_byte(0ad)                  ; assemble "LODSW"
+  asm_byte(039)
+  asm_byte(0d0)                  ; assemble "CMP AX,DX"
+  asm_byte(0e0)
+  asm_byte(0f8)                  ; assemble "LOOPNE switch_looptop"
+  asm_byte(05e)                  ; assemble "POP SI"
+  asm_byte(0ff)
+  asm_byte(0e3)                  ; assemble "JMP BX"
+  set_label([switch_data])
+  MOV W[switch_end],add_anon_label()
+  MOV W[default_label],[switch_end]
+
+  MOV BX,[[scope_table]+4]       ; current = scope_table->first
+  emit_data:
+  CMP BX,0
+  JE emit_data_done
+  CMP W[BX+8],1                  ; current->case_type
+  JNE do_default
+  PUSH BX
+  asm_word([BX+2])               ; assemble current->dest
+  POP BX
+  PUSH BX
+  asm_word([BX+0c])              ; assemble current->value
+  POP BX
+  JMP emitted_data
+  do_default:
+  CMP W[BX+8],2                  ; current->case_type
+  JNE emitted_data
+  MOV W[default_label],BX        ; default_label = current
+  emitted_data:
+  MOV BX,[BX+4]                  ; current = current->next
+  JMP emit_data
+
+  emit_data_done:
+  asm_word([[default_label]+2])  ; assemble default_label->dest
+  asm_word(0)                    ; assemble 0 ("value" of default case - will be ignored)
+
+  ADD W[num_cases],[num_defaults]
+
+  ; State 1 - need a case or default label
+
+  state1:
+  CMP B[token],'K'
+  JNE need_case
+  CMP B[token+1],'C'
+  JE got_case
+  CMP B[token+1],'D'
+  JNE need_case
+
+  set_label(add_case_label(2,0)) ; add default label
+  get_next_token()                          ; Slurp the default
+  JMP state2
+
+  need_number:
+  error_exit("Expected a number at line: $")
+  need_case:
+  error_exit("Expected a case or default at line: $")
+
+  got_case:
+  get_next_token()                          ; Slurp the case
+  CMP B[token],'0'
+  JNE need_number
+
+  set_label(add_case_label(1,[token_arg])) ; add case label
+  get_next_token()                          ; Slurp the number
+
+  ; State 2 - need a statement or case or default label
+
+  state2:
+  parse_statement()
+  TEST AX,AX
+  JNZ state1
+
+  DEC W[num_cases]
+  CMP W[num_cases],0
+  JE state3
+
+  gen_jmp(get_label([switch_end]))
+
+  ; State 3 - need a } or case or default label
+
+  state3:
+  CMP B[token],'}'
+  JNE state1
+
+  get_next_token()                          ; Slurp the }
+  set_label([switch_end])
+  leave_scope()
+}
+
+
+
+; This function adds a label to the current scope
+
+function add_label(label,subscope,dest,frame,case_type,value)
+{
+  MOV BX,[label]
+
+  CMP B[first_phase],0
+  JE not_first_phase
+
+
+  CMP BX,0
+  JNE got
+
+  CMP W[case_type],1
+  JNE alloc_not_case
+
+  MOV BX,malloc(0e)              ; label = malloc(14)
+  JMP alloc_done
+
+  alloc_not_case:
+  MOV BX,malloc(0c)              ; label = malloc(12)
+
+  alloc_done:
+  MOV [label],BX
+  MOV W[BX+0a],0                 ; label->length = 0
+
+  got:
+  MOV W[BX],[subscope]           ; label->subscope = subscope
+  MOV W[BX+2],[dest]             ; label->dest = dest
+  MOV W[BX+4],0                  ; label->next = 0
+  MOV W[BX+6],[frame]            ; label->frame = frame
+  MOV W[BX+8],[case_type]        ; label->case_type = case_type
+  CMP W[BX+8],1
+  JNE not_case
+  MOV W[BX+0c],[value]           ; label->value = value
+  not_case:
+
+  MOV AX,BX                      ; label
+  MOV BX,[scope_table]
+  CMP W[BX+4],0                  ; if (scope_table->first == 0)
+  JNE not_first
+  MOV [BX+4],AX                  ;   scope_table->first = label
+  JMP got_label
+  not_first:                     ; else {
+  PUSH BX
+  MOV BX,[BX]                    ;   scope_table->current
+  MOV [BX+4],AX                  ;   scope_table->current->next = label
+  POP BX
+  JMP got_label                  ; }
+
+
+  not_first_phase:
+  CMP BX,0                       ; label
+  JE no_free
+  free(BX)                       ; free(label)
+  no_free:
+
+  MOV BX,[scope_table]
+  CMP W[BX],0                    ; if (scope_table->current == 0)
+  JNE got_current
+  MOV AX,[BX+4]                  ;   label = scope_table->first
+  JMP got_label                  ; else
+  got_current:
+  PUSH BX
+  MOV BX,[BX]
+  MOV AX,[BX+4]                  ;   label = scope_table->current->next
+  POP BX
+  got_label:
+
+  MOV [BX],AX                    ; scope_table->current = label
+}
+
+
+
+; This function creates a new subscope and makes it the active scope
+
+function enter_scope()
+{
+  PUSH SI
+  XOR BX,BX
+  CMP B[first_phase],0
+  JE not_first_phase
+
+  MOV BX,malloc(14)              ; subscope = malloc(14)
+  MOV W[BX+2],[scope_table]      ; subscope->parent = scope_table
+  MOV W[BX+4],0                  ; subscope->first = 0
+  MOV W[BX+6],0                  ; subscope->break_dest = 0
+
+  not_first_phase:
+  PUSH BX
+  MOV SI,add_label(0,BX,0,false,0,0) ; label = add_label(0,subscope,0,false,0,0)
+  POP BX
+  CMP B[first_phase],0
+  JNE in_first_phase
+  MOV BX,[SI]                    ; subscope = label->subscope
+  in_first_phase:
+  MOV [scope_table],BX           ; scope_table = subscope
+  MOV W[BX],0                    ; scope_table->current = 0
+  MOV W[BX+0c],0                 ; scope_table->stack = 0
+  POP SI
+}
+
+
+
+; This function leaves the current outermost scope and returns to its parent
+
+function leave_scope()
+{
+  MOV CX,[[scope_table]+0c]
+  ADD W[[func_table]+0a],CX             ; func_table->cur_stack += scope_table->stack
+  MOV W[scope_table],[[scope_table]+2]  ; scope_table = scope_table->parent
+}
+
+
+
+; This function adds an anonymous label to the current scope
+
+function add_anon_label()
+{
+  add_label(0,0,0,false,0,0)
+}
+
+
+
+; This function adds a named label to the current scope
+
+function add_named_label()
+{
+  add_label([identifier],0,[ip],false,0,0)
+  PUSH AX
+  set_label(AX)                  ; set_label(label)
+  POP AX                         ; return label
+}
+
+
+
+; This fnuction adds a stack variable (auto or function argument) to the current scope
+
+function add_auto(offset)
+{
+  add_label([identifier],0,[offset],true,0,0)
+  get_next_token()                          ; Slurp the variable name
+}
+
+
+
+; This function adds a case label to the current scope
+
+function add_case_label(case_type,value)
+{
+  add_label(0,0,0,false,[case_type],[value])
+}
+
+
+
+; This function sets the destination of a label to be the current destination
+
+function set_label(label)
+{
+  MOV BX,[label]
+  CMP W[BX+2],[ip]     ; if (label->dest != ip)
+  JE end
+  MOV W[BX+2],[ip]     ;    label->dest = ip
+  MOV B[last_phase],false
+  end:
+}
+
+
+
+; This function returns the destination of a label as an expr
+
+function get_var(label)
+{
+  PUSH SI
+
+  MOV BX,malloc(4)               ; expr = malloc(4)
+  MOV B[BX],'N'                  ; B[expr] = 'N'
+  MOV SI,[label]
+  CMP SI,0
+  JE label_null
+  MOV W[BX+2],[SI+2]             ; W[expr+2] = label->dest
+  JMP label_filled
+  label_null:
+  MOV W[BX+2],0                  ; W[expr+2] = 0
+  label_filled:
+
+  CMP SI,0
+  JE const_label
+  CMP W[SI+6],0                  ; label->frame
+  JE const_label
+
+  MOV B[BX+1],0                  ; B[expr+1] = 0
+  PUSH BX
+  MOV BX,malloc(2)               ; reg_bp = malloc(2)
+  MOV B[BX],'R'                  ; B[reg_bp] = 'R'
+  MOV B[BX+1],5                  ; B[reg_bp+1] = 5 (BP)
+  PUSH BX
+  MOV BX,malloc(6)               ; sum = malloc(6)
+  MOV B[BX],'+'                  ; B[sum] = '+'
+  POP [BX+2]                     ; W[sum+2] = reg_bp
+  POP [BX+4]                     ; W[sum+4] = expr
+  JMP end                        ; expr = sum
+
+  const_label:
+  MOV B[BX+1],1                  ; B[expr+1] = 1
+
+  end:
+  MOV AX,BX                      ; return expr
+
+  POP SI
+}
+
+
+
+; This function finds a symbol in the current scope and parent scopes, and returns it
+
+function find_symbol()
+{
+  PUSH SI
+
+  MOV SI,[scope_table]           ; table = scope_table
+  scope_loop:                    ; do {
+  MOV BX,[SI+4]                  ;   current = table->first
+  looptop:                       ;   while (current != 0) {
+  CMP BX,0
+  JE endloop
+  PUSH BX
+  string_equals([identifier]+0a,BX+0a)
+  POP BX
+  TEST AX,AX
+  JZ next                        ;     if (string_equals(identifier+0a,current+0a))
+  MOV AX,BX
+  JMP end                        ;       break 2
+
+  next:
+  MOV BX,[BX+4]                  ;     current = current->next
+  JMP looptop
+  endloop:                       ;   }
+  MOV SI,[SI+2]                  ;   table = table->parent
+  CMP SI,0
+  JNE scope_loop                 ; } while (table != 0)
+  CMP B[first_phase],0           ; done
+  JNE missing_ok                 ;   if (!first_phase)
+  label_error("Label not found: $")
+  missing_ok:                    ;   else {
+  MOV B[last_phase],0
+  XOR AX,AX                      ;     current = 0
+  end:                           ;   }
+  PUSH AX
+  free([identifier])             ; free(identifier)
+  POP AX                         ; return current;
+  POP SI
+}
+
+
+
+; This function finds a label in the current scope and returns its destination.
+
+function find_label()
+{
+  find_symbol()
+  CMP AX,0
+  JE end
+  MOV BX,AX
+  CMP W[BX+6],0
+  JE not_frame
+  error_exit("Expected constant label on line: $")
+  not_frame:
+  get_label(AX)
+  end:
+}
+
+
+
+; This function returns the destination of a label
+
+function get_label(label)
+{
+  MOV AX,[[label]+2]  ; return label->dest
+}
+
+
+
+; Initialize the symbol tables at the start of the program
+
+function init_tables()
+{
+  MOV BX,malloc(0e)
+  MOV W[global_table],BX
+  MOV W[scope_table],BX
+  XOR AX,AX
+  MOV W[func_table],AX
+  MOV W[loop_table],AX
+  MOV W[BX],AX               ; scope_table->next = 0
+  MOV W[BX+2],AX             ; scope_table->parent = 0
+  MOV W[BX+4],AX             ; scope_table->first = 0
+  MOV W[BX+6],AX             ; scope_table->break_dest = 0
+  MOV W[BX+8],AX             ; scope_table->max_stack = 0
+  MOV W[BX+0a],AX            ; scope_table->cur_stack = 0
+  MOV W[BX+0c],AX            ; scope_table->stack = 0
+}
+
+
+
+; Initialize the symbol tables at the start of a phase
+
+function restart_tables()
+{
+  MOV BX,[global_table]
+  MOV W[BX],0               ; scope_table->current = 0
+}

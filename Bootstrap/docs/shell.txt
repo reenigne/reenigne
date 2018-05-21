@@ -1,0 +1,15 @@
+ALFE shell:
+  Want it to be as similar to the normal ALFE language as possible
+  Still want to be able to run programs just by typing their names
+    => Interpret each line as an ALFE statement. If there is a syntax error, try making the line an unquoted string argument to the command() function.
+  Default implementation of command() takes the string, splits it at the first space and creates a sub-process with the first part as the command and the second as the arguments.
+  Many hooks to customize this process:
+    command is a Function<Void,String> which can be reassigned to another function to change the shell non-statement interpretation?
+    Function<String,String> commandNameFromCommandLine
+    Function<String,String> argumentsFromCommandLine
+    Function<String,String> commandPathFromCommandName
+    Vector<String> commandSearchPaths
+  Need a way to reset the state of the interpreter
+  Need a way to set the state of the interpreter (run ALFE script in interpreted mode?)
+    Interactive implies intepreted but the converse is not generally true - the interpreter can run an ALFE script (which has the same syntax as compiled ALFE) to set the state
+    Call functions to affect the interpreter - i.e. have a reset() function (which cannot be overridden)

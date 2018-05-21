@@ -1,0 +1,450 @@
+; This is the bootstrapping compiler step 17 (written in step 16 language)
+; This file contains functions for emitting PE files.
+
+
+
+
+; 40 DOS header
+; 40 DOS stub
+; 18 PE header
+; e0 optional header
+; 28 section table
+; 60 padding
+
+
+pe_headers_begin:
+
+; DOS stub header
+
+DB "MZ"        ; DOS exe signature
+DW 080         ; file size mod 512
+DW 1           ; number of 512 byte pages
+DW 0           ; relocation items
+DW 4           ; size of header in paragraphs
+DW 0           ; min paragraphs needed
+DW -1          ; max paragraphs requested
+DW 0           ; initial SS
+DW 0b8         ; initial SP
+DW 0           ; checksum
+DW 0           ; initial IP
+DW 0           ; initial CS
+DW 040         ; file address of relocation table (=code since no relocations)
+DW 0           ; overlay number
+DD 0,0         ; reserved
+DW 0           ; OEM ID
+DW 0           ; OEM info
+DD 0,0,0,0,0   ; reserved
+DD 080         ; File address of PE header (00000080)
+
+; DOS stub
+
+DB 0e          ; PUSH CS
+DB 01f         ; POP DS
+DB 0ba DW 0e   ; MOV DX,0e
+DB 0b4,9       ; MOV AH,9
+DB 0cd,021     ; INT 021
+DB 0b8 DW 04c01 ; MOV AX,04c01
+DB 0cd,021     ; INT 021
+DB "This program cannot be run in DOS mode.",0d,0d,0a,"$",0
+
+; padding
+
+DW 0,0,0
+
+; PE signature
+
+DB "PE",0,0
+
+; COFF file header
+
+DW 014c       ; Machine type i386
+DW 1          ; Number of sections
+DD 0          ; Time/date stamp
+DD 0          ; File offset of COFF symbol table
+DD 0          ; Number of entries in symbol table
+DW 0e0        ; Size of optional header
+DW 030f       ; Characteristics:
+  ; 1 = relocations stripped
+  ; 2 = executable
+  ; 4 = COFF line numbers removed
+  ; 8 = COFF local symbols removed
+  ; 0100 = 32 bit
+  ; 0200 = debugging information removed
+
+
+; Optional header
+
+DW 010b       ; Magic number (PE32)
+DB 0          ; Linker major version number
+DB 0          ; Linker minor version number
+DD 0          ; Size of code section
+pe_data_size:
+DD 0          ; Size of data section
+DD 0          ; Size of bss section
+pe_entry_point:
+DD 0          ; Address of entry point
+DD 01000      ; Base of code
+DD 01000      ; Address of data
+
+; Optional header - windows header
+
+DD 0400000    ; Base address
+DD 01000      ; Section alignment
+DD 0200       ; File alignment
+DW 4          ; Major OS version
+DW 0          ; Minor OS version
+DW 0          ; Major image version
+DW 0          ; Minor image version
+DW 4          ; Major subsystem version
+DW 0          ; Minor subsystem version
+pe_zeros:
+DD 0          ; reserved
+pe_image_size:
+DD 0          ; Image size
+DD 0200       ; Size of headers
+DD 0          ; Checksum
+DW 3          ; Subsystem: console
+DW 0          ; DLL characteristics
+DD 0100000    ; Size of stack to reserve (1Mb)
+DD 01000      ; Size of stack to commit (4Kb)
+DD 0100000    ; Size of heap to reserve (1Mb)
+DD 01000      ; Size of heap to commit (4Kb)
+DD 0          ; Loader flags (obsolete)
+DD 010        ; Number of data dictionary entries (16)
+
+; Optional header - data dictionary entries
+
+DD 0          ; Export table address
+DD 0          ; Export table size
+pe_import_table_address:
+DD 0          ; Import table address
+pe_import_table_size:
+DD 0          ; Import table size
+DD 0          ; Resource table address
+DD 0          ; Resource table size
+DD 0          ; Exception table address
+DD 0          ; Exception table size
+DD 0          ; Certificate table address
+DD 0          ; Certificate table size
+DD 0          ; Base relocation table address
+DD 0          ; Base relocation table size
+DD 0          ; Debug data table address
+DD 0          ; Debug data table size
+DD 0          ; Architecture-specific data table address
+DD 0          ; Architecture-specific data table size
+DD 0          ; Global pointer address
+DD 0          ; Must be 0
+DD 0          ; Thread-local storage table address
+DD 0          ; Thread-local storage table size
+DD 0          ; Load configuration table address
+DD 0          ; Load configuration table size
+DD 0          ; Bound import table address
+DD 0          ; Bound import table size
+DD 01000      ; Import address table address
+pe_import_address_table_size:
+DD 0          ; Import address table size
+DD 0          ; Delay import descriptor address
+DD 0          ; Delay import descriptor size
+DD 0          ; COM+ Runtime header address
+DD 0          ; COM+ Runtime header size
+DD 0          ; Reserved
+DD 0          ; Reserved
+
+
+; Section table
+
+DB ".unified"               ; Section name
+pe_raw_memory_size:
+DD 0                        ; Size of section in memory
+DD 01000                    ; Virtual address of section
+pe_raw_size:
+DD 0                        ; Size of raw data
+DD 0200                     ; File offset of raw data
+DD 0                        ; Pointer to relocations (none)
+DD 0                        ; Pointer to line numbers (none)
+DW 0                        ; Number of relocations
+DW 0                        ; Number of line numbers
+DD 0e00000e0                ; Flags (0e00000e0):
+  ; 020 - section contains executable code
+  ; 040 - section contains initialized data
+  ; 080 - section contains uninitialized data
+  ; 020000000 - section can be executed as code
+  ; 040000000 - section can be read
+  ; 080000000 - section can be written to
+
+
+; Padding (0200 - 040 - 040 - 018 - 0e0 - 028 = 060)
+
+DD 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
+
+
+
+code_end: DD 0
+data_end: DD 0
+
+
+
+; This function rounds up the value high:low to the nearest granularity byte boundary
+
+function round_up(dword,granularity)
+{
+  MOV EAX,[dword]
+  MOV ECX,[granularity]
+  DEC ECX
+  ADD EAX,ECX
+  NOT ECX
+  AND EAX,ECX
+}
+
+
+
+; This function emits the PE headers (everything before the code)
+
+function emit_pe_headers()
+{
+  PUSH EBX
+  PUSH ESI
+
+  ; Set up PE headers
+
+  MOV EAX,[data_end]
+  SUB EAX,0401000
+  MOV [pe_raw_size],EAX                   ; pe_raw_size = data_end-0401000
+  MOV [pe_raw_memory_size],EAX            ; pe_raw_memory_size = data_end-0401000
+  round_up(EAX,0200)
+  MOV [pe_data_size],EAX                  ; pe_data_size = round_up(data_end-0401000,0200)
+
+
+  round_up(EAX,01000)
+  ADD EAX,01000
+  MOV [pe_image_size],EAX                 ; pe_image_size = round_up(data_end-0401000,01000) + 01000
+
+  MOV EAX,[code_end]
+  SUB EAX,0400000
+  MOV [pe_import_table_address],EAX       ; pe_import_table_address = code_end-0400000 (code_end is already rounded up to dword)
+
+  MOV EAX,[num_dlls]
+  INC EAX
+  MOV EDX,014
+  MUL EDX
+  MOV [pe_import_table_size],EAX           ; pe_import_table_size = 014*(number of DLLs + 1)
+
+  MOV EAX,[total_imports]
+  ADD EAX,[num_dlls]
+  SHL EAX,2
+  MOV [pe_import_address_table_size],EAX   ; pe_import_address_table_size = 4*(total_imports + num_dlls)
+
+  ; Emit PE headers
+
+  write(pe_headers_begin,0200)
+
+  ; Emit Import address table
+
+  MOV ESI,[pe_import_table_address]
+  ADD ESI,[pe_import_table_size]
+  ADD ESI,[pe_import_address_table_size]   ; name_ptr = pe_import_table_address+pe_import_table_size+pe_import_address_table_size
+
+  MOV EBX,[first_dll_name]                 ; current = first_dll_name
+  while (EBX) {                            ; while (current) {
+    PUSH EBX
+    MOV EBX,[EBX+8]                        ;   current_import = current->first
+    while (EBX) {                          ;   while (current_import)
+      PUSH EBX
+
+      if ([EBX+4]!=[ip])
+        MOV D[EBX+4],[ip]                  ;     current->dest = ip
+
+      asm_dword(ESI)                       ;     emit import address table entry
+      POP EBX
+      PUSH EBX
+      MOV EAX,[[EBX+8]+0c]
+      ADD EAX,4
+      AND EAX,-2
+
+      ADD ESI,EAX                          ;     name_ptr += (current_import->symbol->length+4)&(-2)
+
+      POP EBX
+      MOV EBX,[EBX]                        ;     current_import = current_import->next
+    }
+
+    asm_dword(0)                           ;   emit null import address table entry
+
+    POP EBX
+
+    MOV EAX,[EBX+0c]
+    INC EAX
+    INC EAX
+    AND EAX,-2
+    ADD ESI,EAX                            ;   name_ptr += (current->length+2)&(-2)
+
+    MOV EBX,[EBX]                          ;   current = current->next
+  }
+
+  ; Set up entry point
+
+  if ([pe_entry_point]!=[ip]-0400000) {
+    MOV D[last_phase],false
+    MOV D[pe_entry_point],[ip]-0400000
+  }
+
+  POP ESI
+  POP EBX
+}
+
+
+
+import_address_table_ptr: DD 0
+
+; This function emit the PE footers (everything after the code)
+
+function emit_pe_footers()
+{
+  PUSH EBX
+  PUSH ESI
+  PUSH EDI
+
+  ; Round up code size to dword boundary
+
+  MOV EAX,[ip]
+  NOT EAX
+  INC EAX
+  AND EAX,3
+  write(pe_zeros,EAX)
+
+  ; Set up code_end
+
+  if ([code_end]!=[ip]) {
+    MOV D[last_phase],false
+    MOV D[code_end],[ip]
+  }
+
+  ; Write directory table
+
+  MOV ESI,[pe_import_table_address]
+  ADD ESI,[pe_import_table_size]           ; import_lookup_table_ptr = pe_import_table_address+pe_import_table_size
+
+  MOV EDI,ESI
+  ADD EDI,[pe_import_address_table_size]   ; name_ptr = import_lookup_table_ptr + pe_import_address_table_size
+
+  MOV D[import_address_table_ptr],01000
+
+  MOV EBX,[first_dll_name]                 ; current = first_dll_name
+  while (EBX) {                            ; while (current) {
+    PUSH EBX
+    asm_dword(ESI)                           ; emit Import Lookup Table RVA
+    asm_dword(0)                             ; emit Time/Date stamp
+    asm_dword(0)                             ; emit Forwarder chain
+
+    POP EBX
+    PUSH EBX
+    MOV EBX,[EBX+8]                          ; current_import = current->first
+    while (EBX) {                            ; while (current_import)
+      PUSH EBX
+      MOV EAX,[[EBX+8]+0c]
+      ADD EAX,4
+      AND EAX,-2
+      ADD EDI,EAX                              ; name_ptr += (current_import->symbol->length+4)&(-2)
+
+      POP EBX
+      MOV EBX,[EBX]                            ; current_import = current_import->next
+    }
+
+    asm_dword(EDI)                           ; emit Name RVA
+    asm_dword([import_address_table_ptr])    ; emit Import Address Table RVA
+
+    POP EBX
+
+    MOV EAX,[EBX+0c]
+    INC EAX
+    INC EAX
+    AND EAX,-2
+    ADD EDI,EAX                              ; name_ptr += (current->length+2)&(-2)
+
+    MOV EAX,[EBX+4]
+    INC EAX
+    SHL EAX,2
+    ADD ESI,EAX                              ; import_lookup_table_ptr += (current->imports+1)*4
+    ADD [import_address_table_ptr],EAX       ; import_address_table_ptr += (current->imports+1)*4
+
+    MOV EBX,[EBX]                            ; current = current->next
+  }
+
+  asm_dword(0)
+  asm_dword(0)
+  asm_dword(0)
+  asm_dword(0)
+  asm_dword(0)                             ; emit null directory entry
+
+  ; Write import lookup table
+
+  MOV EDI,[pe_import_table_address]
+  ADD EDI,[pe_import_table_size]
+  ADD EDI,[pe_import_address_table_size]   ; name_ptr = pe_import_table_address+pe_import_table_size+pe_import_address_table_size
+
+  MOV EBX,[first_dll_name]                 ; current = first_dll_name
+  while (EBX) {                            ; while (current) {
+    PUSH EBX
+    MOV EBX,[EBX+8]                          ; current_import = current->first
+    while (EBX) {                            ; while (current_import)
+      PUSH EBX
+
+      asm_dword(EDI)                           ; emit import address table entry
+      MOV EAX,[[EBX+8]+0c]
+      ADD EAX,4
+      AND EAX,-2
+
+      ADD EDI,EAX                              ; name_ptr += (current_import->symbol->length+4)&(-2)
+
+      POP EBX
+      MOV EBX,[EBX]                            ; current_import = current_import->next
+    }
+
+    asm_dword(0)                             ; emit null import address table entry
+
+    POP EBX
+
+    MOV EAX,[EBX+0c]
+    INC EAX
+    INC EAX
+    AND EAX,-2
+    ADD EDI,EAX                              ; name_ptr += (current->length+2)&(-2)
+
+    MOV EBX,[EBX]                            ; current = current->next
+  }
+
+  ; Write hint/name table
+
+  MOV EBX,[first_dll_name]                 ; current = first_dll_name
+  while (EBX) {                            ; while (current) {
+    PUSH EBX
+    MOV EBX,[EBX+8]                          ; current_import = current->first
+    while (EBX) {                            ; while (current_import) {
+      asm_word(0)                              ; emit hint
+      PUSH EBX
+      MOV EBX,[EBX+8]                          ; symbol = current_import->symbol
+      asm_string(EBX+0c)                       ; emit import name
+      asm_byte(0)                              ; emit terminator
+      if (([EBX+0c]&1)==0)                     ; if ((symbol->length)&1 == 0)
+        asm_byte(0)                              ; emit padding
+      POP EBX
+      MOV EBX,[EBX]                            ; current_import = current_import->next
+    }
+    POP EBX
+
+    asm_string(EBX+0c)                       ; emit dll name
+    asm_byte(0)
+    if (([EBX+0c]&1)==0)                     ; if ((current->length)&1 == 0)
+      asm_byte(0)                              ; emit padding
+
+    MOV EBX,[EBX]                            ; current = current->next
+  }
+
+  if ([data_end]!=[ip]) {
+    MOV D[last_phase],false
+    MOV D[data_end],[ip]
+  }
+
+  POP EDI
+  POP ESI
+  POP EBX
+}

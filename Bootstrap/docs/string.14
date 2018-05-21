@@ -1,0 +1,63 @@
+; Create and return a terminated string
+;  arg1 = length
+;  arg2 = source start
+;  arg3 = bytes to allocate before
+;  arg4 = terminator
+
+string_terminate:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV DI,malloc([BP+6]+2+[BP+0a]+1)
+  PUSH DI
+  ADD DI,[BP+6]
+  MOV AX,[BP+0a]
+  STOSW
+  MOV CX,AX
+  MOV SI,[BP+8]
+  REP MOVSB
+  MOV AL,[BP+4]
+  STOSB
+  POP AX
+
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Create and return a string from concatenating two other strings
+;  arg1 = first string
+;  arg2 = second string
+;  arg3 = bytes to allocate before
+
+string_concat:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV DI,malloc([BP+4]+2+[[BP+8]]+[[BP+6]])
+  PUSH DI
+  ADD DI,[BP+4]
+  MOV AX,[[BP+8]]+[[BP+6]]
+  STOSW
+  MOV CX,[[BP+8]]
+  MOV SI,[BP+8]+2
+  REP MOVSB
+  MOV CX,[[BP+6]]
+  MOV SI,[BP+6]+2
+  REP MOVSB
+  POP AX
+
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+

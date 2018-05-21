@@ -1,0 +1,1412 @@
+; This is the bootstrapping compiler step 16 (written in step 15 language)
+; This file contains the expression parser
+
+
+
+; AST format (BX = pointer to AST):
+; B[BX] - type
+;   type='R': register.      B[BX+1] = register number
+;   type='N': number.        B[BX+1] = 0 for absolute, 1 for label             D[BX+2] = number
+;   type='"': string.        W[BX+2] = length of string                        BX+4    = string
+;   type=']': mod/rm         B[BX+1] = size (0 = unknown, 1 = byte, 2 = word)  W[BX+2] = number of bytes  BX+4 = bytes to emit
+;   type='[': memory.        B[BX+1] = size (0 = unknown, 1 = byte, 2 = word)  W[BX+2] = AST of interior expression
+;   type='@': pop.
+;   type='_': negative.      W[BX+2] = AST of negated expression
+;   type='~': not.           W[BX+2] = AST of complemented expression
+;   type='F': function call. W[BX+2] = AST describing function to call         W[BX+4] = AST of arguments (0 if no arguments)
+;   type='A': argument list. W[BX+2] = AST of first argument                   W[BX+4] = AST of rest of arguments (0 if no more arguments)
+;   type='*': multiply.      W[BX+2] = AST of 1st multiplicand                 W[BX+4] = AST of 2nd multiplicand
+;   type='/': divide.        W[BX+2] = AST of dividend                         W[BX+4] = AST of divisor
+;   type='%': modulo.        W[BX+2] = AST of dividend                         W[BX+4] = AST of divisor
+;   type='+': add.           W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='-': subtract.      W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of subexpression to subtract
+;   type='l': left-shift.    W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='r': right-shift.   W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='<': less-than.     W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='>': greater-than.  W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='L': less-or-equ.   W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='G': greater-or-eq. W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='e': equal          W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='n': not equal      W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='&': and            W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='^': xor            W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+;   type='|': or             W[BX+2] = AST of 1st subexpression                W[BX+4] = AST of 2nd subexpression
+
+
+
+; Returns the size of AST ast
+function ast_size(ast)
+{
+  PUSH SI
+  MOV SI,[ast]
+  MOV AL,[SI]
+  XOR AH,AH
+  switch(AX) {
+    case 'R' MOV AX,2-(B[SI+1]>>3)
+    case ']'
+    case '[' {
+      MOV AL,B[SI+1]
+      XOR AH,AH
+    }
+    default XOR AX,AX
+  }
+  POP SI
+}
+
+
+
+; Verifies that the operand sizes size1 and size2 match (not ambiguous or conflicting).
+function check_opsize(size1,size2)
+{
+  MOV CL,[size1] | [size2]
+  if (CL==0)
+    error_exit("Unknown operand size on line: $")
+  else if (CL==3)
+    error_exit("Operand has wrong size on line: $")
+}
+
+
+
+; This function generates code for an instruction expecting a mod/rm sequence and getting a register
+function gen_ea_reg(reg,opcode,secondary_arg,size)
+{
+  if ([reg] < 8) {
+    check_opsize(2,[size])
+    if (B[opcode]!=08b | B[secondary_arg]!=(B[reg]<<3)) {
+      asm_byte([opcode])
+      asm_byte([reg] | [secondary_arg] | 0c0)
+    }
+  }
+  else {
+    check_opsize(1,[size])
+    AND B[reg],7
+    if (B[opcode]!=08a | B[secondary_arg]!=(B[reg]<<3)) {
+      asm_byte([opcode])
+      asm_byte([reg] | [secondary_arg] | 0c0)
+    }
+  }
+}
+
+
+
+; This function generates code for an instruction expecting a mod/rm sequence
+function gen_ea(ast,opcode,secondary_arg,size,io)
+{
+  SHL B[secondary_arg],3
+
+  PUSH SI
+  MOV SI,[ast]
+  MOV AL,[SI]
+  XOR AH,AH
+  switch(AX) {
+    case 'R' gen_ea_reg(B[SI+1],[opcode],[secondary_arg],[size])
+    case ']' {
+      check_opsize(B[SI+1],[size])
+      asm_byte([opcode])
+      AND B[SI+4],0c7
+      OR B[SI+4],[secondary_arg]
+      asm_string(SI+2)                                 ; assemble the EA bytes
+    }
+    case '[' {
+      check_opsize(B[SI+1],[size])
+      gen_ea([SI+2],08b,3,2,1)                         ; assemble "MOV EBX,inner expression"
+      asm_byte([opcode])
+      asm_byte([secondary_arg] | 3)                    ; assemble "[EBX]"
+    }
+    default {
+      ; We now know that this is not an lvalue, so don't allow it for output
+      if (B[io]&2)
+        error_exit("Lvalue required on line: $")
+      gen_eax(SI)
+      gen_ea_reg(16-([size]<<3),[opcode],[secondary_arg],[size])
+    }
+  }
+  POP SI
+}
+
+
+
+; This function generates code for a predicate
+function gen_pred(ast,cond)
+{
+  gen_stk([[ast]+2])  ; generate code to push the value of the first expr onto the stack
+  gen_ea([[ast]+4],08b,2,2,1)  ; generate "MOV EDX,inner expr"
+  asm_byte(058)     ; assemble "POP EAX"
+  asm_byte(039)
+  asm_byte(0d0)     ; assemble "CMP EAX,EDX"
+  asm_byte([cond])
+  asm_byte(4)       ; assemble "J<cond> t"
+  asm_byte(0b0)
+  asm_byte(0)       ; assemble "MOV AL,0"
+  asm_byte(0eb)
+  asm_byte(2)       ; assemble "JMP t2"
+  asm_byte(0b0)
+  asm_byte(0ff)     ; assemble "t: MOV AL,0ff"
+  asm_byte(066)     ; assemble "t2:"
+  asm_byte(098)     ; assemble "CBW"
+  asm_byte(098)     ; assemble "CWDE"
+}
+
+
+
+; This function generates code to put the value of the AST ast into EAX.
+; BX is preserved
+
+function gen_eax(ast)
+{
+  PUSH SI
+  MOV SI,[ast]
+  MOV AL,[SI]
+  XOR AH,AH
+  switch (AX) {
+    case '@'
+      asm_byte(058)                    ; assemble "POP EAX"
+    case 'R'
+      if (B[SI+1] > 0)
+        if (B[SI+1] < 8)
+          gen_ea_reg(B[SI+1],08b,0,2)  ; assemble "MOV EAX,rd"
+        else {
+          asm_byte(0f)
+          gen_ea_reg(B[SI+1],0b6,0,1)  ; assemble "MOVZX EAX,rb"
+        }
+    case 'N' {
+      asm_byte(0b8)
+      asm_dword([SI+2],[SI+4])         ; assemble "MOV EAX,id"
+    }
+    case '"' {
+      gen_string(SI)                   ; assemble string
+      PUSH DX
+      PUSH AX
+      asm_byte(0b8)
+      POP AX
+      POP DX
+      asm_dword(AX,DX)                 ; assemble "MOV EAX,id"
+    }
+    case ']'
+    case '['
+      if (B[SI+1]==1) {
+        asm_byte(0f)
+        gen_ea(SI,0b6,0,1,1)           ; assemble "MOVZX EAX,B[...]"
+      }
+      else
+        gen_ea(SI,08b,0,2,1)           ; assemble "MOV EAX,D[...]"
+    case '_' {
+      gen_eax([SI+2])                  ; assemble "MOV EAX,inner expr"
+      asm_byte(0f7)
+      asm_byte(0d8)                    ; assemble "NEG EAX"
+    }
+    case '~' {
+      gen_eax([SI+2])                  ; assemble "MOV EAX,inner expr"
+      asm_byte(0f7)
+      asm_byte(0d0)                    ; assemble "NOT EAX"
+    }
+    case 'F' {
+      gen_stk([SI+4])                  ; assemble code to push the args onto the stack
+      gen_call([SI+2])                 ; assemble "CALL fn"
+    }
+    case '*' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,2,2,1)         ; assemble "MOV EDX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(0f7)
+      asm_byte(0e2)                    ; assemble "MUL EDX"
+    }
+    case '/' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,3,2,1)         ; assemble "MOV EBX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(031)
+      asm_byte(0d2)                    ; assemble "XOR EDX,EDX"
+      asm_byte(0f7)
+      asm_byte(0f3)                    ; assemble "DIV EBX"
+    }
+    case '%' {
+      gen_stk(SI)
+      asm_byte(058)                    ; assemble "POP EAX"
+    }
+    case '+' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,2,2,1)         ; assemble "MOV EDX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(1)
+      asm_byte(0d0)                    ; assemble "ADD EAX,EDX"
+    }
+    case '-' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,2,2,1)         ; assemble "MOV EDX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(029)
+      asm_byte(0d0)                    ; assemble "SUB EAX,EDX"
+    }
+    case 'l' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08a,1,2,1)         ; assemble "MOV CL,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(0d3)
+      asm_byte(0e0)                    ; assemble "SHL EAX,CL"
+    }
+    case 'r' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,1,2,1)         ; assemble "MOV ECX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(0d3)
+      asm_byte(0e8)                    ; assemble "SHL EAX,CL"
+    }
+    case '<' gen_pred(SI,07c)
+    case '>' gen_pred(SI,07f)
+    case 'L' gen_pred(SI,07e)
+    case 'G' gen_pred(SI,07d)
+    case 'e' gen_pred(SI,074)
+    case 'n' gen_pred(SI,075)
+    case '&' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,2,2,1)         ; assemble "MOV EDX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(021)
+      asm_byte(0d0)                    ; assemble "AND EAX,EDX"
+    }
+    case '^' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,2,2,1)         ; assemble "MOV EDX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(031)
+      asm_byte(0d0)                    ; assemble "XOR EAX,EDX"
+    }
+    case '|' {
+      gen_stk([SI+2])                  ; assemble code to push the first argument onto the stack
+      gen_ea([SI+4],08b,2,2,1)         ; assemble "MOV EDX,inner expr"
+      asm_byte(058)                    ; assemble "POP EAX"
+      asm_byte(9)
+      asm_byte(0d0)                    ; assemble "OR EAX,EDX"
+    }
+  }
+  POP SI
+}
+
+
+
+; This function generates an in-code string and returns the string's address in DX:AX
+function gen_string(ast)
+{
+  auto skip
+  MOV W[skip],add_anon_label()
+  gen_jmp([skip])                  ; assemble "JMP code_after_string"
+
+  PUSH W[ip+2]
+  PUSH W[ip]                       ; store address of string
+  asm_string([ast]+2)              ; emit string
+  set_label([skip])
+  POP AX
+  POP DX                           ; return address of string
+}
+
+
+
+; This function generates code to push the constant value DX:AX onto the stack
+function gen_stack_imm(low,high)
+{
+  if (is_short([low],[high])) {
+    asm_byte(06a)
+    asm_byte([low])
+  }
+  else {
+    asm_byte(068)
+    asm_dword([low],[high])
+  }
+}
+
+
+
+; This function generates code to push the value of the AST ast onto the stack.
+; If the AST is an argument list, all the arguments are put onto the stack (first argument pushed first)
+
+function gen_stk(ast)
+{
+  PUSH SI
+  MOV SI,[ast]
+  if (SI != 0) {
+    MOV AL,[SI]
+    XOR AH,AH
+    switch (AX) {
+      case '@' { }  ; If the expression we want is already on the stack, we don't need to generate anything
+      case 'R'
+        if (B[SI+1] < 8)
+          asm_byte(050 + [SI+1])
+        else {
+          gen_eax(SI)
+          asm_byte(050)            ; assemble "PUSH EAX"
+        }
+      case 'N'
+        gen_stack_imm([SI+2],[SI+4])  ; assemble "PUSH id"
+      case '"' {
+        gen_string([ast])          ; assemble string
+        gen_stack_imm(AX,DX)       ; assemble "PUSH id"
+      }
+      case ']'
+      case '['
+        if (B[SI+1]==1) {
+          gen_eax([ast])           ; assemble "MOVZX EAX,expr"
+          asm_byte(050)            ; assemble "PUSH EAX"
+        }
+        else
+          gen_ea([ast],0ff,6,2,1)  ; assemble "PUSH expr"
+      case '_'
+      case '~'
+      case 'F'
+      case '*'
+      case '/'
+      case '+'
+      case '-'
+      case 'l'
+      case 'r'
+      case '<'
+      case '>'
+      case 'L'
+      case 'G'
+      case 'e'
+      case 'n'
+      case '&'
+      case '^'
+      case '|' {
+        gen_eax([ast])             ; assemble code to put the value of the expression in EAX
+        asm_byte(050)              ; assemble "PUSH EAX"
+      }
+      case 'A' {
+        gen_stk([SI+4])            ; assemble code to push the rest of the arguments onto the stack
+        gen_stk([SI+2])            ; assemble code to push the first argument onto the stack
+      }
+      case '%' {
+        gen_stk([SI+2])            ; assemble code to push the first argument onto the stack
+        gen_ea([SI+4],08b,3,2,1)   ; assemble "MOV EBX,inner expr"
+        asm_byte(058)              ; assemble "POP EAX"
+        asm_byte(031)
+        asm_byte(0d2)              ; assemble "XOR EDX,EDX"
+        asm_byte(0f7)
+        asm_byte(0f3)              ; assemble "DIV EBX"
+        asm_byte(052)              ; assemble "PUSH EDX"
+      }
+    }
+  }
+  POP SI
+}
+
+
+
+; This function recursively frees the AST ast. BX, AX and DX are preserved.
+function free_ast(ast)
+{
+  PUSH SI
+
+  MOV SI,[ast]
+  CMP SI,0
+  JE leaf
+  MOV AL,[SI]
+  CMP AL,'R'
+  JE leaf
+  CMP AL,'N'
+  JE leaf
+  CMP AL,'"'
+  JE leaf
+  CMP AL,'@'
+  JE leaf
+  CMP AL,']'
+  JE leaf
+  CMP AL,'['
+  JE onesub
+  CMP AL,'_'
+  JE onesub
+  CMP AL,'~'
+  JE onesub
+
+  free_ast([SI+4])
+  onesub:
+  free_ast([SI+2])
+  leaf:
+  free(SI)
+  POP SI
+}
+
+
+
+; This is the EA struct, an intermediate form between memory and modrm forms
+
+ea_offset:      DW 0 DW 0  ; offset to add
+ea_reg:         DW 0
+ea_reg2:        DW 0
+ea_reg_scale:   DW 0
+ea_reg_scale2:  DW 0
+
+offset_unknown: DW 0  ; 1 if offset is unknown in the first pass, 0 if it is known
+ea_offset_size: DW 0  ; 0 for no offset, 1 for signed byte offset, 4 for dword offset
+ea_mod:         DW 0  ; mod part of mod/rm byte: 0 = [reg]/[sib]/[dword], 1 = [reg+ib]/[sib+ib]/[EBP+ib], 2 = [reg+id]/[sib+id]/[EBP+id]
+ea_rm:          DW 0  ; ea part of mod/rm byte: 4 = [sib]/[sib+offset], 5 = [dword]/[EBP+offset], 0/1/2/3/6/7 = [reg]/[reg+offset]
+ea_scale:       DW 0  ; scale part of sib byte: 0 = *1, 040 = *2, 080 = *4, 0c0 = *8
+ea_index:       DW 0  ; index part of sib byte: 8*scaled register
+ea_base:        DW 0  ; base part of sib byte: unscaled register
+ea_use_sib:     DW 0  ; true if we should emit the SIB byte, false otherwise
+ea_size:        DW 0  ; size of memory access
+
+mods_for_widths: DB 0 DB 040 DB 0 DB 0 DB 080
+scales: DB 0 DB 0 DB 040 DB 0 DB 080 DB 0 DB 0 DB 0 DB 0c0
+
+; This function substitutes the memory AST [past] for an effective address defined by the ea struct
+
+function simplify_substea(past)
+{
+  PUSH SI
+  PUSH DI
+
+
+  ; Turn the EA struct into mod/rm/scale/index/base/offset_size information
+
+  if (([ea_offset]==0 & [ea_offset+2]==0) | [offset_unknown])
+    XOR AL,AL
+  else
+    if (is_short([ea_offset],[ea_offset+2]))
+      MOV AL,1
+    else
+      MOV AL,4
+  CBW
+  MOV [ea_offset_size],AX
+
+  if ([ea_reg_scale]>1 & [ea_reg_scale2]>1)
+    JMP end                              ; More than one scaled register - fail
+
+  if ([ea_reg_scale2]>[ea_reg_scale]) {
+    XCHG W[ea_reg_scale],[ea_reg_scale2]
+    XCHG W[ea_reg],[ea_reg2]             ; Put larger scale first
+  }
+
+  if ([ea_reg_scale]>1 & [ea_reg]==4)
+    JMP end                              ; ESP scaled - fail
+
+  if ([ea_reg_scale2]==0) {
+    MOV CX,[ea_reg_scale]
+    if (CX==2 | CX==3 | CX==5 | CX==9) {
+      DEC W[ea_reg_scale]
+      MOV W[ea_reg_scale2],1
+      MOV W[ea_reg2],[ea_reg]            ; reg*{2,3,5,9} -> reg+reg*{1,2,4,8}
+    }
+  }
+
+  MOV CX,[ea_reg_scale]
+  if (CX>2 & CX!=4 & CX!=8)
+    JMP end                              ; Scale factor not 1, 2, 4 or 8 - fail
+  else
+    MOV B[ea_scale],[scales+CX]
+
+  MOV W[ea_use_sib],false
+
+  if ([ea_reg_scale]==0) {
+    ; Offset only, no SIB
+    MOV B[ea_mod],0
+    MOV B[ea_rm],5
+    MOV W[ea_offset_size],4
+    JMP do_subst
+  }
+
+  MOV B[ea_mod],[mods_for_widths+[ea_offset_size]]
+  MOV B[ea_rm],4
+  MOV B[ea_index],[ea_reg]<<3
+
+  if ([ea_reg_scale2]==0) {
+    ; One register only
+    if ([ea_reg_scale]==1) {
+      ; One unscaled register only
+      MOV B[ea_rm],[ea_reg]
+      if ([ea_reg]==4) {
+        ; ESP
+        MOV W[ea_use_sib],true
+        MOV B[ea_scale],0
+        MOV B[ea_index],4
+        MOV B[ea_base],020
+        JMP do_subst
+      }
+      if ([ea_reg]==5 & [ea_offset_size]==0) {
+        ; EBP needs an offset. Use an ib
+        INC W[ea_offset_size]
+        MOV B[ea_mod],040
+      }
+      JMP do_subst
+    }
+    ; One register scaled by 4 or 8
+    MOV B[ea_mod],0
+    MOV W[ea_use_sib],true
+    MOV B[ea_base],5
+    MOV W[ea_offset_size],4
+    JMP do_subst
+  }
+
+  ; Two registers
+
+  MOV W[ea_use_sib],true
+  if ([ea_reg2]==5 & [ea_offset_size]==0) {
+    ; EBP needs an offset. Use an ib
+    INC W[ea_offset_size]
+    MOV B[ea_mod],040
+  }
+  MOV B[ea_base],[ea_reg2]
+
+
+  ; Free the memory AST and substitute a new ea AST.
+
+  do_subst:
+  MOV BX,[[past]]
+  MOV B[ea_size],[BX+1]
+  free_ast(BX)
+  MOV CX,5                       ; 5 = 1 (AST type) + 1 (size) + 2 (length) + 1 (mod/rm byte)
+  if ([ea_use_sib])
+    INC CX                       ;  +1 (SIB byte)
+  ADD CX,[ea_offset_size]        ;  +length of offset
+  PUSH CX
+  MOV SI,malloc(CX)
+  MOV DI,SI
+  MOV AL,']'
+  STOSB
+  MOV AL,[ea_size]
+  STOSB
+  POP AX
+  SUB AX,4
+  STOSW
+  MOV AL,[ea_mod]|[ea_rm]
+  STOSB
+  if ([ea_use_sib]) {
+    MOV AL,[ea_scale]|[ea_index]|[ea_base]
+    STOSB
+  }
+  if ([ea_offset_size]==1) {
+    MOV AL,[ea_offset]
+    STOSB
+  }
+  else if ([ea_offset_size]==4) {
+    MOV AX,[ea_offset]
+    STOSW
+    MOV AX,[ea_offset+2]
+    STOSW
+  }
+  MOV [[past]],SI
+
+  end:
+  POP DI
+  POP SI
+}
+
+
+
+; This function adds AST ast to the EA struct.
+; BX is preserved.
+; Returns 0 for success, 1 for failure
+
+function simplify_add_to_ea_struct(ast)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV SI,[ast]
+  MOV AL,[SI]
+  XOR AH,AH
+  switch (AX) {
+    case 'R' {
+      MOV CL,B[SI+1]
+      XOR CH,CH
+      if (CX < 8)
+        if ([ea_reg_scale] & [ea_reg]==CX) {
+          INC W[ea_reg_scale]
+          MOV AX,-1                                       ; Change scale of first register - ok
+        }
+        else if ([ea_reg_scale2] & [ea_reg2]==CX) {
+          INC W[ea_reg_scale2]
+          MOV AX,-1                                       ; Change scale of second register - ok
+        }
+        else if ([ea_reg_scale]==0) {
+          MOV W[ea_reg_scale],1
+          MOV W[ea_reg],CX
+          MOV AX,-1                                       ; Add first register - ok
+        }
+        else if ([ea_reg_scale2]==0) {
+          MOV W[ea_reg_scale2],1
+          MOV W[ea_reg2],CX
+          MOV AX,-1                                       ; Add second register - ok
+        }
+        else
+          XOR AX,AX                                       ; Already got two registers - fail
+      else
+        XOR AX,AX                                         ; byte register - fail
+    }
+    case 'N' {
+      MOV AX,[SI+2]
+      MOV DX,[SI+4]
+      ADD [ea_offset],AX
+      ADC [ea_offset+2],DX
+      MOV CL,[SI+1]
+      XOR CH,CH
+      if ([first_phase] & CX)
+        MOV W[offset_unknown],true
+      MOV AX,-1                                           ; Add to offset - ok
+    }
+    case '*' {
+      MOV DI,[SI+4]
+      MOV SI,[SI+2]
+      if (B[SI]=='N' & B[DI]=='R')
+        XCHG SI,DI                                        ; If we have a number and a register, put them in register, number order
+      if (B[SI]=='R' & B[DI]=='N' & W[DI+4]==0) {
+        MOV BX,[DI+2]
+        MOV CL,B[SI+1]
+        XOR CH,CH
+        if (CX < 8)
+          if ([ea_reg_scale]!=0 & [ea_reg]==CX) {
+            ADD [ea_reg_scale],BX
+            MOV AX,-1                                     ; Change scale of first register - ok
+          }
+          else if ([ea_reg_scale2]!=0 & [ea_reg2]==CX) {
+            ADD [ea_reg_scale2],BX
+            MOV AX,-1                                     ; Change scale of second register - ok
+          }
+          else if ([ea_reg_scale]==0) {
+            MOV [ea_reg_scale],BX
+            MOV [ea_reg],CX
+            MOV AX,-1                                     ; Add first register - ok
+          }
+          else if ([ea_reg_scale2]==0) {
+            MOV [ea_reg_scale2],BX
+            MOV [ea_reg2],CX
+            MOV AX,-1                                     ; Add second register - ok
+          }
+          else
+            XOR AX,AX                                     ; Already got two registers - fail
+        else
+          XOR AX,AX                                       ; Scaling a byte register - fail
+      }
+      else
+        XOR AX,AX                                         ; Register*long or not register*number - fail
+    }
+    case '+'
+      MOV AX,simplify_add_to_ea_struct([SI+2]) & simplify_add_to_ea_struct([SI+4])
+    default
+      XOR AX,AX
+  }
+
+  POP DI
+  POP SI
+}
+
+
+
+; This function simplifies the AST ast and returns the simplified AST.
+
+function simplify(ast)
+{
+  simplify_ast(ast)
+  MOV AX,[ast]
+}
+
+
+
+; This function recursively simplifies the AST [past] by folding constants and
+; where possible converting arbitary memory expressions to mod/rm expressions.
+; It works on ASTs in-place.
+; BX is preserved.
+; memory -> mod r/m
+
+; TODO:
+ ; constant folding: binop(N,N) -> N
+ ; string concatenation: +(",N) -> ",  +(",") -> "
+ ; additive identities: +(N[0],x) -> x,  -(N[0],x) -> _(x),  +(x,N[0]) -> x,  -(x,N[0]) -> x, -(x,x) -> N[0]
+ ; multiplicative identities: *(N[1],x) -> x,  *(x,N[1]) -> x,  /(x,N[1]) -> x, *(N[0],x) -> N[0], *(x,N[0]) -> N[0], /(x,N[0]) -> error
+ ; additive/subtractive commutivity (gather all terms in an additive/subtractive expression and fold all constant terms into one)
+ ; multiplicative commutivity (gather all factors in a multiplicative expression and fold all constant factors into one)
+
+function simplify_ast(past)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV SI,[past]
+  MOV SI,[SI]
+  if (SI) {
+    MOV AL,[SI]
+    XOR AH,AH
+    switch(AX) {
+      case 'R'
+      case 'N'
+      case '"'
+      case '@'
+      case ']' { }
+      case '[' {
+        simplify_ast(SI+2)    ; Simplify inner AST
+        XOR AX,AX
+        MOV W[ea_offset],AX
+        MOV W[ea_offset+2],AX
+        MOV W[ea_reg_scale],AX
+        MOV W[ea_reg_scale2],AX
+        MOV W[offset_unknown],AX
+        if (simplify_add_to_ea_struct([SI+2]))
+          simplify_substea([past])
+      }
+      case '_' {
+        simplify_ast(SI+2)    ; Simplify inner AST
+        MOV DI,[SI+2]         ; inner AST
+        if (B[DI]=='N') {
+          free(SI)              ; Free outer AST
+          MOV SI,DI             ; Replace outer with inner
+          NEG W[SI+2]
+          ADC W[SI+4],0
+          NEG W[SI+4]           ; Negate value
+        }
+        else if (B[DI]=='_') {
+          free(SI)              ; Free outer AST
+          MOV SI,[DI+2]         ; Replace outer with inner of inner
+          free(DI)              ; Free inner AST
+        }
+        MOV [[past]],SI
+      }
+      case '~' {
+        simplify_ast(SI+2)    ; Simplify inner AST
+        MOV DI,[SI+2]         ; inner AST
+        if (B[DI]=='N') {
+          free(SI)              ; Free outer AST
+          MOV SI,DI             ; Replace outer with inner
+          NOT W[SI+2]
+          NOT W[SI+4]           ; Complement value
+        }
+        else if (B[DI]=='~') {
+          free(SI)              ; Free outer AST
+          MOV SI,[DI+2]         ; Replace outer with inner of inner
+          free(DI)              ; Free inner AST
+        }
+        MOV [[past]],SI
+      }
+      default {
+        simplify_ast(SI+2)
+        simplify_ast(SI+4)    ; Simplify inner ASTs
+        MOV DI,[SI+4]
+        if (B[SI]=='-')
+          if (B[DI]=='N') {
+            ; strength reduce -(x,N) -> +(x,-N)
+            MOV B[SI],'+'
+            NEG W[DI+2]
+            ADC W[DI+4],0
+            NEG W[DI+4]
+          }
+      }
+    }
+  }
+  POP DI
+  POP SI
+}
+
+
+
+; Parsing functions. These all expect a token type in [token] (i.e. should be
+; called right after a call to get_next_token()) and leave the machine in
+; a similar state (i.e. [token] is the type of the next unparsed token).
+; They all return the AST corresponding to the expression just parsed in BX.
+
+
+
+; This function parses the following part of the grammar:
+; expr0 := <reg> <expr0'> |
+;          <number> |
+;          <string> |
+;          <identifier> <expr0'> |
+;          ( <expr> ) <expr0'> |
+;          [ <expr> ] <expr0'> |
+;          <size> [ <expr> ] <expr0'> |
+;          @ |
+;          true |
+;          false
+function parse_expr0()
+{
+  ; Handle the <reg> <expr0'> production:
+
+  CMP B[token],'R'
+  JNE not_reg
+  MOV BX,malloc(2)
+  MOV B[BX],'R'
+  MOV DL,[token_arg]
+  MOV [BX+1],DL
+  get_next_token()                          ; Slurp the reg
+  parse_expr0p()
+  JMP end
+  not_reg:
+
+  ; Handle the <number> production:
+
+  CMP B[token],'0'
+  JNE not_number
+  MOV BX,malloc(6)
+  MOV B[BX],'N'
+  MOV B[BX+1],0
+  MOV W[BX+2],[token_arg]
+  MOV W[BX+4],[token_arg_high]
+  get_next_token()                          ; Slurp the number
+  JMP end
+  not_number:
+
+  ; Handle the <string> production:
+
+  CMP B[token],'"'
+  JNE not_string
+  MOV BX,string_create([token_arg_high],[token_arg],2)
+  MOV B[BX],'"'
+  get_next_token()                          ; Slurp the string
+  JMP end
+  not_string:
+
+  ; Handle the <identifier> <expr0'> production:
+
+  CMP B[token],'I'
+  JNE not_identifier
+  MOV BX,expr_from_symbol(symbol_from_identifier())
+  get_next_token()                          ; Slurp the identifier
+  parse_expr0p()
+  JMP end
+  not_identifier:
+
+  ; Handle the ( <expr> ) <expr0'> production:
+
+  CMP B[token],'('
+  JNE not_parens
+  get_next_token()                          ; Slurp the open paren
+  parse_expr()
+  CMP B[token],')'
+  JE parens_matched
+  error_exit("Unmatched ( on line: $")
+  parens_matched:
+  get_next_token()                          ; Slurp the close paren
+  parse_expr0p()
+  JMP end
+  not_parens:
+
+  ; Handle the [ <expr> ] <expr0'> production:
+
+  CMP B[token],'['
+  JNE not_memory
+  get_next_token()                          ; Slurp the open bracket
+  parse_expr()
+  CMP B[token],']'
+  JE memory_matched
+  memory_unmatched:
+  error_exit("Unmatched [ on line: $")
+  memory_matched:
+  PUSH BX
+  MOV BX,malloc(4)
+  MOV B[BX],'['
+  MOV B[BX+1],0
+  POP AX
+  MOV [BX+2],AX
+  get_next_token()                          ; Slurp the close bracket
+  parse_expr0p()
+  JMP end
+  not_memory:
+
+  ; Handle the <size> [ <expr> ] <expr0'> production:
+
+  CMP B[token],'S'
+  JNE not_size
+  CMP B[token+1],'B'
+  JNE size_word
+  MOV DL,1
+  JMP size_known
+  size_word:
+  MOV DL,2
+  size_known:
+  PUSH DX
+  get_next_token()                          ; Slurp the size
+  CMP B[token],'['
+  JNE not_size
+  get_next_token()                          ; Slurp the open bracket
+  parse_expr()
+  CMP B[token],']'
+  JNE memory_unmatched
+  PUSH BX
+  MOV BX,malloc(4)
+  MOV B[BX],'['
+  POP AX
+  POP DX
+  MOV [BX+1],DL
+  MOV [BX+2],AX
+  get_next_token()                          ; Slurp the close bracket
+  parse_expr0p()
+  JMP end
+  not_size:
+
+  ; Handle the @ production:
+
+  CMP B[token],'@'
+  JNE not_pop
+  MOV BX,malloc(1)
+  MOV B[BX],'@'
+  get_next_token()                          ; Slurp the @
+  JMP end
+  not_pop:
+
+  ; Handle true and false productions:
+
+  CMP B[token],'K'
+  JNE not_truefalse
+  MOV AL,[token+1]
+  CMP AL,'0'
+  JNE keyword_notfalse
+  XOR DX,DX
+  JMP truefalse
+  keyword_notfalse:
+  CMP AL,'1'
+  JNE not_truefalse
+  MOV DX,-1
+  truefalse:
+  PUSH DX
+  MOV BX,malloc(4)
+  POP DX
+  MOV B[BX],'N'
+  MOV B[BX+1],0
+  MOV [BX+2],DX
+  MOV [BX+4],DX
+  get_next_token()                          ; Slurp the true/false
+  JMP end
+  not_truefalse:
+
+
+  ; No other tokens are valid here.
+
+  syntax_error()
+  end:
+}
+
+
+
+; This function makes a binary AST node with type (arg1), left subnode in (arg2), right subnode in (arg3)
+; The node is returned in BX.
+function make_binary_node(type,left,right)
+{
+  MOV BX,malloc(6)
+  MOV B[BX],[type]
+  MOV W[BX+2],[left]
+  MOV W[BX+4],[right]
+}
+
+
+
+; This function parses the following part of the grammar:
+; expr0' := |
+;           ( <expr_list> <expr0'>
+; AST pointer passed in BX is the AST of the previous expression (the function to be called).
+function parse_expr0p()
+{
+  CMP B[token],'('
+  JNE end
+
+  get_next_token()                          ; Slurp the open paren
+  PUSH BX
+  parse_expr_list()
+  POP CX
+  PUSH AX
+  make_binary_node('F',CX,BX)
+  POP AX
+  JMP parse_expr0p      ; tail recursion
+
+  end:
+}
+
+
+; This function parses the following part of the grammar:
+; expr_list := ) |
+;              <exprs> )
+function parse_expr_list()
+{
+  CMP B[token],')'
+  JNE got_expr
+  get_next_token()                          ; Slurp the close paren
+  XOR BX,BX
+  JMP end
+
+  got_expr:
+  parse_exprs()
+  CMP B[token],')'
+  JE got_close
+  error_exit("Unmatched ( in function call on line: $")
+  got_close:
+  get_next_token()                          ; Slurp the close paren
+  end:
+}
+
+
+
+; This function parses the following part of the grammar:
+; exprs := <expr> <exprs'>
+function parse_exprs()
+{
+  parse_expr()
+  PUSH BX
+  parse_exprsp()
+  POP CX
+  PUSH AX
+  make_binary_node('A',CX,BX)
+  POP AX
+}
+
+
+
+; This function parses the following part of the grammar:
+; exprs' := |
+;           , <exprs>
+function parse_exprsp()
+{
+  CMP B[token],','
+  JE comma
+  XOR BX,BX
+  JMP end
+
+  comma:
+  get_next_token()                          ; Slurp the comma
+  parse_exprs()
+  end:
+}
+
+
+
+; This function parses the following part of the grammar:
+; expr1 := ~ <expr0> |
+;          - <expr0> |
+;          + <expr0> |
+;          <expr0>
+function parse_expr1()
+{
+  ; Handle unary +
+
+  CMP B[token],'+'
+  JNE not_plus
+  get_next_token()                          ; Slurp the +
+  parse_expr0()
+  JMP end
+  not_plus:
+
+  ; Handle unary -
+
+  CMP B[token],'-'
+  JNE not_minus
+  get_next_token()                          ; Slurp the -
+  parse_expr0()
+  PUSH BX
+  MOV BX,malloc(4)
+  POP AX
+  MOV B[BX],'_'
+  MOV [BX+2],AX
+  JMP end
+  not_minus:
+
+  ; Handle unary ~ (not)
+
+  CMP B[token],'~'
+  JNE not_not
+  get_next_token()                          ; Slurp the ~
+  parse_expr0()
+  PUSH BX
+  MOV BX,malloc(4)
+  POP AX
+  MOV B[BX],'~'
+  MOV [BX+2],AX
+  JMP end
+  not_not:
+
+  ; Handle higher-precedence expressions
+
+  parse_expr0()
+  end:
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr2 := <expr1> <expr2'>
+; expr2' := |
+;           * <expr1> <expr2'> |
+;           / <expr1> <expr2'> |
+;           % <expr1> <expr2'>
+; AST pointer passed in BX is the AST of the previous expression (the LHS of the expression).
+
+function parse_expr2()
+{
+  parse_expr1()
+
+  parse_expr2p:
+
+  ; Handle *
+
+  MOV AX,[token]
+  CMP AL,'*'
+  JNE not_multiply
+  binary:
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the *
+  parse_expr1()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr2p       ; tail recursion
+  not_multiply:
+
+  ; Handle /
+
+  CMP AL,'/'
+  JE binary
+
+  ; Handle %
+
+  CMP AL,'%'
+  JE binary
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr3 := <expr2> <expr3'>
+; expr3' := |
+;           + <expr2> <expr3'> |
+;           - <expr2> <expr3'>
+function parse_expr3()
+{
+  parse_expr2()
+
+  parse_expr3p:
+
+  ; Handle +
+
+  MOV AX,[token]
+  CMP AL,'+'
+  JNE not_add
+  binary:
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the + or -
+  parse_expr2()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr3p       ; tail recursion
+  not_add:
+
+  ; Handle -
+
+  CMP AL,'-'
+  JE binary
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr4 := <expr3> <expr4'>
+; expr4' := |
+;           << <expr3> <expr4'> |
+;           >> <expr3> <expr4'>
+function parse_expr4()
+{
+  parse_expr3()
+
+  parse_expr4p:
+
+  ; Handle <<
+
+  MOV AX,[token]
+  CMP AL,'l'
+  JNE not_lshift
+  binary:
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the << or >>
+  parse_expr3()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr4p       ; tail recursion
+  not_lshift:
+
+  ; Handle >>
+
+  CMP AL,'r'
+  JE binary
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr5 := <expr4> <expr5'>
+; expr5' := |
+;           < <expr4> <expr5'> |
+;           > <expr4> <expr5'> |
+;           <= <expr4> <expr5'> |
+;           >= <expr4> <expr5'>
+function parse_expr5()
+{
+  parse_expr4()
+
+  parse_expr5p:
+
+  ; Handle <
+
+  MOV AX,[token]
+  CMP AL,'<'
+  JNE not_less
+  binary:
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the <, >, <= or >=
+  parse_expr4()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr5p       ; tail recursion
+  not_less:
+
+  ; Handle >
+
+  CMP AL,'>'
+  JE binary
+
+  ; Handle <=
+
+  CMP AL,'L'
+  JE binary
+
+  ; Handle >=
+
+  CMP AL,'G'
+  JE binary
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr6 := <expr5> <expr6'>
+; expr6' := |
+;           == <expr5> <expr6'> |
+;           != <expr5> <expr6'>
+function parse_expr6()
+{
+  parse_expr5()
+
+  parse_expr6p:
+
+  ; Handle ==
+
+  MOV AX,[token]
+  CMP AL,'e'
+  JNE not_equal
+  binary:
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the == or !=
+  parse_expr5()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr6p       ; tail recursion
+  not_equal:
+
+  ; Handle !=
+
+  CMP AL,'n'
+  JE binary
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr7 := <expr6> <expr7'>
+; expr7' := |
+;           & <expr6> <expr7'>
+function parse_expr7()
+{
+  parse_expr6()
+
+  parse_expr7p:
+
+  ; Handle &
+
+  MOV AX,[token]
+  CMP AL,'&'
+  JNE not_and
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the &
+  parse_expr6()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr7p       ; tail recursion
+  not_and:
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr8 := <expr7> <expr8'>
+; expr8' := |
+;           ^ <expr7> <expr8'>
+function parse_expr8()
+{
+  parse_expr7()
+
+  parse_expr8p:
+
+  ; Handle ^
+
+  MOV AX,[token]
+  CMP AL,'^'
+  JNE not_xor
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the ^
+  parse_expr7()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_expr8p       ; tail recursion
+  not_xor:
+
+  ; empty also accepted
+}
+
+
+
+; This function parses the following parts of the grammar:
+; expr := <expr8> <expr'>
+; expr' := |
+;          | <expr8> <expr'>;
+function parse_expr()
+{
+  parse_expr8()
+
+  parse_exprp:
+
+  ; Handle |
+
+  MOV AX,[token]
+  CMP AL,'|'
+  JNE not_or
+  PUSH AX
+  PUSH BX
+  get_next_token()                          ; Slurp the |
+  parse_expr8()
+  POP CX
+  POP DX
+  make_binary_node(DX,CX,BX)
+  JMP parse_exprp       ; tail recursion
+  not_or:
+
+  ; empty also accepted
+  MOV AX,BX
+}

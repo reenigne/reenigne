@@ -1,0 +1,435 @@
+; This is the bootstrapping compiler step 15 (written in step 15 language)
+; This file contains utility functions
+
+; Entry point.
+;   Set up the stack
+;   Set up the segments
+;   Set up the heap
+;   Parse the command line
+;   Open the files
+;   Call main
+;   Exit
+
+  CLI
+  MOV SS,CS
+  MOV SP,0fffe
+  STI
+
+  MOV DS,CS
+  MOV ES,CS
+
+  init_heap(0fe00)
+  init_tables()
+
+  MOV SI,082
+  CLD
+
+  XOR BL,BL
+  find_binary_name_loop:
+  MOV DI,SI
+  find_name_loop:
+  LODSB
+  CMP AL,0D
+  JE got_binary_name
+  CMP AL,' '
+  JNE find_name_loop
+  MOV [SI-1],BL        ; Store a null to terminate the name
+  JMP find_binary_name_loop
+
+  got_binary_name:
+  MOV [SI-1],BL
+  MOV [writename],DI
+
+  main()
+  exit()
+
+
+function exit()
+{
+  MOV AH,04C
+  INT 021                        ; exit
+}
+
+readhandle:  DW 0
+writehandle: DW 0
+writename: DW 0
+next_input_file: DW 0
+
+
+
+; Print the ($-terminated) message msg
+function printmsg(msg)
+{
+  MOV DX,[msg]
+  MOV AH,9
+  INT 021
+}
+
+
+
+; Print the unsigned decimal number (arg)
+function printnum(num)
+{
+  CMP W[num],10000
+  JB p1000
+  MOV DL,'0'+[num]/10000
+  MOV AH,2
+  INT 021
+  MOV W[num],[num]%10000
+  JMP p01000
+
+  p1000:
+  CMP W[num],1000
+  JB p100
+  p01000:
+  MOV DL,'0'+[num]/1000
+  MOV AH,2
+  INT 021
+  MOV W[num],[num]%1000
+  JMP p0100
+
+  p100:
+  CMP W[num],100
+  JB p10
+  p0100:
+  MOV DL,'0'+[num]/100
+  MOV AH,2
+  INT 021
+  MOV W[num],[num]%100
+  JMP p010
+
+  p10:
+  CMP W[num],10
+  JB p1
+  p010:
+  MOV DL,'0'+[num]/10
+  MOV AH,2
+  INT 021
+  MOV W[num],[num]%10
+
+  p1:
+  MOV DL,'0'+[num]
+  MOV AH,2
+  INT 021
+}
+
+
+
+; Print the ($-terminated) message msg and the current line number, then exit.
+function error_exit(msg)
+{
+  printmsg([msg])
+  printnum([lineno])
+  exit()
+}
+
+
+
+; Print the ($-terminated) message pointed to by (arg) and the label. Then tell the user the line number and exit.
+
+line_number_msg:
+DB 0D DB 0A DB "Line: $"
+
+function label_error(msg)
+{
+  printmsg([msg])
+  string_print([identifier]+0a)
+  error_exit(line_number_msg)
+}
+
+
+
+; Print a generic Syntax Error message with the line number and exit.
+function syntax_error()
+{
+  error_exit("Syntax error on line: $")
+}
+
+
+
+; Open first input file
+
+lineno: DW 0
+ip:     DW 0
+
+function rewind()
+{
+  MOV W[ip],0100
+  MOV W[lineno],0
+
+  ; Close current input file
+
+  MOV AH,03e
+  MOV BX,[readhandle]
+  INT 021
+
+  ; Open first input file
+
+  MOV DX,082
+  MOV AX,03D00
+  INT 021
+  JNC open_success
+  JMP exit
+  open_success:
+  MOV [readhandle],AX
+
+  ; Find next input file
+
+  MOV SI,082
+  find_next_name_loop:
+  LODSB
+  CMP AL,0
+  JNE find_next_name_loop
+  MOV [next_input_file],SI
+
+  readline()
+}
+
+
+
+; Write size bytes from data
+; Increment IP counter by size
+
+write_buffer: DW 0
+
+function write(data,size)
+{
+  PUSH SI
+  PUSH DI
+  MOV CX,[size]
+  MOV DX,[data]
+  MOV [write_buffer],DX
+  ADD [ip],CX
+  MOV AH,040
+  MOV BX,[writehandle]
+  MOV DX,write_buffer
+  INT 021
+  POP DI
+  POP SI
+}
+
+
+
+; Read 1 byte from file, return in AL. On EOF return CF=1.
+
+read_byte_buffer: DB 00
+
+function read_byte()
+{
+  MOV AH,03F
+  MOV BX,[readhandle]
+  MOV CX,1
+  MOV DX,read_byte_buffer
+  INT 021
+  TEST AX,AX
+  JNZ ok
+
+  ; Close file
+  MOV AH,03e
+  MOV BX,[readhandle]
+  INT 021
+
+  ; Is this the last file?
+  MOV DX,[next_input_file]
+  CMP DX,[writename]
+  JE end_of_last_file
+
+  ; Open next file
+
+  MOV AX,03D00
+  INT 021
+  JC exit
+  MOV [readhandle],AX
+
+  ; Update next filename
+
+  MOV SI,[next_input_file]
+  find_next_file_loop:
+  LODSB
+  CMP AL,0
+  JNE find_next_file_loop
+  MOV [next_input_file],SI
+
+  ; Return an end-of-line so we don't get a single line split across 2 files
+
+  MOV AL,0d
+  CLC
+  JMP end
+
+  end_of_last_file:
+  STC
+  JMP end
+
+  ok:
+  MOV AL,[read_byte_buffer]
+  CLC
+
+  end:
+}
+
+
+
+; Read 1 byte from file, return in AL. On EOF return CF=1.
+;   On CR, LF, CR+LF or LF+CR, return LF
+;   On HT or FF return SP
+;   On other control characters, or characters >126, error
+
+last_byte_read: DB 0
+
+function read_ascii()
+{
+  read_byte()
+  JC end
+
+  CMP AL,0D
+  JNE not_cr
+  CMP B[last_byte_read],0a
+  JNE done_crlf
+  MOV B[last_byte_read],0
+  JMP read_ascii             ;   second byte of CR+LF - try again.
+
+  not_cr:
+  CMP AL,0A
+  JNE not_lf
+  CMP B[last_byte_read],0d
+  JNE done_crlf
+  MOV B[last_byte_read],0
+  JMP read_ascii             ;   second byte of LF+CR - try again.
+
+  done_crlf:
+  MOV [last_byte_read],AL
+  MOV AL,0A
+  INC W[lineno]
+  CLC
+  JMP end
+
+  not_lf:
+  CMP AL,9
+  JNE not_ht
+  MOV AL,020
+  CLC
+  JMP end
+
+  not_ht:
+  CMP AL,0C
+  JNE not_ff
+  MOV AL,020
+  CLC
+  JMP end
+
+  not_ff:
+  CMP AL,020
+  JAE not_control
+  bad_character:
+  error_exit("Bad character on line: $")
+
+  not_control:
+  CMP AL,07E
+  JA bad_character
+  CLC
+  end:
+}
+
+
+
+; Read a line from the source, return null-terminated in line_buffer.
+; Returns CF=1 on EOF
+
+function readline()
+{
+  XOR CX,CX
+  MOV DI,[line_buffer]
+  looptop:
+  PUSH CX
+  PUSH DI
+  read_ascii()
+  POP DI
+  POP CX
+  JC eof
+  CMP AL,0a
+  JE end
+  STOSB
+  INC CX
+  CMP CX,[max_line_length]
+  JNE looptop
+  printmsg("Line too long: $")
+  printnum([lineno])
+  exit()
+
+  eof:
+  JCXZ setsi
+  CLC                   ; Clear CF so we dont return EOF on the last line
+
+  end:
+  MOV AL,0
+  STOSB
+  setsi:
+
+  MOV SI,[line_buffer]
+}
+
+
+
+; Returns upper case version of character if it's a lower-case letter.
+function upper_case(character)
+{
+  MOV AL,[character]
+  CMP AL,'a'
+  JL end
+  CMP AL,'z'
+  JG end
+  SUB AL,020
+  end:
+}
+
+
+
+; Returns CF=1 if character is a digit.
+function is_digit(character)
+{
+  MOV AL,[character]
+  CMP AL,'0'
+  JL no
+  CMP AL,'9'
+  JG no
+  STC
+  JMP end
+
+  no:
+  CLC
+  end:
+}
+
+
+
+; Returns CF=1 if character is A-Z, a-z or _ (i.e. can start an identifier).
+function is_alphabetic(character)
+{
+  PUSH AX
+  upper_case([character])
+  CMP AL,'A'
+  JL no
+  CMP AL,'_'
+  JE yes
+  CMP AL,'Z'
+  JG no
+  yes:
+  POP AX
+  STC
+  JMP end
+  no:
+  POP AX
+  CLC
+  end:
+}
+
+
+
+; Returns CF=1 is (arg) is alphanumeric (i.e. can be a second or subsequent character of an identifier).
+function is_alphanumeric(character)
+{
+  is_digit([character])
+  JC end
+  is_alphabetic([character])
+  end:
+}

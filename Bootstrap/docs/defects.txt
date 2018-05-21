@@ -1,0 +1,44 @@
+Failing to initialize high word of boolean constants
+Hard-coded mod/rm byte for [EBX] wrong when moved to 32-bit
+Expression involved invalidated AX and DX
+Forgot to replace SI with ESI in many places
+When finding end of argument string, need to slurp the initial " before searching for the ending "
+Register smashed
+Statements with complex lvalues bashed by rvalue computation
+Failing to dereference params in file_error
+Direction flag needs to be left unset
+Hard-coded width 8 in print_hex
+Dont increment arg at EOF
+Comment slurping loop only stopping on EOL, not EOF
+Comment slurping loop looking at [token], not [character]
+Dereferencing SI in NOT and NEG generation
+Failing to dereference msg param in error_exit
+is_identifier_keyword returning result in carry flag not EAX
+lex_identifier slurping too many characters due to decrementing start before using it to calculate length
+Dereferencing SI in eax mem generation
+EBX assumed to be saved but wasn't being
+EDI and ESI popped in the reverse order they were pushed
+Missing get_next_character when lexing string
+Can't use subtraction to calculate length of identifier due to 0d characters that get_next_character() skips over
+Failing to slurp character at end of string and literal
+Inner ASTs moved from +2 to +4 in many places
+Made "unexpected token" messages more specific
+Keyword number moved from [token+1] to [token_arg]
+Zeroing "high word" of 32-bit value
+Extranous "PUSH ECX" in simplify_substea (wrong!)
+simplify_substea needs to save EBX
+Using wrong version of import structure
+asm_string left unimplemented
+Lexing too many characters for string constants
+Put back PUSH ECX in simplify_substea
+Fixed generation of ea ASTs to match spec
+Passing too many args to is_short
+Accessing invalid address when strength reducing -(x,N) -> +(x,-N) and second inner is null (type == 'A')
+Address of second inner AST fixed
+Forgot to subtract ip in loopx address calculation
+Implemented asm_string
+Adjust max stack, condition needs to be >, not >=
+Initialize last arg->next to 0
+Used "DB" instead of "DD" for string size
+malloc passing size instead of [size] to HeapAlloc
+Allocating only 6 bytes instead of 8 for 'N' type ASTs

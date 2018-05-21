@@ -1,0 +1,2804 @@
+; This is the bootstrapping compiler step 12 (written in step 11 language)
+; This adds a function call syntax. Arguments are pushed onto the stack from
+; the left (the reverse order from C syntax).
+
+; Entry point.
+;   Set up the stack
+;   Set up the segments
+;   Set up the heap
+;   Parse the command line
+;   Open the files
+;   Call main
+;   Exit
+
+  CLI
+  PUSH CS
+  POP SS
+  MOV SP,0fffe
+  STI
+
+  PUSH CS
+  POP DS
+  PUSH CS
+  POP ES
+
+  MOV AX,static_end
+  MOV [heaptop],AX
+
+  MOV SI,082
+  MOV DX,SI
+  fnloop1:
+  LODSB
+  CMP AL," "
+  JNE fnloop1
+  XOR BL,BL
+  MOV [SI-1],BL
+  MOV DI,SI
+  fnloop2:
+  LODSB
+  CMP AL,0D
+  JNE fnloop2
+  MOV [SI-1],BL
+
+  MOV AX,03D00
+  INT 021
+  JC exit
+  MOV [readhandle],AX
+
+  MOV [writename],DI
+
+  CALL main
+
+  exit
+  MOV AH,04C
+  INT 021                        ; exit
+
+readhandle DW 0
+writehandle DW 0
+writename DW 0
+
+
+
+; Allocate CX bytes from heap and return pointer in AX
+; Allocating memory is pretty easy if you don't want to free it and reuse the memory.
+
+heaptop DW 0
+
+alloc
+  MOV AX,[heaptop]
+  ADD [heaptop],CX
+  RET
+
+
+
+; Print the ($-terminated) message pointed to by DX
+printmsg
+  MOV AH,9
+  INT 021
+  RET
+
+
+
+; Print the unsigned decimal number AX
+printnum
+  CMP AX,10000
+  JB printnum_1000
+  MOV BX,10000
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,"0"
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  JMP printnum_01000
+  printnum_1000
+  CMP AX,1000
+  JB printnum_100
+  printnum_01000
+  MOV BX,1000
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,"0"
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  JMP printnum_0100
+  printnum_100
+  CMP AX,100
+  JB printnum_10
+  printnum_0100
+  MOV BX,100
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,"0"
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  JMP printnum_010
+  printnum_10
+  CMP AX,10
+  JB printnum_1
+  printnum_010
+  MOV BX,10
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,"0"
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  printnum_1
+  ADD AL,"0"
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  RET
+
+
+
+; Print the ($-terminated) message pointed to by DX and the current line number, then exit.
+error_exit
+  CALL printmsg
+  MOV AX,[lineno]
+  CALL printnum
+  JMP exit
+
+
+
+; Print the ($-terminated) message pointed to by DX and the label. Then tell the user the line number and exit.
+
+line_number_msg
+DB 0D DB 0A DB "Line: $"
+
+label_error
+  CALL printmsg
+  MOV DX,identifier
+  CALL printmsg
+  MOV DX,line_number_msg
+  CALL error_exit
+
+
+
+; Print a generic Syntax Error message with the line number and exit.
+syntax_error
+  MOV DX,syntax_error_msg
+  CALL error_exit
+
+
+
+; Rewind file
+
+lineno DW 0
+ip     DW 0
+
+rewind
+  MOV AX,0100
+  MOV [ip],AX
+  MOV AX,0
+  MOV [lineno],AX
+
+  MOV AX,04200
+  MOV BX,[readhandle]
+  XOR CX,CX
+  XOR DX,DX
+  INT 021
+
+  CALL readline
+  RET
+
+
+; Write CX bytes from DX
+; Increment IP counter by CX
+
+write_buffer DW 0
+
+write
+  MOV [write_buffer],DX
+  ADD [ip],CX
+  MOV AH,040
+  MOV BX,[writehandle]
+  MOV DX,write_buffer
+  INT 021
+  RET
+
+
+
+; Read 1 byte from file, return in AL. On EOF return CF=1.
+
+read_byte_buffer DB 00
+
+read_byte
+  MOV AH,03F
+  MOV BX,[readhandle]
+  MOV CX,1
+  MOV DX,read_byte_buffer
+  INT 021
+  TEST AX,AX
+  JNZ read_byte_ok
+
+  STC
+  JMP read_byte_done
+
+  read_byte_ok
+  MOV AL,[read_byte_buffer]
+  CLC
+
+  read_byte_done
+  RET
+
+
+
+; Read 1 byte from file, return in AL. On EOF return CF=1.
+;   On CR, LF, CR+LF or LF+CR, return LF
+;   On HT or FF return SP
+;   On other control characters, or characters >126, error
+
+last_byte_read DB 0
+
+bad_character_msg
+DB "Bad character on line: $"
+
+read_ascii
+  CALL read_byte
+  JC read_ascii_done
+
+  CMP AL,0D
+  JNE read_ascii_not_cr
+  CMP B[last_byte_read],0a
+  JNE read_ascii_done_crlf
+  MOV B[last_byte_read],0
+  JMP read_ascii             ;   second byte of CR+LF - try again.
+
+  read_ascii_not_cr
+  CMP AL,0A
+  JNE read_ascii_not_lf
+  CMP B[last_byte_read],0d
+  JNE read_ascii_done_crlf
+  MOV B[last_byte_read],0
+  JMP read_ascii             ;   second byte of LF+CR - try again.
+
+  read_ascii_done_crlf
+  MOV [last_byte_read],AL
+  MOV AL,0A
+  INC W[lineno]
+  CLC
+  JMP read_ascii_done
+
+  read_ascii_not_lf
+  CMP AL,9
+  JNE read_ascii_not_ht
+  MOV AL,020
+  CLC
+  JMP read_ascii_done
+
+  read_ascii_not_ht
+  CMP AL,0C
+  JNE read_ascii_not_ff
+  MOV AL,020
+  CLC
+  JMP read_ascii_done
+
+  read_ascii_not_ff
+  CMP AL,020
+  JAE read_ascii_not_control
+  read_ascii_bad_character
+  MOV DX,bad_character_msg
+  CALL error_exit
+
+  read_ascii_not_control
+  CMP AL,07E
+  JA read_ascii_bad_character
+  CLC
+  read_ascii_done
+  RET
+
+
+
+; Read a line from the source, return null-terminated in line_buffer.
+; Returns CF=1 on EOF
+
+line_too_long_msg
+DB "Line too long: $"
+
+readline
+  XOR CX,CX
+  MOV DI,[line_buffer]
+  readline_loop
+  PUSH CX
+  PUSH DI
+  CALL read_ascii
+  POP DI
+  POP CX
+  JC readline_eof
+  CMP AL,0a
+  JE readline_end
+  STOSB
+  INC CX
+  CMP CX,[max_line_length]
+  JNE readline_loop
+  MOV DX,line_too_long_msg
+  CALL printmsg
+  MOV AX,[lineno]
+  CALL printnum
+  JMP exit
+
+  readline_eof
+  JCXZ readline_done
+  CLC                   ; Clear CF so we dont return EOF on the last line
+
+  readline_end
+  MOV AL,0
+  STOSB
+  readline_done
+
+  MOV SI,[line_buffer]
+  RET
+
+
+
+; Converts AL to upper case if it's a lower-case letter.
+upper_case
+  CMP AL,"a"
+  JL upper_case_end
+  CMP AL,"z"
+  JG upper_case_end
+  SUB AL,020
+  upper_case_end
+  RET
+
+
+
+; Returns CF=1 if AL is a digit.
+is_digit
+  CMP AL,"0"
+  JL is_digit_no
+  CMP AL,"9"
+  JG is_digit_no
+  STC
+  RET
+  is_digit_no
+  CLC
+  RET
+
+
+
+; Returns CF=1 if AL is A-Z, a-z or _ (i.e. can start an identifier).
+is_alphabetic
+  PUSH AX
+  CALL upper_case
+  CMP AL,"A"
+  JL is_alphabetic_no
+  CMP AL,"_"
+  JE is_alphabetic_yes
+  CMP AL,"Z"
+  JG is_alphabetic_no
+  is_alphabetic_yes
+  POP AX
+  STC
+  RET
+  is_alphabetic_no
+  POP AX
+  CLC
+  RET
+
+
+
+; Returns CF=1 is AL is alphanumeric (i.e. can be a second or subsequent character of an identifier).
+is_alphanumeric
+  CALL is_digit
+  JC is_alphanumeric_done
+  CALL is_alphabetic
+  is_alphanumeric_done
+  RET
+
+
+
+; Parse hexadecimal digit, return value in AL. Return CF=1 on fail.
+lex_hexdigit
+  LODSB
+  CALL upper_case
+  CALL is_digit
+  JC lex_hexdigit_number
+  CMP AL,"A"
+  JL lex_hexdigit_fail
+  CMP AL,"F"
+  JG lex_hexdigit_fail
+  SUB AL,7
+  lex_hexdigit_number
+  SUB AL,"0"
+  CLC
+  JMP lex_hexdigit_done
+  lex_hexdigit_fail
+  DEC SI
+  STC
+  lex_hexdigit_done
+  RET
+
+
+
+; Parse hexadecimal number, return value in AX.
+lex_hexnumber
+  MOV DX,0
+  lex_hexnumber_loop
+  CALL lex_hexdigit
+  JC lex_hexnumber_done
+  MOV CL,4
+  SHL DX,CL
+  OR DL,AL
+  JMP lex_hexnumber_loop
+  lex_hexnumber_done
+  CLC
+  RET
+
+
+
+; Parse decimal digit, return value in AL. Return CF=1 on fail.
+lex_decdigit
+  LODSB
+  CALL is_digit
+  JNC lex_decdigit_fail
+  SUB AL,"0"
+  CLC
+  JMP lex_decdigit_done
+  lex_decdigit_fail
+  DEC SI
+  STC
+  lex_decdigit_done
+  RET
+
+
+
+; Parse decimal number, return value in AX.
+lex_decnumber
+  MOV DX,0
+  lex_decnumber_loop
+  CALL lex_decdigit
+  JC lex_decnumber_done
+  PUSH AX
+  MOV AX,10
+  MUL DX
+  MOV DX,AX
+  POP AX
+  MOV AH,0
+  ADD DX,AX
+  JMP lex_decnumber_loop
+  lex_decnumber_done
+  CLC
+  RET
+
+
+
+; Parse identifier. Return in "identifier".
+
+label_too_long
+DB "Label too long: $"
+
+identifier
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00  ; One more for the terminator
+
+lex_identifier
+  XOR CX,CX
+  MOV DI,identifier
+  lex_identifier_loop
+  LODSB
+  CALL is_alphanumeric
+  JNC lex_identifier_end
+  STOSB
+  INC CX
+  CMP CX,021
+  JL lex_identifier_loop
+  MOV AL,"$"                   ; Terminate the overly long label
+  DEC DI
+  STOSB
+
+  MOV DX,label_too_long
+  JMP label_error
+
+  lex_identifier_end
+  MOV AL,"$"
+  STOSB                        ; "$" is a useful terminator as it means we can print the label name easily
+  DEC SI
+  RET
+
+
+
+; Returns CF=1 (and reg number in DX) if identifier is a register.
+
+reg_table
+  DB "AX" DB "CX" DB "DX" DB "BX" DB "SP" DB "BP" DB "SI" DB "DI"
+  DB "AL" DB "CL" DB "DL" DB "BL" DB "AH" DB "CH" DB "DH" DB "BH"
+  DB "ES" DB "CS" DB "SS" DB "DS"
+
+is_identifier_register
+  PUSH SI
+  MOV SI,identifier
+  LODSW
+  PUSH AX
+  LODSB
+  CMP AL,"$"
+  POP AX
+  JNE is_identifier_register_no
+  CALL upper_case
+  XCHG AL,AH
+  CALL upper_case
+  XCHG AL,AH
+  MOV DX,AX
+  MOV CX,014
+  MOV SI,reg_table
+  is_identifier_register_loop
+  LODSW
+  CMP AX,DX
+  JE is_identifier_register_yes
+  LOOP is_identifier_register_loop
+  is_identifier_register_no
+  CLC
+  POP SI
+  RET
+  is_identifier_register_yes
+  MOV DX,014
+  SUB DX,CX
+  STC
+  POP SI
+  RET
+
+
+
+; Returns CF=1 (and mnemonic number in DX) if identifier is a mnemonic.
+
+mnemonic_table
+DB "ADC$ADD$AND$CALL$CBW$CLC$CLD$CLI$CMC$CMP$"              ;  0
+DB "CMPSB$CMPSW$CWD$DB$DEC$DIV$DW$IDIV$IMUL$INC$"           ; 10
+DB "INT$JA$JAE$JB$JBE$JC$JCXZ$JE$JG$JGE$"                   ; 20
+DB "JL$JLE$JMP$JNA$JNAE$JNB$JNBE$JNC$JNE$JNG$"              ; 30
+DB "JNGE$JNL$JNLE$JNO$JNP$JNS$JNZ$JO$JP$JS$"                ; 40
+DB "JZ$LAHF$LODSB$LODSW$LOOP$LOOPE$LOOPNE$MOV$MOVSB$MOVSW$" ; 50
+DB "MUL$NEG$NOP$NOT$OR$POP$POPF$PUSH$PUSHF$RCL$"            ; 60
+DB "RCR$REP$REPNE$RET$RETF$ROL$ROR$SAHF$SALC$SAR$"          ; 70
+DB "SBB$SCASB$SCASW$SHL$SHR$STC$STD$STI$STOSB$STOSW$"       ; 80
+DB "SUB$TEST$XCHG$XLATB$XOR$"                               ; 90
+DB 00
+
+is_identifier_mnemonic
+  PUSH SI
+  MOV SI,mnemonic_table
+  MOV DX,0
+  is_identifier_mnemonic_loop
+  MOV DI,identifier
+  is_identifier_mnemonic_compare
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  XCHG AL,AH
+  CALL upper_case
+  CMP AL,AH
+  JNE is_identifier_mnemonic_cmpfail
+  CMP AL,"$"
+  JNE is_identifier_mnemonic_compare
+  POP SI
+  STC
+  RET
+  is_identifier_mnemonic_cmpfail
+  INC DX
+  DEC SI
+  LODSB
+  is_identifier_mnemonic_findnext
+  CMP AL,"$"
+  JE is_identifier_mnemonic_loop
+  CMP AL,0
+  JE is_identifier_mnemonic_end
+  LODSB
+  JMP is_identifier_mnemonic_findnext
+  is_identifier_mnemonic_end
+  POP SI
+  CLC
+  RET
+
+
+
+; Returns CF=1 (and "B" or "W" in AL) if identifier is "B" or "W"
+is_identifier_size
+  PUSH SI
+  MOV SI,identifier
+  LODSB
+  MOV AH,AL
+  LODSB
+  CMP AL,"$"
+  JE is_identifier_size_onechar
+  is_identifier_size_no
+  CLC
+  POP SI
+  RET
+  is_identifier_size_onechar
+  XCHG AL,AH
+  CALL upper_case
+  CMP AL,"B"
+  JE is_identifier_size_yes
+  CMP AL,"W"
+  JNE is_identifier_size_no
+  is_identifier_size_yes
+  STC
+  POP SI
+  RET
+
+
+
+; Gets the next token from the input. Return CF=1 on EOF.
+; Ignores
+;   Return token in AL:
+;     + = "+"
+;     - = "-"
+;     [ = "["
+;     ] = "]"
+;     , = ","
+;     : = ":"
+;     ( = "("
+;     ) = ")"
+;     S = "B" or "W" (size operand, AH = "B" or "W")
+;     " = string (DI = start of string, SI = end of string + 2)
+;     0 = number (DX = number)
+;     R = register (DX = register number)
+;     M = mnemonic (DX = mnemonic number)
+;     I = identifier (returned in identifier)
+;   NUL = EOF
+
+unexpected_character_msg
+DB "Unexpected character on line: $"
+
+unterminated_string_msg
+DB "Unterminated string on line: $"
+
+get_next_token
+  LODSB
+  CMP AL,0
+  JNE get_next_token_not_eol
+  get_next_token_skip_rest_of_line
+  CALL readline
+  JNC get_next_token
+  MOV AL,0
+  STC
+  JMP get_next_token_end2
+  get_next_token_end
+  CLC
+  get_next_token_end2
+  RET
+  get_next_token_not_eol
+  CMP AL," "
+  JE get_next_token
+  CMP AL,";"
+  JE get_next_token_skip_rest_of_line
+  CMP AL,"+"
+  JE get_next_token_end
+  CMP AL,"-"
+  JE get_next_token_end
+  CMP AL,"["
+  JE get_next_token_end
+  CMP AL,"]"
+  JE get_next_token_end
+  CMP AL,","
+  JE get_next_token_end
+  CMP AL,":"
+  JE get_next_token_end
+  CMP AL,"("
+  JE get_next_token_end
+  CMP AL,")"
+  JE get_next_token_end
+  CMP AL,022
+  JNE get_next_token_not_string
+
+  ; Token is a string
+
+  MOV DI,SI
+  get_next_token_scan_string
+  LODSB
+  CMP AL,022
+  JE get_next_token_end
+  CMP AL,0
+  JNE get_next_token_scan_string
+  MOV DX,unterminated_string_msg
+  CALL error_exit
+
+  get_next_token_not_string
+  CMP AL,"0"
+  JNE get_next_token_not_hex
+
+  ; Token is a hex number
+
+  CALL lex_hexnumber
+  MOV AL,"0"
+  CLC
+  RET
+
+  get_next_token_not_hex
+  CALL is_digit
+  JNC get_next_token_not_number
+
+  ; Token is a decimal number
+
+  DEC SI
+  CALL lex_decnumber
+  MOV AL,"0"
+  CLC
+  RET
+
+  get_next_token_not_number
+  CALL is_alphabetic
+  JC get_next_token_identifier
+
+  MOV DX,unexpected_character_msg
+  CALL error_exit
+
+  get_next_token_identifier
+
+  ; Token is an identifier (label, register or mnemonic)
+
+  DEC SI
+  CALL lex_identifier
+  CALL is_identifier_register
+  JNC get_next_token_not_register
+
+  MOV AL,"R"
+  CLC
+  RET
+
+  get_next_token_not_register
+  CALL is_identifier_mnemonic
+  JNC get_next_token_not_mnemonic
+
+  MOV AL,"M"
+  CLC
+  RET
+
+  get_next_token_not_mnemonic
+  CALL is_identifier_size
+  XCHG AL,AH
+  JNC get_next_token_not_size
+  MOV AL,"S"
+  CLC
+  RET
+
+  get_next_token_not_size
+  MOV AL,"I"
+  CLC
+  RET
+
+
+
+; Look up "identifier" in the symbol table and return the address
+; of the corresponding address slot in BX.
+
+add_symbol_flag DB 0
+
+symbol_table DW 0
+
+label_not_found_msg
+DB "Label not found: $"
+
+duplicate_label_msg
+DB "Duplicate label: $"
+
+search_symbol_table
+  PUSH SI
+  MOV DX,symbol_table
+  search_symbol_table_loop
+  MOV BX,DX
+  MOV DX,[BX]       ; This is the address of the next label (0 if there is no next label)
+  CMP DX,0
+  JE search_symbol_table_notfound
+
+  MOV BX,DX
+  ADD BX,2
+
+  MOV SI,identifier
+  MOV DI,BX
+  search_symbol_table_compare
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  CMP AL,AH
+  JNE search_symbol_table_loop
+  CMP AL,"$"
+  JNE search_symbol_table_compare
+
+  CMP B[add_symbol_flag],0
+  JE foundlabel
+  CMP B[first_phase],0
+  JE foundlabel
+  MOV DX,duplicate_label_msg
+  JMP label_error
+  foundlabel
+  MOV BX,DI
+  POP SI
+  RET                          ; Found! Return the corresponding address slot
+
+  search_symbol_table_notfound
+  CMP B[add_symbol_flag],0
+  JE search_symbol_table_dontadd
+
+  PUSH BX
+  MOV SI,identifier
+  MOV CX,0
+  search_symbol_table_count
+  LODSB
+  INC CX
+  CMP AL,"$"
+  JNE search_symbol_table_count
+  ADD CX,4
+  CALL alloc
+  POP BX
+  MOV [BX],AX
+  MOV DI,AX
+  MOV AX,0                ; Store a 0, indicating that there is no next label
+  STOSW
+
+  MOV SI,identifier
+  search_symbol_table_copy
+  LODSB
+  MOV [DI],AL
+  INC DI
+  CMP AL,"$"
+  JNE search_symbol_table_copy
+  MOV BX,DI
+  POP SI
+  RET
+
+  search_symbol_table_dontadd
+  CMP B[first_phase],0
+  JNE search_symbol_table_done           ; Using rather than defining a label in the first phase - we dont care about the value
+  MOV DX,label_not_found_msg
+  JMP label_error
+
+  search_symbol_table_done
+  POP SI
+  RET
+
+
+
+; Emit the byte in AL
+
+asm_byte
+  MOV DL,AL
+  MOV CX,1
+  CALL write
+  RET
+
+
+
+; Assemble instructions that are one byte and have no arguments
+
+asm_nop   MOV AL,090 JMP asm_byte
+asm_cbw   MOV AL,098 JMP asm_byte
+asm_cwd   MOV AL,099 JMP asm_byte
+asm_pushf MOV AL,09C JMP asm_byte
+asm_popf  MOV AL,09D JMP asm_byte
+asm_sahf  MOV AL,09E JMP asm_byte
+asm_lahf  MOV AL,09F JMP asm_byte
+asm_movsb MOV AL,0A4 JMP asm_byte
+asm_movsw MOV AL,0A5 JMP asm_byte
+asm_cmpsb MOV AL,0A6 JMP asm_byte
+asm_cmpsw MOV AL,0A7 JMP asm_byte
+asm_stosb MOV AL,0AA JMP asm_byte
+asm_stosw MOV AL,0AB JMP asm_byte
+asm_lodsb MOV AL,0AC JMP asm_byte
+asm_lodsw MOV AL,0AD JMP asm_byte
+asm_scasb MOV AL,0AE JMP asm_byte
+asm_scasw MOV AL,0AF JMP asm_byte
+asm_ret   MOV AL,0C3 JMP asm_byte
+asm_retf  MOV AL,0CB JMP asm_byte
+asm_salc  MOV AL,0D6 JMP asm_byte
+asm_xlatb MOV AL,0D7 JMP asm_byte
+asm_repne MOV AL,0F2 JMP asm_byte
+asm_rep   MOV AL,0F3 JMP asm_byte
+asm_cmc   MOV AL,0F5 JMP asm_byte
+asm_clc   MOV AL,0F8 JMP asm_byte
+asm_stc   MOV AL,0F9 JMP asm_byte
+asm_cli   MOV AL,0FA JMP asm_byte
+asm_sti   MOV AL,0FB JMP asm_byte
+asm_cld   MOV AL,0FC JMP asm_byte
+asm_std   MOV AL,0FD JMP asm_byte
+
+
+
+; Check to see if DX fits in a signed 8-bit integer
+; If not, prints an error message and exits.
+
+too_far_msg
+DB "Too far to label $"
+too_far_msg2
+DB " on line: $"
+
+check_short
+  CMP B[first_phase],0
+  JNE check_short_ok
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JZ check_short_ok
+  MOV DX,too_far_msg
+  CALL printmsg
+  MOV DX,identifier         ; this will be the symbol that caused the error
+  CALL printmsg
+  MOV DX,too_far_msg2
+  CALL error_exit
+  check_short_ok
+  RET
+
+
+
+; Assemble a conditional jump instruction (or the short unconditional jump JMPS).
+
+;   70+cond cb     Jcond cb
+
+label_required_msg
+DB "Label required at line: $"
+
+asm_jcond
+  PUSH AX
+  CALL get_next_token
+  CMP AL,"I"
+  JE asm_jcond_ok
+  MOV DX,label_required_msg
+  CALL error_exit
+
+  asm_jcond_ok
+  MOV AL,0
+  MOV [add_symbol_flag],AL
+  CALL search_symbol_table
+
+  MOV DX,[BX]
+  SUB DX,[ip]
+  DEC DX
+  DEC DX
+
+  CMP B[first_phase],0
+  JNE asm_jcond_short
+
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JE asm_jcond_short
+
+  ; Assemble the long version of a conditional jump instruction
+
+  POP AX
+  PUSH DX
+  XOR AL,1
+  CALL asm_byte
+  MOV AL,3
+  CALL asm_byte
+  MOV AL,0e9
+  CALL asm_byte
+  POP DX
+  DEC DX
+  DEC DX
+  DEC DX
+  MOV CX,2
+  CALL write
+  RET
+
+  asm_jcond_short
+  POP AX
+  PUSH DX
+  CALL asm_byte
+  MOV CX,1
+  POP DX
+  CALL write
+  RET
+
+asm_jo     MOV AL,070 JMP asm_jcond
+asm_jno    MOV AL,071 JMP asm_jcond
+asm_jc
+asm_jnae
+asm_jb     MOV AL,072 JMP asm_jcond
+asm_jnc
+asm_jnb
+asm_jae    MOV AL,073 JMP asm_jcond
+asm_je
+asm_jz     MOV AL,074 JMP asm_jcond
+asm_jne
+asm_jnz    MOV AL,075 JMP asm_jcond
+asm_jna
+asm_jbe    MOV AL,076 JMP asm_jcond
+asm_jnbe
+asm_ja     MOV AL,077 JMP asm_jcond
+asm_js     MOV AL,078 JMP asm_jcond
+asm_jns    MOV AL,079 JMP asm_jcond
+asm_jp     MOV AL,07A JMP asm_jcond
+asm_jnp    MOV AL,07B JMP asm_jcond
+asm_jnge
+asm_jl     MOV AL,07C JMP asm_jcond
+asm_jnl
+asm_jge    MOV AL,07D JMP asm_jcond
+asm_jng
+asm_jle    MOV AL,07E JMP asm_jcond
+asm_jnle
+asm_jg     MOV AL,07F JMP asm_jcond
+
+
+
+; Assemble a loop instruction
+
+;   E0 cb          LOOPNE cb
+;   E1 cb          LOOPE cb
+;   E2 cb          LOOP cb
+;   E3 cb          JeCXZ cb
+
+asm_loopx
+  CALL asm_byte
+  CALL get_next_token
+  CMP AL,"I"
+  JE asm_loopx_ok
+  MOV DX,label_required_msg
+  CALL error_exit
+
+  asm_loopx_ok
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+
+  MOV DX,[BX]
+  SUB DX,[ip]
+  DEC DX
+  CALL check_short
+  MOV CX,1
+  CALL write                ; write the jump byte
+  RET
+
+asm_loopne MOV AL,0E0 JMP asm_loopx
+asm_loope  MOV AL,0E1 JMP asm_loopx
+asm_loop   MOV AL,0E2 JMP asm_loopx
+asm_jcxz   MOV AL,0E3 JMP asm_loopx
+
+
+
+; Assemble an effective address (mod r/m byte)
+
+ea_reg         DB 0
+ea_rm_reg      DB 0
+ea_memf        DB 0
+ea_bx          DB 0
+ea_bp          DB 0
+ea_si          DB 0
+ea_di          DB 0
+ea_offset      DW 0
+segreg_f       DB 0
+op_size        DB 0
+offset_unknown DB 0
+
+modrm_table
+;        DI    SI           BP   BP+DI BP+SI         BX   BX+DI BX+SI
+DB 006 DB 005 DB 004 DB 0ff  DB 046 DB 003 DB 002 DB 0ff  DB 007 DB 001 DB 000 DB 0ff  DB 0ff DB 0ff DB 0ff DB 0ff
+DB 006 DB 045 DB 044 DB 0ff  DB 046 DB 043 DB 042 DB 0ff  DB 047 DB 041 DB 040 DB 0ff  DB 0ff DB 0ff DB 0ff DB 0ff
+DB 006 DB 085 DB 084 DB 0ff  DB 086 DB 083 DB 082 DB 0ff  DB 087 DB 081 DB 080 DB 0ff  DB 0ff DB 0ff DB 0ff DB 0ff
+
+asm_ea
+  CMP B[ea_memf],0
+  JNE asm_ea_indirect
+  MOV DL,0c0
+  OR DL,[ea_rm_reg]
+  JMP asm_ea_emit
+
+  asm_ea_indirect
+
+  MOV DL,0
+
+  CMP B[offset_unknown],0
+  JNE asm_ea_gotoffsettype
+
+  MOV AX,[ea_offset]
+  CMP AX,0
+  JE asm_ea_gotoffsettype
+  MOV BX,AX
+  CBW
+  CMP AX,BX
+  JNE asm_ea_2byteoffset
+  MOV DL,1
+  JMP asm_ea_gotoffsettype
+  asm_ea_2byteoffset
+  MOV DL,2
+  asm_ea_gotoffsettype
+
+  SHL DL,1
+  OR DL,[ea_bx]
+  SHL DL,1
+  OR DL,[ea_bp]
+  SHL DL,1
+  OR DL,[ea_si]
+  SHL DL,1
+  OR DL,[ea_di]
+  MOV BL,DL
+  XOR BH,BH
+  ADD BX,modrm_table
+  MOV DL,[BX]
+  CMP DL,0ff
+  JNE asm_ea_emit
+
+  CALL syntax_error
+
+  asm_ea_emit
+  PUSH DX
+  MOV AL,[ea_reg]
+  MOV CL,3
+  SHL AL,CL
+  OR DL,AL
+  MOV CX,1
+  CALL write                  ; write the mod r/m byte
+  POP AX
+
+  CMP AL,6
+  JNE asm_ea_not_mod2
+
+  asm_ea_mod2
+  MOV DX,[ea_offset]
+  MOV CX,2
+  CALL write               ;   write two-byte offset
+  JMP asm_ea_done
+
+  asm_ea_not_mod2
+  AND AL,0c0
+  CMP AL,040
+  JNE asm_ea_not_mod1
+  MOV DX,[ea_offset]
+  MOV CX,1
+  CALL write               ;   write one-byte offset
+  JMP asm_ea_done
+
+  asm_ea_not_mod1
+  CMP AL,080
+  JE asm_ea_mod2
+
+  asm_ea_done
+  RET
+
+
+
+; Parse register described by DX into the EA structure.
+parse_register
+  MOV B[segreg_f],0
+
+  MOV AX,DX
+  AND AL,7
+  MOV [ea_rm_reg],AL
+
+  MOV AX,DX
+  CMP AX,010
+  JLE parse_register_not_segreg
+  MOV B[segreg_f],1
+  MOV B[op_size],2
+  RET
+
+  parse_register_not_segreg
+  CMP AX,8
+  JL parse_register_word
+  MOV AL,1
+  JMP parse_register_gotsize
+  parse_register_word
+  MOV AL,2
+  parse_register_gotsize
+  MOV [op_size],AL
+  RET
+
+
+
+; Parse a register or memory operand, e.g. BX, [BX] or B[BX]
+; Return in the EA structure for assembly.
+
+cant_use_segreg_msg
+DB "General purpose register or memory operand expected on line: $"
+
+parse_regmem
+  CMP AL,"R"
+  JNE parse_memory
+  MOV B[ea_memf],0
+  CALL parse_register
+  CMP B[segreg_f],1
+  JNE parse_regmem_not_segreg
+  MOV DX,cant_use_segreg_msg
+  CALL error_exit
+  parse_regmem_not_segreg
+  RET
+
+; Parse a memory operand, e.g. [BX] or B[BX]
+; Return CF=1 on failure.
+
+negative_f DB 0
+
+ parse_memory
+  MOV B[op_size],0
+
+  CMP AL,"S"
+  JNE parse_memory_notsize
+  CMP AH,"W"
+  JNE parse_memory_byte
+  MOV AL,2
+  JMP parse_memory_gotsize
+  parse_memory_byte
+  MOV AL,1
+  parse_memory_gotsize
+  MOV [op_size],AL
+  CALL get_next_token
+
+  parse_memory_notsize
+  CMP AL,"["
+  JNE parse_memory_syntax_error
+
+  ; Initialize the EA structure.
+  MOV AX,0
+  MOV [ea_offset],AX
+  MOV [negative_f],AL
+  MOV [ea_bx],AL
+  MOV [ea_bp],AL
+  MOV [ea_si],AL
+  MOV [ea_di],AL
+  MOV [offset_unknown],AL
+  INC AX
+  MOV [ea_memf],AL
+
+  ; Mini state-machine for memory offset parsing
+
+  parse_memory_state1
+
+  ; State 1 - +/- or reg/num are valid (after [)
+
+  CALL get_next_token
+  CMP AL,"+"
+  JE parse_memory_state2
+  CMP AL,"-"
+  JNE parse_memory_state2
+  MOV AL,1
+  MOV [negative_f],AL
+
+  parse_memory_state2
+
+  ; State 2 - reg/num are valid (after +/-)
+
+  CMP AL,"R"
+  JNE parse_memory_notreg
+
+  MOV AX,DX
+  CMP B[negative_f],1
+  JE parse_memory_syntax_error ; Cant subtract a register
+
+  CMP AL,3                ; is register BX?
+  JNE parse_memory_notbx
+  CMP B[ea_bx],1
+  JNE parse_memory_bx_ok
+  parse_memory_syntax_error
+  CALL syntax_error
+  parse_memory_bx_ok
+  MOV B[ea_bx],1
+  JMP parse_memory_state3
+  parse_memory_notbx
+
+  CMP AL,5                ; is register BP?
+  JNE parse_memory_notbp
+  CMP B[ea_bp],1
+  JE parse_memory_syntax_error
+  MOV B[ea_bp],1
+  JMP parse_memory_state3
+  parse_memory_notbp
+
+  CMP AL,6                ; is register SI?
+  JNE parse_memory_notsi
+  CMP B[ea_si],1
+  JE parse_memory_syntax_error
+  MOV B[ea_si],1
+  JMP parse_memory_state3
+  parse_memory_notsi
+
+  CMP AL,7                ; is register DI?
+  JNE parse_memory_syntax_error  ; if not, its not a valid indirection register.
+  CMP B[ea_di],1
+  JE parse_memory_syntax_error
+  MOV B[ea_di],1
+  JMP parse_memory_state3
+
+  parse_memory_notreg
+  CMP AL,"0"
+  JNE parse_memory_notnum
+  CMP B[negative_f],1
+  JE parse_memory_suboff
+  ADD [ea_offset],DX
+  JMP parse_memory_state3
+  parse_memory_suboff
+  MOV B[negative_f],0
+  SUB [ea_offset],DX
+  JMP parse_memory_state3
+
+  parse_memory_notnum
+  CMP AL,"I"
+  JNE parse_memory_syntax_error
+  CMP B[negative_f],1
+  JE parse_memory_syntax_error  ; Cant subtract an identifier
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV AX,[BX]
+  MOV [ea_offset],AX
+
+  CMP B[first_phase],0
+  JE parse_memory_state3
+  MOV B[offset_unknown],1
+
+  ; State 3 - +/- or ] are valid (after reg/num)
+
+  parse_memory_state3
+  CALL get_next_token
+  CMP AL,"]"
+  JNE parse_memory_notdone
+  CLC
+  RET
+  parse_memory_notdone
+
+  CMP AL,"+"
+  JE parse_memory_state2_1
+  CMP AL,"-"
+  JE parse_memory_negative
+  JMP parse_memory_syntax_error
+  parse_memory_negative
+  MOV B[negative_f],1
+  parse_memory_state2_1
+  CALL get_next_token
+  JMP parse_memory_state2
+
+
+
+; Parse a register into ea_reg. Returns op_size in AL.
+
+expected_gpr_msg
+DB "Expected a general purpose register on line: $"
+
+parse_reg2
+  MOV AX,DX
+  CMP AX,010
+  JLE parse_reg2_not_segreg
+  MOV DX,expected_gpr_msg
+  CALL error_exit
+  parse_reg2_not_segreg
+
+  CMP AX,8
+  JGE parse_reg2_byte
+  MOV [ea_reg],AL
+  MOV AL,2
+  JMP parse_reg2_done
+
+  parse_reg2_byte
+  AND AL,7
+  MOV [ea_reg],AL
+  MOV AL,1
+
+  parse_reg2_done
+  CALL check_opsize
+  MOV [op_size],AL
+  RET
+
+
+
+; Verifies that the operand size matches AL (not ambiguous or conflicting)
+; opsize v    AL  0  1  2
+;   0 = unknown   x  y  y
+;   1 = byte      y  y  n
+;   2 = word      y  n  y
+; x = failure due to unknown size, y = success, n = failure due to size mismatch.
+; Returns operand size (1 or 2) in AL.
+
+operand_wrong_size_msg
+DB "Operand has wrong size on line: $"
+
+operand_size_unknown_msg
+DB "Unknown operand size on line: $"
+
+check_opsize
+  OR AL,[op_size]
+  CMP AL,0
+  JNE check_opsize_not_zero
+  MOV DX,operand_size_unknown_msg
+  CALL error_exit
+  check_opsize_not_zero
+  CMP AL,3
+  JNE check_opsize_good
+  MOV DX,operand_wrong_size_msg
+  CALL error_exit
+  check_opsize_good
+  RET
+
+
+
+; Assemble a CALL instruction.
+
+;   E8 cv          CALL cv
+;   FF /2          CALL rmv
+
+label_regmem_required_msg
+DB "Label, register or memory required on line: $"
+
+asm_call
+  CALL get_next_token
+  CMP AL,"I"
+  JNE asm_call_not_label
+
+  MOV AL,0e8
+  CALL asm_byte
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,W[BX]
+  SUB DX,[ip]
+  DEC DX
+  DEC DX
+  MOV CX,2
+  CALL write                  ; write the jump word
+  RET
+
+  asm_call_not_label
+  PUSH AX
+  MOV AL,0ff
+  CALL asm_byte
+  POP AX
+  CALL parse_regmem
+  JC asm_call_error
+
+  MOV AL,2
+  MOV [ea_reg],AL
+  CALL check_opsize
+
+  asm_call_ea_word
+  CALL asm_ea
+  RET
+  asm_call_error
+  MOV DX,label_regmem_required_msg
+  CALL error_exit
+
+
+
+; Assemble an unconditional JMP instruction.
+
+;   E9 cv          JMP cv
+;   EB cb          JMP cb
+;   FF /4          JMP rmv
+
+asm_jmp
+  CALL get_next_token
+  CMP AL,"I"
+  JNE asm_jmp_not_label
+
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,W[BX]
+  SUB DX,[ip]
+  DEC DX
+  DEC DX
+  PUSH DX
+
+  CMP B[first_phase],0
+  JNE asm_jmp_short
+
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JE asm_jmp_short
+
+  MOV AL,0e9
+  CALL asm_byte
+  POP DX
+  DEC DX
+  MOV CX,2
+  CALL write                  ; write the jump word
+  RET
+
+  asm_jmp_short
+  MOV AL,0eb
+  CALL asm_byte
+  POP AX
+  CALL asm_byte               ; write the jump byte
+  RET
+
+  asm_jmp_not_label
+  PUSH AX
+  MOV AL,0ff
+  CALL asm_byte
+  POP AX
+  CALL parse_regmem
+  JC asm_jmp_error
+
+  MOV B[ea_reg],4
+
+  MOV AL,2
+  CALL check_opsize
+
+  asm_jmp_ea_word
+  CALL asm_ea
+  RET
+  asm_jmp_error
+  MOV DX,label_regmem_required_msg
+  CALL error_exit
+
+
+
+; Assemble an INT instruction.
+
+;   CC             INT 3              5  p0os
+;   CD ib          INT ib             5  p0normal
+
+asm_int
+  CALL get_next_token
+  CMP AL,"0"
+  JE asm_int_number
+  CALL syntax_error
+
+  asm_int_number
+  MOV AX,DX
+  CMP AL,3
+  JNE asm_int_not3
+  MOV AL,0cc
+  CALL asm_byte
+  RET
+
+  asm_int_not3
+  PUSH AX
+  MOV AL,0cd
+  CALL asm_byte
+  POP AX
+  CALL asm_byte
+  RET
+
+
+
+; Parse a positive (with or without + sign) or negative number
+; Return CF=1 on failure.
+parse_number
+  MOV B[negative_f],0
+
+  CMP AL,"0"
+  JE parse_number_done
+  CMP AL,"+"
+  JE parse_number_positive
+  CMP AL,"-"
+  JE parse_number_negative
+  parse_number_fail
+  STC
+  RET
+  parse_number_negative
+  MOV B[negative_f],1
+  parse_number_positive
+  CALL get_next_token
+  CMP AL,"0"
+  JNE parse_number_fail
+  CMP B[negative_f],1
+  JNE parse_number_done
+  NEG DX
+  parse_number_done
+  CLC
+  RET
+
+
+
+; Assemble a DW instruction (output a single word)
+asm_dw
+  CALL get_next_token
+  CMP AL,"I"
+  JE asm_dw_identifier
+  CALL parse_number
+  JNC asm_dw_number
+  CALL syntax_error
+  asm_dw_number
+  MOV CX,2
+  CALL write
+  RET
+  asm_dw_identifier
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,[BX]
+  JMP asm_dw_number
+
+
+
+; Parse a string (just output it)
+parse_string
+  PUSH SI
+  MOV SI,DI
+  parse_string_loop
+  LODSB
+  CMP AL,022
+  JE parse_string_end
+  MOV DL,AL
+  MOV CX,1
+  CALL write
+  JMP parse_string_loop
+  parse_string_end
+  POP SI
+  RET
+
+
+
+; Assemble a DB instruction (output a single byte or a string)
+asm_db
+  CALL get_next_token
+  CMP AL,022
+  JE asm_db_string
+  CALL parse_number
+  JNC asm_db_number
+  CALL syntax_error
+  asm_db_number
+  MOV CX,1
+  CALL write
+  RET
+  asm_db_string
+  CALL parse_string
+  RET
+
+
+
+; Assemble an INC or DEC instruction.
+
+;   40+r           INC rv
+;   48+r           DEC rv
+;   FE /0          INC rmb
+;   FE /1          DEC rmb
+;   FF /0          INC rmv
+;   FF /1          DEC rmv
+
+asm_incdec
+  PUSH AX
+  CALL get_next_token
+  CMP AL,"R"
+  JNE asm_incdec_regmem
+  CMP DX,8
+  JGE asm_incdec_regmem
+  POP AX
+  MOV CL,3
+  SHL AL,CL
+  ADD AL,DL
+  ADD AL,040
+  CALL asm_byte
+  RET
+
+  asm_incdec_regmem
+  CALL parse_regmem
+  MOV AL,0
+  CALL check_opsize
+  CMP AL,2
+  JE asm_incdec_word
+
+  MOV AL,0fe
+  CALL asm_byte
+  JMP asm_incdec_operand
+
+  asm_incdec_word
+  MOV AL,0ff
+  CALL asm_byte
+
+  asm_incdec_operand
+  POP AX
+  MOV [ea_reg],AL
+  CALL asm_ea
+  RET
+
+asm_inc   MOV AL,0 JMP asm_incdec
+asm_dec   MOV AL,1 JMP asm_incdec
+
+
+
+; Assemble a PUSH instruction.
+
+;   06+8 r         PUSH segreg_r
+;   50+r           PUSH rv
+;   FF /6          PUSH rmv
+
+asm_push
+  CALL get_next_token
+asm_push_got_token
+  CMP AL,"R"
+  JNE asm_push_notreg
+  MOV AX,DX
+  CMP AL,8
+  JGE asm_push_not_gpr_word
+  ADD AL,050
+  CALL asm_byte
+  RET
+  asm_push_not_gpr_word
+  CMP AL,010
+  JL asm_push_bytereg   ; Get error on byte regs via parse_regmem and check_opsize
+
+  MOV CL,3
+  SHL AL,CL
+  SUB AL,07a
+  CALL asm_byte
+  RET
+
+  asm_push_bytereg
+  MOV AL,"R"
+  asm_push_notreg
+  CALL parse_regmem
+  MOV AL,2
+  CALL check_opsize
+  MOV AL,0ff
+  CALL asm_byte
+  MOV B[ea_reg],6
+  CALL asm_ea
+  RET
+
+
+
+; Assemble a POP instruction.
+
+;   07+8*r         POP segreg_r
+;   58+r           POP rv
+;   8F /0          POP mv
+
+asm_pop
+  CALL get_next_token
+  CMP AL,"R"
+  JNE asm_pop_notreg
+  MOV AX,DX
+  CMP AL,8
+  JGE asm_pop_not_gpr_word
+  ADD AL,058
+  CALL asm_byte
+  RET
+  asm_pop_not_gpr_word
+  CMP AL,010
+  JL asm_pop_bytereg    ; Get error on byte regs via parse_regmem and check_opsize
+
+  MOV CL,3
+  SHL AL,CL
+  SUB AL,079
+  CALL asm_byte
+  RET
+
+  asm_pop_bytereg
+  MOV AL,"R"
+  asm_pop_notreg
+  CALL parse_regmem
+  MOV AL,2
+  CALL check_opsize
+  MOV AL,08f
+  CALL asm_byte
+  MOV B[ea_reg],0
+  CALL asm_ea
+  RET
+
+
+
+; Assemble a NOT, NEG, MUL, IMUL, DIV or IDIV instruction.
+
+;   F6 /n          OP rmb
+;   F7 /n          OP rmv
+
+asm_math
+  MOV [ea_reg],AL
+  CALL get_next_token
+  CALL parse_regmem
+  MOV AL,0
+  CALL check_opsize
+  ADD AL,0f5
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+asm_not   MOV AL,2 JMP asm_math
+asm_neg   MOV AL,3 JMP asm_math
+asm_mul   MOV AL,4 JMP asm_math
+asm_imul  MOV AL,5 JMP asm_math
+asm_div   MOV AL,6 JMP asm_math
+asm_idiv  MOV AL,7 JMP asm_math
+
+
+
+; Parse (and ignore) a comma - error if it isnt there.
+
+comma_expected_msg
+DB "Comma expected on line: $"
+
+parse_comma
+  CALL get_next_token
+  CMP AL,","
+  JNE parse_comma_fail
+  RET
+  parse_comma_fail
+  MOV DX,comma_expected_msg
+  CALL error_exit
+
+
+
+; Parse a number or string (so we can use strings as operands to instructions requiring immediate values).
+; Return in DX. Return CF=1 on fail.
+parse_numstr
+  CMP AL,022
+  JE parse_number_string
+  CALL parse_number
+  RET
+
+  parse_number_string
+  PUSH SI
+  MOV SI,DI
+  LODSW
+  POP SI
+  MOV DX,AX
+  RET
+
+
+
+; Parse a pair of operands. Allowable pairs are:
+;   reg,reg
+;   reg,mem
+;   mem,reg
+;   reg,imm
+;   mem,imm
+;   seg,reg
+;   reg,seg
+;   seg,mem
+;   mem,seg
+; Returns immediate value (if any) in DX
+; Returns mem/seg/reg in EA structure.
+; For reg/reg, the first operand is in ea_rm_reg and the second is in ea_reg.
+
+memory_first  DB 00
+immediate_f   DB 00
+segment_first DB 00
+segment_f     DB 00
+imm_unknown   DB 00
+
+parse_pair
+  MOV AL,0
+  MOV [immediate_f],AL
+  MOV [segment_f],AL
+  MOV [imm_unknown],AL
+
+  CALL get_next_token
+  CMP AL,"R"
+  JE parse_pair_reg
+  JMP parse_pair_mem
+  parse_pair_reg
+
+  MOV AL,0
+  MOV [memory_first],AL
+
+  MOV AX,DX
+  CMP AL,010
+  JL parse_pair_regnotseg
+
+  ; seg,reg or seg,mem
+
+  MOV B[segment_f],1
+  MOV B[segment_first],1
+  SUB AL,010
+  MOV [ea_reg],AL
+  CALL parse_comma
+  CALL get_next_token
+  CALL parse_regmem
+  MOV AL,2
+  CALL check_opsize
+  RET
+
+  ; reg,reg or reg,seg or reg,mem or reg,imm
+
+  parse_pair_regnotseg
+  MOV AL,"R"
+  CALL parse_regmem
+  MOV AL,[ea_rm_reg]
+  MOV [ea_reg],AL
+  CALL parse_comma
+  CALL get_next_token
+  CMP AL,"R"
+  JNE parse_pair_regnotreg
+
+  ; reg,reg or reg,seg
+
+  MOV AX,DX
+  CMP AL,010
+  JL parse_pair_regreg
+
+  ; reg,seg
+
+  MOV B[segment_f],1
+  MOV B[segment_first],0
+  SUB AL,010
+  MOV [ea_reg],AL
+  MOV AL,2
+  CALL check_opsize
+  RET
+
+  ; reg,reg
+
+  parse_pair_regreg
+  MOV B[memory_first],1
+  CALL parse_reg2
+  RET
+
+  ; reg,mem or reg,imm
+
+  parse_pair_regnotreg
+  CMP AL,"["
+  JE parse_pair_regmem
+  CMP AL,"S"
+  JE parse_pair_regmem
+
+  ; reg,imm
+
+  MOV B[immediate_f],1
+  CMP AL,"I"
+  JNE parse_pair_regimm_n
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,[BX]
+  MOV B[imm_unknown],1
+  RET
+
+  parse_pair_regimm_n
+  CALL parse_numstr
+  RET
+
+  ; reg,mem
+
+  parse_pair_regmem
+  PUSH [op_size]
+  CALL parse_regmem
+  POP AX
+  CALL check_opsize
+  MOV [op_size],AL
+  RET
+
+  ; mem,reg or mem,seg or mem,imm
+
+  parse_pair_mem
+  MOV B[memory_first],1
+  CALL parse_regmem
+  CALL parse_comma
+  CALL get_next_token
+  CMP AL,"R"
+  JNE parse_pair_memimm
+
+  ; mem,reg or mem,seg
+
+  MOV AX,DX
+  CMP AL,010
+  JL parse_pair_memreg
+
+  ; mem,seg
+
+  SUB AL,010
+  MOV [ea_reg],AL
+  MOV B[segment_first],1
+  MOV AL,2
+  CALL check_opsize
+  RET
+
+  ; mem,reg
+
+  parse_pair_memreg
+  CALL parse_reg2
+  RET
+
+  ; mem,imm
+
+  parse_pair_memimm
+  MOV B[immediate_f],1
+  CMP AL,"I"
+  JNE parse_pair_memimm_n
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,[BX]
+  MOV B[imm_unknown],1
+  RET
+
+  parse_pair_memimm_n
+  CALL parse_numstr
+  MOV AL,0
+  CALL check_opsize
+  RET
+
+
+
+; Assemble a ROL, ROR, RCL, RCR, SHL, SHR or SAR instruction.
+
+;   D0 /n          OP rmb,1
+;   D1 /n          OP rmv,1
+;   D2 /n          OP rmb,CL
+;   D3 /n          OP rmv,CL
+
+expected_shift_msg
+DB "Expected 1 or CL on line: $"
+
+asm_shift
+  MOV [ea_reg],AL
+  CALL get_next_token
+  CALL parse_regmem
+  MOV AL,0
+  CALL check_opsize
+
+  PUSH AX
+  CALL parse_comma
+
+  CALL get_next_token
+  CMP AL,"0"
+  JNE asm_shift_not_number
+  MOV AX,DX
+  CMP AX,1
+  JE asm_shift_ok
+  asm_shift_syntax_error
+  MOV DX,expected_shift_msg
+  CALL error_exit
+  asm_shift_ok
+  POP AX
+  asm_shift_do
+  ADD AL,0cf
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  asm_shift_not_number
+  CMP AL,"R"
+  JNE asm_shift_syntax_error
+  MOV AX,DX
+  CMP AL,9            ; Is register CL?
+  JNE asm_shift_syntax_error
+  POP AX
+  ADD AL,2
+  JMP asm_shift_do
+
+asm_rol   MOV AL,0 JMP asm_shift
+asm_ror   MOV AL,1 JMP asm_shift
+asm_rcl   MOV AL,2 JMP asm_shift
+asm_rcr   MOV AL,3 JMP asm_shift
+asm_shl   MOV AL,4 JMP asm_shift
+asm_shr   MOV AL,5 JMP asm_shift
+asm_sar   MOV AL,7 JMP asm_shift
+
+
+
+; Assemble an XCHG instruction.
+
+;   86 /r          XCHG rmb,rb
+;   87 /r          XCHG rmv,rv
+;   90+r           XCHG eAX,rv
+
+asm_xchg
+  CALL parse_pair
+  CMP B[immediate_f],0
+  JE asm_xchg_not_imm
+  asm_xchg_syntax_error
+  CALL syntax_error
+  asm_xchg_not_imm
+  CMP B[segment_f],0
+  JNE asm_xchg_syntax_error
+
+  CMP B[ea_memf],0
+  JE asm_xchg_reg
+
+  ; One operand was memory - use EA form
+
+  asm_xchg_regmem
+  MOV AL,[op_size]
+  ADD AL,085
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  ; Both operands were registers.
+
+  asm_xchg_reg
+  CMP B[op_size],1
+  JE asm_xchg_regmem  ; Byte swap - use EA form.
+  CMP B[ea_reg],0
+  JE asm_xchg_ax
+  CMP B[ea_rm_reg],0
+  JNE asm_xchg_regmem ; Neither was AX - use EA form.
+
+  asm_xchg_ax
+  MOV AL,[ea_reg]     ; One was AX. Add them to find the other.
+  ADD AL,[ea_rm_reg]
+  ADD AL,090
+  CALL asm_byte       ; Use 1-byte form.
+  RET
+
+
+
+; Assemble a TEST instruction.
+
+;   84 /r          TEST rmb,rb
+;   85 /r          TEST rmv,rv
+;   A8 ib          TEST AL,ib
+;   A9 iv          TEST eAX,iv
+;   F6 /0 ib       TEST rmb,ib
+;   F7 /0 iv       TEST rmv,iv
+
+asm_test
+  CALL parse_pair
+  CMP B[segment_f],0
+  JE asm_test_not_seg
+  CALL syntax_error
+  asm_test_not_seg
+
+  CMP B[immediate_f],0
+  JNE asm_test_immediate
+
+  ; reg/mem,reg form
+
+  MOV AL,[op_size]
+  ADD AL,083
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  asm_test_immediate
+  PUSH DX
+  CMP B[ea_memf],0
+  JNE asm_test_memimm
+  CMP B[ea_rm_reg],0
+  JNE asm_test_memimm
+
+  ; A,imm form
+
+  MOV AL,[op_size]
+  CBW
+  PUSH AX
+  ADD AL,0a7
+  CALL asm_byte
+  POP CX
+  POP DX
+  CALL write
+  RET
+
+  ; reg/mem,imm form
+
+  asm_test_memimm
+  MOV AL,[op_size]
+  CBW
+  PUSH AX
+  ADD AL,0f5
+  CALL asm_byte
+  CALL asm_ea
+  POP CX
+  POP DX
+  CALL write
+  RET
+
+
+
+; Assemble an ADD, OR, ADC, SBB, AND, SUB, XOR or CMP instruction.
+
+;   00+8*n /r      OP rmb,rb
+;   01+8*n /r      OP rmv,rv
+;   02+8*n /r      OP rb,rmb
+;   03+8*n /r      OP rv,rmv
+;   04+8*n ib      OP AL,ib
+;   05+8*n iv      OP eAX,iv
+;   80 /n ib       OP rmb,ib
+;   81 /n iv       OP rmv,iv
+;   83 /n ib       OP rmv,ib
+
+asm_alu
+  PUSH AX          ; stack = op
+  CALL parse_pair
+  POP AX           ; AX = op
+  PUSH DX          ; stack = imm
+  PUSH AX          ; stack = op
+
+  CMP B[segment_f],0
+  JE asm_alu_not_seg
+  CALL syntax_error
+  asm_alu_not_seg
+
+  CMP B[immediate_f],0
+  JNE asm_alu_immediate
+
+  ; reg,reg or reg,mem or mem,reg form
+
+  CMP B[memory_first],0
+  JNE asm_alu_memfirst
+  MOV AL,[op_size]
+  ADD AL,1
+  JMP asm_alu_regmem
+  asm_alu_memfirst
+  MOV AL,[op_size]
+  ADD AL,0ff
+  asm_alu_regmem
+  POP BX           ; BX = op
+  MOV CL,3
+  SHL BL,CL
+  ADD AL,BL
+  CALL asm_byte
+  CALL asm_ea
+  POP DX           ; DX = imm (unused)
+  RET
+
+  ; immediate forms
+
+  asm_alu_immediate
+  CMP B[ea_memf],0
+  JNE asm_alu_not_a
+  CMP B[ea_rm_reg],0
+  JNE asm_alu_not_a
+
+  ; AL,imm and AX,imm forms
+
+  POP BX           ; BX = op
+  MOV AL,[op_size]
+  CBW
+  PUSH AX          ; stack = size
+  ADD AL,3
+  MOV CL,3
+  SHL BL,CL
+  ADD AL,BL
+  CALL asm_byte
+  POP CX           ; CX = size
+  POP DX           ; DX = imm
+  CALL write
+  RET
+
+  ; reg,imm and mem,imm forms
+
+  asm_alu_not_a
+  POP AX           ; AX = op
+  MOV [ea_reg],AL
+
+  MOV AL,[op_size]
+  CBW
+  PUSH AX          ; stack = size
+  CMP AL,1
+  JNE asm_alu_imm_word
+
+  ; rmb,ib form
+
+  MOV AL,080
+  CALL asm_byte
+  CALL asm_ea
+  POP CX           ; CX = size (1)
+  POP DX           ; DX = imm
+  CALL write
+  RET
+
+  ; rmv,iv and rmv,ib forms
+
+  asm_alu_imm_word
+  POP BX           ; BX = size (2)
+  POP AX           ; AX = imm
+  PUSH BX          ; stack = size (2)
+  MOV BX,AX
+  CBW
+
+  CMP B[imm_unknown],0
+  JNE asm_alu_imm_notbyte
+
+  CMP AX,BX
+  JNE asm_alu_imm_notbyte
+
+  ; rmv,ib form
+
+  PUSH BX          ; stack = imm
+  MOV AL,083
+  CALL asm_byte
+  CALL asm_ea
+  POP DX           ; DX = imm
+  POP CX           ; CX = size (2)
+  DEC CX
+  CALL write
+  RET
+
+  ; rmv,iv form
+
+  asm_alu_imm_notbyte
+  PUSH BX          ; stack = imm
+  MOV AL,081
+  CALL asm_byte
+  CALL asm_ea
+  POP DX           ; DX = imm
+  POP CX           ; CX = size (2)
+  CALL write
+  RET
+
+asm_add   MOV AL,0 JMP asm_alu
+asm_or    MOV AL,1 JMP asm_alu
+asm_adc   MOV AL,2 JMP asm_alu
+asm_sbb   MOV AL,3 JMP asm_alu
+asm_and   MOV AL,4 JMP asm_alu
+asm_sub   MOV AL,5 JMP asm_alu
+asm_xor   MOV AL,6 JMP asm_alu
+asm_cmp   MOV AL,7 JMP asm_alu
+
+
+
+; Assemble a MOV instruction.
+
+;   88 /r          MOV rmb,rb
+;   89 /r          MOV rmv,rv
+;   8A /r          MOV rb,rmb
+;   8B /r          MOV rv,rmv
+;   8C /r          MOV(ZX) rmv,segreg
+;   8E /r          MOV segreg,rmw
+;   A0 iv          MOV AL,xb
+;   A1 iv          MOV eAX,xv
+;   A2 iv          MOV xb,AL
+;   A3 iv          MOV xv,eAX
+;   B0+r ib        MOV rb,ib
+;   B8+r iv        MOV rv,iv
+;   C6 /0 ib       MOV rmb,ib
+;   C7 /0 iv       MOV rmv,iv
+
+asm_mov
+  CALL parse_pair
+  CMP B[segment_f],0
+  JE asm_mov_not_seg
+
+  ; rmv,segreg and segreg,rmv forms
+  CMP B[segment_first],0
+  JNE asm_mov_seg_first
+  MOV AL,08c
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  asm_mov_seg_first
+  MOV AL,08e
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  asm_mov_not_seg
+  CMP B[immediate_f],0
+  JNE asm_mov_imm
+
+  CMP B[ea_memf],0
+  JE asm_mov_regmem
+
+  CMP B[ea_reg],0
+  JNE asm_mov_regmem
+
+  CMP B[ea_bx],0
+  JNE asm_mov_regmem
+
+  CMP B[ea_bp],0
+  JNE asm_mov_regmem
+
+  CMP B[ea_si],0
+  JNE asm_mov_regmem
+
+  CMP B[ea_di],0
+  JNE asm_mov_regmem
+
+  CMP B[memory_first],0
+  JNE asm_mov_a_memory_first
+
+  MOV AL,[op_size]
+  ADD AL,09f
+  CALL asm_byte
+  MOV CX,2
+  MOV DX,[ea_offset]
+  CALL write
+  RET
+
+  asm_mov_a_memory_first
+  MOV AL,[op_size]
+  ADD AL,0a1
+  CALL asm_byte
+  MOV CX,2
+  MOV DX,[ea_offset]
+  CALL write
+  RET
+
+  asm_mov_regmem
+  CMP B[memory_first],0
+  JNE asm_mov_memory_first
+
+  MOV AL,[op_size]
+  ADD AL,089
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  asm_mov_memory_first
+  MOV AL,[op_size]
+  ADD AL,087
+  CALL asm_byte
+  CALL asm_ea
+  RET
+
+  asm_mov_imm
+  CMP B[ea_memf],0
+  JNE asm_mov_mem_imm
+
+  CMP B[op_size],1
+  JNE asm_mov_mem_word
+
+  MOV AL,[ea_rm_reg]
+  ADD AL,0b0
+  PUSH DX
+  CALL asm_byte
+  POP DX
+  MOV CX,1
+  CALL write
+  RET
+
+  asm_mov_mem_word
+  MOV AL,[ea_rm_reg]
+  ADD AL,0b8
+  PUSH DX
+  CALL asm_byte
+  POP DX
+  MOV CX,2
+  CALL write
+  RET
+
+  asm_mov_mem_imm
+  PUSH DX
+  MOV AL,[op_size]
+  CBW
+  PUSH AX
+  ADD AL,0c5
+  CALL asm_byte
+
+  MOV B[ea_reg],0
+  CALL asm_ea
+
+  POP CX
+  POP DX
+  CALL write
+  RET
+
+
+
+; Parse a mnemonic and output the instruction bytes
+
+parse_mnemonic_table
+ DW asm_adc DW asm_add DW asm_and DW asm_call DW asm_cbw       ;  0
+ DW asm_clc DW asm_cld DW asm_cli DW asm_cmc DW asm_cmp
+ DW asm_cmpsb DW asm_cmpsw DW asm_cwd DW asm_db DW asm_dec     ; 10
+ DW asm_div DW asm_dw DW asm_idiv DW asm_imul DW asm_inc
+ DW asm_int DW asm_ja DW asm_jae DW asm_jb DW asm_jbe          ; 20
+ DW asm_jc DW asm_jcxz DW asm_je DW asm_jg DW asm_jge
+ DW asm_jl DW asm_jle DW asm_jmp DW asm_jna DW asm_jnae        ; 30
+ DW asm_jnb DW asm_jnbe DW asm_jnc DW asm_jne DW asm_jng
+ DW asm_jnge DW asm_jnl DW asm_jnle DW asm_jno DW asm_jnp      ; 40
+ DW asm_jns DW asm_jnz DW asm_jo DW asm_jp DW asm_js
+ DW asm_jz DW asm_lahf DW asm_lodsb DW asm_lodsw DW asm_loop   ; 50
+ DW asm_loope DW asm_loopne DW asm_mov DW asm_movsb DW asm_movsw
+ DW asm_mul DW asm_neg DW asm_nop DW asm_not DW asm_or         ; 60
+ DW asm_pop DW asm_popf DW asm_push DW asm_pushf DW asm_rcl
+ DW asm_rcr DW asm_rep DW asm_repne DW asm_ret DW asm_retf     ; 70
+ DW asm_rol DW asm_ror DW asm_sahf DW asm_salc DW asm_sar
+ DW asm_sbb DW asm_scasb DW asm_scasw DW asm_shl DW asm_shr    ; 80
+ DW asm_stc DW asm_std DW asm_sti DW asm_stosb DW asm_stosw
+ DW asm_sub DW asm_test DW asm_xchg DW asm_xlatb DW asm_xor    ; 90
+
+
+parse_mnemonic
+  SHL DX,1
+  ADD DX,parse_mnemonic_table
+  MOV BX,DX
+  JMP [BX]
+
+
+
+; Parse a function call and output the result.
+
+parse_fncall
+  PUSH BP
+  MOV BP,SP
+  SUB SP,2
+
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,[BX]
+
+  PUSH DX
+  MOV W[BP-2],0
+  parse_fncall_top
+  CALL get_next_token
+  PUSH AX
+  CALL parse_number
+  POP AX
+  JC parse_fncall_not_number
+
+  ; number
+
+  parse_fncall_push_number
+  PUSH DX
+  MOV AL,0b8
+  CALL asm_byte     ; emit a MOV AX,
+  POP DX
+  MOV CX,2
+  CALL write        ; emit the number
+  MOV AL,050
+  CALL asm_byte     ; emit a PUSH AX
+
+  ADD W[BP-2],2
+  CALL get_next_token
+  JMP parse_fncall_step2
+
+  parse_fncall_not_number
+  CMP AL,"R"
+  JE parse_fncall_regmem
+  CMP AL,"["
+  JE parse_fncall_regmem
+  CMP AL,"S"
+  JNE parse_fncall_not_regmem
+  parse_fncall_regmem
+
+  ; register or memory
+
+  CALL asm_push_got_token
+  ADD W[BP-2],2
+  CALL get_next_token
+  JMP parse_fncall_step2
+
+  parse_fncall_not_regmem
+  CMP AL,022
+  JNE parse_fncall_not_string
+
+  ; string
+
+  PUSH SI
+  PUSH DI
+  MOV AX,SI
+  DEC AX
+  SUB AX,DI
+  CMP AX,07f
+  JBE parse_fncall_short_string
+  PUSH AX
+  MOV AL,0e9
+  CALL asm_byte     ; emit a JMP
+  POP DX
+  MOV CX,2
+  parse_fncall_string_do
+  CALL write        ; emit the distance (over the string)
+  POP DI
+  POP SI
+  PUSH W[ip]
+  CALL parse_string ; emit the string
+  POP DX
+  JMP parse_fncall_push_number ; emit a push of the string address
+
+  parse_fncall_short_string
+  PUSH AX
+  MOV AL,0eb
+  CALL asm_byte     ; emit a JMP
+  POP DX
+  MOV CX,1
+  JMP parse_fncall_string_do
+
+  parse_fncall_not_string
+  CMP AL,"I"
+  JNE parse_fncall_not_identifier
+
+  ; identifier
+
+  CALL get_next_token
+  CMP AL,"("
+  JNE parse_fncall_not_fncall
+
+  ; fncall
+
+  CALL parse_fncall
+  MOV AL,050
+  CALL asm_byte     ; emit a PUSH AX (the result of the fncall is assumed to be returned in AX)
+  ADD W[BP-2],2
+  CALL get_next_token
+  JMP parse_fncall_step2
+
+  parse_fncall_not_fncall
+  PUSH AX
+  MOV B[add_symbol_flag],0
+  CALL search_symbol_table
+  MOV DX,[BX]
+
+  PUSH DX
+  MOV AL,0b8
+  CALL asm_byte     ; emit a MOV AX,
+  POP DX
+  MOV CX,2
+  CALL write        ; emit the number
+  MOV AL,050
+  CALL asm_byte     ; emit a PUSH AX
+
+  ADD W[BP-2],2
+  POP AX
+  JMP parse_fncall_step2
+
+  parse_fncall_not_identifier
+  CMP AL,")"
+  JE parse_fncall_end
+  CALL syntax_error
+
+  parse_fncall_step2
+  CMP AL,","
+  JE parse_fncall_top
+  CMP AL,")"
+  JE parse_fncall_end
+  CALL syntax_error
+
+  parse_fncall_end
+  MOV AL,0e8
+  CALL asm_byte     ; emit a CALL
+  POP DX
+  SUB DX,[ip]
+  DEC DX
+  DEC DX
+  MOV CX,2
+  CALL write
+
+  CMP W[BP-2],0
+  JNA parse_fncall_no_adjust
+
+  CMP W[BP-2],07f
+  JBE parse_fncall_adjust_short
+
+  MOV AL,081
+  CALL asm_byte
+  MOV AL,0c4
+  CALL asm_byte     ; emit an ADD SP,
+  MOV DX,[BP-2]
+  MOV CX,2
+  CALL write        ; emit the stack adjustment
+  JMP parse_fncall_no_adjust
+
+  parse_fncall_adjust_short
+
+  CMP W[BP-2],2
+  JE parse_fncall_adjust_direct2
+  CMP W[BP-2],4
+  JE parse_fncall_adjust_direct4
+
+  MOV AL,083
+  CALL asm_byte
+  MOV AL,0c4
+  CALL asm_byte     ; emit an ADD SP,
+  MOV DX,[BP-2]
+  MOV CX,1
+  CALL write        ; emit the stack adjustment
+  JMP parse_fncall_no_adjust
+
+  parse_fncall_adjust_direct4
+
+  MOV AL,059
+  CALL asm_byte     ; emit a POP CX
+
+  parse_fncall_adjust_direct2
+
+  MOV AL,059
+  CALL asm_byte     ; emit a POP CX
+
+  parse_fncall_no_adjust
+
+  MOV SP,BP
+  POP BP
+  RET
+
+
+
+; Parse a statement and output the result. Returns CF=1 on EOF.
+
+syntax_error_msg
+DB "Syntax error on line: $"
+
+parse_statement
+  CALL get_next_token
+  JNC parse_statement_not_end
+
+  RET
+  parse_statement_not_end
+  CMP AL,"I"
+  JNE parse_statement_not_identifier
+
+  ; Identifier
+
+  CALL get_next_token
+  CMP AL,":"
+  JE parse_statement_label
+  CMP AL,"("
+  JE parse_statement_fncall
+  CALL syntax_error
+
+  parse_statement_fncall
+  CALL parse_fncall
+  CLC
+  RET
+
+  parse_statement_label
+  MOV B[add_symbol_flag],1
+  CALL search_symbol_table
+  MOV AX,[ip]
+
+  CMP B[first_phase],0
+  JNE parse_statement_update_label
+
+  CMP [BX],AX
+  JE parse_statement_no_update_label
+
+  parse_statement_update_label
+  MOV [BX],AX
+  MOV B[last_phase],0
+
+  parse_statement_no_update_label
+  CLC
+  RET
+  parse_statement_not_identifier
+  CMP AL,"M"
+  JNE parse_statement_not_mnemonic
+
+  CALL parse_mnemonic
+  CLC
+  RET
+  parse_statement_not_mnemonic
+  CMP AL,"R"
+  JNE parse_statement_not_register
+
+  CMP DX,010
+  JGE parse_statement_segreg
+  CALL syntax_error
+  parse_statement_segreg
+
+;   26             ES:
+;   2E             CS:
+;   36             SS:
+;   3E             DS:
+
+  MOV CL,3
+  SHL DX,CL
+  SUB DX,05a
+  MOV CX,1
+  CALL write
+  CLC
+  RET
+  parse_statement_not_register
+  CMP AL,":"
+  JNE parse_statement_not_colon
+
+  CLC                   ;   combination of ES and ES: are not LL(0) so we handle them by just ignoring : at statement scope.
+  RET
+  parse_statement_not_colon
+  CALL syntax_error
+
+
+
+; Main function.
+;   Allocate a line buffer
+;   Phase loop (phase 0 = finding label locations, phase 1 = emitting)
+;     Parse loop
+
+line_buffer      DW 0
+max_line_length  DW 0200
+last_phase       DB 0
+first_phase      DB 0
+
+main
+  MOV CX,[max_line_length]
+  CALL alloc
+  MOV [line_buffer],AX
+
+  MOV B[first_phase],1
+  main_phase_top
+  MOV B[last_phase],1
+  CALL rewind
+
+  MOV DX,[writename]
+  MOV AH,03c
+  XOR CX,CX
+  INT 021
+  JC main_end
+  MOV [writehandle],AX
+
+  main_parse_top
+  CALL parse_statement
+  JNC main_parse_top
+
+  MOV BX,[writehandle]
+  MOV AH,03e
+  INT 021
+
+  MOV B[first_phase],0
+
+  CMP B[last_phase],0
+  JE main_phase_top
+
+  main_end
+  RET
+
+static_end

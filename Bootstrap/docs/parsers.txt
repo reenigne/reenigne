@@ -1,0 +1,81 @@
+Grammar productions and rules are translated into types:
+  parser("whileStatement := [`do` statement] (`while` | `until`) `(` condition `)` statement [`done` statement]")
+
+  becomes:
+
+  type WhileStatement = Class {
+    Union { true = Class { Statement statement }, false = Void } "[`do` statement]";
+    Enum { "`while`", "`until`" }                                "`while` | `until`";
+    Condition                                                    condition;
+    Statement                                                    statement;
+    Union { true = Class { Statement statement }, false = Void } "[`done` statement]";
+    Common Union { true = WhileStatement, false = Void }         parse(File file);
+  }
+
+  and is used like this:
+
+  Auto whileStatement = WhileStatement::parse(file);
+  if (whileStatement.type) {
+    if (whileStatement."[`do` statement]")
+      emit(whileStatement."[`do` statement]".statement)
+    Bool senseReversed = (whileStatement."`while` | `until`" == "`until`");
+    ...
+  } else error("loop expected")
+
+
+  parser("compoundStatement := `{` statement* `}`")
+
+  becomes:
+
+  type CompoundStatement = Class {
+    Vector[<Statement>]                                     "statement*";
+    Common Union { true = CompoundStatement, false = Void } parse(File file);
+  }
+
+  and is used like this:
+
+  Auto compoundStatement = CompoundStatement::parse(file);
+  if (compoundStatement.type) {
+    foreach(Auto statement in compoundStatement."statement*")
+      emit(statement)
+
+
+  parser("additiveExpression := multiplicativeExpression / (`+` | `-`)")
+
+  becomes:
+
+  type AdditiveExpression = Class {
+    Vector[< Class {
+      MultiplicativeExpression multiplicativeExpression;
+      Enum { "`+`", "`-`" }    "`+` | `-`";
+    }> ] "multiplicativeExpression / (`+` | `-`)";
+    Common Union { true = AdditiveExpression, false = Void } ) parse(File file);
+  }
+
+  and is used like this:
+
+  Auto a = AdditiveStatement::parse(file);
+  if (a) {
+    AdditiveStatement additiveStatement = a.value;
+    foreach(Auto term in additiveStatement."multiplicativeExpression / (`+` | `-`)")
+      switch(term."`+` | `-`") {
+        case "`+`" :
+          emitAdd(term.multiplicativeExpression)
+        case "`-`" :
+          emitSubtract(term.multiplicativeExpression)
+      }
+  }
+
+Need to think of a way to add to these classes - inheritance?
+
+
+Given a compact grammar, what representation does the generated parser generate?
+  Full parse tree in memory at once?
+    What representation?
+      Finite choices represented by enums? What associated type?
+      /s, *s and +s represented by vectors?
+  get_next function for each named production?
+    means we have to rewrite the grammer (and possibly make it more complicated) if we want
+  What about error conditions?
+    Need heuristics to figure out what the problem is and resume parsing
+

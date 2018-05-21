@@ -1,0 +1,96 @@
+; This is the bootstrapping compiler step 16 (written in step 16 language)
+; This file contains string functions.
+
+; Create and return a string of length length using bytes from start, with preamble bytes allocated before
+
+function string_create(length,start,preamble)
+{
+  PUSH ESI
+  PUSH EDI
+
+  MOV EDI,malloc([preamble]+4+[length])
+  PUSH EDI
+  ADD EDI,[preamble]
+  MOV EAX,[length]
+  STOSD
+  MOV ECX,EAX
+  MOV ESI,[start]
+  REP MOVSB
+  POP EAX
+
+  POP EDI
+  POP ESI
+}
+
+
+
+; Emits the string string
+
+function asm_string(string)
+{
+  PUSH EBX
+  write([string]+4,[[string]])
+  POP EBX
+}
+
+
+
+; Returns the length of the string string
+
+function string_length(string)
+{
+  PUSH EBX
+  MOV EAX,[[string]]
+  POP EBX
+}
+
+
+
+; Returns true if the two strings first and second are equal
+
+function string_equals(first,second)
+{
+  PUSH EBX
+  PUSH ESI
+  PUSH EDI
+  MOV EAX,[[first]] == [[second]]
+  TEST EAX,EAX
+  JE end
+
+  MOV ESI,[second]+4
+  MOV EDI,[first]+4
+  MOV ECX,[[second]]
+  REP CMPSB
+  JE yes
+
+  XOR EAX,EAX
+  JMP end
+
+  yes:
+  MOV EAX,true
+
+  end:
+  POP EDI
+  POP ESI
+  POP EBX
+}
+
+
+
+; Returns the first byte in string string
+
+function string_head(string)
+{
+  PUSH EBX
+  XOR EAX,EAX
+  MOV AL,[[string]+4]
+  POP EBX
+}
+
+
+
+; Returns a pointer to the start of the string arg1
+function string_data(string)
+{
+  MOV EAX,[string]+4
+}

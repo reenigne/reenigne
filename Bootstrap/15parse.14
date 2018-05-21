@@ -1,0 +1,1420 @@
+; This is the bootstrapping compiler step 15 (written in step 14 language)
+; This file contains the parser and main function.
+
+; Emit the byte in (arg)
+asm_byte:
+  PUSH BP
+  MOV BP,SP
+  write([BP+4],1)
+  POP BP
+  RET
+
+
+
+; Emit the word in (arg)
+asm_word:
+  PUSH BP
+  MOV BP,SP
+  write([BP+4],2)
+  POP BP
+  RET
+
+
+
+asm_nop:   asm_byte(090) RET
+asm_cbw:   asm_byte(098) RET
+asm_cwd:   asm_byte(099) RET
+asm_pushf: asm_byte(09c) RET
+asm_popf:  asm_byte(09d) RET
+asm_sahf:  asm_byte(09e) RET
+asm_lahf:  asm_byte(09f) RET
+asm_movsb: asm_byte(0a4) RET
+asm_movsw: asm_byte(0a5) RET
+asm_cmpsb: asm_byte(0a6) RET
+asm_cmpsw: asm_byte(0a7) RET
+asm_stosb: asm_byte(0aa) RET
+asm_stosw: asm_byte(0ab) RET
+asm_lodsb: asm_byte(0ac) RET
+asm_lodsw: asm_byte(0ad) RET
+asm_scasb: asm_byte(0ae) RET
+asm_scasw: asm_byte(0af) RET
+asm_ret:   asm_byte(0c3) RET
+asm_retf:  asm_byte(0cb) RET
+asm_salc:  asm_byte(0d6) RET
+asm_xlatb: asm_byte(0d7) RET
+asm_repne: asm_byte(0f2) RET
+asm_rep:   asm_byte(0f3) RET
+asm_cmc:   asm_byte(0f5) RET
+asm_clc:   asm_byte(0f8) RET
+asm_stc:   asm_byte(0f9) RET
+asm_cli:   asm_byte(0fa) RET
+asm_sti:   asm_byte(0fb) RET
+asm_cld:   asm_byte(0fc) RET
+asm_std:   asm_byte(0fd) RET
+
+
+
+; Generate a conditional jump instruction
+;  arg1 = condition
+;  arg2 = destination
+
+gen_jcond:
+  PUSH BP
+  MOV BP,SP
+
+  MOV DX,[BP+4]-[ip]-2
+
+  CMP B[first_phase],0
+  JNE gen_jcond_short
+
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JE gen_jcond_short
+
+  ; Assemble the long version of a conditional jump instruction
+
+  PUSH DX
+  asm_byte([BP+6]^1)
+  asm_byte(3)
+  asm_byte(0e9)
+  POP DX
+  asm_word(DX-3)
+  JMP gen_jcond_done
+
+  gen_jcond_short:
+  PUSH DX
+  asm_byte([BP+6])
+  POP DX
+  asm_byte(DX)
+
+  gen_jcond_done:
+  POP BP
+  RET
+
+
+
+; Assemble a conditional jump instruction
+
+;   70+cond cb     Jcond cb
+
+asm_jcond:
+  PUSH BP
+  MOV BP,SP
+  CMP B[token],'I'
+  JE asm_jcond_ok
+  error_exit("Label required at line: $")
+
+  asm_jcond_ok:
+  gen_jcond([BP+4],find_label())
+  get_next_token()                          ; Slurp the label
+  POP BP
+  RET
+
+asm_jo:     asm_jcond(070) RET
+asm_jno:    asm_jcond(071) RET
+asm_jc:
+asm_jnae:
+asm_jb:     asm_jcond(072) RET
+asm_jnc:
+asm_jnb:
+asm_jae:    asm_jcond(073) RET
+asm_je:
+asm_jz:     asm_jcond(074) RET
+asm_jne:
+asm_jnz:    asm_jcond(075) RET
+asm_jna:
+asm_jbe:    asm_jcond(076) RET
+asm_jnbe:
+asm_ja:     asm_jcond(077) RET
+asm_js:     asm_jcond(078) RET
+asm_jns:    asm_jcond(079) RET
+asm_jp:     asm_jcond(07a) RET
+asm_jnp:    asm_jcond(07b) RET
+asm_jnge:
+asm_jl:     asm_jcond(07c) RET
+asm_jnl:
+asm_jge:    asm_jcond(07d) RET
+asm_jng:
+asm_jle:    asm_jcond(07e) RET
+asm_jnle:
+asm_jg:     asm_jcond(07f) RET
+
+
+
+; Check to see if DX fits in a signed 8-bit integer
+; If not, prints an error message and exits.
+
+check_short:
+  CMP B[first_phase],0
+  JNE check_short_ok
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JZ check_short_ok
+  label_error("Too far to label: $")
+  check_short_ok:
+  RET
+
+
+
+; Assemble a loop instruction
+
+;   E0 cb          LOOPNE cb
+;   E1 cb          LOOPE cb
+;   E2 cb          LOOP cb
+;   E3 cb          JeCXZ cb
+
+asm_loopx:
+  PUSH BP
+  MOV BP,SP
+  asm_byte([BP+4])
+  CMP B[token],'I'
+  JE asm_loopx_ok
+  error_exit("Label required at line: $")
+
+  asm_loopx_ok:
+
+  MOV DX,find_label()-[ip]-1
+  check_short()
+  asm_byte(DX)
+  get_next_token()                          ; Slurp the label
+  POP BP
+  RET
+
+asm_loopne: asm_loopx(0e0) RET
+asm_loope:  asm_loopx(0e1) RET
+asm_loop:   asm_loopx(0e2) RET
+asm_jcxz:   asm_loopx(0e3) RET
+
+
+
+; Assemble a CALL instruction.
+
+;   E8 cv          CALL cv
+;   FF /2          CALL rmv
+
+asm_call:
+  PUSH BP
+  MOV BP,SP
+
+  CMP B[token],'I'
+  JNE asm_call_not_label
+
+  asm_byte(0e8)
+  asm_word(find_label()-[ip]-2)                  ; write the jump word
+  get_next_token()                          ; Slurp the label
+  JMP asm_call_done
+
+  asm_call_not_label:
+  parse_expr()
+  simplify()
+  gen_ea(BX,0ff,2,2,1)
+  free_ast(BX)
+
+  asm_call_done:
+  POP BP
+  RET
+
+
+
+; Generate an unconditional JMP instruction
+;  arg1 = destination
+
+gen_jmp:
+  PUSH BP
+  MOV BP,SP
+
+  MOV DX,[BP+4]-[ip]-2
+  PUSH DX
+
+  CMP B[first_phase],0
+  JNE gen_jmp_short
+
+  MOV AX,DX
+  CBW
+  CMP AX,DX
+  JE gen_jmp_short
+
+  asm_byte(0e9)
+  POP DX
+  asm_word(DX-1)                  ; write the jump word
+  JMP gen_jmp_done
+
+  gen_jmp_short:
+  asm_byte(0eb)
+  POP AX
+  asm_byte(AX)
+
+  gen_jmp_done:
+  POP BP
+  RET
+
+
+
+; Assemble an unconditional JMP instruction.
+
+;   E9 cv          JMP cv
+;   EB cb          JMP cb
+;   FF /4          JMP rmv
+
+asm_jmp:
+  CMP B[token],'I'
+  JNE asm_jmp_not_label
+
+  gen_jmp(find_label())
+  get_next_token()                          ; Slurp the label
+  JMP asm_jmp_done
+
+  asm_jmp_not_label:
+  parse_expr()
+  simplify()
+  gen_ea(BX,0ff,4,2,1)
+  free_ast(BX)
+
+  asm_jmp_done:
+  RET
+
+
+
+; Assemble an INT instruction.
+
+;   CC             INT 3              5  p0os
+;   CD ib          INT ib             5  p0normal
+
+asm_int:
+  parse_expr()
+  simplify()
+  PUSH BX
+
+  MOV AL,[BX]
+  CMP AL,'N'
+  JE asm_int_got_const
+
+  need_const_error()
+
+  asm_int_got_const:
+  MOV AX,[BX+2]
+  CMP AL,3
+  JNE asm_int_not3
+
+  ; INT 3
+
+  asm_byte(0cc)
+  JMP asm_int_done
+
+  ; INT ib
+
+  asm_int_not3:
+  PUSH AX
+  asm_byte(0cd)
+  POP AX
+  asm_byte(AX)
+
+  asm_int_done:
+  POP BX
+  free_ast(BX)
+  RET
+
+
+
+need_const_error:
+  error_exit("Constant required on line: $")
+
+
+
+; Assemble a DW instruction (output a single word)
+asm_dw:
+  parse_expr()
+  simplify()
+  PUSH BX
+
+  MOV AL,[BX]
+  CMP AL,'N'
+  JE asm_dw_got_const
+
+  need_const_error()
+
+  asm_dw_got_const:
+  asm_word([BX+2])
+  POP BX
+  free_ast(BX)
+  RET
+
+
+
+; Assemble a DB instruction (output a single byte or a string)
+asm_db:
+  parse_expr()
+  simplify()
+  PUSH BX
+
+  MOV AL,[BX]
+  CMP AL,'"'
+  JNE asm_db_not_string
+
+  ; DB string
+
+  MOV CX,[BX+2]
+  PUSH SI
+  MOV SI,BX
+  ADD SI,4
+  asm_db_string_loop:
+  LODSB
+  PUSH CX
+  asm_byte(AX)
+  POP CX
+  LOOP asm_db_string_loop
+  POP SI
+  JMP asm_db_done
+
+
+  asm_db_not_string:
+  CMP AL,'N'
+  JE asm_db_got_const
+
+  need_const_error()
+
+  asm_db_got_const:
+
+  ; DB value
+
+  asm_byte([BX+2])
+
+  asm_db_done:
+  POP BX
+  free_ast(BX)
+  RET
+
+
+
+; Assemble an INC or DEC instruction.
+
+;   40+r           INC rv
+;   48+r           DEC rv
+;   FE /0          INC rmb
+;   FE /1          DEC rmb
+;   FF /0          INC rmv
+;   FF /1          DEC rmv
+
+asm_incdec:
+  PUSH BP
+  MOV BP,SP
+  CMP B[token],'R'
+  JNE asm_incdec_regmem
+  CMP B[token_arg],8
+  JGE asm_incdec_regmem
+  asm_byte(([BP+4]<<3) + [token_arg] + 040)
+  get_next_token()                          ; Slurp the register
+  JMP asm_incdec_done
+
+  asm_incdec_regmem:
+  parse_expr()
+  simplify()
+  ast_size(BX)
+  gen_ea(BX,AL + 0fd,[BP+4],0,3)
+  free_ast(BX)
+
+  asm_incdec_done:
+  POP BP
+  RET
+
+asm_inc:   asm_incdec(0) RET
+asm_dec:   asm_incdec(1) RET
+
+
+
+; Assemble a PUSH instruction.
+
+;   06+8*r         PUSH segreg_r
+;   50+r           PUSH rv
+;   FF /6          PUSH rmv
+
+asm_push:
+  parse_expr()
+  simplify()
+  gen_stk(BX)
+  free_ast(BX)
+  RET
+
+
+
+; Assemble a POP instruction.
+
+;   07+8*r         POP segreg_r
+;   58+r           POP rv
+;   8F /0          POP mv
+
+asm_pop:
+  CMP B[token],'R'
+  JNE asm_pop_ea
+  MOV AX,[token_arg]
+  CMP AL,8
+  JGE asm_pop_not_gpr_word
+  asm_byte(AL + 058)
+  get_next_token()                          ; Slurp the register
+  JMP asm_pop_done
+  asm_pop_not_gpr_word:
+  CMP AL,010
+  JL asm_pop_ea
+
+  asm_byte((AL<<3)-079)
+  get_next_token()                          ; Slurp the segreg
+  JMP asm_pop_done
+
+  asm_pop_ea:
+  parse_expr()
+  simplify()
+  gen_ea(BX,08f,0,2,2)
+  free_ast(BX)
+  asm_pop_done:
+  RET
+
+
+
+; Assemble a NOT, NEG, MUL, IMUL, DIV or IDIV instruction.
+
+;   F6 /n          OP rmb
+;   F7 /n          OP rmv
+
+asm_math:
+  PUSH BP
+  MOV BP,SP
+  parse_expr()
+  simplify()
+  ast_size(BX)
+  gen_ea(BX,AL+0f5,[BP+4],0,3)
+  free_ast(BX)
+  POP BP
+  RET
+
+asm_not:   asm_math(2) RET
+asm_neg:   asm_math(3) RET
+asm_mul:   asm_math(4) RET
+asm_imul:  asm_math(5) RET
+asm_div:   asm_math(6) RET
+asm_idiv:  asm_math(7) RET
+
+
+
+; Parse (and ignore) a comma - error if it isnt there.
+
+parse_comma:
+  CMP B[token],','
+  JE parse_comma_succeed
+  error_exit("Comma expected on line: $")
+  parse_comma_succeed:
+  get_next_token()                          ; Slurp the comma
+  RET
+
+
+
+; Assemble a ROL, ROR, RCL, RCR, SHL, SHR or SAR instruction.
+
+;   D0 /n          OP rmb,1
+;   D1 /n          OP rmv,1
+;   D2 /n          OP rmb,CL
+;   D3 /n          OP rmv,CL
+
+asm_shift:
+  PUSH BP
+  MOV BP,SP
+  SUB SP,4
+
+  parse_expr()
+  simplify()
+  MOV [BP-2],BX
+  MOV W[BP-4],ast_size(BX)
+  parse_comma()
+
+  CMP B[token],'0'
+  JNE asm_shift_not_number
+  CMP B[token_arg],1
+  JNE asm_shift_not1cl
+  XOR AX,AX
+
+  asm_shift_do:
+  gen_ea([BP-2],AX+[BP-4]+0cf,[BP+4],0,3)
+  get_next_token()                          ; Slurp the 1 or CL
+  JMP asm_shift_done
+
+  asm_shift_not_number:
+  CMP B[token],'R'
+  JNE asm_shift_not1cl
+  CMP B[token_arg],9            ; Is register CL?
+  JNE asm_shift_not1cl
+  MOV AX,2
+  JMP asm_shift_do
+
+  asm_shift_not1cl:
+  parse_expr()
+  simplify()
+  gen_ea(BX,08a,1,1,1) ; generate "MOV CL,expr"
+  gen_ea([BP-2],[BP-4]+0d1,[BP+4],0,3) ; generate "OP rm,CL"
+  free_ast(BX)
+
+  asm_shift_done:
+  free_ast([BP-2])
+  MOV SP,BP
+  POP BP
+  RET
+
+
+asm_rol:   asm_shift(0) RET
+asm_ror:   asm_shift(1) RET
+asm_rcl:   asm_shift(2) RET
+asm_rcr:   asm_shift(3) RET
+asm_shl:   asm_shift(4) RET
+asm_shr:   asm_shift(5) RET
+asm_sar:   asm_shift(7) RET
+
+
+
+; Assemble an XCHG instruction.
+
+;   86 /r          XCHG rmb,rb
+;   87 /r          XCHG rmv,rv
+;   90+r           XCHG eAX,rv
+
+asm_xchg:
+  PUSH BP
+  MOV BP,SP
+  SUB SP,6
+
+  parse_expr()
+  simplify()
+  MOV [BP-2],BX
+  parse_comma()
+  parse_expr()
+  simplify()
+  MOV [BP-4],BX
+  MOV W[BP-6],ast_size(BX)
+  PUSH [BP-6]
+  OR W[BP-6],ast_size([BP-2])
+  POP CX
+  check_opsize(AX,CX)
+
+  MOV BX,[BP-2]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_xchg_mem_first
+
+  ; reg,x
+
+  MOV AL,[BX+1]
+  MOV CL,AL
+  CMP AL,010
+  JGE asm_xchg_seg_first
+
+  ; gpreg,x
+
+  CMP AL,0
+  JNE asm_xchg_notax_first
+
+  ; AX,x
+
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_xchg_regmem
+
+  ; AX,reg
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_xchg_seg_gpreg
+
+  ; AX,gpreg
+
+  asm_xchg_ax:
+  ADD AL,090
+  asm_byte(AX)   ; assemble "XCHG AX,<gpreg>"
+  JMP asm_xchg_done
+
+  ; seg,gpreg
+
+  asm_xchg_seg_gpreg:
+  ; segreg in AL, gpreg in CL
+  SHL AL,1
+  SHL AL,1
+  SHL AL,1
+  SUB AL,07a
+  PUSH AX
+  PUSH CX
+  asm_byte(AX)   ; assemble "PUSH <segreg>"
+  POP CX
+  POP AX
+  PUSH CX
+  PUSH AX
+  ADD CX,050
+  asm_byte(CX)   ; assemble "PUSH <gpreg>"
+  POP AX
+  INC AX
+  asm_byte(AX)   ; assemble "POP <segreg>"
+  POP CX
+  ADD CX,058
+  asm_byte(CX)   ; assemble "POP <gpreg>"
+  JMP asm_xchg_done
+
+  ; reg,mem
+
+  asm_xchg_regmem:
+  ; reg in CL, mem in BX
+  MOV AL,[BP-6]
+  MOV DL,AL
+  ADD AL,085
+  AND CL,7
+  gen_ea(BX,AX,CX,DX,3)
+  JMP asm_xchg_done
+
+  ; gpreg,x
+
+  asm_xchg_notax_first:
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_xchg_regmem
+
+  ; gpreg,reg
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_xchg_seg_gpreg
+
+  ; gpreg,gpreg
+
+  CMP AL,0
+  JNE asm_xchg_gp_gp
+  MOV AL,CL
+  JMP asm_xchg_ax
+
+  asm_xchg_gp_gp:
+  MOV CL,AL
+  AND CL,7
+  MOV AL,[BP-6]
+  MOV DL,AL
+  ADD AL,085
+  gen_ea([BP-2],AX,CX,DX,3)
+  JMP asm_xchg_done
+
+  ; seg,x
+
+  asm_xchg_seg_first:
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_xchg_seg_mem
+
+  ; seg,reg
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_xchg_seg_seg
+
+  XCHG AL,CL
+  JMP asm_xchg_seg_gpreg
+
+  ; seg,seg
+
+  asm_xchg_seg_seg:
+  SHL CL,1
+  SHL CL,1
+  SHL CL,1
+  SUB CL,07a
+  SHL AL,1
+  SHL AL,1
+  SHL AL,1
+  SUB AL,07a
+  PUSH AX
+  PUSH CX
+  asm_byte(AX)   ; assemble "PUSH <segreg1>"
+  POP CX
+  POP AX
+  PUSH CX
+  PUSH AX
+  asm_byte(CX)   ; assemble "PUSH <segreg2>"
+  POP AX
+  INC AX
+  asm_byte(AX)   ; assemble "POP <segreg1>"
+  POP CX
+  INC CX
+  asm_byte(CX)   ; assemble "POP <segreg2>"
+  JMP asm_xchg_done
+
+  ; seg,mem
+
+  asm_xchg_seg_mem:
+  ; segreg in CL, mem in BX
+  SHL CL,1
+  SHL CL,1
+  SHL CL,1
+  SUB CL,07a
+  PUSH CX
+  PUSH BX
+  asm_byte(CX)   ; assemble "PUSH <segreg>"
+  POP BX
+  POP CX
+  PUSH BX
+  PUSH CX
+  gen_stk(BX)    ; assemble "PUSH <mem>"
+  POP CX
+  INC CX
+  asm_byte(CX)   ; assemble "POP <segreg>"
+  POP BX
+  gen_ea(BX,08f,0,2,2) ; assemble "POP <mem>"
+  JMP asm_xchg_done
+
+  ; mem,x
+
+  asm_xchg_mem_first:
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_xchg_mem_mem
+
+  ; mem,reg
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_xchg_mem_seg
+
+  ; mem,gpreg
+
+  MOV BX,[BP-2]
+  MOV CL,AL
+  JMP asm_xchg_regmem
+
+  ; mem,seg
+
+  asm_xchg_mem_seg:
+  MOV BX,[BP-2]
+  MOV CL,AL
+  JMP asm_xchg_seg_mem
+
+  ; mem,mem
+
+  asm_xchg_mem_mem:
+  gen_stk(BX)     ; assemble "PUSH <mem1>"
+  gen_stk([BP-2]) ; assemble "PUSH <mem2>"
+  gen_ea([BP-4],08f,0,2,2); assemble "POP <mem1>"
+  gen_ea([BP-2],08f,0,2,2); assemble "POP <mem2>"
+
+
+  asm_xchg_done:
+  free_ast([BP-4])
+  free_ast([BP-2])
+  MOV SP,BP
+  POP BP
+  RET
+
+
+
+; Assemble a TEST instruction.
+
+;   84 /r          TEST rmb,rb
+;   85 /r          TEST rmv,rv
+;   A8 ib          TEST AL,ib
+;   A9 iv          TEST eAX,iv
+;   F6 /0 ib       TEST rmb,ib
+;   F7 /0 iv       TEST rmv,iv
+
+asm_test:
+  PUSH BP
+  MOV BP,SP
+  SUB SP,6
+
+  parse_expr()
+  simplify()
+  MOV [BP-2],BX
+  parse_comma()
+  parse_expr()
+  simplify()
+  MOV [BP-4],BX
+
+  ast_size(BX)
+  MOV [BP-6],AX
+  PUSH AX
+  MOV BX,[BP-2]
+  ast_size(BX)
+  OR [BP-6],AX
+  POP CX
+  check_opsize(AX,CX)
+
+
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_test_mem_first
+
+  PUSH BX
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  POP BX
+  CMP AL,'N'
+  JNE asm_test_mem_first
+
+
+  MOV AL,[BX+1]
+  CMP AL,0
+  JNE asm_test_not_ax
+
+  ; AX,iv
+
+  asm_byte(0a9)
+  MOV BX,[BP-4]
+  asm_word([BX+2])   ; assemble "TEST AX,iv"
+  JMP asm_test_done
+
+
+  asm_test_not_ax:
+  CMP AL,8
+  JNE asm_test_mem_first
+
+  ; AL,ib
+
+  asm_byte(0a8)
+  MOV BX,[BP-4]
+  asm_byte([BX+2])   ; assemble "TEST AL,ib"
+  JMP asm_test_done
+
+
+  asm_test_mem_first:
+  MOV BX,[BP-4]
+  CMP B[BX],'R'
+  JNE asm_test_mem_notreg
+
+  ; regmem,reg
+
+  MOV DL,[BX+1]
+  CMP DL,010
+  JL asm_test_no_error
+  syntax_error()
+  asm_test_no_error:
+
+  ; regmem,gpreg
+
+  MOV AL,[BP-6]
+  ADD AL,083
+  gen_ea([BP-2],AX,DX&7,[BP-6],1)  ; generate "TEST rm,r"
+  JMP asm_test_done
+
+
+  asm_test_mem_notreg:
+  CMP B[BX],'N'
+  JNE asm_test_mem_expr
+
+  ; regmem,imm
+
+  gen_ea([BP-2],[BP-6]+0f5,0,[BP-6],2)   ; generate "TEST rm,"
+
+  MOV BX,[BP-4]
+  CMP B[BP-6],1
+  JNE asm_test_word
+
+  ; regmem,byte
+
+  asm_byte([BX+2])               ; assemble "ib"
+  JMP asm_test_done
+
+  ; regmem,word
+
+  asm_test_word:
+  asm_word([BX+2])               ; assemble "iw"
+  JMP asm_test_done
+
+  ; regmem,expr
+
+  asm_test_mem_expr:
+  gen_ea([BP-4],08b,0,[BP-6],1)  ; generate "MOV A,expr"
+  gen_ea([BP-2],[BP-6]+083,0,[BP-6],1)   ; generate "TEST rm,A"
+
+
+  asm_test_done:
+  free_ast([BP-2])
+  free_ast([BP-4])
+  MOV SP,BP
+  POP BP
+  RET
+
+
+
+; Assemble an ADD, OR, ADC, SBB, AND, SUB, XOR or CMP instruction.
+
+;   00+8*n /r      OP rmb,rb
+;   01+8*n /r      OP rmv,rv
+;   02+8*n /r      OP rb,rmb
+;   03+8*n /r      OP rv,rmv
+;   04+8*n ib      OP AL,ib
+;   05+8*n iv      OP eAX,iv
+;   80 /n ib       OP rmb,ib
+;   81 /n iv       OP rmv,iv
+;   83 /n ib       OP rmv,ib
+
+asm_alu:
+  PUSH BP
+  MOV BP,SP
+  SUB SP,6
+
+  parse_expr()
+  simplify()
+  MOV [BP-2],BX
+  parse_comma()
+  parse_expr()
+  simplify()
+  MOV [BP-4],BX
+
+  ast_size(BX)
+  MOV [BP-6],AX
+  PUSH AX
+  ast_size([BP-2])
+  OR [BP-6],AX
+  POP CX
+  check_opsize(AX,CX)
+
+
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'N'
+  JE asm_alu_imm
+
+  SHL B[BP+4],3
+
+  MOV BX,[BP-2]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_alu_mem_first
+
+  ; reg,x
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JL asm_alu_no_error
+  asm_alu_error:
+  syntax_error()
+  asm_alu_no_error:
+
+  MOV BX,[BP-4]
+  CMP B[BX],'R'
+  JE asm_alu_reg_reg             ; use the rm,r form so that we get the same opcode as 13
+
+  MOV DL,AL
+  AND DL,7
+  MOV AX,[BP-6]
+  ADD AL,1
+  ADD AL,[BP+4]
+  gen_ea(BX,AX,DX,[BP-6],1)      ; assemble "OP r,rm"
+  JMP asm_alu_done
+
+  asm_alu_reg_reg:
+  MOV AL,[BX+1]
+  JMP asm_alu_mem_reg
+
+
+  asm_alu_mem_first:
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_alu_mem_notreg
+
+  ; mem,reg
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_alu_error
+
+  asm_alu_mem_reg:
+  MOV DL,AL
+  AND DL,7
+  MOV AX,[BP-6]
+  ADD AL,0ff
+  ADD AL,[BP+4]
+  gen_ea([BP-2],AX,DX,[BP-6],3)  ; assemble "OP rm,r"
+  JMP asm_alu_done
+
+  ; mem,expr
+
+  asm_alu_mem_notreg:
+  gen_ea([BP-4],[BP-6]+089,0,[BP-6],1)       ; assemble "MOV A,expr"
+  gen_ea([BP-2],[BP-6]+[BP+4]+0ff,0,[BP-6],2)       ; assemble "OP mem,A"
+  JMP asm_alu_done
+
+
+  asm_alu_imm:
+  MOV BX,[BP-2]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_alu_mem_imm
+
+  MOV AL,[BX+1]
+  CMP AL,0
+  JE asm_alu_ax_imm
+
+  CMP AL,8
+  JNE asm_alu_mem_imm
+
+  ; AL,ib
+
+  asm_byte(([BP+4]<<3)+4)
+  MOV BX,[BP-4]
+  asm_byte([BX+2])               ; assemble "OP AL,ib"
+  JMP asm_alu_done
+
+  ; AX,iw
+
+  asm_alu_ax_imm:
+  asm_byte(([BP+4]<<3)+5)
+  MOV BX,[BP-4]
+  asm_word([BX+2])               ; assemble "OP AX,iw"
+  JMP asm_alu_done
+
+
+  asm_alu_mem_imm:
+  CMP B[BP-6],1
+  JNE asm_alu_imm_word
+
+  ; rmb,ib
+
+  gen_ea(BX,080,[BP+4],1,3)      ; assemble "OP rmb,"
+  asm_byte([[BP-4]+2])               ; assemble "ib"
+  JMP asm_alu_done
+
+  asm_alu_imm_word:
+  MOV BX,[BP-4]
+  MOV AL,[BX+2]
+  CBW
+  CMP AX,[BX+2]
+  JE asm_alu_imm_rwib
+
+  ; rmw,iw
+
+  gen_ea([BP-2],081,[BP+4],2,3)  ; assemble "OP rmw,"
+  asm_word([BX+2])               ; assemble "iw"
+  JMP asm_alu_done
+
+  ; rmw,ib
+
+  asm_alu_imm_rwib:
+  gen_ea([BP-2],083,[BP+4],2,3)  ; assemble "OP rmw,"
+  asm_byte([BX+2])
+
+
+  asm_alu_done:
+  free_ast([BP-2])
+  free_ast([BP-4])
+  MOV SP,BP
+  POP BP
+  RET
+
+asm_add:   asm_alu(0) RET
+asm_or:    asm_alu(1) RET
+asm_adc:   asm_alu(2) RET
+asm_sbb:   asm_alu(3) RET
+asm_and:   asm_alu(4) RET
+asm_sub:   asm_alu(5) RET
+asm_xor:   asm_alu(6) RET
+asm_cmp:   asm_alu(7) RET
+
+
+
+; Assemble a MOV instruction.
+
+;   88 /r          MOV rmb,rb
+;   89 /r          MOV rmv,rv
+;   8A /r          MOV rb,rmb
+;   8B /r          MOV rv,rmv
+;   8C /r          MOV(ZX) rmv,segreg
+;   8E /r          MOV segreg,rmw
+;   A0 iv          MOV AL,xb
+;   A1 iv          MOV eAX,xv
+;   A2 iv          MOV xb,AL
+;   A3 iv          MOV xv,eAX
+;   B0+r ib        MOV rb,ib
+;   B8+r iv        MOV rv,iv
+;   C6 /0 ib       MOV rmb,ib
+;   C7 /0 iv       MOV rmv,iv
+
+asm_mov:
+  PUSH BP
+  MOV BP,SP
+  SUB SP,6
+
+  parse_expr()
+  simplify()
+  MOV [BP-2],BX
+  parse_comma()
+  parse_expr()
+  simplify()
+  MOV [BP-4],BX
+
+  ast_size(BX)
+  MOV [BP-6],AX
+  PUSH AX
+  MOV BX,[BP-2]
+  ast_size(BX)
+  OR [BP-6],AX
+  POP CX
+  check_opsize(AX,CX)
+
+
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_mov_mem
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_mov_seg
+
+  CMP AL,0
+  JE asm_mov_a
+  CMP AL,8
+  JE asm_mov_a
+
+  asm_mov_nota:
+  MOV BX,[BP-4]
+  MOV DL,[BX]
+  CMP DL,'N'
+  JE asm_mov_gpreg_imm
+
+  ; gpreg,expr
+
+  asm_mov_reg:
+  ; reg in AL, EA expression in [BP-4]
+  MOV BX,[BP-4]
+  CMP B[BX],'R'
+  JE asm_mov_reg_reg             ; do this one separately so we get the same opcode as with 13
+
+  MOV CL,[BP-6]
+  ADD CL,089
+  AND AL,7
+  gen_ea(BX,CX,AX,[BP-6],1)      ; generate "MOV r,expr"
+  JMP asm_mov_done
+
+  asm_mov_reg_reg:
+  MOV AL,[BX+1]
+  JMP asm_mov_mem_reg
+
+
+  ; gpreg,imm
+
+  asm_mov_gpreg_imm:
+  XOR AL,8
+  ADD AL,0b0
+  PUSH BX
+  asm_byte(AX)                   ; assemble "MOV r,"
+  POP BX
+  CMP B[BP-6],2
+  JE asm_mov_gpreg_word
+
+  ; gpreg,ib
+
+  asm_byte([BX+2])               ; assemble "ib"
+  JMP asm_mov_done
+
+  ; gpreg,iw
+
+  asm_mov_gpreg_word:
+  asm_word([BX+2])               ; assemble "iw"
+  JMP asm_mov_done
+
+
+  asm_mov_a:
+  MOV BX,[BP-4]
+  CMP B[BX],']'
+  JNE asm_mov_nota               ; if the ea didn't get simplified to a mod/rm it's not a constant offset
+  CMP B[BX+3],6
+  JNE asm_mov_nota               ; if the mod/rm isn't 6 it's not a constant offset
+
+  ; A,x
+
+  PUSH BX
+  asm_byte([BP-6]+09f)           ; assemble "MOV A,[]"
+  POP BX
+  asm_word([BX+4])               ; assemble the offset
+  JMP asm_mov_done
+
+
+  ; segreg,expr
+
+  asm_mov_seg:
+  AND AL,3
+  MOV CX,AX
+  gen_ea([BP-4],08e,CX,2,1)      ; assemble "MOV segreg,expr"
+  JMP asm_mov_done
+
+
+  ; mem,x
+
+  asm_mov_mem:
+  MOV BX,[BP-4]
+  MOV AL,[BX]
+  CMP AL,'R'
+  JNE asm_mov_mem_notreg
+
+  MOV AL,[BX+1]
+  CMP AL,010
+  JGE asm_mov_mem_seg
+
+  CMP AL,0
+  JE asm_mov_mem_a
+  CMP AL,8
+  JE asm_mov_mem_a
+
+  ; mem,gpreg
+
+  asm_mov_mem_reg:
+  MOV CL,[BP-6]
+  ADD CL,087
+  AND AL,7
+  gen_ea([BP-2],CX,AX,[BP-6],2)  ; generate "MOV m,r"
+  JMP asm_mov_done
+
+
+  asm_mov_mem_a:
+  MOV BX,[BP-2]
+  CMP B[BX],']'                  ; if the ea didn't get simplified to a mod/rm it's not a constant offset
+  JNE asm_mov_mem_reg
+  CMP B[BX+3],6                  ; if the mod/rm isn't 6 it's not a constant offset
+  JNE asm_mov_mem_reg
+
+  ; x,A
+
+  PUSH BX
+  asm_byte([BP-6]+0a1)           ; assemble "MOV [],A"
+  POP BX
+  asm_word([BX+4])               ; assemble the offset
+  JMP asm_mov_done
+
+
+  ; mem,segreg
+
+  asm_mov_mem_seg:
+  AND AL,3
+  MOV CX,AX
+  gen_ea([BP-2],08c,CX,2,2)      ; assemble "MOV mw,segreg"
+  JMP asm_mov_done
+
+
+  ; mem,x
+
+  asm_mov_mem_notreg:
+  CMP AL,'N'
+  JNE asm_mov_mem_expr
+
+  ; mem,imm
+
+  MOV AL,[BP-6]
+  PUSH AX
+  ADD AL,0c5
+  gen_ea([BP-2],AX,0,[BP-6],2)  ; assemble "MOV rm,"
+  POP AX
+  MOV BX,[BP-4]
+  CMP AL,2
+  JE asm_mov_mem_word
+
+  asm_byte([BX+2])              ; assemble "ib"
+  JMP asm_mov_done
+
+  asm_mov_mem_word:
+  asm_word([BX+2])              ; assemble "iw"
+  JMP asm_mov_done
+
+  ; mem,expr
+
+  asm_mov_mem_expr:
+  MOV AL,[BP-6]
+  ADD AL,089
+  PUSH AX
+  gen_ea([BP-4],AX,0,[BP-6],1)  ; assemble "MOV A,expr"
+  POP AX
+  SUB AL,2
+  gen_ea([BP-2],AX,0,[BP-6],2)  ; assemble "MOV expr,A"
+
+
+  asm_mov_done:
+  free_ast([BP-2])
+  free_ast([BP-4])
+  MOV SP,BP
+  POP BP
+  RET
+
+
+
+; Parse a mnemonic and output the instruction bytes
+
+parse_mnemonic_table:
+ DW asm_adc DW asm_add DW asm_and DW asm_call DW asm_cbw       ;  0
+ DW asm_clc DW asm_cld DW asm_cli DW asm_cmc DW asm_cmp
+ DW asm_cmpsb DW asm_cmpsw DW asm_cwd DW asm_db DW asm_dec     ; 10
+ DW asm_div DW asm_dw DW asm_idiv DW asm_imul DW asm_inc
+ DW asm_int DW asm_ja DW asm_jae DW asm_jb DW asm_jbe          ; 20
+ DW asm_jc DW asm_jcxz DW asm_je DW asm_jg DW asm_jge
+ DW asm_jl DW asm_jle DW asm_jmp DW asm_jna DW asm_jnae        ; 30
+ DW asm_jnb DW asm_jnbe DW asm_jnc DW asm_jne DW asm_jng
+ DW asm_jnge DW asm_jnl DW asm_jnle DW asm_jno DW asm_jnp      ; 40
+ DW asm_jns DW asm_jnz DW asm_jo DW asm_jp DW asm_js
+ DW asm_jz DW asm_lahf DW asm_lodsb DW asm_lodsw DW asm_loop   ; 50
+ DW asm_loope DW asm_loopne DW asm_mov DW asm_movsb DW asm_movsw
+ DW asm_mul DW asm_neg DW asm_nop DW asm_not DW asm_or         ; 60
+ DW asm_pop DW asm_popf DW asm_push DW asm_pushf DW asm_rcl
+ DW asm_rcr DW asm_rep DW asm_repne DW asm_ret DW asm_retf     ; 70
+ DW asm_rol DW asm_ror DW asm_sahf DW asm_salc DW asm_sar
+ DW asm_sbb DW asm_scasb DW asm_scasw DW asm_shl DW asm_shr    ; 80
+ DW asm_stc DW asm_std DW asm_sti DW asm_stosb DW asm_stosw
+ DW asm_sub DW asm_test DW asm_xchg DW asm_xlatb DW asm_xor    ; 90
+
+parse_mnemonic:
+  PUSH W[token_arg]
+  get_next_token()                          ; Slurp the mnemonic
+  POP BX
+  SHL BX,1
+  ADD BX,parse_mnemonic_table
+  JMP [BX]
+  RET
+
+
+
+; Main function.
+;   Allocate a line buffer
+;   Phase loop (phase 0 = finding label locations, phase 1 = emitting)
+;     Parse loop
+
+line_buffer:      DW 0
+max_line_length:  DW 0200
+last_phase:       DB 0
+first_phase:      DB 0
+
+main:
+  malloc([max_line_length])
+  MOV [line_buffer],AX
+
+  MOV B[first_phase],1
+  main_phase_top:
+  MOV B[last_phase],1
+  rewind()
+  restart_tables()
+
+  MOV DX,[writename]
+  MOV AH,03c
+  XOR CX,CX
+  INT 021
+  JC main_end
+  MOV [writehandle],AX
+
+  get_next_token()
+  assemble_statements()
+  CMP B[token],0
+  JE main_eof
+
+  error_exit("Unexpected character on line: $")
+
+  main_eof:
+  MOV BX,[writehandle]
+  MOV AH,03e
+  INT 021
+
+  MOV B[first_phase],0
+
+  CMP B[last_phase],0
+  JE main_phase_top
+
+  main_end:
+  RET

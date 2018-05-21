@@ -1,0 +1,551 @@
+; This is the bootstrapping compiler step 14 (written in step 13 language)
+; This file contains the lexer functions and symbol table
+
+; Parse hexadecimal digit, return value in AL. Return CF=1 on fail.
+lex_hexdigit:
+  LODSB
+  is_digit(upper_case(AX))
+  JC lex_hexdigit_number
+  CMP AL,'A'
+  JL lex_hexdigit_fail
+  CMP AL,'F'
+  JG lex_hexdigit_fail
+  SUB AL,7
+  lex_hexdigit_number:
+  SUB AL,'0'
+  CLC
+  JMP lex_hexdigit_done
+  lex_hexdigit_fail:
+  DEC SI
+  STC
+  lex_hexdigit_done:
+  RET
+
+
+
+; Parse hexadecimal number, return value in AX.
+lex_hexnumber:
+  MOV DX,0
+  lex_hexnumber_loop:
+  lex_hexdigit()
+  JC lex_hexnumber_done
+  MOV CL,4
+  SHL DX,CL
+  OR DL,AL
+  JMP lex_hexnumber_loop
+  lex_hexnumber_done:
+  CLC
+  RET
+
+
+
+; Parse decimal digit, return value in AL. Return CF=1 on fail.
+lex_decdigit:
+  LODSB
+  is_digit(AX)
+  JNC lex_decdigit_fail
+  SUB AL,'0'
+  CLC
+  JMP lex_decdigit_done
+  lex_decdigit_fail:
+  DEC SI
+  STC
+  lex_decdigit_done:
+  RET
+
+
+
+; Parse decimal number, return value in AX.
+lex_decnumber:
+  MOV DX,0
+  lex_decnumber_loop:
+  lex_decdigit()
+  JC lex_decnumber_done
+  PUSH AX
+  MOV AX,10
+  MUL DX
+  MOV DX,AX
+  POP AX
+  MOV AH,0
+  ADD DX,AX
+  JMP lex_decnumber_loop
+  lex_decnumber_done:
+  CLC
+  RET
+
+
+
+; Parse identifier. Return in "identifier".
+
+identifier:
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00 DB 00
+DB 00  ; One more for the terminator
+
+lex_identifier:
+  XOR CX,CX
+  MOV DI,identifier
+  lex_identifier_loop:
+  LODSB
+  PUSH CX
+  is_alphanumeric(AX)
+  POP CX
+  JNC lex_identifier_end
+  STOSB
+  INC CX
+  CMP CX,021
+  JL lex_identifier_loop
+  MOV AL,'$'                   ; Terminate the overly long label
+  DEC DI
+  STOSB
+
+  label_error("Label too long: $")
+
+  lex_identifier_end:
+  MOV AL,'$'
+  STOSB                        ; "$" is a useful terminator as it means we can print the label name easily
+  DEC SI
+  RET
+
+
+
+; Returns CF=1 (and reg number in DX) if identifier is a register.
+
+reg_table:
+  DB "AX" DB "CX" DB "DX" DB "BX" DB "SP" DB "BP" DB "SI" DB "DI"
+  DB "AL" DB "CL" DB "DL" DB "BL" DB "AH" DB "CH" DB "DH" DB "BH"
+  DB "ES" DB "CS" DB "SS" DB "DS"
+
+is_identifier_register:
+  PUSH SI
+  MOV SI,identifier
+  LODSW
+  PUSH AX
+  LODSB
+  CMP AL,'$'
+  POP AX
+  JNE is_identifier_register_no
+  upper_case(AX)
+  XCHG AL,AH
+  upper_case(AX)
+  XCHG AL,AH
+  MOV DX,AX
+  MOV CX,014
+  MOV SI,reg_table
+  is_identifier_register_loop:
+  LODSW
+  CMP AX,DX
+  JE is_identifier_register_yes
+  LOOP is_identifier_register_loop
+  is_identifier_register_no:
+  CLC
+  POP SI
+  RET
+  is_identifier_register_yes:
+  MOV DX,014
+  SUB DX,CX
+  STC
+  POP SI
+  RET
+
+
+
+; Returns CF=1 (and mnemonic number in DX) if identifier is a mnemonic.
+
+mnemonic_table:
+DB "ADC$ADD$AND$CALL$CBW$CLC$CLD$CLI$CMC$CMP$"              ;  0
+DB "CMPSB$CMPSW$CWD$DB$DEC$DIV$DW$IDIV$IMUL$INC$"           ; 10
+DB "INT$JA$JAE$JB$JBE$JC$JCXZ$JE$JG$JGE$"                   ; 20
+DB "JL$JLE$JMP$JNA$JNAE$JNB$JNBE$JNC$JNE$JNG$"              ; 30
+DB "JNGE$JNL$JNLE$JNO$JNP$JNS$JNZ$JO$JP$JS$"                ; 40
+DB "JZ$LAHF$LODSB$LODSW$LOOP$LOOPE$LOOPNE$MOV$MOVSB$MOVSW$" ; 50
+DB "MUL$NEG$NOP$NOT$OR$POP$POPF$PUSH$PUSHF$RCL$"            ; 60
+DB "RCR$REP$REPNE$RET$RETF$ROL$ROR$SAHF$SALC$SAR$"          ; 70
+DB "SBB$SCASB$SCASW$SHL$SHR$STC$STD$STI$STOSB$STOSW$"       ; 80
+DB "SUB$TEST$XCHG$XLATB$XOR$"                               ; 90
+DB 00
+
+is_identifier_mnemonic:
+  PUSH SI
+  MOV SI,mnemonic_table
+  MOV DX,0
+  is_identifier_mnemonic_loop:
+  MOV DI,identifier
+  is_identifier_mnemonic_compare:
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  XCHG AL,AH
+  upper_case(AX)
+  CMP AL,AH
+  JNE is_identifier_mnemonic_cmpfail
+  CMP AL,'$'
+  JNE is_identifier_mnemonic_compare
+  POP SI
+  STC
+  RET
+  is_identifier_mnemonic_cmpfail:
+  INC DX
+  DEC SI
+  LODSB
+  is_identifier_mnemonic_findnext:
+  CMP AL,'$'
+  JE is_identifier_mnemonic_loop
+  CMP AL,0
+  JE is_identifier_mnemonic_end
+  LODSB
+  JMP is_identifier_mnemonic_findnext
+  is_identifier_mnemonic_end:
+  POP SI
+  CLC
+  RET
+
+
+
+; Returns CF=1 (and "B" or "W" in AL) if identifier is "B" or "W"
+is_identifier_size:
+  PUSH SI
+  MOV SI,identifier
+  LODSB
+  MOV AH,AL
+  LODSB
+  CMP AL,'$'
+  JE is_identifier_size_onechar
+  is_identifier_size_no:
+  CLC
+  POP SI
+  RET
+  is_identifier_size_onechar:
+  XCHG AL,AH
+  upper_case(AX)
+  CMP AL,'B'
+  JE is_identifier_size_yes
+  CMP AL,'W'
+  JNE is_identifier_size_no
+  is_identifier_size_yes:
+  STC
+  POP SI
+  RET
+
+
+
+; Gets the next token from the input. Return CF=1 on EOF.
+; Ignores
+;   Return token in AL:
+;     + = "+"
+;     - = "-"
+;     [ = "["
+;     ] = "]"
+;     , = ","
+;     : = ":"
+;     ( = "("
+;     ) = ")"
+;     & = "&"
+;     ^ = "^"
+;     | = "|"
+;     ~ = "~"
+;     ! = "!"
+;     < = "<"
+;     > = ">"
+;     = = "="
+;     * = "*"
+;     / = "/"
+;     % = "%"
+;     l = "<<"
+;     r = ">>"
+;     L = "<="
+;     G = ">="
+;     e = "=="
+;     n = "!="
+;     S = "B" or "W" (size operand, AH = "B" or "W")
+;     " = string (DI = start of string, SI = end of string + 2)
+;     0 = number (DX = number)
+;     R = register (DX = register number)
+;     M = mnemonic (DX = mnemonic number)
+;     I = identifier (returned in identifier)
+;   NUL = EOF
+; BX is preserved.
+
+token:     DW 0
+token_arg: DW 0
+
+get_next_token:
+  LODSB
+  CMP AL,0
+  JNE get_next_token_not_eol
+  get_next_token_skip_rest_of_line:
+  PUSH BX
+  readline()
+  POP BX
+  JNC get_next_token
+  MOV AL,0
+  get_next_token_end:
+  MOV [token],AX
+  MOV [token_arg],DX
+  RET
+  get_next_token_not_eol:
+  CMP AL,' '
+  JE get_next_token
+  CMP AL,';'
+  JE get_next_token_skip_rest_of_line
+  CMP AL,'&'
+  JE get_next_token_end
+  CMP AL,'^'
+  JE get_next_token_end
+  CMP AL,'|'
+  JE get_next_token_end
+  CMP AL,'~'
+  JE get_next_token_end
+  CMP AL,'*'
+  JE get_next_token_end
+  CMP AL,'/'
+  JE get_next_token_end
+  CMP AL,'%'
+  JE get_next_token_end
+  CMP AL,'+'
+  JE get_next_token_end
+  CMP AL,'-'
+  JE get_next_token_end
+  CMP AL,'['
+  JE get_next_token_end
+  CMP AL,']'
+  JE get_next_token_end
+  CMP AL,','
+  JE get_next_token_end
+  CMP AL,':'
+  JE get_next_token_end
+  CMP AL,'('
+  JE get_next_token_end
+  CMP AL,')'
+  JE get_next_token_end
+
+  CMP AL,'!'
+  JNE get_next_token_not_exclamation
+  MOV AH,[SI]
+  CMP AH,'='
+  JNE get_next_token_end
+  INC SI
+  MOV AL,'n'
+  JMP get_next_token_end
+  get_next_token_not_exclamation:
+
+  CMP AL,'='
+  JNE get_next_token_not_equals
+  MOV AH,[SI]
+  CMP AH,'='
+  JNE get_next_token_end
+  INC SI
+  MOV AL,'e'
+  JMP get_next_token_end
+  get_next_token_not_equals:
+
+  CMP AL,'<'
+  JNE get_next_token_not_less
+  MOV AH,[SI]
+  CMP AH,'<'
+  JNE get_next_token_not_lshift
+  INC SI
+  MOV AL,'l'
+  JMP get_next_token_end
+  get_next_token_not_lshift:
+  CMP AH,'='
+  JNE get_next_token_end
+  INC SI
+  MOV AL,'L'
+  JMP get_next_token_end
+  get_next_token_not_less:
+
+  CMP AL,'>'
+  JNE get_next_token_not_greater
+  MOV AH,[SI]
+  CMP AH,'>'
+  JNE get_next_token_not_rshift
+  INC SI
+  MOV AL,'r'
+  JMP get_next_token_end
+  get_next_token_not_rshift:
+  CMP AH,'='
+  JNE get_next_token_end
+  INC SI
+  MOV AL,'G'
+  JMP get_next_token_end
+  get_next_token_not_greater:
+
+  CMP AL,'"'
+  JNE get_next_token_not_string
+
+  ; Token is a string
+
+  MOV DI,SI
+  get_next_token_scan_string:
+  LODSB
+  CMP AL,'"'
+  JE get_next_token_end
+  CMP AL,0
+  JNE get_next_token_scan_string
+  error_exit("Unterminated string on line: $")
+
+  get_next_token_not_string:
+  CMP AL,'0'
+  JNE get_next_token_not_hex
+
+  ; Token is a hex number
+
+  lex_hexnumber()
+  MOV AL,'0'
+  JMP get_next_token_end
+
+  get_next_token_not_hex:
+  is_digit(AX)
+  JNC get_next_token_not_number
+
+  ; Token is a decimal number
+
+  DEC SI
+  lex_decnumber()
+  MOV AL,'0'
+  JMP get_next_token_end
+
+  get_next_token_not_number:
+  CMP AL,027
+  JNE get_next_token_not_literal
+  LODSB
+  CMP AL,0
+  JE get_next_token_syntax_error
+  MOV DL,AL
+  XOR DH,DH
+  LODSB
+  CMP AL,027
+  JE get_next_token_char_literal
+  get_next_token_syntax_error:
+  syntax_error()
+  get_next_token_char_literal:
+  MOV AL,'0'
+  JMP get_next_token_end
+
+  get_next_token_not_literal:
+  is_alphabetic(AX)
+  JC get_next_token_identifier
+
+  error_exit("Unexpected character on line: $")
+
+  get_next_token_identifier:
+
+  ; Token is an identifier (label, register or mnemonic)
+
+  DEC SI
+  lex_identifier()
+  is_identifier_register()
+  JNC get_next_token_not_register
+
+  MOV AL,'R'
+  JMP get_next_token_end
+
+  get_next_token_not_register:
+  is_identifier_mnemonic()
+  JNC get_next_token_not_mnemonic
+
+  MOV AL,'M'
+  JMP get_next_token_end
+
+  get_next_token_not_mnemonic:
+  is_identifier_size()
+  XCHG AL,AH
+  JNC get_next_token_not_size
+  MOV AL,'S'
+  JMP get_next_token_end
+
+  get_next_token_not_size:
+  MOV AL,'I'
+  JMP get_next_token_end
+
+
+
+; Look up "identifier" in the symbol table and return the address
+; of the corresponding address slot in BX.
+
+add_symbol_flag: DB 0
+
+symbol_table: DW 0
+
+search_symbol_table:
+  PUSH BP
+  MOV BP,SP
+  MOV AL,[BP+4]
+  MOV [add_symbol_flag],AL
+  PUSH SI
+  MOV DX,symbol_table
+  search_symbol_table_loop:
+  MOV BX,DX
+  MOV DX,[BX]       ; This is the address of the next label (0 if there is no next label)
+  CMP DX,0
+  JE search_symbol_table_notfound
+
+  MOV BX,DX
+  ADD BX,2
+
+  MOV SI,identifier
+  MOV DI,BX
+  search_symbol_table_compare:
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  CMP AL,AH
+  JNE search_symbol_table_loop
+  CMP AL,'$'
+  JNE search_symbol_table_compare
+
+  CMP B[add_symbol_flag],0
+  JE foundlabel
+  CMP B[first_phase],0
+  JE foundlabel
+  label_error("Duplicate label: $")
+  foundlabel:
+  MOV BX,DI
+  POP SI
+  POP BP
+  RET                          ; Found! Return the corresponding address slot
+
+  search_symbol_table_notfound:
+  CMP B[add_symbol_flag],0
+  JE search_symbol_table_dontadd
+
+  PUSH BX
+  MOV SI,identifier
+  MOV CX,0
+  search_symbol_table_count:
+  LODSB
+  INC CX
+  CMP AL,'$'
+  JNE search_symbol_table_count
+  ADD CX,4
+  malloc(CX)
+  POP BX
+  MOV [BX],AX
+  MOV DI,AX
+  MOV AX,0                ; Store a 0, indicating that there is no next label
+  STOSW
+
+  MOV SI,identifier
+  search_symbol_table_copy:
+  LODSB
+  MOV [DI],AL
+  INC DI
+  CMP AL,'$'
+  JNE search_symbol_table_copy
+  MOV BX,DI
+  POP SI
+  POP BP
+  RET
+
+  search_symbol_table_dontadd:
+  CMP B[first_phase],0
+  JNE search_symbol_table_done           ; Using rather than defining a label in the first phase - we dont care about the value
+  label_error("Label not found: $")
+
+  search_symbol_table_done:
+  POP SI
+  POP BP
+  RET

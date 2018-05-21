@@ -1,0 +1,118 @@
+; This is the bootstrapping compiler step 16 (written in step 15 language)
+; This file contains string functions.
+
+; Create and return a string of length length using bytes from start, with preamble bytes allocated before
+
+function string_create(length,start,preamble)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV DI,malloc([preamble]+2+[length])
+  PUSH DI
+  ADD DI,[preamble]
+  MOV AX,[length]
+  STOSW
+  MOV CX,AX
+  MOV SI,[start]
+  REP MOVSB
+  POP AX
+
+  POP DI
+  POP SI
+}
+
+
+
+; Emits the string string
+
+function asm_string(string)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV CX,[[string]]
+  MOV DX,[string]+2
+  ADD [ip],CX
+  MOV AH,040
+  MOV BX,[writehandle]
+  INT 021
+
+  POP DI
+  POP SI
+}
+
+
+
+; Returns the length of the string string
+
+function string_length(string)
+{
+  MOV AX,[[string]]
+}
+
+
+
+; Returns true if the two strings first and second are equal
+
+function string_equals(first,second)
+{
+  PUSH SI
+  PUSH DI
+  MOV AX,[[first]] == [[second]]
+  TEST AX,AX
+  JE end
+
+  MOV SI,[second]+2
+  MOV DI,[first]+2
+  MOV CX,[[second]]
+  REP CMPSB
+  JE yes
+
+  XOR AX,AX
+  JMP end
+
+  yes:
+  MOV AX,-1
+
+  end:
+  POP DI
+  POP SI
+}
+
+
+
+; Returns the first byte in string string
+
+function string_head(string)
+{
+  MOV AL,[[string]+2]
+  XOR AH,AH
+}
+
+
+
+; Returns a pointer to the start of the string arg1
+function string_data(string)
+{
+  MOV AX,[string]+2
+}
+
+
+
+; Prints the string string
+
+function string_print(string)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV CX,[[string]]
+  MOV DX,[string]+2
+  MOV AH,040
+  MOV BX,1      ; stdout
+  INT 021
+
+  POP DI
+  POP SI
+}

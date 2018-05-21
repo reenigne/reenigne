@@ -1,0 +1,13 @@
+Allow the members of an object to be referenced by strings and integers as well as identifiers:
+  Cannot access directly from member functions, need to precede with "this."
+  e.g. :
+    type X = class {
+      Y "foo";
+      Z 1;
+      Y bar() { return this."foo"; }
+    }
+  Strings are useful for parsers (so that the compiler doesn't have to make up names for parts of a type)
+  Numbers are useful for fixed-length vectors, e.g. :
+    type Quaternion = class {
+       Double 0,1,2,3;
+    }

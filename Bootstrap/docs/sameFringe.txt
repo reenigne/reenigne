@@ -1,0 +1,278 @@
+// Here's a first stab at a solution to the same fringe problems with coroutines in our language. Note that the closures here have no overhead, since they don't reference
+// any variables from the outer scope.
+
+Bool sameFringe(TreeNode* tree1, TreeNode* tree2)
+{
+    Coroutine TreeNode* treeLeaves(TreeNode* tree)
+    {
+        if (isLeaf(tree))
+            yield tree;
+        Coroutine TreeNode* leaves = treeLeaves(tree->left);
+        Tree leaf;
+        do {
+            leaf = leaves();
+            yield leaf;
+        } while (leaf != null);
+        leaves = treeLeaves(tree->right);
+        do {
+            leaf = leaves();
+            yield leaf;
+        } while (leaf != null);
+        yield null;
+    }
+
+    Coroutine TreeNode* leaves1 = treeLeaves(tree1);
+    Coroutine TreeNode* leaves2 = treeLeaves(tree2);
+    TreeNode* leaf1, leaf2;
+    do {
+        leaf1 = leaves1();
+        leaf2 = leaves2();
+        if (leaf1 != leaf2)
+            return false;
+    } while (leaf1 != null);
+    return true;
+}
+
+// Hmm... every time leaves1() or leaves2() is called, the recursive chain of ocntinuations is followed. This is kind of inefficient. It might be better if we could
+// write it as:
+
+Bool sameFringe(TreeNode* tree1, TreeNode* tree2)
+{
+    Coroutine TreeNode* treeLeaves(TreeNode* tree)
+    {
+        Void treeLeavesInner(TreeNode* tree)
+        {
+            if (isLeaf(tree))
+                yield tree;
+            else {
+                treeLeavesInner(tree->left);
+                treeLeavesInner(tree->right);
+            }
+        }
+        treeLeavesInner(tree);
+        yield null;
+    }
+
+    Coroutine TreeNode* leaves1 = treeLeaves(tree1);
+    Coroutine TreeNode* leaves2 = treeLeaves(tree2);
+    TreeNode* leaf1, leaf2;
+    do {
+        leaf1 = leaves1();
+        leaf2 = leaves2();
+        if (leaf1 != leaf2)
+            return false;
+    } while (leaf1 != null);
+    return true;
+}
+
+
+// The yield here is more like a throw in that control is passed right back up the stack to the point where the innermost coroutine is consumed (in sameFringe)
+// However, the stack frames are left intact until the Coroutine object is destroyed
+// The Coroutine object needs to contain:
+//   All the activation records for all the instances of all the concurrent active coroutines
+//   Pointers to the current activation records for each coroutine
+//   The current continue address for each coroutine
+//   The current return address for each coroutine
+// Each activation record needs to contain
+//   A pointer back to the activation record of the top routine
+
+// A recursive coroutine can use arbitrary stack space
+// A given instance (activation record) of a coroutine can use only bounded stack space
+// This means that a coroutine can not use other recursive coroutines
+//   Unless activation records for the other recursive coroutines are also allocated at the same time the activation records for the outer coroutine are allocated
+
+// The two instances of treeLeaves here
+
+
+So, in x86 pseudo-assembler, this looks something like this:
+
+
+struct TreeLeavesAR
+{
+    TreeLeavesInnerAR* tliar;
+    SameFringeAR* sfar;
+    Code* returnAddress;  // offset 0
+    TreeNode* tree; // arg
+}
+
+struct TreeLeavesInnerAR
+{
+    TreeLeavesInnerAR* tliar;
+    Void* oldTliar;
+    SameFringeAR* sfar;
+    Code* returnAddress;  // offset 0
+    TreeNode* tree; // arg
+}
+
+struct SameFringeAR
+{
+    Void* tlar1;
+    Code* continueAddress1;
+    Void* tlar2;
+    Code* continueAddress2;
+    TreeNode* leaf1;
+    TreeNode* leaf2;
+    Code* returnAddress;     // offset 0
+    TreeNode* tree1; // first arg
+    TreeNode* tree2; // second arg
+}
+
+sameFringe:
+    EBP = ESP;
+    TreeLeavesAR leaves1; // put onto stack
+    TreeLeavesAR leaves2; // put onto stack
+
+    ESP -= sizeof(TreeLeavesAR);
+    EBP->tlar1 = ESP;
+    EBP->tlar1->tree = EBP->tree1;
+    EBP->tlar1->returnAddress = treeLeaves1;
+    EBP->tlar1->sfar = EBP;
+
+    ESP -= sizeof(TreeLeavesAR);
+    EBP->tlar2 = ESP;
+    EBP->tlar2->tree = sfar->tree2;
+    EBP->tlar2->returnAddress = treeLeaves2;
+    EBP->tlar2->sfar = EBP;
+
+    ESP -= sizeof(TreeLeavesInnerAR);
+    EBP->tlar1->tliar = ESP;
+    EBP->tlar1->tliar->sfar = EBP->sfar;
+
+    ESP -= sizeof(TreeLeavesInnerAR);
+    EBP->tlar2->tliar->sfar = ESP;
+    EBP->tlar2->tliar->sfar = EBP->sfar;
+
+    EBP->continueAddress1 = treeLeaves1;
+    EBP->continueAddress2 = treeLeaves2;
+    do {
+        EBX = EBP;
+        EBP = EBP->tlar1;
+        JMP EBX->continueAddress1;
+        postLeaves1:
+        EBP = EBP->sfar;
+        EBP->leaf1 = EAX;
+
+        EBX = EBP;
+        EBP = sfar->tlar2;
+        JMP EBX->continueAddress2;
+        postLeaves2:
+        EBP = EBP->sfar;
+        EBP->leaf2 = EAX;
+
+        if (EBP->leaf1 != EBP->leaf2) {
+            EAX = false;
+            JMP end
+        }
+    } while (EBP->leaf1 != null);
+    EAX = true;
+    end:
+    ESP = EBP;
+    RET
+
+
+treeLeaves1:
+    EBP->tliar->returnAddress = tl1done;
+    EBP->tliar->oldTliar = EBP;
+    EBP = EBP->tliar;
+    JMP treeLeavesInner1;
+    tl1done:
+    EBP = EBP->oldTlier;
+
+    EAX = null;
+    EBP->sfar->continueAddress1 = tl1end;
+    JMP postLeaves1;
+    tl1end:
+
+    JMP EBP->returnAddress;
+
+
+treeLeaves2:
+    EBP->tliar->returnAddress = tl2done;
+    EBP->tliar->oldTliar = EBP;
+    EBP = EBP->tliar;
+    JMP treeLeavesInner2;
+    tl2done:
+    EBP = EBP->oldTliar;
+
+    EAX = null;
+    EBP->sfar->continueAddress2 = tl2end;
+    JMP postLeaves2;
+    tl2end:
+
+    JMP EBP->returnAddress;
+
+
+treeLeavesInner1:
+    if (isLeaf(EBP->tree)) {
+        EBP->sfar->continueAddress1 = tli1end;
+        EAX = EBP->tree;
+        JMP postLeaves1;
+    }
+    if (ESP+sizeof(TreeLeavesARInner) == EBP) {
+        // Create new activation records for the recursive calls
+        ESP -= sizeof(TreeLeavesARInner);
+        EBP->tliar = ESP;
+        EBP->tliar->sfar = EBP->sfar;
+
+        ESP -= sizeof(TreeLeavesARInner);
+        ESP->sfar = EBP->sfar;
+    }
+
+    EBP->tliar->tree = EBP->tree->left;
+    EBP->tliar->returnAddress = tli1postL;
+    EBP->tliar->oldTliar = EBP;
+    EBP = EBP->tliar;
+    JMP treeLeavesInner1;
+    tli1postL:
+    EBP = EBP->oldTliar;
+
+    EBP->tliar->tree = EBP->tree->right;
+    EBP->tliar->returnAddress = tli1postR;
+    EBP->tliar->oldTliar = EBP;
+    EBP = EBP->tliar;
+    JMP treeLeavesInner1;
+    tli1postR:
+    EBP = EBP->oldTliar;
+
+    // Todo: try to clean up stack?
+
+    postLeaves1:
+    JMP EBP->returnAddress
+
+
+treeLeavesInner2:
+    if (isLeaf(EBP->tree)) {
+        EBP->sfar->continueAddress2 = tli2end;
+        EAX = EBP->tree;
+        JMP postLeaves2;
+    }
+    if (ESP == EBP) {
+        // Create new activation records for the recursive calls
+        ESP -= sizeof(TreeLeavesARInner);
+        ESP->sfar = EBP->sfar;
+
+        ESP -= sizeof(TreeLeavesARInner);
+        EBP->tliar = ESP;
+        EBP->tliar->sfar = EBP->sfar;
+    }
+
+    EBP->tliar->tree = EBP->tree->left;
+    EBP->tliar->returnAddress = tli2postL;
+    EBP->tliar->oldTliar = EBP;
+    EBP = EBP->tliar;
+    JMP treeLeavesInner2;
+    tli2postL:
+    EBP = EBP->oldTliar;
+
+    EBP->tliar->tree = EBP->tree->right;
+    EBP->tliar->returnAddress = tli2postR;
+    EBP->tliar->oldTliar = EBP;
+    EBP = EBP->tliar;
+    JMP treeLeavesInner2;
+    tli2postR:
+    EBP = EBP->oldTliar;
+
+    // Todo: try to clean up stack?
+
+    postLeaves2:
+    JMP EBP->returnAddress

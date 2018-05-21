@@ -1,0 +1,21 @@
+<>     Parsing problems: "Template<x>y>", "Template<Template<x>>"
+()     Visually similar to function call
+[]     Visually similar to array indexing
+{}     Visually similar to code block
+[< >]  Ok - most visually easy to distinguish from other code
+<[ ]>  Parsing problem: "if (x[y]>z)"
+(< >)  Ok
+<( )>  Parsing problem: "if (x(y)>z)"
+{< >}  Avoid visual confusion with code blocks
+<{ }>  Ok (function-expression are not ordered)
+{( )}  Parsing problem: "func(Int* x){(*x)++;}"
+({ })  Parsing problem: "foo(lambda(y){return y*2;});"
+{[ ]}  Ok (array indexing operator cannot start or end a statement)
+[{ }]  Ok (unless operator[] can be overloaded to accept a function)
+{{ }}  Parsing problem: "Int x[2][2] = {{1,2},{3,4}};"
+[[ ]]  Parsing problem: "x = y[z[w]];"
+<< >>  Parsing problem: "Template<<x>>2>>"
+(( ))  Parsing problem: "x = y(z(a));"
+
+
+If types are the only things that can be used as template arguments, <> is fine

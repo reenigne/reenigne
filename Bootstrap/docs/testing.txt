@@ -1,0 +1,4 @@
+After a successful compile, compiler runs all code in "test { }" blocks for unit testing.
+  Test code isn't compiled into binary - compiler may need to do some interpreting to run the code.
+
+Or just make the compiler an interpreter?

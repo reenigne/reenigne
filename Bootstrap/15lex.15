@@ -1,0 +1,554 @@
+; This is the bootstrapping compiler step 15 (written in step 15 language)
+; This file contains the lexer functions
+
+; Parse hexadecimal digit, return value in AL. Return CF=1 on fail.
+function lex_hexdigit()
+{
+  LODSB
+  is_digit(upper_case(AX))
+  JC number
+  CMP AL,'A'
+  JL fail
+  CMP AL,'F'
+  JG fail
+  SUB AL,7
+  number:
+  SUB AL,'0'
+  CLC
+  JMP end
+  fail:
+  DEC SI
+  STC
+  end:
+}
+
+
+
+; Parse hexadecimal number, return value in AX.
+function lex_hexnumber()
+{
+  MOV DX,0
+  looptop:
+  lex_hexdigit()
+  JC end
+  MOV CL,4
+  SHL DX,CL
+  OR DL,AL
+  JMP looptop
+  end:
+  CLC
+}
+
+
+
+; Parse decimal digit, return value in AL. Return CF=1 on fail.
+function lex_decdigit()
+{
+  LODSB
+  is_digit(AX)
+  JNC fail
+  SUB AL,'0'
+  CLC
+  JMP end
+  fail:
+  DEC SI
+  STC
+  end:
+}
+
+
+
+; Parse decimal number, return value in AX.
+function lex_decnumber()
+{
+  MOV DX,0
+  looptop:
+  lex_decdigit()
+  JC end
+  PUSH AX
+  MOV AX,10
+  MUL DX
+  MOV DX,AX
+  POP AX
+  MOV AH,0
+  ADD DX,AX
+  JMP looptop
+  end:
+  CLC
+}
+
+
+
+; Parse identifier. Return in "identifier".
+
+identifier: DW 0
+
+function lex_identifier()
+{
+  PUSH SI
+  XOR CX,CX
+
+  looptop:
+  LODSB
+  INC CX
+  PUSH CX
+  is_alphanumeric(AX)
+  POP CX
+  JC looptop
+
+  DEC CX
+  POP BX
+  MOV W[identifier],string_create(CX,BX,0a)
+  DEC SI
+}
+
+
+
+; Returns CF=1 (and reg number in DX) if identifier is a register.
+
+reg_table:
+  DB "AX" DB "CX" DB "DX" DB "BX" DB "SP" DB "BP" DB "SI" DB "DI"
+  DB "AL" DB "CL" DB "DL" DB "BL" DB "AH" DB "CH" DB "DH" DB "BH"
+  DB "ES" DB "CS" DB "SS" DB "DS"
+
+function is_identifier_register()
+{
+  PUSH SI
+  MOV BX,[identifier]
+  CMP W[BX+0a],2
+  JNE no
+
+  MOV AX,[BX+0c]
+  upper_case(AX)
+  XCHG AL,AH
+  upper_case(AX)
+  XCHG AL,AH
+  MOV DX,AX
+  MOV CX,014
+  MOV SI,reg_table
+  looptop:
+  LODSW
+  CMP AX,DX
+  JE yes
+  LOOP looptop
+  no:
+  CLC
+  JMP end
+  yes:
+  MOV DX,014
+  SUB DX,CX
+  PUSH DX
+  free([identifier])
+  POP DX
+  STC
+
+  end:
+  POP SI
+}
+
+
+
+; Returns CF=1 (and mnemonic number in DX) if identifier is a mnemonic.
+
+mnemonic_table:
+DB "ADC$ADD$AND$CALL$CBW$CLC$CLD$CLI$CMC$CMP$"              ;  0
+DB "CMPSB$CMPSW$CWD$DB$DEC$DIV$DW$IDIV$IMUL$INC$"           ; 10
+DB "INT$JA$JAE$JB$JBE$JC$JCXZ$JE$JG$JGE$"                   ; 20
+DB "JL$JLE$JMP$JNA$JNAE$JNB$JNBE$JNC$JNE$JNG$"              ; 30
+DB "JNGE$JNL$JNLE$JNO$JNP$JNS$JNZ$JO$JP$JS$"                ; 40
+DB "JZ$LAHF$LODSB$LODSW$LOOP$LOOPE$LOOPNE$MOV$MOVSB$MOVSW$" ; 50
+DB "MUL$NEG$NOP$NOT$OR$POP$POPF$PUSH$PUSHF$RCL$"            ; 60
+DB "RCR$REP$REPNE$RET$RETF$ROL$ROR$SAHF$SALC$SAR$"          ; 70
+DB "SBB$SCASB$SCASW$SHL$SHR$STC$STD$STI$STOSB$STOSW$"       ; 80
+DB "SUB$TEST$XCHG$XLATB$XOR$"                               ; 90
+DB 00
+
+function is_identifier_mnemonic()
+{
+  PUSH SI
+  PUSH DI
+  MOV SI,mnemonic_table
+  MOV DX,0
+  MOV BX,[identifier]
+
+  looptop:
+  PUSH DX
+  MOV DI,BX+0c
+  POP DX
+  MOV CX,[BX+0a]
+
+  compare:
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  XCHG AL,AH
+  PUSH CX
+  upper_case(AX)
+  POP CX
+  XCHG AL,AH
+  CMP AL,AH
+  JNE nomatch
+  LOOP compare
+  LODSB
+  CMP AL,'$'
+  JNE nomatch
+  PUSH DX
+  free([identifier])
+  POP DX
+  STC
+  JMP end
+
+  nomatch:
+  CMP AL,'$'
+  JE next
+  LODSB
+  JMP nomatch
+
+  next:
+  INC DX
+  CMP B[SI],0
+  JNE looptop
+
+  CLC
+  end:
+  POP DI
+  POP SI
+}
+
+
+
+; Returns CF=1 (and "B" or "W" in AL) if identifier is "B" or "W"
+function is_identifier_size()
+{
+  MOV BX,[identifier]
+  CMP W[BX+0a],1
+  JNE no
+
+  upper_case(B[BX+0c])
+  CMP AL,'B'
+  JE yes
+  CMP AL,'W'
+  JNE no
+  yes:
+  PUSH AX
+  free([identifier])
+  POP AX
+  STC
+  JMP end
+
+  no:
+  CLC
+  end:
+}
+
+
+
+; Return CF=1 (and keyword number in AH) if identifier is a keyword
+
+keyword_table:
+  DB "auto$" DB "break$" DB "case$" DB "default$" DB "do$"
+  DB "done$" DB "else$" DB "false$" DB "function$" DB "if$"
+  DB "return$" DB "switch$" DB "true$" DB "while$"
+  DB 0
+keyword_table2:
+  DB "ABCDONE0FIRS1W"
+
+function is_identifier_keyword()
+{
+  PUSH SI
+  PUSH DI
+  MOV SI,keyword_table
+  MOV DX,0
+  MOV BX,[identifier]
+
+  looptop:
+  PUSH DX
+  MOV DI,BX+0c
+  POP DX
+  MOV CX,[BX+0a]
+
+  compare:
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  CMP AL,AH
+  JNE nomatch
+  LOOP compare
+  LODSB
+  CMP AL,'$'
+  JNE nomatch
+  MOV AH,[keyword_table2+DX]
+  PUSH AX
+  free([identifier])
+  POP AX
+  STC
+  JMP end
+
+  nomatch:
+  CMP AL,'$'
+  JE next
+  LODSB
+  JMP nomatch
+
+  next:
+  INC DX
+  CMP B[SI],0
+  JNE looptop
+
+  CLC
+  end:
+  POP DI
+  POP SI
+}
+
+
+
+; Gets the next token from the input. Return CF=1 on EOF.
+; Ignores
+;   Return token in B[token]:
+;     + = "+"
+;     - = "-"
+;     [ = "["
+;     ] = "]"
+;     , = ","
+;     : = ":"
+;     ( = "("
+;     ) = ")"
+;     & = "&"
+;     ^ = "^"
+;     | = "|"
+;     ~ = "~"
+;     ! = "!"
+;     < = "<"
+;     > = ">"
+;     = = "="
+;     * = "*"
+;     / = "/"
+;     % = "%"
+;     @ = "@"
+;     { = "{"
+;     } = "}"
+;     l = "<<"
+;     r = ">>"
+;     L = "<="
+;     G = ">="
+;     e = "=="
+;     n = "!="
+;     S = "B" or "W" (size operand, B[token+1] = "B" or "W")
+;     " = string (DI = start of string, SI = end of string + 2)
+;     0 = number ([token_arg] = number)
+;     R = register ([token_arg] = register number)
+;     M = mnemonic ([token_arg] = mnemonic number)
+;     I = identifier (returned in identifier)
+;     K = keyword (B[token+1] = keyword number)
+;   NUL = EOF
+; BX is preserved.
+
+token:     DW 0
+token_arg: DW 0
+
+function get_next_token()
+{
+  PUSH BX
+  try:
+  LODSB
+  CMP AL,0
+  JNE not_eol
+  skip_rest_of_line:
+  readline()
+  JNC try
+  MOV AL,0
+  JMP end
+
+  not_eol:
+  CMP AL,' '
+  JE try
+  CMP AL,';'
+  JE skip_rest_of_line
+  CMP AL,'&'
+  JE end
+  CMP AL,'^'
+  JE end
+  CMP AL,'|'
+  JE end
+  CMP AL,'~'
+  JE end
+  CMP AL,'*'
+  JE end
+  CMP AL,'/'
+  JE end
+  CMP AL,'%'
+  JE end
+  CMP AL,'+'
+  JE end
+  CMP AL,'-'
+  JE end
+  CMP AL,'['
+  JE end
+  CMP AL,']'
+  JE end
+  CMP AL,','
+  JE end
+  CMP AL,':'
+  JE end
+  CMP AL,'('
+  JE end
+  CMP AL,')'
+  JE end
+  CMP AL,'{'
+  JE end
+  CMP AL,'}'
+  JE end
+  CMP AL,'@'
+  JE end
+
+  CMP AL,'!'
+  JNE not_exclamation
+  MOV AH,[SI]
+  CMP AH,'='
+  JNE end
+  INC SI
+  MOV AL,'n'
+  JMP end
+  not_exclamation:
+
+  CMP AL,'='
+  JNE not_equals
+  MOV AH,[SI]
+  CMP AH,'='
+  JNE end
+  INC SI
+  MOV AL,'e'
+  JMP end
+  not_equals:
+
+  CMP AL,'<'
+  JNE not_less
+  MOV AH,[SI]
+  CMP AH,'<'
+  JNE not_lshift
+  INC SI
+  MOV AL,'l'
+  JMP end
+  not_lshift:
+  CMP AH,'='
+  JNE end
+  INC SI
+  MOV AL,'L'
+  JMP end
+  not_less:
+
+  CMP AL,'>'
+  JNE not_greater
+  MOV AH,[SI]
+  CMP AH,'>'
+  JNE not_rshift
+  INC SI
+  MOV AL,'r'
+  JMP end
+  not_rshift:
+  CMP AH,'='
+  JNE end
+  INC SI
+  MOV AL,'G'
+  JMP end
+  not_greater:
+
+  CMP AL,'"'
+  JNE not_string
+
+  ; Token is a string
+
+  MOV DI,SI
+  scan_string:
+  LODSB
+  CMP AL,'"'
+  JE end
+  CMP AL,0
+  JNE scan_string
+  error_exit("Unterminated string on line: $")
+
+  not_string:
+  CMP AL,'0'
+  JNE not_hex
+
+  ; Token is a hex number
+
+  lex_hexnumber()
+  MOV AL,'0'
+  JMP end
+
+  not_hex:
+  is_digit(AX)
+  JNC not_number
+
+  ; Token is a decimal number
+
+  DEC SI
+  lex_decnumber()
+  MOV AL,'0'
+  JMP end
+
+  not_number:
+  CMP AL,027
+  JNE not_literal
+  LODSB
+  CMP AL,0
+  JE error
+  MOV DL,AL
+  XOR DH,DH
+  LODSB
+  CMP AL,027
+  JE char_literal
+  error:
+  syntax_error()
+  char_literal:
+  MOV AL,'0'
+  JMP end
+
+  not_literal:
+  is_alphabetic(AX)
+  JC identifier
+
+  error_exit("Unexpected character on line: $")
+
+  identifier:
+
+  ; Token is an identifier (label, register or mnemonic)
+
+  DEC SI
+  lex_identifier()
+  is_identifier_register()
+  JNC not_register
+
+  MOV AL,'R'
+  JMP end
+
+  not_register:
+  is_identifier_mnemonic()
+  JNC not_mnemonic
+
+  MOV AL,'M'
+  JMP end
+
+  not_mnemonic:
+  is_identifier_size()
+  XCHG AL,AH
+  JNC not_size
+  MOV AL,'S'
+  JMP end
+
+  not_size:
+  is_identifier_keyword()
+  JNC not_keyword
+  MOV AL,'K'
+  JMP end
+
+  not_keyword:
+  MOV AL,'I'
+
+  end:
+  MOV [token],AX
+  MOV [token_arg],DX
+  POP BX
+}

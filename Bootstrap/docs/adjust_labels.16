@@ -1,0 +1,40 @@
+; This function sets the destination of a label to be the current destination
+
+function set_label(label)
+{
+  PUSH EBX
+  MOV EBX,[label]
+  if ([EBX+8]!=4 & [EBX+4]!=[ip]) {                          print_str(restarting_label_msg) print_str([label]+0c) print_str(restarting_label_msg2) print_hex([EBX+4],8) print_str(restarting_label_msg3) print_hex([ip],8) print_str(restarting_label_msg4)
+    adjust_labels([global_table],[EBX+4])
+    MOV D[EBX+4],[ip]
+    MOV D[last_phase],false
+  }
+  POP EBX
+}
+
+
+
+; This function recursively adjusts all labels in [table] currently pointing to after [adj] by [ip]-[adj]
+
+function adjust_labels(table,adj)
+{
+  PUSH EBX
+  PUSH ESI
+  MOV ESI,[[table]+8]
+  while (ESI) {
+    switch([ESI+8]) {
+      case 0
+      case 1
+      case 2
+        if ([ESI+4]>[adj]) {
+          ADD D[ESI+4],[ip]
+          SUB D[ESI+4],[adj]
+        }
+      case 5
+        adjust_labels([ESI+4],[adj])
+    }
+    MOV ESI,[ESI]
+  }
+  POP ESI
+  POP EBX
+}

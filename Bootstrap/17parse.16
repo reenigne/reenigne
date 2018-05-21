@@ -1,0 +1,809 @@
+; This is the bootstrapping compiler step 17 (written in step 16 language)
+; This file contains the parser and main function.
+
+; Emit the byte in byte
+function asm_byte(byte)
+{
+  write(byte,1)
+}
+
+
+
+; Emit the word in word
+function asm_word(word)
+{
+  write(word,2)
+}
+
+
+
+; Emit the dword in dword
+function asm_dword(dword)
+{
+  write(dword,4)
+}
+
+
+
+function asm_nop()    asm_byte(090)
+function asm_cbw()    { asm_byte(066) asm_byte(098) }
+function asm_cwd()    { asm_byte(066) asm_byte(099) }
+function asm_cwde()   asm_byte(098)
+function asm_cdq()    asm_byte(099)
+function asm_pushfd() asm_byte(09c)
+function asm_popfd()  asm_byte(09d)
+function asm_sahf()   asm_byte(09e)
+function asm_lahf()   asm_byte(09f)
+function asm_movsb()  asm_byte(0a4)
+function asm_movsd()  asm_byte(0a5)
+function asm_cmpsb()  asm_byte(0a6)
+function asm_cmpsd()  asm_byte(0a7)
+function asm_stosb()  asm_byte(0aa)
+function asm_stosd()  asm_byte(0ab)
+function asm_lodsb()  asm_byte(0ac)
+function asm_lodsd()  asm_byte(0ad)
+function asm_scasb()  asm_byte(0ae)
+function asm_scasd()  asm_byte(0af)
+function asm_ret()    asm_byte(0c3)
+function asm_retf()   asm_byte(0cb)
+function asm_salc()   asm_byte(0d6)
+function asm_xlatb()  asm_byte(0d7)
+function asm_repne()  asm_byte(0f2)
+function asm_rep()    asm_byte(0f3)
+function asm_cmc()    asm_byte(0f5)
+function asm_clc()    asm_byte(0f8)
+function asm_stc()    asm_byte(0f9)
+function asm_cli()    asm_byte(0fa)
+function asm_sti()    asm_byte(0fb)
+function asm_cld()    asm_byte(0fc)
+function asm_std()    asm_byte(0fd)
+
+
+
+; Generate a conditional jump instruction
+
+function gen_jcond(cond,symbol)
+{
+  PUSH ESI
+  MOV ESI,destination_from_symbol([symbol])-[ip]-2
+
+  if ([first_phase] | is_short(ESI)) {
+    asm_byte([cond])
+    asm_byte(ESI)
+  }
+  else {
+    asm_byte(0f)
+    asm_byte([cond]+010)
+    asm_dword(ESI-4)
+  }
+  POP ESI
+}
+
+
+
+; Assemble a conditional jump instruction
+
+;   70+cond cb     Jcond cb
+
+label_required_msg: DD 15 DB "Label required",0a
+
+function asm_jcond(cond)
+{
+  if (B[token]!='I')
+    error_exit(label_required_msg)
+
+  gen_jcond([cond],symbol_from_identifier())
+  get_next_token()                          ; Slurp the label
+}
+
+function asm_jo()    asm_jcond(070)
+function asm_jno()   asm_jcond(071)
+asm_jc:
+asm_jnae:
+function asm_jb()    asm_jcond(072)
+asm_jnc:
+asm_jnb:
+function asm_jae()   asm_jcond(073)
+asm_je:
+function asm_jz()    asm_jcond(074)
+asm_jne:
+function asm_jnz()   asm_jcond(075)
+asm_jna:
+function asm_jbe()   asm_jcond(076)
+asm_jnbe:
+function asm_ja()    asm_jcond(077)
+function asm_js()    asm_jcond(078)
+function asm_jns()   asm_jcond(079)
+function asm_jp()    asm_jcond(07a)
+function asm_jnp()   asm_jcond(07b)
+asm_jnge:
+function asm_jl()    asm_jcond(07c)
+asm_jnl:
+function asm_jge()   asm_jcond(07d)
+asm_jng:
+function asm_jle()   asm_jcond(07e)
+asm_jnle:
+function asm_jg()    asm_jcond(07f)
+
+
+
+; Returns true if dword does not fit in a signed 8-bit integer
+
+function is_short(dword)
+{
+  MOV AL,[dword]
+  CBW
+  CWDE
+  return (EAX==[dword])
+}
+
+
+
+; Check to see if dword fits in a signed 8-bit integer and we're not in the first phase
+; If not, prints an error message and exits.
+
+label_too_far_msg: DD 18 DB "Too far to label '"
+label_too_far_msg2: DD 2 DB "'",0a
+
+function check_short(dword)
+{
+  if (~[first_phase] & is_short(dword)) {
+    print_source_context()
+    print_str(label_too_far_msg)
+    print_str([identifier]+0c)
+    print_str(label_too_far_msg2)
+    exit()
+  }
+}
+
+
+
+; Assemble a loop instruction
+
+;   E0 cb          LOOPNE cb
+;   E1 cb          LOOPE cb
+;   E2 cb          LOOP cb
+;   E3 cb          JeCXZ cb
+
+function asm_loopx(cond)
+{
+  asm_byte([cond])
+  if (B[token] != 'I')
+    error_exit(label_required_msg)
+
+  MOV EAX,destination_from_symbol(symbol_from_identifier())-[ip]-1
+  PUSH EAX
+  check_short(EAX)
+  asm_byte(@)
+  get_next_token()                          ; Slurp the label
+}
+
+function asm_loopne() asm_loopx(0e0)
+function asm_loope()  asm_loopx(0e1)
+function asm_loop()   asm_loopx(0e2)
+function asm_jcxz()   asm_loopx(0e3)
+
+
+
+; Generate a CALL instruction
+
+function gen_call(ast)
+{
+  PUSH ESI
+  MOV ESI,[ast]
+  if (B[ESI] == 'N') {
+    asm_byte(0e8)     ; assemble "CALL "
+    asm_dword([ESI+4]-[ip]-4)  ; emit the jump dword
+  }
+  else
+    gen_ea(ESI,0ff,2,2,1)  ; generate "CALL inner expr"
+  POP ESI
+}
+
+
+
+; Assemble a CALL instruction.
+
+;   E8 cv          CALL cv
+;   FF /2          CALL rmv
+
+function asm_call()
+{
+  PUSH ESI
+  MOV ESI,simplify(parse_expr())
+  gen_call(ESI)
+  free_ast(ESI)
+  POP ESI
+}
+
+
+
+; Generate an unconditional JMP instruction to a symbol
+
+function gen_jmp(symbol)
+{
+  PUSH ESI
+  MOV ESI,destination_from_symbol([symbol])-[ip]-2
+
+  if ([first_phase] | is_short(ESI)) {
+    asm_byte(0eb)
+    asm_byte(ESI)             ; assemble "JMP cb"
+  }
+  else {
+    asm_byte(0e9)
+    asm_dword(ESI-3)          ; assemble "JMP cd"
+  }
+  POP ESI
+}
+
+
+
+; Assemble an unconditional JMP instruction.
+
+;   E9 cv          JMP cv
+;   EB cb          JMP cb
+;   FF /4          JMP rmv
+
+function asm_jmp()
+{
+  if (B[token]=='I') {
+    gen_jmp(symbol_from_identifier())
+    get_next_token()                          ; Slurp the label
+  }
+  else {
+    PUSH ESI
+    MOV ESI,simplify(parse_expr())
+    gen_ea(ESI,0ff,4,2,1)
+    free_ast(ESI)
+    POP ESI
+  }
+}
+
+
+
+; Assemble an INT instruction.
+
+;   CC             INT 3              5  p0os
+;   CD ib          INT ib             5  p0normal
+
+constant_required_msg: DD 18 DB "Constant required",0a
+
+function asm_int()
+{
+  PUSH ESI
+  MOV ESI,simplify(parse_expr())
+
+  if (B[ESI] != 'N')
+    error_exit(constant_required_msg)
+
+  if (B[ESI+4] == 3)
+    asm_byte(0cc)
+  else {
+    asm_byte(0cd)
+    asm_byte([ESI+4])
+  }
+
+  free_ast(ESI)
+  POP ESI
+}
+
+
+
+; Assemble a DD instruction (output a single word)
+function asm_dd()
+{
+  PUSH ESI
+  do {
+    MOV ESI,simplify(parse_expr())
+
+    if (B[ESI] != 'N')
+      error_exit(constant_required_msg)
+
+    asm_dword([ESI+4])
+    free_ast(ESI)
+
+    if (B[token] != ',')
+      break
+    get_next_token()                        ; Slurp the comma
+  } while (true)
+  POP ESI
+}
+
+
+
+; Assemble a DW instruction (output a single word)
+function asm_dw()
+{
+  PUSH ESI
+  do {
+    MOV ESI,simplify(parse_expr())
+
+    if (B[ESI] != 'N')
+      error_exit(constant_required_msg)
+
+    asm_word([ESI+4])
+    free_ast(ESI)
+
+    if (B[token] != ',')
+      break
+    get_next_token()                        ; Slurp the comma
+  } while (true)
+  POP ESI
+}
+
+
+
+; Assemble a DB instruction (output a single byte or a string)
+function asm_db()
+{
+  PUSH ESI
+  do {
+    MOV ESI,simplify(parse_expr())
+
+    if (B[ESI] == '"')
+      asm_string(ESI+4)
+    else if (B[ESI] == 'N')
+      asm_byte([ESI+4])
+    else
+      error_exit(constant_required_msg)
+
+    free_ast(ESI)
+
+    if (B[token] != ',')
+      break
+    get_next_token()                        ; Slurp the comma
+  } while (true)
+  POP ESI
+}
+
+
+
+; Assemble an INC or DEC instruction.
+
+;   40+r           INC rd
+;   48+r           DEC rd
+;   FE /0          INC rmb
+;   FE /1          DEC rmb
+;   FF /0          INC rmd
+;   FF /1          DEC rmd
+
+function asm_incdec(incdec)
+{
+  if (B[token]=='R' & B[token_arg]<8) {
+    asm_byte(([incdec]<<3) + [token_arg] + 040)
+    get_next_token()                          ; Slurp the register
+  }
+  else {
+    PUSH ESI
+    MOV ESI,simplify(parse_expr())
+    gen_ea(ESI,0fd+ast_size(ESI),[incdec],0,3)
+    free_ast(ESI)
+    POP ESI
+  }
+}
+
+function asm_inc()  asm_incdec(0)
+function asm_dec()  asm_incdec(1)
+
+
+
+; Assemble a PUSH instruction.
+
+;   50+r           PUSH rd
+;   FF /6          PUSH rmd
+
+function asm_push()
+{
+  PUSH ESI
+  MOV ESI,simplify(parse_expr())
+  gen_stk(ESI)
+  free_ast(ESI)
+  POP ESI
+}
+
+
+
+; Assemble a POP instruction.
+
+;   58+r           POP rd
+;   8F /0          POP md
+
+function asm_pop()
+{
+  if (B[token]=='R' & B[token_arg]<8) {
+    asm_byte(058+[token_arg])
+    get_next_token()                        ; Slurp the register
+  }
+  else {
+    PUSH ESI
+    MOV ESI,simplify(parse_expr())
+    gen_ea(ESI,08f,0,2,2)
+    free_ast(ESI)
+    POP ESI
+  }
+}
+
+
+
+; Assemble a NOT, NEG, MUL, IMUL, DIV or IDIV instruction.
+
+;   F6 /n          OP rmb
+;   F7 /n          OP rmd
+
+function asm_math(op)
+{
+  PUSH ESI
+  MOV ESI,simplify(parse_expr())
+  gen_ea(ESI,0f5+ast_size(ESI),[op],0,3)
+  free_ast(ESI)
+  POP ESI
+}
+
+function asm_not()   asm_math(2)
+function asm_neg()   asm_math(3)
+function asm_mul()   asm_math(4)
+function asm_imul()  asm_math(5)
+function asm_div()   asm_math(6)
+function asm_idiv()  asm_math(7)
+
+
+
+; Parse (and ignore) a comma - error if it isnt there.
+
+comma_expected_msg: DD 15 DB "Comma expected",0a
+
+function parse_comma()
+{
+  if (B[token]!=',')
+    error_exit(comma_expected_msg)
+  get_next_token()                          ; Slurp the comma
+}
+
+
+
+; Assemble a ROL, ROR, RCL, RCR, SHL, SHR or SAR instruction.
+
+;   C0 /n ib       OP rmb,ib
+;   C1 /n ib       OP rmd,ib
+;   D0 /n          OP rmb,1
+;   D1 /n          OP rmd,1
+;   D2 /n          OP rmb,CL
+;   D3 /n          OP rmd,CL
+
+function asm_shift(op)
+{
+  PUSH ESI
+  auto size
+
+  MOV ESI,simplify(parse_expr())
+  MOV D[size],ast_size(ESI)
+  parse_comma()
+
+  if (B[token] == '0') {
+    if (B[token_arg] == 1)
+      gen_ea(ESI,0cf+[size],[op],0,3)   ; asssemble "OP rm,1"
+    else {
+      PUSH [token_arg]
+      gen_ea(ESI,0bf+[size],[op],0,3)
+      asm_byte(@)                       ; assemble "OP rm,n"
+    }
+    get_next_token()                         ; Slurp the number
+  }
+  else {
+    if (B[token]=='R' & B[token_arg]==9)
+      get_next_token()                       ; Slurp the CL
+    else {
+      PUSH EDI
+      MOV EDI,simplify(parse_expr())
+      gen_ea(EDI,08a,1,1,1)             ; assemble "MOV CL,expr"
+      free_ast(EDI)
+      POP EDI
+    }
+    gen_ea(ESI,0d1+[size],[op],0,3)   ; assemble "OP rm,CL"
+  }
+
+  free_ast(ESI)
+  POP ESI
+}
+
+function asm_rol()   asm_shift(0)
+function asm_ror()   asm_shift(1)
+function asm_rcl()   asm_shift(2)
+function asm_rcr()   asm_shift(3)
+function asm_shl()   asm_shift(4)
+function asm_shr()   asm_shift(5)
+function asm_sar()   asm_shift(7)
+
+
+
+; Assemble an XCHG instruction.
+
+;   86 /r          XCHG rmb,rb
+;   87 /r          XCHG rmd,rd
+;   90+r           XCHG EAX,rd
+
+function asm_xchg()
+{
+  PUSH ESI
+  PUSH EDI
+  auto size
+
+  MOV EDI,simplify(parse_expr())
+  parse_comma()
+  MOV ESI,simplify(parse_expr())
+
+  MOV D[size],ast_size(ESI)
+  PUSH [size]
+  OR D[size],ast_size(EDI)
+  POP ECX
+  check_opsize(EAX,ECX)
+
+  if (B[EDI] == 'R') {
+    MOV CL,B[EDI+1]
+    if (CL == 0)
+      if (B[ESI] == 'R')
+        asm_byte(090+[ESI+1])                   ; assemble "XCHG EAX,rd"
+      else
+        gen_ea(ESI,085+[size],0,[size],3)       ; assemble "XCHG EAX,rmd"
+    else
+      if (B[ESI]=='R' & B[ESI+1]==0)
+        asm_byte(090+ECX)                       ; assemble "XCHG rd,EAX"
+      else
+        gen_ea(ESI,085+[size],ECX&7,[size],3)   ; assemble "XCHG rd,rmd"
+  }
+  else {
+    if (B[ESI] == 'R')
+      gen_ea(EDI,[size]+085,B[ESI+1]&7,[size],3)  ; assemble "XCHG rmd,rd"
+    else {
+      gen_stk(ESI)                              ; assemble "PUSH mem2"
+      gen_stk(EDI)                              ; assemble "PUSH mem1"
+      gen_ea(ESI,08f,0,2,2)                     ; assemble "POP mem2"
+      gen_ea(EDI,08f,0,2,2)                     ; assemble "POP mem1"
+    }
+  }
+  free_ast(ESI)
+  free_ast(EDI)
+  POP EDI
+  POP ESI
+}
+
+
+
+; Assemble a TEST instruction.
+
+;   84 /r          TEST rmb,rb
+;   85 /r          TEST rmd,rd
+;   A8 ib          TEST AL,ib
+;   A9 id          TEST EAX,id
+;   F6 /0 ib       TEST rmb,ib
+;   F7 /0 id       TEST rmd,id
+
+function asm_test()
+{
+  PUSH ESI
+  PUSH EDI
+  auto size
+
+  PUSH simplify(parse_expr())
+  parse_comma()
+  MOV ESI,simplify(parse_expr())
+  POP EDI
+
+  MOV D[size],ast_size(ESI)
+  PUSH [size]
+  OR D[size],ast_size(EDI)
+  POP ECX
+  check_opsize(EAX,ECX)
+
+  if (B[EDI]=='R' & (B[EDI+1]&7)==0 & B[ESI]=='N') {
+    asm_byte(0a7+[size])                       ; assemble "TEST A,"
+    if ([size]==1)
+      asm_byte([ESI+4])                        ; assemble "ib"
+    else
+      asm_dword([ESI+4])                       ; assemble "id"
+  }
+  else {
+    if (B[ESI]=='N') {
+      gen_ea(EDI,0f5+[size],0,[size],1)        ; assemble "TEST rm,"
+      if ([size]==1)
+        asm_byte([ESI+4])                      ; assemble "ib"
+      else
+        asm_dword([ESI+4])                     ; assemble "id"
+    } else if (B[ESI]=='R')
+      gen_ea(EDI,083+[size],[ESI+1]&7,[size],1)  ; assemble "TEST rm,r"
+    else {
+      gen_ea(ESI,08b,0,[size],1)               ; assemble "MOV A,expr"
+      gen_ea(EDI,083+[size],0,[size],1)        ; assemble "TEST rm,A"
+    }
+  }
+  free_ast(EDI)
+  free_ast(ESI)
+  POP EDI
+  POP ESI
+}
+
+
+
+; Assemble an ADD, OR, ADC, SBB, AND, SUB, XOR or CMP instruction.
+
+;   00+8*n /r      OP rmb,rb
+;   01+8*n /r      OP rmd,rd
+;   02+8*n /r      OP rb,rmb
+;   03+8*n /r      OP rd,rmd
+;   04+8*n ib      OP AL,ib
+;   05+8*n id      OP EAX,id
+;   80 /n ib       OP rmb,ib
+;   81 /n id       OP rmd,id
+;   83 /n ib       OP rmd,ib
+
+function asm_alu(op)
+{
+  PUSH ESI
+  PUSH EDI
+  auto size
+
+  MOV EDI,simplify(parse_expr())
+  parse_comma()
+  MOV ESI,simplify(parse_expr())
+
+  MOV D[size],ast_size(ESI)
+  PUSH [size]
+  OR D[size],ast_size(EDI)
+  POP ECX
+  check_opsize(EAX,ECX)
+
+  if (B[ESI] != 'N') {
+    SHL B[op],3
+    if (B[EDI] == 'R')
+      gen_ea(ESI,1+[size]+[op],[EDI+1]&7,[size],1)  ; assemble "OP r,expr"
+    else if (B[ESI] == 'R')
+      gen_ea(EDI,0ff+[size]+[op],[ESI+1]&7,[size],3)  ; assemble "OP rm,r"
+    else {
+      gen_ea(ESI,089+[size],0,[size],1)             ; assemble "MOV A,expr"
+      gen_ea(EDI,0ff+[size]+[op],0,[size],3)        ; assemble "OP mem,A"
+    }
+  }
+  else {
+    if (B[EDI]=='R' & (B[EDI+1]&7)==0) {
+      asm_byte(3+[size]+([op]<<3))                  ; assemble "OP A,"
+      if ([size]==1)
+        asm_byte([ESI+4])                           ; assemble "ib"
+      else
+        asm_dword([ESI+4])                          ; assemble "id"
+    }
+    else
+      if ([size]==1) {
+        gen_ea(EDI,080,[op],1,3)                    ; assemble "OP rmb,"
+        asm_byte([ESI+4])                           ; assemble "ib"
+      }
+      else
+        if (is_short([ESI+4])) {
+          gen_ea(EDI,083,[op],2,3)                    ; assemble "OP rmd,"
+          asm_byte([ESI+4])                           ; assemble "ib"
+        }
+        else {
+          gen_ea(EDI,081,[op],2,3)                    ; assemble "OP rmd,"
+          asm_dword([ESI+4])                          ; assemble "id"
+        }
+  }
+  free_ast(EDI)
+  free_ast(ESI)
+  POP EDI
+  POP ESI
+}
+
+function asm_add() asm_alu(0)
+function asm_or()  asm_alu(1)
+function asm_adc() asm_alu(2)
+function asm_sbb() asm_alu(3)
+function asm_and() asm_alu(4)
+function asm_sub() asm_alu(5)
+function asm_xor() asm_alu(6)
+function asm_cmp() asm_alu(7)
+
+
+
+; Assemble a MOV instruction.
+
+;   88 /r          MOV rmb,rb
+;   89 /r          MOV rmd,rd
+;   8A /r          MOV rb,rmb
+;   8B /r          MOV rd,rmd
+;   A0 id          MOV AL,xb
+;   A1 id          MOV EAX,xd
+;   A2 id          MOV xb,AL
+;   A3 id          MOV xd,EAX
+;   B0+r ib        MOV rb,ib
+;   B8+r id        MOV rd,id
+;   C6 /0 ib       MOV rmb,ib
+;   C7 /0 id       MOV rmd,id
+
+function asm_mov()
+{
+  PUSH ESI
+  PUSH EDI
+  auto size
+
+  MOV EDI,simplify(parse_expr())
+  parse_comma()
+  MOV ESI,simplify(parse_expr())
+
+  MOV D[size],ast_size(ESI)
+  PUSH [size]
+  OR D[size],ast_size(EDI)
+  POP ECX
+  check_opsize(EAX,ECX)
+
+  if (B[EDI]=='R')
+    if ((B[EDI+1]&7)==0 & B[ESI]==']' & B[ESI+8]==5) {
+      asm_byte(09f+[size])                         ; assemble "MOV A,[]"
+      asm_dword([ESI+9])                            ; assemble "id"
+    }
+    else
+      if (B[ESI]=='N') {
+        asm_byte(0a8+([size]<<3)+(B[EDI+1]&7))     ; assemble "MOV r,"
+        if ([size]==1)
+          asm_byte([ESI+4])                        ; assemble "ib"
+        else
+          asm_dword([ESI+4])                       ; assemble "id"
+      }
+      else
+        gen_ea(ESI,089+[size],B[EDI+1]&7,[size],1)  ; assemble "MOV r,rm"
+  else
+    if (B[ESI]=='R')
+      if (B[EDI]==']' & B[EDI+8]==5 & (B[ESI+1]&7)==0) {
+        asm_byte(0a1+[size])                         ; assemble "MOV [],A"
+        asm_dword([EDI+9])                           ; assemble "id"
+      }
+      else
+        gen_ea(EDI,087+[size],B[ESI+1]&7,[size],2)  ; assemble "MOV rm,r"
+    else if (B[ESI]=='N') {
+      gen_ea(EDI,0c5+[size],0,[size],2)          ; assemble "MOV m,"
+      if ([size]==1)
+        asm_byte([ESI+4])                        ; assemble "ib"
+      else
+        asm_dword([ESI+4])                       ; assemble "id"
+    }
+    else {
+      gen_ea(ESI,089+[size],0,[size],1)          ; assemble "MOV A,expr"
+      gen_ea(EDI,087+[size],0,[size],2)          ; assemble "MOV expr,A"
+    }
+  free_ast(ESI)
+  free_ast(EDI)
+  POP EDI
+  POP ESI
+}
+
+
+
+; Parse a mnemonic and output the instruction bytes
+
+parse_mnemonic_table:
+ DD asm_adc,asm_add,asm_and,asm_call,asm_cbw       ;  0
+ DD asm_cdq,asm_clc,asm_cld,asm_cli,asm_cmc
+ DD asm_cmp,asm_cmpsb,asm_cmpsd,asm_cwd,asm_cwde   ; 10
+ DD asm_db,asm_dd,asm_dec,asm_div,asm_dw
+ DD asm_idiv,asm_imul,asm_inc,asm_int,asm_ja       ; 20
+ DD asm_jae,asm_jb,asm_jbe,asm_jc,asm_jcxz
+ DD asm_je,asm_jg,asm_jge,asm_jl,asm_jle           ; 30
+ DD asm_jmp,asm_jna,asm_jnae,asm_jnb,asm_jnbe
+ DD asm_jnc,asm_jne,asm_jng,asm_jnge,asm_jnl       ; 40
+ DD asm_jnle,asm_jno,asm_jnp,asm_jns,asm_jnz
+ DD asm_jo,asm_jp,asm_js,asm_jz,asm_lahf           ; 50
+ DD asm_lodsb,asm_lodsd,asm_loop,asm_loope,asm_loopne
+ DD asm_mov,asm_movsb,asm_movsd,asm_mul,asm_neg    ; 60
+ DD asm_nop,asm_not,asm_or,asm_pop,asm_popfd
+ DD asm_push,asm_pushfd,asm_rcl,asm_rcr,asm_rep    ; 70
+ DD asm_repne,asm_ret,asm_retf,asm_rol,asm_ror
+ DD asm_sahf,asm_salc,asm_sar,asm_sbb,asm_scasb    ; 80
+ DD asm_scasd,asm_shl,asm_shr,asm_stc,asm_std
+ DD asm_sti,asm_stosb,asm_stosd,asm_sub,asm_test   ; 90
+ DD asm_xchg,asm_xlatb,asm_xor
+
+function parse_mnemonic()
+{
+  PUSH [token_arg]
+  get_next_token()                          ; Slurp the mnemonic
+  POP ECX
+  JMP [parse_mnemonic_table + ECX*4]
+}

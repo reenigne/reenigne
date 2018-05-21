@@ -1,0 +1,46 @@
+Each "CALL" instruction to a function that can throw has an entry in the call table
+
+Call table entry:
+  Address of CALL
+  Pointer to action table entry
+
+Action table entry:
+  Type of action:
+    Run destructor
+    Return to next function
+    Finally block
+    Catch block
+    Stack correction
+  Amount to add to stack pointer
+  Address of destructor or finally block to run
+  Stack offset of object to destruct
+  Address of catch block to run
+  Type of exception object to catch
+  Stack offset of return address
+  Stack correction
+  Pointer to next action table entry
+
+Need to think about callee-saves registers in functions with catch and finally blocks
+
+In practice, the only overhead should be that in the program:
+  typedef void *(__stdcall *StateFunction0)();
+  typedef void *(__stdcall *StateFunction1)(int a);
+  typedef void *(__stdcall *StateFunction2)(int a, int b);
+  struct IState {
+      virtual void RunState() = 0;
+  };
+  struct State0 : public IState {
+      virtual void RunState();
+      StateFunction0 fn;
+  };
+  struct State1 : public IState {
+      virtual void RunState();
+      StateFunction1 fn;
+  };
+  void State0::RunState() {
+      ((StateFunction2)fn())(1, 2);
+  }
+  void State1::RunState() {
+        ((StateFunction1)fn(1))(2);
+  }
+State0::RunState() and State1::RunState() cannot be folded together as they have different exception tables (despite having the same code)

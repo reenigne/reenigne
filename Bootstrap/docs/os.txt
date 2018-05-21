@@ -1,0 +1,74 @@
+Principles for operating system:
+  Fully event-driven
+  Make concepts such as "thread", "address space", "stack" and "process" first class
+  Scheduler knows which threads are blocked on which other threads and does graph sorting to figure out which thread to run next - no lock convoys or deadlocking
+  Apps can request hard real-time guarantees
+  Apps can request that memory allocation never fail due to lack of physical memory - thread will just be blocked instead until memory is available
+    Memory allocation can still fail due to lack of address space
+  User can specify app quotas for CPU time, memory, disk space, disk time and network bandwidth
+  Concepts of reporting progress accurately to user and allowing user to cancel long-running operations are built in from low level
+  Provide primitives to aid with most common UI paradigms
+  Filer automatically mounts and traverses into disk images of any supported filesystem
+  Design APIs in such a way as to render many common bugs impossible
+  Database-based file system (also encompasses registry-like functionality)
+  Functionality for deterministically measuring performance built in from low level
+    Emulation technology?
+  Experiment with UI technologies other than overlapping windows:
+    Docked windows a la VS
+    Pop-ups a la calc
+    Multiple desktops
+    Full-screen windows
+    Tiled windows
+  Experiment with not using disk cache
+    Ensure that there is always free RAM to satisfy requests
+    Create pagefile only when necessary
+    Ensure that a process's working set isn't paged out due to transient file accesses (e.g. large copy in background process)
+    Explicitly decache files when they are finished with
+    Have a cache for files which may be needed soon depending on what user does next, but don't use all RAM for it
+    Allow process to "pre-load" files which they think they'll need later - preloading prevents decaching from taking effect
+
+A process consists of a single binary - no DLLs. All APIs, plug-ins and IPC done by syscalls, shared memory and code generation.
+  OS needs to be able to send messages to process immediately after creation (e.g. if system is about to shutdown).
+    => Process entry point is reused. A region at the top of the stack is reused to send data from the OS to the process.
+    Process needs to respond to this message (by modifying memory and/or creating threads) in a reasonable time and then make a
+    syscall to return the thread to the "waiting" state.
+  A process is in charge of its own address space.
+
+syscalls:
+  Acknowledge signal and return main thread to waiting state
+  Allocate virtual memory
+  Deallocate virtual memory
+  Create process
+  Call function in other process
+  Create thread
+  End thread
+  Load file into memory
+  Create shared memory and acknowledge
+  Delete shared memory and acknowledge
+
+signals:
+  Process startup
+  shutdown etc.
+  Another process created a shared memory section which this process can access
+  Redirected syscall
+
+errors
+
+Errors, signals and syscalls are string-based not integer-based
+
+Design APIs to be as unchatty as possible. e.g. GIF decoder:
+Use unnamed, temporary, pagefile backed files instead of shared memory sections (these can be mmap()ed into the process safely)
+  1) Call function in decoder process
+  2) Decoder process creates shared memory block in own process
+  3) Decoder process finishes and notifies calling process, OS maps shared memory block into calling process (up to predefined size limit)
+  4) Calling process does its thing with the decoded image and then deallocates shared memory block.
+
+Capability tokens to keep track of what processes are allowed to do (to the system and to other processes)
+
+
+A process can subvert any and all syscalls made by a child process - this is the method by which all security is done.
+This means:
+  A process cannot tell if it is being debugged - all environment inspection is done by syscalls.
+  A process can spy on any IO or inter-process communication done by child processes
+  Process bad behavior (DRM, anti-cheat mechanisms, anti-debugging mechanisms etc.) can easily be overcome
+  Untrusted executables can be run in a sandbox by default and only get elevated when user requests it, overcoming the dancing bunnies problem.

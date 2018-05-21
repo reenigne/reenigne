@@ -1,0 +1,323 @@
+Based on similar ideals to C++
+C++ replacement for most scenarios
+Not fully source compatible with C/C++/Java/C# etc.
+Should be easy for C[++] experts to pick up
+Remove C++ cruft:
+  Macros
+  Digraphs/trigraphs
+  template<template<>> problems
+
+Don't pay for what you don't use
+Procedural programming
+Object-oriented programming
+Generic programming
+Improved set of keywords and control structures
+Concept of ownership built into language - smart pointers
+Exception support
+Resource aquisition is initialization paradigm - no cleanup
+Side-effect tracking
+  Pure functions on values known at compile time can be optimized away
+    One can write a compiler for a mini-language that runs at compile-time on inline source and emits code right into the binary - no-compromise homoiconicity
+Good string support
+  Native string type is length+data, not data+terminator
+High performance native code compilation
+Multithreading support
+  {
+      Thread<Foo> thread({ return Foo(4); });
+      Foo x = thread.join();
+  }
+All machine features can be utilized
+  Arbitrary precision integers built in
+Teaching/easy-to-learn language not a priority (but should be easier than C++ due to my improvements)
+Targets twos-complement ASCII/Unicode machines with 8-bit bytes and power-of-two word sizes
+Do not distinguish between compiler, linker and librarian
+  library, object and executable are all valid binary output formats
+  source, library and object are all valid input formats
+All binary contracts are explicit
+  Support for big-endian, little-endian, (middle-endian?) or default word layouts
+  Support for arbitrary alignment
+  Support for binary structure layouts (making hardware interfacing, file formats easy)
+Source code in ASCII. Be strict in what is accepted:
+  No source bytes above 0x7e
+  No source bytes below 0x20 in strings
+  No source bytes below 0x20 other than 0x0a and 0x0d
+  No tabs allowed!
+  0xa, 0xd, 0xa 0xd and 0xd 0xa all treated as 0xa
+Standardize on English as the official natural language for identifiers, type names, keywords etc.
+  Non-English literal strings are okay, but add comments in English explaining what they say
+  If you write a program with identifiers in a language other than English, it cannot then be maintained by programmers who do not speak that language
+Not a high-level or low-level language - can mix low-level and high-level language features
+No garbage collection (if you need non-owned object semantics, use reference counting)
+New easier-to-read syntax for declaring function types (read them backwards)
+  Char           character
+  Char*          pointer to character
+  Char*()        function returning pointer to character
+  Char*()*       pointer to function returning pointer to character
+  Char*()*()     function returning pointer to function returning pointer to character
+  Char*()*()*    pointer to function returning pointer to function returning pointer to character
+  Char*()*()*[N] array of N pointers to functions returning pointers to functions returning pointers to characters
+Lexical scoping and closures
+  Implicitly and transparently create an object (closure object) if variables from the enclosing scope are used
+    Transparently allocate that object on the heap and track it with reference counting
+    Might return multiple closures referencing the same environment
+      => closure is "fat pointer" with pointers to environment object and method
+A way to solve problems solved well by dynamic scoping
+  Special variables?
+    Thread-local
+    Implicit "finally" closure to reset the variable once the scope in which it was redefined ends?
+Arbitrary continuations
+  Might disallow these
+    Haven't yet seen a problem not better solved other ways
+    They are very complicated to implement
+    They make it very easy to implement very inefficient code
+    Continuation passing style is weird and error-prone
+  Maybe make functions to:
+    Create an object from the current continuation (better setjmp)
+    Restore the a continuation from an object (better longjmp)
+    Create a new stacks without associated threads for cooperative threading
+Try to unify inheritance "interfaces" with template "interfaces"?
+  A la constraints in C# generics?
+    Optional constraints so you could (e.g.) implement ordered and unordered tuples as the same template
+Types start with capital letters, identifiers start with small letters
+  Words in MultiWord identifiers separated by captializing first letter of each word
+  Case sensitive so compiler distinguishes between trimaransCrimps and trimaranScrimps
+Compile time metalanguage using same syntax as run time language
+Make easy things easy and hard things possible
+Avoid making the programmer give names to things when not absolutely necessary
+There is one true brace style
+Provide new ways of writing classes (or equivalents to classes) for various purposes
+  Typesafe tagged unions (another way to write inheritance hierarchies)
+  Closures
+  Coroutines
+    Implement by creating an object, the size of which is the maximum amount of stack the coroutine function can use (including parameters but not parameters
+      of called functions) plus size of registers
+    Example:
+      int coroutine foo(int x) { yield x; yield x+1; yield x+2; }
+      coroutine bar = foo(1);
+      assert(bar() == 1);
+      assert(bar() == 2);
+      assert(bar() == 3);
+      assert(bar() == 1);
+    Coroutines will loop forever, starting again from the beginning if they are terminated with a "return" or falling off the end.
+    coroutine is effectively a smart pointer type, as the size of a coroutine depends on the actual coroutine called
+      as an optimization, initialized reference coroutines may use memory directly.
+    When a coroutine is called, no parameters are allowed
+    How would this allow a solution to the same fringe problem? When using mutually co-recursive coroutines,
+      Creating a new activation record (AR) for any one coroutine creates a new AR for each coroutine in the co-recursive set
+      Each coroutine has its own effective stack pointer
+      This pointer is switched into EBP when the control enters the coroutine
+      So the stack ends up looking like this:
+        scratch
+        AR for depth N leaves2 treeLeaves
+        AR for depth N leaves1 treeLeaves
+        ...
+        AR for depth 2 leaves2 treeLeaves
+        AR for depth 2 leaves1 treeLeaves
+        AR for depth 1 leaves2 treeLeaves
+        AR for depth 1 leaves1 treeLeaves
+        AR for sameFringe
+        tree1
+        tree2
+Computations at compile-time done symbolically
+  Arbitrary-precision arithmetic
+  Rationals
+  Closed forms
+  "pi" is a symbolic constant of type Real
+Advanced types:
+  Real (closed form)
+  Auto (chooses appropriate type based on initialization expression, like auto in C++0x)
+  Var (variant type - can hold value of any type, like types in dynamic languages)
+saturate_cast
+Fixed-point arithmetic built-in (including constants like 0xffff.ffff)
+Even primitive objects have a rich set of methods:
+  7..for(function(auto i) { print(i); });
+
+
+Homoiconicity:
+  Language
+    Is written in itself
+    Is easy to parse with a PEG
+    Is designed to make it as easy as possible to write PEG-parsable languages in
+    Has built in PEG parser generator
+  Much of the compiler (optimizers, code generators) can be linked in to user programs
+    Makes writing things like
+      Formula-driven fractal generators
+      Graphing programs
+      Circuit simulators
+      Numerical analysis packages
+      etc.
+    fast and easy
+
+  Source code for entire compiler and all languages is included and compiler compiles itself.
+  Bootstraps from scratch on all supported platforms (avoid supplying binaries)
+
+REPL:
+  There is a REPL - it's part of the debugger
+
+Possible extensions:
+  Machines with other word sizes e.g. "___bitsPerByte=9;"
+  Unicode source files so that programs for non-English users can have unicode string literals
+  GC heap for algorithms that perform better with GC than with reference counting and weak references
+  A type that is 32 bits on 16-bit and 32-bit platforms and 64 bits of 64-bit platforms
+
+
+Performance/optimization:
+  Do no performance work until necessary - do the simplest thing that will work regardless of speed
+  When perfomance is noticably too slow:
+    Make tools to objectively measure performance accurately
+    Optimize low-hanging fruit
+    Make sure debugging tools can work well with optimized code
+
+Exceptions:
+  Standard method for error handling everywhere
+  Guidelines for when to use exceptions:
+    An exceptional condition generally requires user-intervention
+    "When choosing to throw an exception, imagine that the throw statement makes the screen flash and causes a loud 'beep' to be emitted"
+    Performance when exceptions thrown is not a consideration
+    Using exceptions in conditions that happen as part of a normal run leads to:
+      Slowness
+      More potential for readers of your program to misinterpret what's going on.
+  Exceptions have zero run-time overhead when not thrown
+    Thus, performance in the normal ("success") case is better than performance of equivalent return-value code, as checking for errors doesn't normally need to be performed
+  How is this possible?
+    Throw statement translates into:
+      Constructing the exception object on the top of the stack
+      A CALL to a function which
+        examines the stack
+        calls non-inlined versions of "finally" closures (NIFCs) and destructors (except the one for the exception object)
+        calls the appropriate "catch" closure
+        calls the destructor for the exception object
+        adjusts the stack
+        sets up the registers appropriately
+        transfers control to the point after the catch block
+    Every function through which an exception can propagate has a section of metadata (usually paged out) for use by this function
+      Shows the stack depth at each CALL statement in the function that can throw
+        (At the assembler level, exceptions can only originate from CALL instructions, since they must come from throw statements or other functions, both of which translate into CALLs)
+        Unwind record:
+          start of code
+          end of code
+          stack adjustment (-1 for catch block closure?)
+          destructor, finally closure function or catch block closure to call (0 for stack adjustment only)
+        When no more unwind records can be found that match the current code address, pop a new code address from the stack and continue
+        How to match type of catch block closures?
+          We need a table of all throw statement types and all catch block types so that we can match a given throw statement to the appropriate "catch" closure on the stack
+            If we can prove that throw x will never meet catch y then we can optimize out that table entry
+    Finally block closures are always inlined
+    Catch block closures are never inlined because they are only called when an exception is thrown
+      Thus they live (along with the NIFCs and the unwind records) in part of the image that is usually paged out
+    Data and code only used in exceptional conditions usually paged out. These form a "troubleshooting program" (i.e. a program which analyses and fixes problems in the main program)
+      Unwind tables
+      Methods of objects only ever used as exception objects
+      Catch block closures
+      NIFCs
+      Any code and data only ever used from catch blocks
+      The unwind code itself
+      Throw/catch matching tables
+  Exception specifications (ESes):
+    Every function has an explicit or implicit ES
+    Unlike in C++, ESes are a compile-time feature only (part of the type system) not a run-time feature
+    Destructors and "finally" closures always have the implicit ES "throw()" - no exceptions can leave them
+    If a function does not have an explicit ES, then it is implicitly computed to be all the possible exceptions that that function can throw
+    A function's ES is part of its type - you can't (necessarily) use a function which throws more exceptions in place of one that throws fewer
+  If there is any code written in other languages on the stack, then exceptions can't propagate through that code
+    Only functions with the ES "throw()" may be called from "foreign" code
+  What about asynchronous exceptions?
+    These cannot be safely caught, so always terminate the program with an error report
+    What about third-party plugins?
+      If a plug-in has access to your memory space then it is part of your program. It is a program's responsibility not to load untrusted plug-ins.
+      See if we can provide a way to allow untrusted plug-ins to extend functionality without giving them the ability to corrupt the program - need a proper error handling mechanism for these
+    What about floating point exceptions or division by zero?
+      If that is a problem, you need to wrap the potentially failing operations in a class which tests for division by zero (and does the appropriate thing, such as throwing a synchronous exception) instead
+      Floating point errors can be propagated to NaNs instead of raising faults on most hardware
+    What about memory-mapped files?
+      Do we need some kind of fault handling so that we can make safe wrapper class around a memory area that may fault on access?
+      Do we just forbid memory-mapped files altogether?
+    What about debuggers? User examines unmapped memory space in debuggee - does session end?
+      Do we need structured exceptions for this?
+      Do debuggers use emulation? (Slow!)
+      Can we ask a suspended program if a particular address is valid?
+    Stack overflow:
+      Disallow arbitrary recursion? Prove that a thread's stack can't be more than a certain size?
+  Memory errors:
+    Distinguish between out of address space (will cause synchronous exception) and out of physical memory (will cause thread to halt until memory can be found)
+    If disk and physical RAM full, all threads will halt
+    Need to make sure there is a way to get in and kill non-essential processes so that essential ones can continue
+      Aka task manager
+      Pre-allocate memory for this up-front so that we know we will always be able to run it
+    Denial of service attacks?
+      Moderated by quotas on total physical memory (RAM + disk) per user
+  The exception code and data
+    turns its input
+      A stack
+      A type of exception object
+      A pointer to the exception object (on the stack)
+    into
+      A sequence of calls of destructors and NIFCs
+      A call of the appropriate "catch" closure
+      A call of the destructor of the exception object
+      An adjustment to the stack
+      A new instruction pointer
+  A destructor can use exceptions internally if it catches them
+    Thus multiple unwinds can be going on at once
+      The unwind code must be reentrant
+    Multiple exception objects can exist at once
+      This is fine, because they are allocated on the stack
+  Arbitrary exception filters?
+    Would have to be "throw()" a la destructors, since they run at unwind-time
+    Probably better to use the right exception hierarchy in the first place
+  Locks (low level) and "atomic { ... }" (high level for concurrency
+
+
+
+Object lifetimes:
+  At the end of a constructor, an object changes from being a discrete collection of sub objects and base objects to a single object (its lifetime officially starts)
+  At the beginning of a destructor, an object changes from being a single object to being a discrete collection of sub objects and base objects (its lifetime officially ends)
+
+Class definition syntax:
+Foo = Class { ... }
+
+Template syntax:
+Foo<T> = Class { T* x; ... }
+
+(Partial) specialization syntax:
+Foo<T> = Class
+{
+    constructor()
+    {
+        if (T == Int)
+            ...
+        else
+            ...
+    }
+}
+
+Template typedef syntax:
+Foo<T> = Bar<T, Int>
+
+Template parameters can only be types. If you need a value template parameter (e.g. for speed you need to generate several functions which are identical other than a particular value) you need to encapsulate the value in a class, e.g.
+  OldSkool = Class { int bits = 8; }
+  OriginalFlavour = Class { int bits = 16; }
+  ModernStyle = Class { int bits = 32; }
+  Futuristic = Class { int bits = 64; }
+
+  Blitter<OldSkool> blitter;
+
+Types and identifiers used within a template definition will always be looked up in the scope of the template definition, unless they depend on a template parameter (in which case they will be looked up in the scope of the template instantiation)
+
+Eventually:
+  Language
+  OS
+  Database
+  Revision control system
+  Build system
+  Decompiler
+  Text editor
+  Computer algebra system:
+    Make statements (e.g. "x=y")
+    Ask questions (e.g. "x?")
+    Read/evaluate/print loop (text input, graphical output as displayed by TeX)
+    Mouse-operated dragging parts of equations around to manually manipulate in an error-free way
+    Feature set like Mathematica/Maple/Maxima etc.
+  Emulators
+  Profiler & debugger - source (new language) and binary-level debugging
+

@@ -1,0 +1,135 @@
+; This is the bootstrapping compiler step 15 (written in step 14 language)
+; This file contains string functions.
+
+; Create and return a string:
+;  arg1 = length
+;  arg2 = source start
+;  arg3 = bytes to allocate before
+
+string_create:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV DI,malloc([BP+4]+2+[BP+8])
+  PUSH DI
+  ADD DI,[BP+4]
+  MOV AX,[BP+8]
+  STOSW
+  MOV CX,AX
+  MOV SI,[BP+6]
+  REP MOVSB
+  POP AX
+
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Emits the string arg1
+
+asm_string:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV CX,[[BP+4]]
+  MOV DX,[BP+4]+2
+  ADD [ip],CX
+  MOV AH,040
+  MOV BX,[writehandle]
+  INT 021
+
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Returns the length of the string arg1
+
+string_length:
+  PUSH BP
+  MOV BP,SP
+  MOV AX,[[BP+4]]
+  POP BP
+  RET
+
+
+
+; Returns true if the two strings arg1 and arg2 are equal
+
+string_equals:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+  MOV AX,[[BP+4]] == [[BP+6]]
+  TEST AX,AX
+  JE string_equals_done
+
+  MOV SI,[BP+4]+2
+  MOV DI,[BP+6]+2
+  MOV CX,[[BP+4]]
+  REP CMPSB
+  JE string_equals_yes
+
+  XOR AX,AX
+  JMP string_equals_done
+
+  string_equals_yes:
+  MOV AX,-1
+
+  string_equals_done:
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Returns the first byte in string arg1
+
+string_head:
+  PUSH BP
+  MOV BP,SP
+  MOV AL,[[BP+4]+2]
+  XOR AH,AH
+  POP BP
+  RET
+
+
+
+; Returns a pointer to the start of the string arg1
+string_data:
+  PUSH BP
+  MOV BP,SP
+  MOV AX,[BP+4]+2
+  POP BP
+  RET
+
+
+
+; Prints the string arg1
+
+string_print:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV CX,[[BP+4]]
+  MOV DX,[BP+4]+2
+  MOV AH,040
+  MOV BX,1
+  INT 021
+
+  POP DI
+  POP SI
+  POP BP
+  RET

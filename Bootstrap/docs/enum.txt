@@ -1,0 +1,11 @@
+enums:
+  An enum is represented internally by a finite set of bits
+  An enum can also have an associated type - each value in the enum corresponds to a constant of the associated type
+  The associated type can be an integer, a pointer, a string, a tuple, a function - anything.
+  The value of the associated type can be obtained by the .value() method of the enum instance
+  One can also find the enum value corresponding to the value of the associated type, via what is effectively a static method of the enum
+  enums can (like classes) have member functions, however the only possible values of the type are the enumerators
+  A strict order is placed on the enum values by the order in which their enumerators are listed
+  The bit representation of an enum is guaranteed to be the same as the bit representation of the associated value only in the following circumstances:
+    1) The associated value is a finite integral type no larger than necessary to differentiate between all the enumerators
+    2) The enumerators are listed in ascending order by associated value

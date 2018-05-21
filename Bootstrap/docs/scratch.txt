@@ -1,0 +1,227 @@
+Aims for 17:
+  Get some kind of C-like structs
+    Requires some sort of type system
+      change "auto" to "DWord"
+      labels are of type "Void*"
+      Inside [] can use any pointer type or DWord
+      Can only CALL/JMP/Jcond/LOOP[cond] to a Void*
+      Add type checking to MOV
+      Need a way to convert a raw pointer to UDT:
+        Object* foo
+        foo = reinterpret_cast<Object*>(malloc(sizeof(Object)))
+      Need sizeof syntax
+      Need reinterpret_cast faux-template
+        To avoid parsing difficulties, only typeIDs allowed within <> brackets
+      Need a way to convert a UDT to a raw pointer:
+        free(reinterpret_cast<Void*>(foo))
+      Need a way to get the address of an lvalue:
+        Object foo
+        Object* bar
+        MOV bar,&foo
+      Need a way to dereference a pointer:
+        Object** foo
+        Object* bar
+        MOV bar,*foo
+      Need a way to access elements of an object
+        Complex foo
+        bar(foo.real)
+        Complex* x
+        bar(x->real)
+      Need to allow MOV to shallow-copy objects
+        Object foo
+        Object bar
+        MOV foo,bar
+  17util.16 has some changes from 16util.16 that are probably not needed
+  17lex.16 has some changes from 16lex.16 that may be needed (and some that aren't).
+
+  DWord
+  Void
+  *
+  &
+  .
+  ->
+  <
+  >
+  reinterpret_cast
+  class
+
+  When we come across a class definition
+    1st pass:
+      add it to the table
+    Recalculate class entry offsets
+
+
+
+
+
+
+
+
+
+
+enums (see enum.txt)
+unions (see union.txt)
+allow strings and integers as names of a class (see string_integer_member_names.txt)
+Grammar productions and rules are translated into types (see parsers.txt)
+import binary data file into executable
+logical and/or (see and_or_semantics.txt)
+
+
+namespaces
+templates
+this object
+floating point
+dynamic_cast
+const_cast
+sizeof
+placement new
+exceptions
+labels
+constructors
+destructors
+linkage
+static variables
+common members
+mutable
+auto
+register variables
+extern variables
+bitfields
+virtual inheritance
+public inheritance
+private inheritance
+protected inheritance
+generated classes
+unions
+inline functions
+virtual functions
+abstract functions
+common functions
+static functions
+extern functions
+wchar_t
+typename
+friend members
+public members
+private members
+protected members
+operator overloading
+goto
+labels
+anonymous enums and unions
+forward declarations
+const member functions
+brackets around typeIDs
+constructor-style initializations
+comma operator
+const
+member pointers
+default function parameter values
+arrays
+new and delete
+setting enum values
+foreach
+
+
+
+member selection                  object . member
+subscripting                      pointer [ expr ]
+function call                     expr ( expr_list )
+value construction                type ( expr_list )
+post increment                    lvalue ++
+post decrement                    lvalue --
+unchecked conversion              reinterpret_cast < type > ( expr )
+
+pre increment                     ++ lvalue
+pre decrement                     -- lvalue
+
+address of                        & lvalue
+dereference                       * expr
+create (allocate)                 new type
+destroy (de-allocate)             delete expr
+
+
+logical AND                       expr && expr
+
+logical inclusive OR              expr || expr
+
+simple assignment                 lvalue = expr
+multiply and assign               lvalue *= expr
+divide and assign                 lvalue /= expr
+modulo and assign                 lvalue %= expr
+add and assign                    lvalue += expr
+subtract and assign               lvalue -= expr
+shift left and assign             lvalue <<= expr
+shift right and assign            lvalue >>= expr
+AND and assign                    lvalue &= expr
+inclusive OR and assign           lvalue |= expr
+exclusive OR and assign           lvalue ^= expr
+
+conditional expression            expr ? expr : expr
+
+
+
+
+  String literals as statements and expressions
+    Syntax for emitting sized and unsized strings:
+      String "hello" == DD 5 DB "hello"
+  Multiline literals (a la POD in Perl)
+  unless/until a la Perl?
+  Remove operand size restrictions - default to D and allow conversions
+  Word operands
+  New memory allocator
+  New algorithm for setting relative jump destinations
+  Separate sections for code/data/bss/imports
+  Constructors
+  Destructors
+  Exceptions
+    expr := try statement handlers
+    expr := throw expr
+    handlers := handler | handler handlers
+    handler := catch (type identifier) statement
+  More built-in types
+    List<type>
+    Vector<type>
+    Tuple<type_list>
+    Dictionary<type,type>
+    WString WChar Float Double LongDouble
+  Remainder of IA32 instructions
+  Error recovery
+  Optimizations:
+    Intermediate representations
+      Static Single Assignment
+      Register Transfer Language
+      Three-Address Code
+      Stack machine code
+      Postfix notation
+      Trees
+      DAGs
+      Tuples
+    Register allocation
+    Instruction selection
+    Peepholes
+  Output symbol table to aid debugging
+  IA64/AMD64?
+  DFA-based lexer
+  Lexer generator
+  Parser generator
+  Library-ized code-generator and optimizers
+  Syntaxes for binary interfaces
+  Namespaces
+  Koenig lookup
+  template<Value,Container> Value fold(Container<Value> c,Value(Value,Value) func)
+  template<Value1,Value2,Container> Container<Value2> map(Container<Value1> c,Value2(Value1) func)
+  template<Value,Container> Container<Value> filter(Container<Value> c,bool(Value) func)
+  Given an Enumerable type l of size n
+    l[x] = element of l at offset x
+    l[x:y] = List or Vector starting at element x and ending at element before y
+    x and y are modulo n, so l[-1] is the last element of the list
+    if x or y is omitted, 0 is implied, so l==l[:], l[3:] is the l not including the first 3 elements, l[-3:] is the last 3 elements
+  Enumerable interface<Value>
+    Value[Int x]
+    Value[Int x:Int y]
+    Int indexOf(Value x,Int n)  (n==1 for first, -1 for last, 2 for second, -2 for second last, etc.)
+
+
+
+

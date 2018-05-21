@@ -1,0 +1,70 @@
+Fixed-size types:
+
+                 Type name        Bits  Max unsigned  Signed range
+
+No meaning    signed  unsigned
+for high bit
+
+NInt0 Bit     Int0    UInt0          1             1           -1..         0
+NInt1         Int1    UInt1          2             3           -2..         1
+NInt2         Int2    UInt2          4            15           -8..         7
+NInt3 Byte    Int3    UInt3          8           255         -128..       127
+NInt4         Int4    UInt4         16         65535       -32768..     32767
+NInt5         Int5    UInt5         32    4294967295  -2147483648..2147483647
+NInt6         Int6    UInt6         64  1.8446744e19  -9.223372e9..9.223372e9
+NInt7         Int7    UInt7        128  3.4028236e38  -1.70141e38..1.70141e38
+NInt8         Int8    UInt8        256  1.1579208e77  -5.78960e76..5.78960e76
+NInt9         Int9    UInt9        512  1.340781e154  -6.7039e153..6.7039e153
+
+
+Machine-dependent types:
+
+No meaning for high bit                   Signed                                    Unsigned
+                   equivalents                               equivalents                               equivalents
+Type name   8-bit  16-bit 32-bit 64-bit   Type name   8-bit  16-bit 32-bit 64-bit   Type name   8-bit  16-bit 32-bit 64-bit
+
+HWord       NInt2  NInt3  NInt4  NInt5    HInt        Int2   Int3   Int4   Int5     HUInt       UInt2  UInt3  UInt4  UInt5
+Word        NInt3  NInt4  NInt5  NInt6    Int         Int3   Int4   Int5   Int6     UInt        UInt3  UInt4  UInt5  UInt6
+DWord       NInt4  NInt5  NInt6  NInt7    DInt        Int4   Int5   Int6   Int7     DUInt       UInt4  UInt5  UInt6  UInt7
+QWord       NInt5  NInt6  NInt7  NInt8    QInt        Int5   Int6   Int7   Int8     QUInt       UInt5  UInt6  UInt7  UInt8
+
+FWord3      NInt3  NInt4  NInt5  NInt6    FInt3       Int3   Int4   Int5   Int6     FUInt3      UInt3  UInt4  UInt5  UInt6
+FWord4      NInt4  NInt4  NInt5  NInt6    FInt4       Int4   Int4   Int5   Int6     FUInt4      UInt4  UInt4  UInt5  UInt6
+FWord5      NInt5  NInt5  NInt5  NInt6    FInt5       Int5   Int5   Int5   Int6     FUInt5      UInt5  UInt5  UInt5  UInt6
+FWord6      NInt6  NInt6  NInt6  NInt6    FInt6       Int6   Int6   Int6   Int6     FUInt6      UInt6  UInt6  UInt6  UInt6
+
+WordString  NInt11 NInt20 NInt37 NInt70   Integer     Int11  Int20  Int37  Int70    Unsigned    UInt11 UInt20 UInt37 UInt70
+
+
+Given an integer constant, what is its type?
+
+-infinity          ..-0x8000000000000001 = Integer
+-0x8000000000000000..        -0x80000001 = Int6
+        -0x80000000..            -0x8001 = Int5
+            -0x8000..              -0x81 = Int4
+              -0x80..                 -1 = Int3
+                  0..               0x7f = NInt3
+               0x80..               0xff = UInt3
+              0x100..             0x7fff = NInt4
+             0x8000..             0xffff = UInt4
+            0x10000..         0x7fffffff = NInt5
+         0x80000000..         0xffffffff = UInt5
+        0x100000000.. 0x7fffffffffffffff = NInt6
+ 0x7fffffffffffffff.. 0xffffffffffffffff = UInt6
+0x10000000000000000..infinity            = WordString
+
+What automatic conversions will the compiler emit?
+NInt3 -> Int3
+NInt3 -> UInt3
+NInt4 -> Int4
+NInt4 -> UInt4
+NInt5 -> Int5
+NInt5 -> UInt5
+Int3 -> Int4
+Int4 -> Int5
+UInt3 -> NInt4
+UInt4 -> NInt5
+Int5 -> Integer
+UInt5 -> WordString
+WordString -> Integer
+Integer -> Unsigned

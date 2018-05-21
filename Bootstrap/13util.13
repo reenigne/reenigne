@@ -1,0 +1,472 @@
+; This is the bootstrapping compiler step 13 (written in step 13 language)
+; This file contains utility functions
+
+; Entry point.
+;   Set up the stack
+;   Set up the segments
+;   Set up the heap
+;   Parse the command line
+;   Open the files
+;   Call main
+;   Exit
+
+  CLI
+  PUSH CS
+  POP SS
+  MOV SP,0fffe
+  STI
+
+  PUSH CS
+  POP DS
+  PUSH CS
+  POP ES
+
+  MOV AX,static_end
+  MOV [heaptop],AX
+
+  MOV SI,082
+  CLD
+
+  XOR BL,BL
+  find_binary_name_loop:
+  MOV DI,SI
+  find_name_loop:
+  LODSB
+  CMP AL,0D
+  JE got_binary_name
+  CMP AL,' '
+  JNE find_name_loop
+  MOV [SI-1],BL        ; Store a null to terminate the name
+  JMP find_binary_name_loop
+
+  got_binary_name:
+  MOV [SI-1],BL
+  MOV [writename],DI
+
+  main()
+
+  exit:
+  MOV AH,04C
+  INT 021                        ; exit
+
+readhandle:  DW 0
+writehandle: DW 0
+writename: DW 0
+next_input_file: DW 0
+
+
+; Allocate (arg) bytes from heap and return pointer in AX
+; Allocating memory is pretty easy if you don't want to free it and reuse the memory.
+
+heaptop: DW 0
+
+alloc:
+  PUSH BP
+  MOV BP,SP
+  MOV CX,[BP+4]
+  MOV AX,[heaptop]
+  ADD [heaptop],CX
+  POP BP
+  RET
+
+
+
+; Print the ($-terminated) message pointed to by (arg)
+printmsg:
+  PUSH BP
+  MOV BP,SP
+  MOV DX,[BP+4]
+  MOV AH,9
+  INT 021
+  POP BP
+  RET
+
+
+
+; Print the unsigned decimal number (arg)
+printnum:
+  PUSH BP
+  MOV BP,SP
+  MOV AX,[BP+4]
+  CMP AX,10000
+  JB printnum_1000
+  MOV BX,10000
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,'0'
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  JMP printnum_01000
+  printnum_1000:
+  CMP AX,1000
+  JB printnum_100
+  printnum_01000:
+  MOV BX,1000
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,'0'
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  JMP printnum_0100
+  printnum_100:
+  CMP AX,100
+  JB printnum_10
+  printnum_0100:
+  MOV BX,100
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,'0'
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  JMP printnum_010
+  printnum_10:
+  CMP AX,10
+  JB printnum_1
+  printnum_010:
+  MOV BX,10
+  XOR DX,DX
+  DIV BX
+  PUSH DX
+  ADD AL,'0'
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP AX
+  printnum_1:
+  ADD AL,'0'
+  MOV DL,AL
+  MOV AH,2
+  INT 021
+  POP BP
+  RET
+
+
+
+; Print the ($-terminated) message pointed to by (arg) and the current line number, then exit.
+error_exit:
+  PUSH BP
+  MOV BP,SP
+  printmsg([BP+4])
+  printnum([lineno])
+  exit()
+
+
+
+; Print the ($-terminated) message pointed to by (arg) and the label. Then tell the user the line number and exit.
+
+line_number_msg:
+DB 0D DB 0A DB "Line: $"
+
+label_error:
+  PUSH BP
+  MOV BP,SP
+  printmsg([BP+4])
+  printmsg(identifier)
+  error_exit(line_number_msg)
+
+
+
+; Print a generic Syntax Error message with the line number and exit.
+syntax_error:
+  error_exit("Syntax error on line: $")
+
+
+
+; Open first input file
+
+lineno: DW 0
+ip:     DW 0
+
+rewind:
+  MOV W[ip],0100
+  MOV W[lineno],0
+
+  ; Close current input file
+
+  MOV AH,03e
+  MOV BX,[readhandle]
+  INT 021
+
+  ; Open first input file
+
+  MOV DX,082
+  MOV AX,03D00
+  INT 021
+  JNC rewind_open_success
+  JMP exit
+  rewind_open_success:
+  MOV [readhandle],AX
+
+  ; Find next input file
+
+  MOV SI,082
+  find_next_name_loop:
+  LODSB
+  CMP AL,0
+  JNE find_next_name_loop
+  MOV [next_input_file],SI
+
+  readline()
+  RET
+
+
+
+; Write (arg 2) bytes from (arg 1)
+; Increment IP counter by (arg 2)
+
+write_buffer: DW 0
+
+write:
+  PUSH BP
+  MOV BP,SP
+  MOV CX,[BP+4]
+  MOV DX,[BP+6]
+  MOV [write_buffer],DX
+  ADD [ip],CX
+  MOV AH,040
+  MOV BX,[writehandle]
+  MOV DX,write_buffer
+  INT 021
+  POP BP
+  RET
+
+
+
+; Read 1 byte from file, return in AL. On EOF return CF=1.
+
+read_byte_buffer: DB 00
+
+read_byte:
+  MOV AH,03F
+  MOV BX,[readhandle]
+  MOV CX,1
+  MOV DX,read_byte_buffer
+  INT 021
+  TEST AX,AX
+  JNZ read_byte_ok
+
+  ; Close file
+  MOV AH,03e
+  MOV BX,[readhandle]
+  INT 021
+
+  ; Is this the last file?
+  MOV DX,[next_input_file]
+  CMP DX,[writename]
+  JE read_byte_end_of_last_file
+
+  ; Open next file
+
+  MOV AX,03D00
+  INT 021
+  JNC read_byte_open_success
+  JMP exit
+  read_byte_open_success:
+  MOV [readhandle],AX
+
+  ; Update next filename
+
+  MOV SI,[next_input_file]
+  read_byte_find_next_file_loop:
+  LODSB
+  CMP AL,0
+  JNE read_byte_find_next_file_loop
+  MOV [next_input_file],SI
+
+  ; Return an end-of-line so we don't get a single line split across 2 files
+
+  MOV AL,0d
+  CLC
+  RET
+
+  read_byte_end_of_last_file:
+  STC
+  RET
+
+  read_byte_ok:
+  MOV AL,[read_byte_buffer]
+  CLC
+
+  read_byte_done:
+  RET
+
+
+
+; Read 1 byte from file, return in AL. On EOF return CF=1.
+;   On CR, LF, CR+LF or LF+CR, return LF
+;   On HT or FF return SP
+;   On other control characters, or characters >126, error
+
+last_byte_read: DB 0
+
+read_ascii:
+  read_byte()
+  JC read_ascii_done
+
+  CMP AL,0D
+  JNE read_ascii_not_cr
+  CMP B[last_byte_read],0a
+  JNE read_ascii_done_crlf
+  MOV B[last_byte_read],0
+  JMP read_ascii             ;   second byte of CR+LF - try again.
+
+  read_ascii_not_cr:
+  CMP AL,0A
+  JNE read_ascii_not_lf
+  CMP B[last_byte_read],0d
+  JNE read_ascii_done_crlf
+  MOV B[last_byte_read],0
+  JMP read_ascii             ;   second byte of LF+CR - try again.
+
+  read_ascii_done_crlf:
+  MOV [last_byte_read],AL
+  MOV AL,0A
+  INC W[lineno]
+  CLC
+  JMP read_ascii_done
+
+  read_ascii_not_lf:
+  CMP AL,9
+  JNE read_ascii_not_ht
+  MOV AL,020
+  CLC
+  JMP read_ascii_done
+
+  read_ascii_not_ht:
+  CMP AL,0C
+  JNE read_ascii_not_ff
+  MOV AL,020
+  CLC
+  JMP read_ascii_done
+
+  read_ascii_not_ff:
+  CMP AL,020
+  JAE read_ascii_not_control
+  read_ascii_bad_character:
+  error_exit("Bad character on line: $")
+
+  read_ascii_not_control:
+  CMP AL,07E
+  JA read_ascii_bad_character
+  CLC
+  read_ascii_done:
+  RET
+
+
+
+; Read a line from the source, return null-terminated in line_buffer.
+; Returns CF=1 on EOF
+
+readline:
+  XOR CX,CX
+  MOV DI,[line_buffer]
+  readline_loop:
+  PUSH CX
+  PUSH DI
+  read_ascii()
+  POP DI
+  POP CX
+  JC readline_eof
+  CMP AL,0a
+  JE readline_end
+  STOSB
+  INC CX
+  CMP CX,[max_line_length]
+  JNE readline_loop
+  printmsg("Line too long: $")
+  printnum([lineno])
+  exit()
+
+  readline_eof:
+  JCXZ readline_done
+  CLC                   ; Clear CF so we dont return EOF on the last line
+
+  readline_end:
+  MOV AL,0
+  STOSB
+  readline_done:
+
+  MOV SI,[line_buffer]
+  RET
+
+
+
+; Returns upper case version of (arg) if it's a lower-case letter.
+upper_case:
+  PUSH BP
+  MOV BP,SP
+  MOV AL,[BP+4]
+  CMP AL,'a'
+  JL upper_case_end
+  CMP AL,'z'
+  JG upper_case_end
+  SUB AL,020
+  upper_case_end:
+  POP BP
+  RET
+
+
+
+; Returns CF=1 if (arg) is a digit.
+is_digit:
+  PUSH BP
+  MOV BP,SP
+  MOV AL,[BP+4]
+  CMP AL,'0'
+  JL is_digit_no
+  CMP AL,'9'
+  JG is_digit_no
+  STC
+  POP BP
+  RET
+  is_digit_no:
+  CLC
+  POP BP
+  RET
+
+
+
+; Returns CF=1 if (arg) is A-Z, a-z or _ (i.e. can start an identifier).
+is_alphabetic:
+  PUSH BP
+  MOV BP,SP
+  PUSH AX
+  upper_case([BP+4])
+  CMP AL,'A'
+  JL is_alphabetic_no
+  CMP AL,'_'
+  JE is_alphabetic_yes
+  CMP AL,'Z'
+  JG is_alphabetic_no
+  is_alphabetic_yes:
+  POP AX
+  STC
+  POP BP
+  RET
+  is_alphabetic_no:
+  POP AX
+  CLC
+  POP BP
+  RET
+
+
+
+; Returns CF=1 is (arg) is alphanumeric (i.e. can be a second or subsequent character of an identifier).
+is_alphanumeric:
+  PUSH BP
+  MOV BP,SP
+  is_digit([BP+4])
+  JC is_alphanumeric_done
+  is_alphabetic([BP+4])
+  is_alphanumeric_done:
+  POP BP
+  RET

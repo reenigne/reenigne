@@ -1,0 +1,333 @@
+; This is the bootstrapping compiler step 9 (written in step 9 language)
+
+0E                      ;   PUSH CS
+1F                      ;   POP DS
+0E                      ;   PUSH CS
+07                      ;   POP ES
+BE8200                  ;   MOV SI,082
+89F2                    ;   MOV DX,SI
+.fnloop1.
+AC                      ;   LODSB
+3C20                    ;   CMP AL,020
+75@fnloop1.             ;   JNE fnloop1
+30DB                    ;   XOR BL,BL
+885CFF                  ;   MOV B[SI-1],BL
+89F7                    ;   MOV DI,SI
+.fnloop2.
+AC                      ;   LODSB
+3C0D                    ;   CMP AL,0d
+75@fnloop2.             ;   JNE fnloop2
+885CFF                  ;   MOV B[SI-1],BL
+
+B8003D                  ;   MOV AX,03d00
+CD21                    ;   INT 021
+72@fin2.                ;   JC fin2
+A3*readhandle.          ;   MOV [readhandle],AX
+
+B43C                    ;   MOV AH,03c
+31C9                    ;   XOR CX,CX
+89FA                    ;   MOV DX,DI
+CD21                    ;   INT 021
+73@nofin.               ;   JNC nofin
+.fin2.                  ; fin2:
+E9#fin.                 ;   JMP fin
+.nofin.                 ; nofin:
+A3*writehandle.         ;   MOV [writehandle],AX
+
+31C0                    ;   XOR AX,AX
+A3*phase.               ;   MOV [phase],AX
+.phase_top.             ; phase_top:
+B80001                  ;   MOV AX,0100
+A3*ip.                  ;   MOV [ip],AX   ; current address
+
+31C0                    ;   XOR AX,AX
+A3*highnybblef.         ;   MOV [highnybblef],AX   ; high nybble flag
+A3*highnybble.          ;   MOV [highnybble],AX   ; high nybble
+
+.looptop.               ; looptop:
+E8#read.                ;   CALL read
+
+3C3B                    ;   CMP AL,3B
+75@nocomment.           ;   JNZ nocomment
+.comment.               ; comment:
+E8#read.                ;   CALL read       ; this is a comment
+3C0D                    ;   CMP AL,0D
+75@comment.             ;   JNZ comment
+E9#looptop.             ;   JMP looptop
+
+.nocomment.             ; nocomment:
+3C2E                    ;   CMP AL,02e
+75@not_target.          ;   JNZ not_target
+C606*add_symbol_flag.01 ;   MOV B[add_symbol_flag],1
+E8#readlabel.           ;   CALL readlabel       ; this is a label target
+A1*ip.                  ;   MOV AX,[ip]
+8907                    ;   MOV W[BX],AX    ; save symbol location
+E9#looptop.             ;   JMP looptop
+
+.not_target.            ; not_target:
+3C40                    ;   CMP AL,040
+75@not_short.           ;   JNZ not_short
+C606*add_symbol_flag.00 ;   MOV B[add_symbol_flag],0
+E8#readlabel.           ;   CALL readlabel       ; this is a short jump
+8B17                    ;   MOV DX,W[BX]
+2B16*ip.                ;   SUB DX,[ip]
+4A                      ;   DEC DX
+E8#check_short.         ;   CALL check_short
+B90100                  ;   MOV CX,1
+E8#write.               ;   CALL write      ; write the jump byte
+E9#looptop.             ;   JMP looptop
+
+.not_short.             ; not_short:
+3C23                    ;   CMP AL,023
+75@not_near.            ;   JNZ not_near
+C606*add_symbol_flag.00 ;   MOV B[add_symbol_flag],0
+E8#readlabel.           ;   CALL readlabel       ; this is a near jump
+8B17                    ;   MOV DX,W[BX]
+2B16*ip.                ;   SUB DX,[ip]
+4A                      ;   DEC DX
+4A                      ;   DEC DX
+B90200                  ;   MOV CX,2
+E8#write.               ;   CALL write      ; write the jump word
+EB@looptop.             ;   JMP looptop
+
+.not_near.              ; not_near:
+3C2A                    ;   CMP AL,02a
+75@not_absolute.        ;   JNZ not_absolute
+C606*add_symbol_flag.00 ;   MOV B[add_symbol_flag],0
+E8#readlabel.           ;   CALL readlabel       ; this is an absolute label reference
+8B17                    ;   MOV DX,W[BX]
+B90200                  ;   MOV CX,2
+E8#write.               ;   CALL write      ; write the address word
+E9#looptop.             ;   JMP looptop
+
+.not_absolute.          ; not_absolute
+3C22                    ;   CMP AL,022
+75@not_string.          ;   JNZ not_string
+.stringtop.             ; stringtop:
+E8#read.                ;   CALL read       ; this is a string literal
+3C22                    ;   CMP AL,022
+74@looptop2.            ;   JE looptop2
+88C2                    ;   MOV DL,AL
+B90100                  ;   MOV CX,1
+E8#write.               ;   CALL write      ; write the character
+EB@stringtop.           ;   JMP stringtop
+
+.not_string.            ; not_string:
+3C30                    ;   CMP AL,030
+7C@looptop2.            ;   JL looptop2
+3C39                    ;   CMP AL,039
+7E@number.              ;   JLE number
+3C41                    ;   CMP AL,041
+7C@looptop2.            ;   JL looptop2
+3C46                    ;   CMP AL,046
+7E@capital.             ;   JLE capital
+3C61                    ;   CMP AL,061
+7C@looptop2.            ;   JL looptop2
+3C66                    ;   CMP AL,066
+7F@looptop2.            ;   JG looptop2
+2C20                    ;   SUB AL,020
+.capital.               ; capital:
+2C07                    ;   SUB AL,7
+.number.                ; number:
+2C30                    ;   SUB AL,030
+8A16*highnybble.        ;   MOV DL,[highnybble]
+D0E2                    ;   SHL DL,1
+D0E2                    ;   SHL DL,1
+D0E2                    ;   SHL DL,1
+D0E2                    ;   SHL DL,1
+08C2                    ;   OR DL,AL
+8816*highnybble.        ;   MOV [highnybble],DL   ; high nybble
+8036*highnybblef.01     ;   XOR [highnybblef],1
+75@looptop2.            ;   JNZ looptop2
+B90100                  ;   MOV CX,1
+E8#write.               ;   CALL write
+
+.looptop2.              ; looptop2:
+E9#looptop.             ;   JMP looptop
+.next_phase.            ; next_phase:
+B80042                  ;   MOV AX,04200
+8B1E*readhandle.        ;   MOV BX,[readhandle]      ; read handle
+31C9                    ;   XOR CX,CX
+31D2                    ;   XOR DX,DX
+CD21                    ;   INT 021      ; seek to beginning of file
+
+FE06*phase.             ;   INC B[phase]
+803E*phase.02           ;   CMP B[phase],2
+7D@fin.                 ;   JGE fin
+E9#phase_top.           ;   JMP phase_top
+
+.fin.                   ; fin:
+B44C                    ;   MOV AH,04C
+CD21                    ;   INT 021          ; exit
+
+; Read 1 byte from source, return byte in AL
+; on EOF go to next_phase instead of returning.
+.read.                  ; read:
+B43F                    ;   MOV AH,03f
+8B1E*readhandle.        ;   MOV BX,[readhandle]
+B90100                  ;   MOV CX,1
+BA*databuffer.          ;   MOV DX,offset databuffer
+CD21                    ;   INT 021
+85C0                    ;   TEST AX,AX
+75@read_ok.             ;   JNZ read_ok
+5A                      ;   POP DX           ; return address
+E9#next_phase.          ;   JMP next_phase
+.read_ok.               ; read_ok:
+A0*databuffer.          ;   MOV AL,B[databuffer]
+C3                      ;   RET
+
+; Write CX bytes from DX if in phase 1
+; Increment IP counter by CX
+.write.                 ; write:
+8916*databuffer.        ;   MOV W[databuffer],DX
+010E*ip.                ;   ADD W[ip],CX
+833E*phase.00           ;   CMP W[phase],0
+74@skip_write.          ;   JZ skip_write
+B440                    ;   MOV AH,040
+8B1E*writehandle.       ;   MOV BX,[writehandle]
+BA*databuffer.          ;   MOV DX,offset databuffer
+CD21                    ;   INT 021
+.skip_write.            ; skip_write:
+C3                      ;   RET
+
+; Check to see if DX fits in a signed 8-bit integer
+; If not, prints an error message and exits.
+.check_short.           ; check_short:
+833E*phase.00           ;   CMP W[phase],0
+74@short_ok.            ;   JZ short_ok
+89D0                    ;   MOV AX,DX
+98                      ;   CBW
+39D0                    ;   CMP AX,DX
+74@short_ok.            ;   JZ short_ok
+B409                    ;   MOV AH,09
+BA*error_msg.           ;   MOV DX,offset error_msg
+CD21                    ;   INT 021
+B409                    ;   MOV AH,09
+BA*symbol_name.         ;   MOV DX,offset symbol_name   ; this will be the symbol that caused the error
+CD21                    ;   INT 021
+E9#fin.                 ;   JMP fin
+.short_ok.              ; short_ok:
+C3                      ;   RET
+
+; Read a label from the file, look it up
+; in the symbol table and return the address
+; of the corresponding address slot in BX.
+.readlabel.             ; readlabel:
+31C9                    ;   XOR CX,CX
+BF*symbol_name.         ;   MOV DI,offset symbol_name
+.label_read_loop.       ; label_read_loop:
+51                      ;   PUSH CX
+57                      ;   PUSH DI
+E8#read.                ;   CALL read
+5F                      ;   POP DI
+59                      ;   POP CX
+3C2E                    ;   CMP AL,02e
+74@endlabel.            ;   JZ endlabel
+AA                      ;   STOSB
+41                      ;   INC CX
+83F921                  ;   CMP CX,021
+7C@label_read_loop.     ;   JL label_read_loop
+B024                    ;   MOV AL,024        ; Terminate the overly long label
+4F                      ;   DEC DI
+AA                      ;   STOSB
+
+B409                    ;   MOV AH,09
+BA*label_too_long.      ;   MOV DX,offset label_too_long
+CD21                    ;   INT 021
+B409                    ;   MOV AH,09
+BA*symbol_name.         ;   MOV DX,offset symbol_name
+CD21                    ;   INT 021
+E9#fin.                 ;   JMP fin
+.endlabel.              ; endlabel:
+B024                    ;   MOV AL,024
+AA                      ;   STOSB             ; "$" is a useful terminator as it means we can print the label name easily
+
+BA*symtab.              ;   MOV DX,offset symtab
+.searchlabel.           ; searchlabel:
+89D3                    ;   MOV BX,DX
+8B17                    ;   MOV DX,[BX]       ; This is the address of the next label (0 if there is no next label)
+83FA00                  ;   CMP DX,0
+74@labelnotfound.       ;   JE labelnotfound
+83C302                  ;   ADD BX,2
+BE*symbol_name.         ;   MOV SI,offset symbol_name
+89DF                    ;   MOV DI,BX
+.compareloop.           ; compareloop:
+AC                      ;   LODSB
+8A25                    ;   MOV AH,[DI]
+47                      ;   INC DI
+38E0                    ;   CMP AL,AH
+75@searchlabel.         ;   JNE searchlabel
+3C24                    ;   CMP AL,024
+75@compareloop.         ;   JNE compareloop
+89FB                    ;   MOV BX,DI
+C3                      ;   RET               ; Found! Return the corresponding address slot
+
+.labelnotfound.         ; labelnotfound:
+803E*add_symbol_flag.00 ;   CMP B[add_symbol_flag],0
+74@dont_add_symbol.     ;   JE dont_add_symbol
+
+89DF                    ;   MOV DI,BX
+83C702                  ;   ADD DI,2
+BE*symbol_name.         ;   MOV SI,offset symbol_name
+.copyloop.              ; copyloop:
+AC                      ;   LODSB
+8805                    ;   MOV [DI],AL
+47                      ;   INC DI
+3C24                    ;   CMP AL,024
+75@copyloop.            ;   JNE copyloop
+AB                      ;   STOSW             ; Store a dummy value in the address slot
+31C0                    ;   XOR AX,AX
+AB                      ;   STOSW             ; Store a 0, indicating that there is no next label
+83EF02                  ;   SUB DI,2
+893F                    ;   MOV [BX],DI
+83EF02                  ;   SUB DI,2
+89FB                    ;   MOV BX,DI
+C3                      ;   RET
+
+.dont_add_symbol.       ; dont_add_symbol:
+833E*phase.00           ;   CMP W[phase],0
+74@done_readlabel.      ;   JE done_readlabel    ; Using rather than defining a label in the first phase - we don't care about the value
+B409                    ;   MOV AH,09
+BA*label_not_found_msg. ;   MOV DX,offset label_not_found_msg
+CD21                    ;   INT 021
+B409                    ;   MOV AH,09
+BA*symbol_name.         ;   MOV DX,offset symbol_name
+CD21                    ;   INT 021
+E9#fin.                 ;   JMP fin
+.done_readlabel.        ; done_readlabel:
+C3                      ;   RET
+
+.readhandle.        0000
+.writehandle.       0000
+.phase.             0000
+.ip.                0000
+.highnybblef.       0000
+.highnybble.        0000
+.databuffer.        0000
+.add_symbol_flag.   0000
+
+.symbol_name.
+   00 00 00 00 00 00 00 00
+   00 00 00 00 00 00 00 00
+   00 00 00 00 00 00 00 00
+   00 00 00 00 00 00 00 00
+   00  ; One more for the terminator
+
+.error_msg.
+"Too far to label $"
+
+.label_too_long.
+"Label too long: $"
+
+.label_not_found_msg.
+"Label not found: $"
+
+.symtab.
+00 00
+
+
+; Symbol table format:
+;   2 bytes: address of next (unused) symbol (=0 if no symbol) or here+n+2
+;   n bytes: name ($-terminated)
+;   2 bytes: address
+

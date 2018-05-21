@@ -1,0 +1,662 @@
+; This is the bootstrapping compiler step 16 (written in step 16 language)
+; This file contains utility functions
+
+
+; This is the entry point
+
+main()
+
+
+
+stdout:           DD 0
+
+ip:               DD 0
+
+output_filename:  DD 0
+output_buffer:    DD 0
+output_size:      DD 0
+output_reserved:  DD 0400
+output_pointer:   DD 0
+
+last_phase:       DD 0
+first_phase:      DD 0
+
+arg0:             DD 0
+arg:              DD 0
+
+input_pointer:    DD 0
+input_eof:        DD 0
+lineno:           DD 0
+start_of_line:    DD 0
+
+process_heap:     DD 0
+
+; Arg structure format EBX:
+;   D[EBX]     next    Next argument
+;   D[EBX+4]   buffer  Pointer to buffer containing contents of file
+;   D[EBX+8]   size    Size of file
+;   D[EBX+0c]  length  Length of argument
+;   EBX+010    arg     Arg string
+;   B[EBX+010+length]  Null terminator (so we can pass the filename to CreateFileA())
+
+
+
+; This function handles initialization and the main loop
+
+end_of_file_expected_msg: DD 21 DB "Expected end of file",0a
+
+function main()
+{
+  function GetProcessHeap() from "KERNEL32.DLL"
+
+  MOV D[process_heap],GetProcessHeap()
+
+  init_stdout()
+  init_args()
+  read_files()
+  init_tables()
+
+  MOV D[output_buffer],malloc(0400)
+
+  MOV D[first_phase],true
+  do {
+    MOV D[last_phase],true
+
+    MOV D[output_size],0
+    MOV D[output_pointer],[output_buffer]
+    MOV D[ip],0400e00
+
+    MOV EAX,[arg0]
+    MOV EBX,[EAX]                 ; Skip first arg as it is the name of the compiler exe
+    MOV D[arg],EBX
+    MOV EAX,[EBX+4]               ; arg->buffer
+    MOV [input_pointer],EAX
+    MOV [start_of_line],EAX
+    MOV D[input_eof],EAX+[EBX+8]  ; arg->buffer + arg->size
+    MOV D[lineno],1
+
+    MOV D[[global_table]],0       ; global_table->current = 0
+
+    emit_pe_headers()
+
+    get_next_character()
+    get_next_token()
+    assemble_statements()
+
+    if (B[token] != 0)
+      error_exit(end_of_file_expected_msg)
+
+    emit_pe_footers()
+
+    MOV D[first_phase],false
+  } while (~[last_phase])
+
+  write_output_file()
+
+  exit()
+}
+
+
+
+; This function emits the executable file
+
+open_file_msg:  DD 17 DB "Cannot open file "
+write_file_msg: DD 18 DB "Cannot write file "
+close_file_msg: DD 18 DB "Cannot close file "
+
+function write_output_file()
+{
+  auto handle
+
+  MOV D[handle],CreateFileA([output_filename]+4,
+    040000000, ; GENERIC_WRITE
+    0,
+    0,
+    2,         ; CREATE_ALWAYS
+    080,       ; FILE_ATTRIBUTE_NORMAL
+    0)
+  if ([handle]==-1)     ; INVALID_HANDLE_VALUE
+    file_error(open_file_msg,[output_filename])
+
+  auto i
+  if (WriteFile([handle],[output_buffer],[output_size],i,0)==0)
+    file_error(write_file_msg,[output_filename])
+
+  if (CloseHandle([handle])==0)
+    file_error(close_file_msg,[output_filename])
+}
+
+
+
+; This function ends the program
+
+function exit()
+{
+  function ExitProcess(uExitCode) from "KERNEL32.DLL"
+
+  ExitProcess(0)
+}
+
+
+
+; This function initializes stdout
+
+function init_stdout()
+{
+  function GetStdHandle(nStdHandle) from "KERNEL32.DLL"
+
+  MOV D[stdout],GetStdHandle(-11)      ; stdout = GetStdHandle(STD_OUTPUT_HANDLE)
+  if (D[stdout]==-1)                   ; if (stdout == INVALID_HANDLE_VALUE)
+    exit()
+}
+
+
+
+; This function parses the command line
+
+function init_args()
+{
+  function GetCommandLineA() from "KERNEL32.DLL"
+
+  MOV EDI,arg0
+  MOV ESI,GetCommandLineA()
+  do {
+    ; Find start of string, put it into EBX
+    do {
+      MOV EBX,ESI
+      LODSB
+      MOV CL,AL
+      if (CL==0)
+        JMP done_args
+    } while (CL==' ')
+
+    ; Find end of string, put it into ESI
+    if (CL=='"')
+      do {
+        LODSB
+        MOV CL,AL
+      } while (CL!=0 & CL!='"')
+    else
+      while (CL!=0 & CL!=' ') {
+        LODSB
+        MOV CL,AL
+      }
+    PUSH ECX
+
+    ; Create the arg
+    MOV ECX,ESI-EBX       ; String length
+    PUSH ECX
+    INC ECX               ; +1 for the terminator
+    string_create(ECX,EBX,0c)
+    MOV [EDI],EAX         ; Store the arg address
+    MOV EDI,EAX           ; This is the place to store the next arg address
+    POP ECX
+    MOV B[EDI+010+ECX],0  ; Store the terminator
+    DEC D[EDI+0c]         ; Don't include the terminator in the length
+
+    POP ECX
+  } while (CL!=0)
+  done_args:
+  MOV D[EDI],0
+}
+
+
+
+function CreateFileA(lpFileName,dwDesiredAccess,dwShareMode,lpSecurityAttributes,dwCreationDisposition,dwFlagsAndAttributes,hTemplateFile) from "KERNEL32.DLL"
+function WriteFile(hFile,lpBuffer,nNumberOfBytesToWrite,lpNumberOfBytesWritten,lpOverlapped) from "KERNEL32.DLL"
+function CloseHandle(hObject) from "KERNEL32.DLL"
+
+
+
+; This function reads the input files
+
+size_file_msg: DD 30 DB "Cannot determine size of file "
+read_file_msg: DD 17 DB "Cannot read file "
+
+function read_files()
+{
+  function ReadFile(hFile,lpBuffer,nNumberOfBytesToRead,lpNumberOfBytesRead,lpOverlapped) from "KERNEL32.DLL"
+  function GetFileSize(hFile,lpFileSizeHigh) from "KERNEL32.DLL"
+
+  auto arg
+
+  MOV EAX,[arg0]
+  MOV D[arg],[EAX]   ; Skip first arg as it is the name of the compiler exe
+  while ([[arg]]) {
+    auto handle
+    MOV D[handle],CreateFileA([arg]+010,
+      080000000, ; GENERIC_READ
+      1,         ; FILE_SHARE_READ
+      0,
+      3,         ; OPEN_EXISTING
+      080,       ; FILE_ATTRIBUTE_NORMAL
+      0)
+    if ([handle]==-1)     ; INVALID_HANDLE_VALUE
+      file_error(open_file_msg,[arg]+0c)
+
+    auto size
+    MOV D[size],GetFileSize([handle],0)
+    if ([size]==-1)     ; INVALID_FILE_SIZE
+      file_error(size_file_msg,[arg]+0c)
+    MOV ECX,[size]
+    MOV D[[arg]+8],ECX                       ; arg->size = size
+
+    auto buffer
+    MOV D[buffer],malloc([size])
+
+    auto i
+    if (ReadFile([handle],[buffer],[size],i,0)==0)
+      file_error(read_file_msg,[arg]+0c)
+
+    MOV ECX,[buffer]
+    MOV D[[arg]+4],ECX                       ; arg->buffer = buffer
+
+    if (CloseHandle([handle])==0)
+      file_error(close_file_msg,[arg]+0c)
+
+    MOV D[arg],[[arg]]
+  }
+  MOV D[output_filename],[arg]+0c
+}
+
+
+
+; This function prints an error message, the name of a file and the os error message
+
+file_msg:       DD 2 DB ": "
+
+function file_error(msg,filename)
+{
+  print_str([msg])
+  print_str([filename])
+  print_str(file_msg)
+  os_error()
+}
+
+
+
+; This function returns the length of null-terminated string strt
+
+function strt_length(strt)
+{
+  PUSH EDI
+  MOV ECX,-1
+  MOV EDI,[strt]
+  MOV AL,0
+  REP SCASB
+  SUB EDI,[strt]
+  MOV EAX,EDI
+  POP EDI
+}
+
+
+
+; This function prints a null-terminated string strt
+
+function print_strt(strt)
+{
+  auto i
+  if (WriteFile([stdout],[strt],strt_length([strt]),i,0)==0) {
+    ; Can't even print a diagnostic message - just exit
+    exit()
+  }
+}
+
+
+
+; This function prints a sized string str
+
+function print_str(str)
+{
+  PUSH EBX
+  auto i
+  if (WriteFile([stdout],[str]+4,[[str]],i,0)==0) {
+    ; Can't even print a diagnostic message - just exit
+    exit()
+  }
+  POP EBX
+}
+
+
+
+; This function prints an error message appropriate for the last system function that failed.
+
+format_message_failed_msg: DB "FormatMessage failed. Error code = 0x",0
+msg_eol: DB 0a,0
+
+function os_error()
+{
+  function GetLastError() from "KERNEL32.DLL"
+  function FormatMessageA(dwFlags,lpSource,dwMessageId,dwLanguageId,lpBuffer,nSize,arguments) from "KERNEL32.DLL"
+  function LocalFree(hMem) from "KERNEL32.DLL"
+
+  auto messageBuffer
+  auto errorId
+  auto format
+
+  MOV D[errorId],GetLastError()
+  MOV D[format],FormatMessageA(01100, ; FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
+    0,[errorId],0,messageBuffer,0,0)
+  if (D[format]==0) {
+    print_strt(format_message_failed_msg)
+    print_hex(GetLastError(),8)
+    print_strt(msg_eol)
+    exit()
+  }
+  print_strt([messageBuffer])
+  LocalFree([messageBuffer])
+  exit()
+}
+
+
+
+num_buffer: DD 0 DB "4294967296"
+
+; Print the unsigned decimal number num
+function print_decimal(num)
+{
+  PUSH EBX
+  PUSH EDI
+  MOV EDI,num_buffer+13
+  XOR ECX,ECX
+  STD
+  do {
+    INC ECX
+    MOV EAX,[num]%10 + '0'
+    STOSB
+    MOV EAX,[num]/10
+    MOV [num],EAX
+  } while(EAX)
+  SUB EDI,3
+  MOV [EDI],ECX
+  CLD
+  print_str(EDI)
+  POP EDI
+  POP EBX
+}
+
+
+
+; Print the unsigned hex number num
+
+hex_digits: DB "0123456789ABCDEF"
+
+function print_hex(num,width)
+{
+  PUSH EBX
+  PUSH EDI
+  MOV EDI,num_buffer+13
+  STD
+  MOV ECX,[width]
+  while (ECX) {
+    MOV AL,B[hex_digits+([num]&0f)]
+    STOSB
+    SHR D[num],4
+    DEC ECX
+  }
+  SUB EDI,3
+  MOV D[EDI],[width]
+  CLD
+  print_str(EDI)
+  POP EDI
+  POP EBX
+}
+
+
+
+; Write size bytes from data
+; Increment IP counter by size
+
+function write(data,size)
+{
+  PUSH EDI
+  PUSH ESI
+
+  MOV ECX,[size]
+  ADD [ip],ECX
+
+  ADD [output_size],ECX
+  if ([output_size] > [output_reserved]) {
+    while ([output_size] > [output_reserved])
+      SHL D[output_reserved],1
+
+    SUB D[output_pointer],[output_buffer]
+    grow(output_buffer,[output_reserved])
+    ADD D[output_pointer],[output_buffer]
+  }
+
+  MOV EDI,[output_pointer]
+  MOV ESI,[data]
+  MOV ECX,[size]
+  REP MOVSB
+  MOV [output_pointer],EDI
+
+  POP ESI
+  POP EDI
+}
+
+
+
+; Prints the source context
+
+msg_open_bracket:  DD 1 DB "("
+msg_comma:         DD 1 DB ","
+msg_close_bracket: DD 4 DB ") : "
+
+function print_source_context()
+{
+  print_str([arg]+0c)
+  print_str(msg_open_bracket)
+  print_decimal([lineno])
+  print_str(msg_comma)
+  print_decimal(1+[input_pointer]-[start_of_line])
+  print_str(msg_close_bracket)
+}
+
+
+
+; This function prints the source context and a diagnostic message, and exits
+
+function error_exit(msg)
+{
+  print_source_context()
+  print_str([msg])
+  exit()
+}
+
+
+
+; Read 1 byte from file, return in AL. On EOF return 0.
+; On CR, LF, CR+LF or LF+CR, return LF
+; Characters HT, FF and 020-07e are returned verbatim
+; Other characters cause error
+
+bad_character_msg: DD 15 DB "Bad character ("
+bad_character_msg_2: DD 2 DB ")",0a
+
+character: DD 0
+
+function get_next_character()
+{
+  PUSH ESI
+  PUSH EBX
+
+  MOV ESI,[input_pointer]
+  if (ESI >= [input_eof]) {
+    MOV EBX,[[arg]]
+    if ([EBX]==0) {
+      XOR EAX,EAX
+      JMP end
+    }
+    MOV [arg],EBX
+
+    MOV ESI,[EBX+4]               ; arg->buffer
+    MOV D[start_of_line],ESI
+    MOV D[input_eof],ESI+[EBX+8]  ; arg->buffer + arg->size
+
+    MOV D[lineno],1
+
+    MOV EAX,0a                    ; return LF so we don't get a single line split across 2 files
+    JMP end
+  }
+
+  LODSB
+  MOV CL,AL
+  if ((CL==0a & B[ESI]==0d) | (CL==0d & B[ESI]==0a))  ; Free CR with every LF and free LF with every CR
+    INC ESI
+  if (CL==0d)
+    MOV CL,0a
+  if (CL==0a) {
+    INC D[lineno]
+    MOV [start_of_line],ESI
+  }
+
+  if (CL>07e | (CL<020 & CL!=0a & CL!=9 & CL!=0c)) {
+    PUSH ECX
+    print_source_context()
+    print_str(bad_character_msg)
+    POP ECX
+    print_hex(ECX,2)
+    print_str(bad_character_msg_2)
+    exit()
+  }
+
+  XOR EAX,EAX
+  MOV AL,CL
+
+  end:
+  MOV [input_pointer],ESI
+  MOV [character],EAX
+  POP EBX
+  POP ESI
+}
+
+
+
+; Returns upper case version of character if it's a lower-case letter.
+function upper_case(character)
+{
+  XOR EAX,EAX
+  MOV AL,[character]
+
+  CMP AL,'a'
+  JL end
+  CMP AL,'z'
+  JG end
+
+  SUB AL,020
+  end:
+}
+
+
+
+; Returns true if character is a digit
+function is_digit(character)
+{
+  return ([character]>='0' & [character]<='9')
+}
+
+
+
+; Returns true if character is A-Z, a-z or _ (i.e. can start an identifier).
+function is_alphabetic(character)
+{
+  upper_case([character])
+
+  CMP AL,'A'
+  JL no
+  CMP AL,'_'
+  JE yes
+  CMP AL,'Z'
+  JG no
+
+  yes:
+  MOV AL,-1
+  JMP end
+
+  no:
+  XOR AL,AL
+
+  end:
+  CBW
+  CWDE
+}
+
+
+
+; Returns CF=1 is (arg) is alphanumeric (i.e. can be a second or subsequent character of an identifier).
+function is_alphanumeric(character)
+{
+  return is_digit([character]) | is_alphabetic([character])
+}
+
+
+
+
+cannot_allocate_msg_2: DD 44 DB " bytes requested).",0a,"Total physical memory: 0x"
+cannot_allocate_msg_3: DD 30 DB 0a,"Available physical memory: 0x"
+cannot_allocate_msg_4: DD 25 DB 0a,"Total page file size: 0x"
+cannot_allocate_msg_5: DD 29 DB 0a,"Available page file size: 0x"
+cannot_allocate_msg_6: DD 25 DB 0a,"Total virtual memory: 0x"
+cannot_allocate_msg_7: DD 29 DB 0a,"Available virtual memory: 0x"
+cannot_allocate_msg_8: DD  1 DB 0a
+
+memory_status: DD 0,0,0,0,0,0,0,0
+
+function memory_error(msg,size)
+{
+  function GlobalMemoryStatus(lpBuffer) from "KERNEL32.DLL"
+
+  GlobalMemoryStatus(memory_status)
+  print_str([msg])                 print_hex([size],8)
+  print_str(cannot_allocate_msg_2) print_hex([memory_status+8],8)
+  print_str(cannot_allocate_msg_3) print_hex([memory_status+0c],8)
+  print_str(cannot_allocate_msg_4) print_hex([memory_status+010],8)
+  print_str(cannot_allocate_msg_5) print_hex([memory_status+014],8)
+  print_str(cannot_allocate_msg_6) print_hex([memory_status+018],8)
+  print_str(cannot_allocate_msg_7) print_hex([memory_status+01c],8)
+  print_str(cannot_allocate_msg_8)
+  os_error()
+}
+
+
+cannot_allocate_msg:   DD 26 DB "Cannot allocate memory (0x"
+
+function malloc(size)
+{
+  function HeapAlloc(hHeap,dwFlags,dwBytes) from "KERNEL32.DLL"
+
+  MOV ECX,HeapAlloc([process_heap],0,[size])
+  if (ECX==0)
+    memory_error(cannot_allocate_msg,[size])
+  MOV EAX,ECX
+}
+
+
+
+cannot_grow_msg: DD 28 DB "Cannot reallocate memory (0x"
+
+function grow(pblock,size)
+{
+  function HeapReAlloc(hHeap,dwFlags,lpMem,dwBytes) from "KERNEL32.DLL"
+
+  MOV ECX,HeapReAlloc([process_heap],0,[[pblock]],[size])
+  if (ECX==0)
+    memory_error(cannot_grow_msg,[size])
+  MOV [[pblock]],ECX
+}
+
+
+
+cannot_free_msg: DD 18 DB "Cannot free memory"
+
+function free(block)
+{
+  function HeapFree(hHeap,dwFlags,lpMem) from "KERNEL32.DLL"
+
+  MOV ECX,HeapFree([process_heap],0,[block])
+  if (ECX==0) {
+    print_str(cannot_free_msg)
+    os_error()
+  }
+}

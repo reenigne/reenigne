@@ -1,0 +1,194 @@
+asm_1byte  - n/a
+asm_jcond  - label
+asm_loopx  - label
+asm_call   - expr
+asm_jmp    - expr
+asm_int    - const
+asm_dw     - const
+asm_db     - const/string
+asm_incdec - lvalue
+asm_push   - expr
+asm_pop    - lvalue
+asm_math   - lvalue
+asm_shift  - lvalue,expr
+asm_xchg   - lvalue,lvalue
+asm_test   - expr,expr
+asm_alu    - lvalue,expr
+asm_mov    - lvalue,expr
+
+
+
+Grammar for step 14:
+
+expr := <reg> |
+        <number> |
+        <string> |
+        <character> |
+        <identifier> |
+
+        ( <expr> ) |
+        [ <expr> ] |
+        <expr> ( <expr_list> ) |
+
+        ~ <expr> |
+        ! <expr> |
+        - <expr> |
+        + <expr> |
+
+        <expr> * <expr> |             commutative, associativity don't care
+        <expr> / <expr> |             a/b/c == (a/b)/c
+        <expr> % <expr> |             a%b%c == (a%b)%c
+
+        <expr> + <expr> |             commutative, associativity don't care
+        <expr> - <expr> |             a-b-c == (a-b)-c
+
+        <expr> << <expr> |            a<<b<<c == (a<<b)<<c
+        <expr> >> <expr> |            a>>b>>c == (a>>b)>>c
+
+        <expr> < <expr> |             a<b<c == (a<b)<c
+        <expr> > <expr> |             a>b>c == (a>b)>c
+        <expr> <= <expr> |            a<=b<=c == (a<=b)<=c
+        <expr> >= <expr> |            a>=b>=c == (a>=b)>=c
+
+        <expr> == <expr> |            commutative, associativity don't care
+        <expr> != <expr> |            commutative, associativity don't care
+
+        <expr> & <expr> |             commutative, associativity don't care
+
+        <expr> ^ <expr> |             commutative, associativity don't care
+
+        <expr> | <expr>               commutative, associativity don't care
+
+
+Rewrite grammar to express operator precendence:
+
+expr0 := <reg> |
+         <number> |
+         <string> |
+         <character> |
+         <identifier> |
+         ( <expr> ) |
+         [ <expr> ] |
+         <expr0> ( <expr_list> )
+
+expr1 := ~ <expr0> |
+         ! <expr0> |
+         - <expr0> |
+         + <expr0>
+
+expr2 := <expr2> * <expr1> |
+         <expr2> / <expr1> |
+         <expr2> % <expr1> |
+         <expr1>
+
+expr3 := <expr3> + <expr2> |
+         <expr3> - <expr2> |
+         <expr2>
+
+expr4 := <expr4> << <expr3> |
+         <expr4> >> <expr3> |
+         <expr3>
+
+expr5 := <expr5> < <expr4> |
+         <expr5> > <expr4> |
+         <expr5> <= <expr4> |
+         <expr5> >= <expr4> |
+         <expr4>
+
+expr6 := <expr6> == <expr5> |
+         <expr6> != <expr5> |
+         <expr5>
+
+expr7 := <expr7> & <expr6> |
+         <expr6>
+
+expr8 := <expr8> ^ <expr7> |
+         <expr7>
+
+expr := <expr> | <expr8> |
+        <expr8>
+
+<expr_list> := |
+               <exprs>
+<exprs> := <expr> |
+           <expr> , <exprs>
+
+
+Rewrite grammar to factor on the left and eliminate left recursion:
+
+expr0 := <reg> <expr0'> |
+         <number> |
+         <string> |
+         <character> |
+         <identifier> <expr0'> |
+         ( <expr> ) <expr0'> |
+         [ <expr> ] <expr0'> |
+         <size> [ <expr> ] <expr0'>
+
+expr0' := |
+          ( <expr_list> ) <expr0'>
+
+expr1 := ~ <expr0> |
+         ! <expr0> |
+         - <expr0> |
+         + <expr0> |
+         <expr0>
+
+expr2 := <expr1> <expr2'>
+
+expr2' := |
+          * <expr1> <expr2'> |
+          / <expr1> <expr2'> |
+          % <expr1> <expr2'>
+
+expr3 := <expr2> <expr3'>
+
+expr3' := |
+          + <expr2> <expr3'> |
+          - <expr2> <expr3'>
+
+expr4 := <expr3> <expr4'>
+
+expr4' := |
+          << <expr3> <expr4'> |
+          >> <expr3> <expr4'>
+
+expr5 := <expr4> <expr5'>
+
+expr5' := |
+          < <expr4> <expr5'> |
+          > <expr4> <expr5'> |
+          <= <expr4> <expr5'> |
+          >= <expr4> <expr5'>
+
+expr6 := <expr5> <expr6'>
+
+expr6' := |
+          == <expr5> <expr6'> |
+          != <expr5> <expr6'>
+
+expr7 := <expr6> <expr7'>
+
+expr7' := |
+          & <expr6> <expr7'>
+
+expr8 := <expr7> <expr8'>
+
+expr8' := |
+          ^ <expr7> <expr8'>
+
+expr := <expr8> <expr'>
+
+expr' := |
+         | <expr8> <expr'>
+
+expr_list := |
+             <exprs>
+
+exprs := <expr> <exprs'>
+
+exprs' := |
+          , <exprs>
+
+
+

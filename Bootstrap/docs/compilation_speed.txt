@@ -1,0 +1,16 @@
+The key to fast compilation is avoiding reading files (library code) that we don't actually need.
+So if a file has:
+
+    class String
+    {
+        include "string.unity"
+    }
+
+The file string.unity will not actually be read unless String is actually used in the program.
+
+
+Another possible saving is to cache previous partial compilation results and re-use them if files (or parts of files) have not changed:
+  Parse trees
+  Low level machine independent format
+  Assembly equivalent code
+  Object code

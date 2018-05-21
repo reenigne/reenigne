@@ -1,0 +1,6 @@
+Semantics of & and |:
+  Both operands are evaluated (unless compiler can prove that second has no side effects)
+
+Semantics of && and ||:
+  Both operands must be of type Bool
+  Second operand is only evaluated if first operand true/false (unless compiler can prove that second has no side effects)

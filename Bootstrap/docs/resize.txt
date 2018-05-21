@@ -1,0 +1,175 @@
+; Grow a pointer (pointed to by arg1) to size (arg2).
+; Moves the block if there is insufficient space to grow in situ.
+grow:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV DI,[BP+6]
+  MOV DI,[DI]                 ; pointer to grow
+  MOV CX,[BP+4]               ; size to grow to
+
+  ; Search through free list to find the next block
+
+  MOV BX,free_list
+  grow_search_loop:
+  MOV SI,BX                   ; previous free block
+  MOV BX,[BX]                 ; trial free block
+  CMP BX,0                    ; was the previous block the last one
+  JE grow_move_block          ; if so, we have to move the block
+  CMP BX,DI                   ; is this block after the one we want to grow?
+  JNA grow_search_loop        ; if not, try the next block
+
+  ; Is this block adjacent to the next free block?
+
+  MOV AX,DI                   ; Block to grow
+  ADD AX,[DI-2]               ; Add the length of the block to find the end
+  INC AX
+  INC AX                      ; Add 2 for the length field of the following block
+  CMP AX,BX                   ; Is this the free block we found?
+  JNE grow_move_block         ; If not, we have to move the block
+
+  ; Is the free space large enough to hold the grown block?
+
+  MOV AX,[DI-2]               ; Length of this block
+  ADD AX,[BX-2]               ; Add length of following block
+  INC AX
+  INC AX                      ; Add 2 for the length field of the following block
+  CMP AX,CX                   ; Is that enough space?
+  JB grow_move_block          ; If not, we have to move the block
+
+  ; Grow the block
+
+  MOV DX,AX                   ; Available size
+  INC CX
+  AND CX,0fffe                ; Allocate whole words only to preserve alignment
+  SUB DX,CX                   ; Amount that will be left after the grow
+  CMP DX,4                    ; More than 4 bytes left?
+  JAE grow_no_expand          ; If so, no need to expand
+
+  ; Grow the block to fill the entire available space (consolidate with next block)
+
+  MOV [DI],AX                 ; New size
+  MOV DX,[BX]                 ; Pointer to next free block
+  MOV [SI],DX                 ; Update previous free block's next free block pointer
+  JMP grow_done
+
+  ; Grow the block only as large as necessary (consolidate and split)
+
+  grow_no_expand:
+  MOV [DI],CX                 ; Update size of this block
+  MOV AX,[BX]                 ; Pointer to next free block
+  MOV BX,DI                   ; Address of this block
+  ADD BX,CX                   ; Add new size to find length field of new following block
+  DEC DX
+  DEC DX                      ; Subtract 2 (for length field) from remaining size to give new size of following block
+  MOV [BX],DX                 ; Store new size of following block
+  INC BX
+  INC BX                      ; Add 2 to get address of new following block
+  MOV [BX],AX                 ; Store pointer to next free block
+  MOV [SI],BX                 ; Update next pointer of previous free block
+  JMP grow_done
+
+  ; Grow the block by moving it.
+
+  grow_move_block:
+  alloc(CX)                   ; Allocate a block of the new size - pointer in AX
+  MOV SI,DI                   ; Copy from old block
+  MOV DI,AX                   ; Copy to new block
+  MOV CX,[SI-2]               ; Bytes to copy = old size of block
+  SHR CX,1                    ; Divide by 2 to get words to copy
+  REP MOVSW                   ; Do the copy
+  MOV DI,AX                   ; New block
+  MOV SI,[BP+6]               ; Pointer to old block
+  free([SI])                  ; Free the old block
+  MOV [SI],DI                 ; Store the pointer to the new block
+
+  grow_done:
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Shrink pointer (arg1) to size (arg2)
+shrink:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV DI,[BP+6]               ; Pointer to shrink
+  MOV CX,[BP+4]               ; Size to shrink to
+  CMP CX,0
+  JNE shrink_resize
+
+  ; Shrink block to 0 (free it)
+  free(DI)
+  JMP shrink_done
+
+  shrink_resize:
+  INC CX
+  AND CX,0fffe
+
+  MOV BX,free_list
+  shrink_search_loop:
+  MOV SI,BX                   ; previous free block
+  MOV BX,[BX]                 ; trial free block
+  CMP BX,0                    ; was the previous block the last one?
+  JE shrink_add_block         ; if so, we need to create a new last block
+  CMP BX,DI                   ; is this block after the one we want to shrink?
+  JNA shrink_search_loop      ; if not, try the next block
+
+  ; Is this block adjacent to the next free block?
+
+  MOV AX,DI                   ; Block to shrink
+  ADD AX,[DI-2]               ; Add the length of the block to find the end
+  INC AX
+  INC AX                      ; Add 2 for the length field of the following block
+  CMP AX,BX                   ; Is this the free block we found?
+  JNE shrink_add_block        ; If not, we have to create a new block
+
+  ; Shrink the block in situ and grow the following free block (consolidate and split)
+
+  MOV AX,[DI-2]               ; Old size of this block
+  ADD AX,[BX-2]               ; Add size of next block
+  SUB AX,CX                   ; Subtract new size of this block to get new size of next block
+  MOV DX,[BX]                 ; Pointer to next block
+  MOV BX,DI                   ; This block
+  ADD BX,CX                   ; Add new size to find end of this block (length field of next block)
+  MOV [BX],AX                 ; New size of next block
+  INC BX
+  INC BX                      ; Add 2 to find start of new next block
+  MOV [BX],DX                 ; Update pointer to next block
+  MOV [SI],BX                 ; Update previous block's pointer to next block
+  MOV [DI-2],CX               ; Update size of this block
+  JMP shrink_done
+
+  ; Shrink the block and add a new free block in the new space
+
+  shrink_add_block:
+  MOV AX,[DI-2]               ; Current size of block
+  SUB AX,CX                   ; Size of new block
+  CMP AX,4                    ; Enough new space to create a new block?
+  JB shrink_done              ; Nope - do nothing.
+  DEC AX
+  DEC AX                      ; Subtract 2 for the new length field
+  MOV [DI-2],CX               ; Update length field of this block
+  ADD DI,CX                   ; add new size to find length field of new block
+  MOV [DI],AX                 ; length field of new block
+  INC DI
+  INC DI                      ; Add 2 to find new block
+  MOV [DI],BX                 ; new block's next pointer
+  MOV [SI],DI                 ; previous block's next pointer
+
+  shrink_done:
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+

@@ -1,0 +1,263 @@
+; This is the bootstrapping compiler step 7 (written in step 7 language)
+
+; stack:
+;   [SP]    saved DX (high nybble)
+;   [SP+2]  saved CX (high nybble flag)
+;   [SP+4]  saved SI
+;   [SP+6]  saved DI
+;   [SP+8]  IP of next byte to output
+;   [SP+0a] phase
+
+0E       ;   0100 PUSH CS
+1F       ;   0101 POP DS
+BE8200   ;   0102 MOV SI,082
+89F2     ;   0105 MOV DX,SI
+.A       ; fnloop1:
+AC       ;   0107 LODSB
+3C20     ;   0108 CMP AL,020
+75@A     ;   010A JNE fnloop1
+30DB     ;   010C XOR BL,BL
+885CFF   ;   010E MOV B[SI-1],BL
+89F7     ;   0111 MOV DI,SI
+.B       ; fnloop2:
+AC       ;   0113 LODSB
+3C0D     ;   0114 CMP AL,0d
+75@B     ;   0116 JNE fnloop2
+885CFF   ;   0118 MOV B[SI-1],BL
+
+B8003D   ;   011B MOV AX,03d00
+CD21     ;   011E INT 021
+72@C     ;   0120 JC fin2
+89C6     ;   0122 MOV SI,AX
+
+B43C     ;   0124 MOV AH,03c
+31C9     ;   0126 XOR CX,CX
+89FA     ;   0128 MOV DX,DI
+CD21     ;   012A INT 021
+73@D     ;   012C JNC nofin
+.C       ; fin2:
+E9#S     ;   012E JMP fin
+.D       ; nofin:
+89C7     ;   0131 MOV DI,AX
+
+31C0     ;   0133 XOR AX,AX
+.E       ; phase_top:
+50       ;   0135 PUSH AX
+B80001   ;   0136 MOV AX,0100
+50       ;   0139 PUSH AX
+
+32ED     ;   013A XOR CH,CH
+32D2     ;   013C XOR DL,DL
+
+.F       ; looptop:
+52       ;   013E PUSH DX
+51       ;   013F PUSH CX
+56       ;   0140 PUSH SI
+57       ;   0141 PUSH DI
+89E5     ;   0142 MOV BP,SP
+B43F     ;   0144 MOV AH,03f
+89F3     ;   0146 MOV BX,SI
+B90100   ;   0148 MOV CX,1
+BA0001   ;   014B MOV DX,0100
+CD21     ;   014E INT 021
+85C0     ;   0150 TEST AX,AX
+75@H     ;   0152 JNZ got_char
+.G       ; next_phase2:
+E9#R     ;   0154 JMP next_phase
+.H       ; got_char:
+A00001   ;   0157 MOV AL,B[0100]
+
+3C3B     ;   015A CMP AL,3B
+75@J     ;   015C JNZ nocomment
+.I       ; comment:
+B43F     ;   015E MOV AH,03f
+89F3     ;   0160 MOV BX,SI
+B90100   ;   0162 MOV CX,1
+BA0001   ;   0165 MOV DX,0100
+CD21     ;   0168 INT 021
+85C0     ;   016A TEST AX,AX
+74@G     ;   016C JZ next_phase2
+A00001   ;   016E MOV AL,B[0100]
+3C0D     ;   0171 CMP AL,0D
+75@I     ;   0173 JNZ comment
+
+.J       ; nocomment:
+3C2E     ;   0175 CMP AL,02e
+75@K     ;   0177 JNZ not_target
+B43F     ;   0179 MOV AH,03f
+89F3     ;   017B MOV BX,SI
+90       ;   017D NOP
+B90100   ;   017E MOV CX,1
+BA0001   ;   0181 MOV DX,0100
+CD21     ;   0184 INT 021
+85C0     ;   0186 TEST AX,AX
+.U       ; next_phase3z:
+74@G     ;   0188 JZ next_phase2
+A00001   ;   018A MOV AL,B[0100]
+30E4     ;   018D XOR AH,AH
+D1E0     ;   018F SHL AX,1
+05*Z     ;   0191 ADD AX,offset symtab
+89C3     ;   0194 MOV BX,AX
+8B4608   ;   0196 MOV AX,W[BP+8]
+8907     ;   0199 MOV W[BX],AX
+B020     ;   019B MOV AL,020
+EB@L     ;   019D JMP no_special
+         ;
+.K       ; not_target:
+3C40     ;   019F CMP AL,040
+75@T     ;   01A1 JNZ not_short
+B43F     ;   01A3 MOV AH,03f
+89F3     ;   01A5 MOV BX,SI
+B90100   ;   01A7 MOV CX,1
+BA0001   ;   01AA MOV DX,0100
+CD21     ;   01AD INT 021
+85C0     ;   01AF TEST AX,AX
+74@G     ;   01B1 JZ next_phase2
+A00001   ;   01B3 MOV AL,B[0100]
+30E4     ;   01B6 XOR AH,AH
+D1E0     ;   01B8 SHL AX,1
+05*Z     ;   01BA ADD AX,offset symtab
+89C3     ;   01BD MOV BX,AX
+8B17     ;   01BF MOV DX,W[BX]
+2B5608   ;   01C1 SUB DX,W[BP+8]
+4A       ;   01C4 DEC DX
+E9#O     ;   01C5 JMP emit_byte
+
+.T       ; not_short:
+3C23     ;        CMP AL,023
+75@V     ;        JNZ not_near
+B43F     ;        MOV AH,03f
+89F3     ;        MOV BX,SI
+B90100   ;        MOV CX,1
+BA0001   ;        MOV DX,0100
+CD21     ;        INT 021
+85C0     ;        TEST AX,AX
+74@U     ;        JZ next_phase3z
+A00001   ;        MOV AL,B[0100]
+30E4     ;        XOR AH,AH
+D1E0     ;        SHL AX,1
+05*Z     ;        ADD AX,offset symtab
+89C3     ;        MOV BX,AX
+8B17     ;        MOV DX,W[BX]
+2B5608   ;        SUB DX,W[BP+8]
+4A       ;        DEC DX
+4A       ;        DEC DX
+89160001 ;        MOV W[0100],DX
+83460802 ;        ADD W[BP+8],2
+B020     ;        MOV AL,020
+
+837E0A00 ;        CMP W[BP+0a],0
+74@L     ;        JZ no_special
+B440     ;        MOV AH,040
+89FB     ;        MOV BX,DI
+B90200   ;        MOV CX,2
+BA0001   ;        MOV DX,0100
+CD21     ;        INT 021
+B020     ;        MOV AL,020
+EB@L     ;        JMP no_special
+.V       ; not_near:
+3C2A     ;        CMP AL,02a
+75@L     ;        JNZ no_special
+B43F     ;        MOV AH,03f
+89F3     ;        MOV BX,SI
+B90100   ;        MOV CX,1
+BA0001   ;        MOV DX,0100
+CD21     ;        INT 021
+85C0     ;        TEST AX,AX
+74@U     ;        JZ next_phase3z
+A00001   ;        MOV AL,B[0100]
+30E4     ;        XOR AH,AH
+D1E0     ;        SHL AX,1
+05*Z     ;        ADD AX,offset symtab
+89C3     ;        MOV BX,AX
+8B17     ;        MOV DX,W[BX]
+89160001 ;        MOV W[0100],DX
+83460802 ;        ADD W[BP+8],2
+B020     ;        MOV AL,020
+837E0A00 ;        CMP W[BP+0a],0
+74@L     ;        JZ no_special
+B440     ;        MOV AH,040
+89FB     ;        MOV BX,DI
+B90200   ;        MOV CX,2
+BA0001   ;        MOV DX,0100
+CD21     ;        INT 021
+B020     ;        MOV AL,020
+
+.L       ; no_special:
+5F       ;   01C7 POP DI
+5E       ;   01C8 POP SI
+59       ;   01C9 POP CX
+5A       ;   01CA POP DX
+
+3C30     ;   01CB CMP AL,030
+7C@Q     ;   01CD JL looptop2
+3C39     ;   01CF CMP AL,039
+7E@N     ;   01D1 JLE number
+3C41     ;   01D3 CMP AL,041
+7C@Q     ;   01D5 JL looptop2
+3C46     ;   01D7 CMP AL,046
+7E@M     ;   01D9 JLE capital
+3C61     ;   01DB CMP AL,061
+7C@Q     ;   01DD JL looptop2
+3C66     ;   01DF CMP AL,066
+7F@Q     ;   01E1 JG looptop2
+2C20     ;   01E3 SUB AL,020
+.M       ; capital:
+2C07     ;   01E5 SUB AL,7
+.N       ; number:
+2C30     ;   01E7 SUB AL,030
+D0E2     ;   01E9 SHL DL,1
+D0E2     ;   01EB SHL DL,1
+D0E2     ;   01ED SHL DL,1
+D0E2     ;   01EF SHL DL,1
+08C2     ;   01F1 OR DL,AL
+80F501   ;   01F3 XOR CH,1
+75@Q     ;   01F6 JNZ looptop2
+
+52       ;   01F8 PUSH DX
+51       ;   01F9 PUSH CX
+56       ;   01FA PUSH SI
+57       ;   01FB PUSH DI
+.O       ; emit_byte:
+88160001 ;   01FC MOV B[0100],DL
+
+837E0A00 ;   0200 CMP W[BP+0a],0
+74@P     ;   0204 JZ skipoutput
+B440     ;   0206 MOV AH,040
+89FB     ;   0208 MOV BX,DI
+B90100   ;   020A MOV CX,1
+BA0001   ;   020D MOV DX,0100
+CD21     ;   0210 INT 021
+.P       ; skipoutput:
+FF4608   ;   0212 INC W[BP+8]
+5F       ;   0215 POP DI
+5E       ;   0216 POP SI
+59       ;   0217 POP CX
+5A       ;   0218 POP DX
+
+.Q       ; looptop2:
+E9#F     ;   0219 JMP looptop
+.R       ; next_phase:
+B80042   ;   021C MOV AX,04200
+89F3     ;   021F MOV BX,SI
+31C9     ;   0221 XOR CX,CX
+31D2     ;   0223 XOR DX,DX
+CD21     ;   0225 INT 021
+         ;
+5F       ;   0227 POP DI
+5E       ;   0228 POP SI
+59       ;   0229 POP CX
+5A       ;   022A POP DX
+
+58       ;   022B POP AX
+58       ;   022C POP AX
+40       ;   022D INC AX
+3D0200   ;   022E CMP AX,2
+7D@S     ;   0231 JGE fin
+E9#E     ;   0233 JMP phase_top
+
+.S       ; fin:
+B44C     ;   0236 MOV AH,04C
+CD21     ;   0238 INT 021
+
+.Z       ; symtab:

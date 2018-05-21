@@ -1,0 +1,28 @@
+Certain constants are defined at a global level:
+
+Mathematical constants:
+  Real pi;                   // The circumference of a circle of diameter 1
+  Real e;                    // The unique solution to e^x = (d/dx)(e^x) for all x
+  Complex<Real> i;           // A solution of i^2 = -1
+
+Fundamental physical constants:
+  Concrete<Real> c;          // The speed of light in a vacuum
+  Concrete<Real> g;          // The gravitational constant
+  Concrete<Real> epsilon_0;  // Permittivity of free space
+
+SI units:
+  Concrete<Real> m;          // One metric meter
+  Concrete<Real> s;          // One second
+  Concrete<Real> kg;         // One kilogram
+  Concrete<Real> a;          // One amp
+
+The type "Real" is for exact calculations. You can write e^(i*pi) and it will have the exact value -1.
+The internal representation of Concrete is up to the computer. Any operations will result in another concrete number,
+which cannot be converted to the underlying type or used as an exponent unless it is dimensionless. You cannot add or
+subtract two concrete numbers unless their units are the same.
+
+It would be nice to be able to restrict the type of a variable to have particular units, and have the compiler check this:
+  Length = TypeOf(m);
+  Length l = 1*s;  // Type error
+
+

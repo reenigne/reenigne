@@ -1,0 +1,128 @@
+file:
+  next
+  inputPointer
+  inputEOF
+  lineNo
+  startOfLine
+  buffer
+  size
+  nameLength
+  name
+  terminator
+  token
+  token_arg
+  token_arg_high
+
+basicBlock:
+  next
+  address
+  length
+  jumpBlock
+  data
+
+symbol:
+  next
+  destination
+  type (0 = normal named or anonymous  1 = case label (name contains value)  2 = default case label  3 = variable relative to BP  4 = indirect  5 = subscope  6 = named type
+  typeid
+  length (0 for anonymous labels, default label and subscopes, 4 for case labels)
+  name
+
+symbol_table:
+  parent
+  current
+  first
+  break_dest
+  max_stack
+  stack
+
+dll_name:
+  next
+  imports
+  first
+  length
+  name
+
+import:
+  next
+  dest
+  symbol
+
+fTypeID:
+  next
+  type:
+      0 = Void
+
+      3 = Byte   0b = Int3  013 = UInt3
+      4 = Word   0c = Int4  014 = UInt4
+      5 = DWord  0d = Int5  015 = UInt5
+    020 = Bool
+    021 = String
+    022 = Char
+    023 = class
+    024 = enum
+    025 = pointer
+
+    080 = sized array
+    081 = unsized array
+    082 = function
+
+  innerTypeID
+  n_class_members
+  nameLength
+  name
+
+
+
+sizeOf(typeID)
+canImplicitCast(typeID,typeID)
+canReinterpretCast(typeID,typeID)
+typeIDFromExpression(expression)
+findOverload(functionName,expressions)
+
+
+
+
+
+
+in normal code, identifier means the value, i.e. [00401234] or [BP+4]
+in assembly code, identifier means the expression, i.e. 00401234 or BP+4
+
+
+
+
+New algorithm for determining which jumps are short:
+  Principles:
+    Assemble longest code first
+    Recursive "shorten" function, which does this:
+      Replaces short jump with near
+      Adds an output skip record
+      Searches through the jump records for any jumps that are shortened by this replacement
+        Call shorten on each of them
+    EBP-relative and object-relative offsets are determined before any references to these expressions are assembled
+    data is in another segment - all data relocated last
+      .text  060000020 execute/read - executable  code
+      .rdata 040000040 read - initialized         const data, relocations
+      .data  0c0000040 read/write - initialized   data
+
+
+  While assembling for first time:
+    if assembling a JMP/CALL/Jcond instruction:
+      If instruction=J* & the destination is known & the jump is short
+        assemble the jump as a short
+      else
+        assemble the jump as a near
+      add a jump record that we have a jump, record fromLocation and toLocation
+
+
+
+Type
+  Int5 kind (0 = built-in, 1 = class, 2 = pointer)
+  Int5 type (kind==0) or ClassEntry* inner (kind==1) or Type* pointed (kind==2)
+  String name
+
+
+ClassEntry
+  Type* first
+  ClassEntry* rest
+  String name

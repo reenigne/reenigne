@@ -1,0 +1,188 @@
+; Compare 2 strings (arg1) and (arg2). Returns CF=1 if same or CF=0 if different.
+string_compare:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+  MOV SI,[BP+4]
+  MOV DI,[BP+6]
+  string_compare_loop:
+  LODSB
+  MOV AH,[DI]
+  INC DI
+  JNE string_compare_fail
+  CMP AL,0
+  JNE string_compare_loop
+  STC
+  JMP string_compare_done
+  string_compare_fail:
+  CLC
+  string_compare_done:
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Create a new string by copying bytes from (arg1) up to (but not including) the terminating byte (arg2). Null-terminates string.
+; Returns pointer in AX which must be free()d when finished with. BX contains the pointer to the byte after the terminator of the original string.
+string_create:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  XOR CX,CX
+  MOV SI,[BP+6]
+  MOV AH,[BP+4]
+  string_create_loop:
+  LODSB
+  INC CX
+  CMP AL,AH
+  JNE string_create_loop
+  DEC CX
+  string_create2([BP+6],CX)
+  MOV BX,SI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Create a new string by copying (arg2) bytes from (arg1). Null-terminates string.
+; Returns pointer in AX which must be free()d when finished with.
+string_create2:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+  MOV AX,[BP+4]
+  INC AX
+  malloc(AX)
+  MOV DI,AX
+  PUSH DI
+  MOV SI,[BP+6]
+  MOV CX,[BP+4]
+  REP MOVSB
+  XOR AL,AL
+  STOSB
+  POP AX
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Finds the length of the string (arg1)
+string_length:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  XOR CX,CX
+  MOV SI,[BP+4]
+  string_length_loop:
+  LODSB
+  INC CX
+  CMP AL,0
+  JNE string_length_loop
+  MOV AX,CX
+  DEC AX
+  POP SI
+  POP BP
+  RET
+
+
+
+; Create a new string by concatenating two strings (arg1) and (arg2)
+; Returns pointer in AX which must be free()d when finished with.
+string_concatenate:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+  string_length([BP+4])
+  PUSH AX
+  string_length([BP+6])
+  POP BX
+  PUSH BX
+  PUSH AX
+
+  ADD AX,BX
+  INC AX
+  malloc(AX)
+  MOV DI,AX
+
+  MOV SI,[BP+6]
+  POP CX
+  REP MOVSB
+  MOV SI,[BP+4]
+  POP CX
+  REP MOVSB
+  XOR AL,AL
+  STOSB
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Concatenate string (arg2) to the end of string [(arg1)]
+string_append:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+
+  MOV SI,[BP+6]         ; pointer to first string
+
+  string_length([BP+4]) ; Find length of second string
+  PUSH AX
+  PUSH AX               ; Push 2 copies of length on stack
+  string_length([SI])   ; Find length of second string
+  POP BX                ; Length of first string
+  PUSH AX               ; Push copy of length of second string on stack
+  ADD BX,AX
+  INC BX                ; Find length of combined string, including terminator
+  grow(SI,BX)           ; Grow first string to this size.
+  MOV DI,[SI]           ; Start of first string
+  POP CX                ; Length of second string
+  POP BX                ; Length of first string
+  ADD DI,BX             ; End of first string
+  MOV SI,[BP+4]         ; Start of second string
+  REP MOVSB             ; Do the copy
+  XOR AL,AL
+  STOSB                 ; Store the terminator
+  POP DI
+  POP SI
+  POP BP
+  RET
+
+
+
+; Create two new strings by splitting string (arg1) at character (arg2). Neither string contains the delimiter.
+; AX contains a pointer to the string before the delimiter, BX contains a pointer to the string after the delimiter. Both must be free()d once finished with.
+string_split:
+  PUSH BP
+  MOV BP,SP
+  string_create([BP+6],[BP+4])
+  PUSH AX
+  string_create(BX,0)
+  MOV BX,AX
+  POP AX
+  POP BP
+  RET
+
+
+
+; Find the first instance of string (arg2) in string (arg1).
+string_find:
+  PUSH BP
+  MOV BP,SP
+  PUSH SI
+  PUSH DI
+  MOV BX,[BP+4]
+  MOV AL,[BX]
+
+
+

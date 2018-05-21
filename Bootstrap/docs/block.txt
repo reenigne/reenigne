@@ -1,0 +1,8 @@
+Basic block format:
+  0  2  bytes in block
+  2  2  address
+  4  2  pointer to next block by continue
+  6  2  pointer to next block by (conditional) jump
+  8  2  jump condition
+ 0a  n
+

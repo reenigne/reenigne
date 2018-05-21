@@ -39,6 +39,13 @@ itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
 
   mov ax,cs
   mov ds,ax
+  add ax,(codeEndInit + 15) >> 4
+  mov es,ax
+  mov cx,18
+  mov si,colourTableInit
+  mov di,colourTable
+  rep movsw                   ; Want iters array to be at DS:0 so copy the colour table past it
+  mov ds,ax
   add ax,(codeEnd + 15) >> 4
   mov es,ax
   mov [squareTableSegment],ax
@@ -81,7 +88,7 @@ noOverflow:
 
   ; Create table of "a" values
 
-  mov ax,cs
+  mov ax,ds
   mov es,ax
   mov di,aTable
   mov cx,320
@@ -173,9 +180,11 @@ itersXTableLoop:
 
 
 mandelIters:
-  push ds
   push bx
   push si
+
+
+  push ds
   mov ds,[squareTableSegment]
 
 
@@ -280,6 +289,14 @@ notEscaped1:
   jae escaped
   dec cx
 escaped:
+
+
+
+  pop si
+  pop bx
+  pop ds
+  ret
+
 ;  mov bx,cx
 ;  mov ah,[cs:colourTable+bx]
 ;
@@ -347,7 +364,7 @@ escaped:
 ; assume BX is xp
 ; assume ES is 0xb800
 
-doSubDivide5:
+doSubdivide5:
   lea bx,[di+16]
   call mandelIters   ; (16,0)
   add si,32
@@ -372,6 +389,17 @@ doSubDivide5:
   ret
 .noLowerHalf:
   sub bx,16
+  ret
+
+plotUpper5:
+  add di,-8000-8
+  %rep 2
+    times 4 stosw
+    add di,dx
+    times 4 stosw
+    add di,bp
+  %endrep
+  times 4 stosw
   ret
 
 subdivide5:
@@ -406,7 +434,7 @@ subdivide5:
   %endrep
   times 4 stosw
   cmp si,192
-  je .plotUpper
+  je plotUpper5
   %rep 13
     add di,dx
     times 4 stosw
@@ -429,19 +457,9 @@ subdivide5:
   times 4 stosw
   ret
 
-.plotUpper:
-  add di,-8000-8
-  %rep 2
-    times 4 stosw
-    add di,dx
-    times 4 stosw
-    add di,bp
-  %endrep
-  times 4 stosw
-  ret
 
 
-doSubDivide4:
+doSubdivide4:
   lea bx,[di+8]
   call mandelIters   ; (8,0)
   add si,16
@@ -535,7 +553,7 @@ subdivide4:
   ret
 
 
-doSubDivide3:
+doSubdivide3:
   lea bx,[di+4]
   call mandelIters   ; (4,0)
   add si,8
@@ -628,7 +646,7 @@ subdivide3:
   ret
 
 
-doSubDivide2:
+doSubdivide2:
   lea bx,[di+2]
   call mandelIters   ; (2,0)
   add si,4
@@ -711,7 +729,7 @@ subdivide2:
   ret
 
 
-doSubDivide1L:
+doSubdivide1L:
   lea bx,[di+1]
   call mandelIters  ; (1,0)
   inc si
@@ -723,7 +741,7 @@ doSubDivide1L:
   dec bx
   call mandelIters  ; (0,1)
   inc bx
-  ins si
+  inc si
   inc si
   call mandelIters  ; (1,2)
   sub si,4
@@ -762,7 +780,7 @@ doSubdivide1R:
   dec bx
   call mandelIters  ; (0,1)
   inc bx
-  ins si
+  inc si
   inc si
   call mandelIters  ; (1,2)
   sub si,4
@@ -849,20 +867,24 @@ plot1R:
 
 
 
-colourTable:
+colourTableInit:
 ;  db 0x00,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa
 ;  db 0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22
   db 0x00, 0xff, 0xff, 0xff, 0xff, 0xee, 0xee, 0xee, 0xee, 0xaa, 0xaa
   db 0xaa, 0xbb, 0xbb, 0xbb, 0x99, 0x99, 0x99, 0x88, 0x88, 0x11, 0x11
   db 0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 0xff
-maskTable:
-  dw 0xc03f,0x30cf,0x0cf3,0x03fc
+;maskTableInit:
+;  dw 0xc03f,0x30cf,0x0cf3,0x03fc
+codeEndInit:
 
-section .bss
+absolute 0
 
+iters: resb itersX*itersY
 squareTableSegment: resw 2
 aTable:
-  resw 320
+  resw itersX
+bTable:
+  resw itersY
 yTableLower:
   resw 102
 yTableUpper:
@@ -870,6 +892,10 @@ yTableUpper:
 itersXTable:
   resw itersY
 ;timer: dw 0
+colourTable:
+  resb 35
+;maskTable:
+;  resw 4
 stackStart:
   resb 128
 stackEnd:

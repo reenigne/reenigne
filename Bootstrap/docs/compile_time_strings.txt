@@ -1,0 +1,23 @@
+Compile time strings look like 'this' (i.e. delimited with single quotes just like character literals).
+They are like strings in that they can contain any characters (including keywords, punctuation, etc.)
+They are unlike strings in that their contents do not appear in the compiled program (each is compiled down to some unique integer)
+They can be used as possible values for an enumeration type, or in a switch statement.
+Problem - when using separate compilation (e.g. an exe and a dll) how can we ensure cts match up?
+  Need an import table like structure, fix them up at load time
+
+Algorithm for choosing integer representations for compile-time strings:
+  Enumerate all compile-time strings in program
+  Sort so that shortest are first
+  Pad with 0s on end to 32 bits (or preferred native type length)
+  Go through the list and assign numbers:
+    Truncate if possible (i.e. use only first digits - this will always succeed for strings 4 characters or less)
+    If not possible, increment number until it doesn't collide with any already assigned.
+
+This algorithm will be stable for any given program.
+
+
+String identifiers look like `this` (i.e. delimited with backquotes).
+They are like strings in that they can contain any characters (including keywords, punctuation, etc.)
+Otherwise they act like identifiers:
+DWord `this` = 1;
+

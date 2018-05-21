@@ -1,0 +1,55 @@
+; Create and return a terminated string
+
+function string_terminate(length,start,preamble,terminator)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV DI,malloc([preamble]+2+[length]+1)
+  PUSH DI
+  ADD DI,[preamble]
+  MOV AX,[length]
+  STOSW
+  MOV CX,AX
+  MOV SI,[start]
+  REP MOVSB
+  MOV AL,[terminator]
+  STOSB
+  POP AX
+
+  POP DI
+  POP SI
+}
+
+
+
+; Create and return a string from concatenating two other strings
+;  arg1 = first string
+;  arg2 = second string
+;  arg3 = bytes to allocate before
+
+function string_concat(first,second,preamble)
+{
+  PUSH SI
+  PUSH DI
+
+  MOV DI,malloc([preamble]+2+[[first]]+[[second]])
+  PUSH DI
+  ADD DI,[preamble]
+  MOV AX,[[first]]+[[second]]
+  STOSW
+  MOV CX,[[first]]
+  MOV SI,[first]+2
+  REP MOVSB
+  MOV CX,[[second]]
+  MOV SI,[second]+2
+  REP MOVSB
+  POP AX
+
+  POP DI
+  POP SI
+}
+
+
+
+

@@ -1,0 +1,94 @@
+Step  source code  self-host  compiler  code   binary  ratio  passes  features
+1     build1.bat              batch     4092     127   32.2      1    output a byte
+2     build2.bat              1         3311      79   41.9      1    multiple bytes, proper hex
+3     build3.bat              2         4935     154   32.0      1    input/output files
+4     4.3          4.4        3         4192     768    5.46     1    comments
+5     5.4          5.5        4         6028     314   19.2      2    one-character labels
+6     6.5          6.6        5         6565     383   17.1      2    two-byte offsets
+7     7.6          7.7        6         7208     450   16.0      2    absolute offsets
+8     8.7          8.8        7         6570     440   14.9      2    literal strings
+9     9.8          9.9        8         9552     643   14.9      2    multi-character labels
+10    10.9         10.10      9        18952    3093    6.13     2    mnemonics for 1-byte instructions
+11    11.10        11.11      10       58605    4897   12.0      3    assembler
+12    12.11        12.12      11       50935    5195    9.80     4    function call syntax
+13    13.12        13*.13     12       49716    6192    8.03     4    multiple files, character literals
+14    14*.13       14*.13     13       91919   10450    8.80     6    simple infix operator syntax
+15    15*.14       15*.15     14      123560   14790    8.35     8    local variables, structural programming features
+16    16*.15       16*.16     15      123027   22520    5.46    14    targets 32-bit Windows PE
+
+
+   4,092 build1.bat                  127 1.com
+
+   3,311 build2.bat                   79 2.com
+
+   4,935 build3.bat                  154 3.com
+
+   3,733 4.3
+     459 build4.bat
+   4,192                             768 4.COM
+
+   5,940 5.4
+      88 build5.bat
+   6,028                             314 5.COM
+
+   6,477 6.5
+      88 build6.bat
+   6,565                             383 6.COM
+
+   7,120 7.6
+      88 build7.bat
+   7,208                             450 7.COM
+
+   6,482 8.7
+      88 build8.bat
+   6,570                             440 8.COM
+
+   9,464 9.8
+      88 build9.bat
+   9,552                             643 9.COM
+
+  18,861 10.9
+      91 build10.bat
+  18,952                           3,093 10.COM
+
+  58,510 11.10
+      95 build11.bat
+  58,605                           4,897 11.COM
+
+  50,840 12.11
+      95 build12.bat
+  50,935                           5,195 12.COM
+
+  49,621 13.12
+      95 build13.bat
+  49,716                           6,192 13.COM
+
+  38,160 14expr.13
+  10,984 14lex.13
+   8,750 14malloc.13
+  26,528 14parse.13
+   7,356 14util.13
+     141 build14.bat
+  91,919                          10,450 14.com
+
+  40,117 15expr.14
+  10,538 15lex.14
+   8,741 15malloc.14
+  25,075 15parse.14
+   1,750 15string.14
+  29,899 15symbol.14
+   7,275 15util.14
+     165 build15.bat
+ 123,560                          14,790 15.COM
+
+  36,702 16expr.15
+   8,197 16lex.15
+   8,450 16malloc.15
+  19,897 16parse.15
+  14,973 16pe.15
+   1,624 16string.15
+  26,411 16symbol.15
+   6,600 16util.15
+     173 build16.bat
+ 123,027                          22,520 16.COM
+

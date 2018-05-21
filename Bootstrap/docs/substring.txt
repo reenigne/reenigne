@@ -1,0 +1,7 @@
+"foobar"[3]=='b'
+"foobar"[1..4]=="ooba"
+"foobar"[5..0]=="rf"
+"foobar"[-1]=='r'
+"foobar"[-3..-2]=="ba"
+"foobar"[1..-2]=="ooba"
+"foobar"[-2..1]=="arfo"
