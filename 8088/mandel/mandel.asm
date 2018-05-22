@@ -295,6 +295,7 @@ escaped:
   pop si
   pop bx
   pop ds
+  mov [bx+si],cl
   ret
 
 ;  mov bx,cx
