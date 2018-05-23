@@ -49,14 +49,12 @@ itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
   add ax,(codeEnd + 15) >> 4
   mov es,ax
   mov [squareTableSegment],ax
-  ; We want SP to be 0x1c00 + 4 (for the two PUSHed loop variables)
-  ; cs*16 + stackEnd + fudge == ss*16 + 0x1c04
-  ; ss = cs + (stackEnd + fudge - 0x1c04)/16
-  mov ax,cs
-  add ax,(stackEnd - 0x1c04) >> 4
+
+  mov ax,ds
+  add ax,(stackEnd - 0x1c40) >> 4
   cli
   mov ss,ax
-  mov sp,0x1c04
+  mov sp,0x1c40
   sti
 
   ; Create square table in ES
@@ -86,12 +84,17 @@ noOverflow:
   neg di
   loop squareLoop
 
-  ; Create table of "a" values
-
+  ; Initialize iters table
   mov ax,ds
   mov es,ax
-  mov di,aTable
-  mov cx,320
+  xor di,di
+  mov ax,-1
+  mov cx,(itersX*itersY + 1) >> 1
+  rep stosw
+
+  ; Create table of "a" values
+
+  mov cx,itersX
   mov bx,-3456*5
   mov si,72
   mov bp,5
@@ -103,6 +106,21 @@ aLoop:
   stosw
   add bx,si
   loop aLoop
+
+  ; Create table of "b" values
+
+  mov cx,itersY
+  xor bx,bx
+  mov si,432  ; 3456
+  mov bp,25   ; 200
+bLoop:
+  mov ax,bx
+  xor dx,dx
+  div bp
+  and ax,0xfffe
+  stosw
+  add bx,si
+  loop bLoop
 
   ; Create table of y addresses
 
@@ -139,73 +157,112 @@ itersXTableLoop:
   add ax,bx
   loop itersXTableLoop
 
+  ; Compute the initial coarse grid
 
-  ; Draw the fractal
+  xor si,si
+  mov cx,itersY >> initialShift
+coarseYLoop:
+  push cx
 
-;  mov ds,[squareTableSegment]
-;
-;  mov cx,101
-;yLoop:
-;  push cx
-;  mov ax,cx
-;  dec ax
-;  mov si,ax
-;  mov dx,3456
-;  imul dx
-;  mov cx,200
-;  idiv cx
-;  and ax,0xfffe
-;  mov dx,ax
-;
-;  add si,si
-;  mov ax,[cs:yTableLower+si]
-;  mov [cs:yOffsetBottom+2],ax
-;  sub ax,[cs:yTableUpper+si]
-;  inc ax
-;  mov [cs:yOffsetTop+2],ax
-;
-;  mov cx,320
-;xLoop:
-;  push cx
-;  mov bx,320
-;  sub bx,cx
-;  add bx,bx
-;  mov es,[cs:bx+aTable]
-;
-;  mov si,es  ; x = a
-;  mov bx,dx  ; y = b
-;  mov cx,32
+  xor bx,bx
+  mov cx,itersX >> initialShift
+coarseXLoop:
+  push cx
+  call mandelIters
+  add bx,initialGrid
+  pop cx
+  loop coarseXLoop
+
+  add si,initialGrid << 1
+  pop cx
+  loop coarseYLoop
+
+  ; Recursively refine
+
+  xor si,si
+  mov cx,(itersY - 1) >> initialShift
+refineYLoop:
+  push cx
+
+  xor bx,bx
+  mov cx,(itersX - 1) >> initialShift
+refineXLoop:
+  push cx
+  call subdivide5
+  add bx,initialGrid
+  pop cx
+  loop refineXLoop
+
+  add si,initialGrid << 1
+  pop cx
+  loop refineYLoop
 
 
+  ; Clean up
+
+;  xor ax,ax
+;  mov ds,ax
+;  mov ax,[0x6c]
+;  sub ax,[cs:timer]
+
+;  mov ax,[cs:timer]
+;  int 0x63 ; outputHex
+
+  mov ah,0
+  int 0x16
+  mov ax,3
+  int 0x10
+  mov ax,0x4c00
+  int 0x21
+
+;interrupt8:
+;  push ax
+;  mov al,0x20
+;  out 0x20,al
+;  inc word[cs:timer]
+;  pop ax
+;  iret
 
 
+savedSP: dw 0
+alreadyDone:
+  ret
 mandelIters:
+  mov di,[si+itersXTable]
+  cmp byte[di+bx],0xff
+  jne alreadyDone
+
+  push di
   push bx
   push si
 
-
+  add bx,bx
+  mov bx,[bx+aTable]
+  mov es,bx
+  mov si,[si+bTable]
+  mov dx,si
   push ds
   mov ds,[squareTableSegment]
+  mov cx,32
+  mov [cs:savedSP],sp
+  mov sp,0x1c00
 
-
-
-
-  mov di,[si]  ; x*x
-  mov bp,[bx]  ; y*y
+  mov di,[bx]  ; x*x
+  mov bp,[si]  ; y*y
   lea ax,[di+bp] ; x*x+y*y
   cmp ax,sp
   jae escaped5
 
 %macro iterate 0
   dec cx
-  mov bx,[si+bx] ; (x+y)*(x+y)
-  sub bx,ax  ; 2*x*y
-  add bx,dx  ; 2*x*y+b -> new y
-  mov si,es
-  add si,di
-  sub si,bp  ; x*x-y*y+a -> new x
-  mov di,[si]  ; x*x
-  mov bp,[bx]  ; y*y
+  mov si,[si+bx] ; (x+y)*(x+y)
+  sub si,ax  ; 2*x*y
+  add si,dx  ; 2*x*y+b -> new y
+  mov bx,es
+  add bx,di
+  sub bx,bp  ; x*x-y*y+a -> new x
+  mov di,[bx]  ; x*x
+  mov bp,[si]  ; y*y
   lea ax,[di+bp] ; x*x+y*y
   cmp ax,sp
 %endmacro
@@ -289,81 +346,19 @@ notEscaped1:
   jae escaped
   dec cx
 escaped:
-
-
-
+  mov sp,[cs:savedSP]
+  pop ds
   pop si
   pop bx
-  pop ds
-  mov [bx+si],cl
+  pop di
+  mov [bx+di],cl
   ret
 
-;  mov bx,cx
-;  mov ah,[cs:colourTable+bx]
-;
-;  pop di
-;  mov cx,di
-;  neg di
-;  add di,320
-;  mov bx,di
-;  shr di,1
-;  shr di,1
-;  mov si,0xb800
-;  mov es,si
-;
-;  and bx,3
-;  add bx,bx
-;  mov bx,[cs:bx+maskTable]
-;
-;yOffsetBottom:
-;  add di,9999
-;  mov al,[es:di]
-;  and ax,bx
-;  or al,ah
-;  stosb
-;
-;yOffsetTop:
-;  sub di,9999
-;  mov al,[es:di]
-;  and al,bl
-;  or al,ah
-;  stosb
-;
-;  loop xLoop2
-;  pop cx
-;  loop yLoop2
-
-;  xor ax,ax
-;  mov ds,ax
-;  mov ax,[0x6c]
-;  sub ax,[cs:timer]
-
-;  mov ax,[cs:timer]
-;  int 0x63 ; outputHex
-
-  mov ah,0
-  int 0x16
-  mov ax,3
-  int 0x10
-  mov ax,0x4c00
-  int 0x21
-
-;yLoop2: jmp yLoop
-;xLoop2: jmp xLoop
-
-;interrupt8:
-;  push ax
-;  mov al,0x20
-;  out 0x20,al
-;  inc word[cs:timer]
-;  pop ax
-;  iret
 
 ; all the subdivide routines:
 ; assume DS points to iters array
 ; assume SI is yp*2
 ; assume BX is xp
-; assume ES is 0xb800
 
 doSubdivide5:
   lea bx,[di+16]
@@ -424,6 +419,8 @@ subdivide5:
   mov cx,di
   add di,[si+yTableLower]
   mov ah,al
+  mov dx,0xb800
+  mov es,dx
   mov dx,0x2000-8
   mov bp,80-0x2000-8
 
@@ -508,6 +505,8 @@ subdivide4:
   mov cx,di
   add di,[si+yTableLower]
   mov ah,al
+  mov dx,0xb800
+  mov es,dx
   mov dx,0x2000-4
   mov bp,80-0x2000-4
 
@@ -602,6 +601,8 @@ subdivide3:
   mov cx,di
   add di,[si+yTableLower]
   mov ah,al
+  mov dx,0xb800
+  mov es,dx
   mov dx,0x2000-2
   mov bp,80-0x2000-2
 
@@ -701,6 +702,8 @@ subdivide2:
   shr di,1
   mov cx,di
   add di,[si+yTableLower]
+  mov dx,0xb800
+  mov es,dx
   mov dx,0x2000-1
   mov bp,80-0x2000-1
 
@@ -827,6 +830,8 @@ plot1R:
 
   shr di,1
   shr di,1
+  mov dx,0xb800
+  mov es,dx
   mov dx,di
   add di,[ds:bp+yTableLower]
   stosb
@@ -866,8 +871,6 @@ plot1R:
 
 
 
-
-
 colourTableInit:
 ;  db 0x00,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa,0xff,0x55,0xaa
 ;  db 0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22
@@ -880,8 +883,9 @@ codeEndInit:
 
 absolute 0
 
-iters: resb itersX*itersY
-squareTableSegment: resw 2
+iters:
+  resb itersX*itersY
+  alignb 2
 aTable:
   resw itersX
 bTable:
@@ -897,6 +901,8 @@ colourTable:
   resb 35
 ;maskTable:
 ;  resw 4
+squareTableSegment:
+  resw 1
 stackStart:
   resb 128
 stackEnd:
