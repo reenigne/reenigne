@@ -1,6 +1,6 @@
 cpu 8086
-org 0x100
-;org 0
+;org 0x100
+org 0
 
 MULTIPLIER equ 0x600
 maxX equ 320
@@ -10,16 +10,15 @@ initialGrid equ (1 << initialShift)
 itersX equ ((maxX + initialGrid - 1)/initialGrid)*initialGrid + 1
 itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
 
-;  mov al,0x34
-;  out 0x43,al
-;  mov al,0
-;  out 0x40,al
-;  out 0x40,al
-;  xor ax,ax
-;  mov ds,ax
-;  mov word[0x20],interrupt8
-;  mov [0x22],cs
-
+  mov al,0x34
+  out 0x43,al
+  mov al,0
+  out 0x40,al
+  out 0x40,al
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8
+  mov [0x22],cs
 ;  mov ax,[0x6c]
 ;  mov [cs:timer],ax
 
@@ -34,6 +33,16 @@ itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
   mov al,0x0f ;0x30
   inc dx
   out dx,al
+  mov dl,0xd4
+  mov ax,0x6506
+  out dx,ax
+
+  mov ax,0xb800
+  mov es,ax
+  mov ax,0xffff
+  mov cx,0x2000
+  xor di,di
+  rep stosw
 
   ; Set up segments and stack
 
@@ -59,6 +68,9 @@ itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
 
   ; Create square table in ES
 
+  push ds
+  mov ax,cs
+  mov ds,ax
   mov cx,0x4000
   mov bx,MULTIPLIER/2
   xor bp,bp
@@ -78,11 +90,12 @@ noOverflow:
   mov dx,bp
   div si
   and ax,0xfffe
-  stosw
   neg di
   mov [es:di],ax
   neg di
+  stosw
   loop squareLoop
+  pop ds
 
   ; Initialize iters table
   mov ax,ds
@@ -160,12 +173,12 @@ itersXTableLoop:
   ; Compute the initial coarse grid
 
   xor si,si
-  mov cx,itersY >> initialShift
+  mov cx,(itersY >> initialShift) + 1
 coarseYLoop:
   push cx
 
   xor bx,bx
-  mov cx,itersX >> initialShift
+  mov cx,(itersX >> initialShift) + 1
 coarseXLoop:
   push cx
   call mandelIters
@@ -180,12 +193,12 @@ coarseXLoop:
   ; Recursively refine
 
   xor si,si
-  mov cx,(itersY - 1) >> initialShift
+  mov cx,itersY >> initialShift
 refineYLoop:
   push cx
 
   xor bx,bx
-  mov cx,(itersX - 1) >> initialShift
+  mov cx,itersX >> initialShift
 refineXLoop:
   push cx
   call subdivide5
@@ -205,8 +218,9 @@ refineXLoop:
 ;  mov ax,[0x6c]
 ;  sub ax,[cs:timer]
 
-;  mov ax,[cs:timer]
-;  int 0x63 ; outputHex
+  mov ax,[cs:timer]
+  int 0x63 ; outputHex
+  int 0x60 ;captureScreen
 
   mov ah,0
   int 0x16
@@ -215,13 +229,15 @@ refineXLoop:
   mov ax,0x4c00
   int 0x21
 
-;interrupt8:
-;  push ax
-;  mov al,0x20
-;  out 0x20,al
-;  inc word[cs:timer]
-;  pop ax
-;  iret
+timer: dw 0
+
+interrupt8:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  inc word[cs:timer]
+  pop ax
+  iret
 
 
 savedSP: dw 0
@@ -446,7 +462,7 @@ subdivide5:
   add di,[si+yTableUpper+64]
   %rep 15
     times 4 stosw
-    add di,dx
+   add di,dx
     times 4 stosw
     add di,bp
   %endrep
@@ -529,15 +545,15 @@ subdivide4:
   times 2 stosw
 
   mov di,cx
-  add di,[si+yTableUpper+32]
+  add di,[si+yTableUpper+30]
   %rep 7
     times 2 stosw
-    add di,dx
-    times 2 stosw
     add di,bp
+    times 2 stosw
+    add di,dx
   %endrep
   times 2 stosw
-  add di,dx
+  add di,bp
   times 2 stosw
   ret
 
@@ -567,7 +583,7 @@ doSubdivide3:
   add bx,4
   call subdivide2    ;  (4,0)
   cmp si,192
-  je .noLowerHalf
+  ja .noLowerHalf
   add si,16
   call mandelIters   ; (4,8)
   sub si,8
@@ -623,15 +639,15 @@ subdivide3:
   stosw
 
   mov di,cx
-  add di,[si+yTableUpper+16]
+  add di,[si+yTableUpper+14]
   %rep 3
     stosw
-    add di,dx
-    stosw
     add di,bp
+    stosw
+    add di,dx
   %endrep
   stosw
-  add di,dx
+  add di,bp
   stosw
 
   ret
@@ -664,19 +680,17 @@ doSubdivide2:
   inc bx
   call subdivide1R   ;  (2,0)
   cmp si,200
-  je .noLowerHalf
+  jae .noLowerHalf
   add si,8
   call mandelIters   ; (2,4)
-  dec si
-  dec si
+  sub si,4
   dec bx
   dec bx
   call subdivide1L   ;  (0,2)
   inc bx
   inc bx
   call subdivide1R   ;  (2,2)
-  dec si
-  dec si
+  sub si,4
 .noLowerHalf:
   dec bx
   dec bx
@@ -709,7 +723,8 @@ subdivide2:
 
   stosb
   cmp si,200
-  je .plotUpper
+  jae .plotUpper
+
   add di,dx
   stosb
   add di,bp
@@ -718,14 +733,15 @@ subdivide2:
   stosb
 
   mov di,cx
-  add di,[si+yTableUpper+8]
-  stosb
-  add di,dx
+  add di,[si+yTableUpper+6]
   stosb
   add di,bp
   stosb
   add di,dx
   stosb
+  add di,bp
+  stosb
+  ret
 
 .plotUpper:
   add di,-8000-1
@@ -734,7 +750,7 @@ subdivide2:
 
 
 doSubdivide1L:
-  lea bx,[di+1]
+  inc bx
   call mandelIters  ; (1,0)
   inc si
   inc si
@@ -754,25 +770,26 @@ doSubdivide1L:
 
 subdivide1L:
   mov di,bx
-  add bx,[si+itersXTable]
-  mov al,[bx]
-  cmp al,[bx+2]
+  add di,[si+itersXTable]
+  mov al,[di]
+  cmp al,[di+2]
   jne doSubdivide1L
-  cmp al,[bx+2*itersX]
+  cmp al,[di+2*itersX]
   jne doSubdivide1L
-  cmp al,[bx+2*(itersX+1)]
+  cmp al,[di+2*(itersX+1)]
   jne doSubdivide1L
 
   ; Don't fill square with colour here - we'll do it in subdivide1R
 
-  mov [bx+1],al
-  mov [bx+itersX],al
-  mov [bx+itersX+1],al
+  mov [di+1],al
+  mov ah,al
+  mov [di+itersX],ax
   ret
 
 
 doSubdivide1R:
   push bx
+  push di
   lea bx,[di+1]
   call mandelIters  ; (1,0)
   inc si
@@ -788,6 +805,7 @@ doSubdivide1R:
   inc si
   call mandelIters  ; (1,2)
   sub si,4
+  pop di
   pop bx
   jmp plot1R
 
@@ -803,8 +821,8 @@ subdivide1R:
   jne doSubdivide1R
 
   mov [bx+1],al
-  mov [bx+itersX],al
-  mov [bx+itersX+1],al
+  mov ah,al
+  mov [bx+itersX],ax
 
 plot1R:
   mov cx,di
@@ -862,6 +880,7 @@ plot1R:
   stosb
   mov di,dx
   add di,[ds:bp+yTableUpper+2]
+  stosb
 
   mov bx,cx
   mov si,bp
@@ -896,7 +915,6 @@ yTableUpper:
   resw 102
 itersXTable:
   resw itersY
-;timer: dw 0
 colourTable:
   resb 35
 ;maskTable:
