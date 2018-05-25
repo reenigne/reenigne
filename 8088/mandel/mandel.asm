@@ -1,6 +1,12 @@
 cpu 8086
-;org 0x100
+%ifdef XTSERVER
 org 0
+TIMING equ 1
+%else
+org 0x100
+TIMING equ 0
+%endif
+
 
 MULTIPLIER equ 0x600
 maxX equ 320
@@ -9,19 +15,6 @@ initialShift equ 5
 initialGrid equ (1 << initialShift)
 itersX equ ((maxX + initialGrid - 1)/initialGrid)*initialGrid + 1
 itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
-
-  mov al,0x34
-  out 0x43,al
-  mov al,0
-  out 0x40,al
-  out 0x40,al
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],interrupt8
-  mov [0x22],cs
-;  mov ax,[0x6c]
-;  mov [cs:timer],ax
-
 
   ; Set video mode
 
@@ -37,12 +30,19 @@ itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
   mov ax,0x6506
   out dx,ax
 
-  mov ax,0xb800
-  mov es,ax
-  mov ax,0xffff
-  mov cx,0x2000
-  xor di,di
-  rep stosw
+%if TIMING != 0
+  mov al,0x34
+  out 0x43,al
+  mov al,0
+  out 0x40,al
+  out 0x40,al
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8
+  mov [0x22],cs
+;  mov ax,[0x6c]
+;  mov [cs:timer],ax
+%endif
 
   ; Set up segments and stack
 
@@ -148,6 +148,9 @@ yTableLoopLower:
   add ax,dx
   loop yTableLoopLower
   stosw
+;  mov cx,itersY - maxY
+;  mov ax,0x2000+8000
+;  rep stosw
   stosw
   mov ax,50*80
   mov cx,50
@@ -158,6 +161,9 @@ yTableLoopUpper:
   sub ax,bx
   loop yTableLoopUpper
   stosw
+;  mov cx,itersY - maxY
+;  mov ax,0x2000+8000
+;  rep stosw
   stosw
 
   ; Create table of itersX multiples
@@ -218,9 +224,12 @@ refineXLoop:
 ;  mov ax,[0x6c]
 ;  sub ax,[cs:timer]
 
+%if TIMING != 0
   mov ax,[cs:timer]
   int 0x63 ; outputHex
-  int 0x60 ;captureScreen
+;  int 0x60 ;captureScreen
+  int 0x67 ; complete
+%endif
 
   mov ah,0
   int 0x16
@@ -229,6 +238,7 @@ refineXLoop:
   mov ax,0x4c00
   int 0x21
 
+%if TIMING != 0
 timer: dw 0
 
 interrupt8:
@@ -238,7 +248,7 @@ interrupt8:
   inc word[cs:timer]
   pop ax
   iret
-
+%endif
 
 savedSP: dw 0
 alreadyDone:
@@ -263,8 +273,47 @@ mandelIters:
   mov [cs:savedSP],sp
   mov sp,0x1c00
 
-  mov di,[bx]  ; x*x
+  cmp bx,-MULTIPLIER*3/4
+  jge .right
+  mov di,[bx+MULTIPLIER]
+  mov bp,[si]
+  add di,bp
+  cmp di,MULTIPLIER/16
+  jg .notLake
+  mov cl,33
+  jmp escaped
+.right:
+
+  cmp si,998  ; MULTIPLIER*sqrt(3)*3/8
+  jg .rightNotLake
+  mov di,[bx]
+  push bp
+  lea bp,[si+bp]       ; c2
+  push di
+  mov di,ax
+  add di,di
+  add di,di
+  add di,di
+  sub di,3*MULTIPLIER  ; d
+  mov ax,[bp+di]
+  neg di
+  sub ax,[bp+di]       ; e
+  mov bp,es
+  add bp,bp
+  add bp,bp
+  add ax,bp
+  pop di
+  pop bp
+  cmp ax,3*MULTIPLIER/8
+  jg .notLake3
+  mov cl,34
+  jmp escaped
+
+.rightNotLake:
   mov bp,[si]  ; y*y
+.notLake:
+  mov di,[bx]  ; x*x
+.notLake3:
   lea ax,[di+bp] ; x*x+y*y
   cmp ax,sp
   jae escaped5
@@ -491,9 +540,15 @@ doSubdivide4:
   add si,32
   call mandelIters   ; (8,16)
   sub si,16
-  call subdivide3    ;  (8,8)
-  sub bx,8
-  call subdivide3    ;  (0,8)
+
+   sub bx,8
+   call subdivide3
+   add bx,8
+   call subdivide3
+   sub bx,8
+;  call subdivide3    ;  (8,8)
+;  sub bx,8
+;  call subdivide3    ;  (0,8)
   sub si,16
   ret
 .noLowerHalf:
@@ -606,6 +661,12 @@ subdivide3:
   jne doSubdivide3
   cmp al,[bx+8*(itersX+1)]
   jne doSubdivide3
+  mov ah,[bx+4*itersX]
+  cmp ah,0xff
+  je .doFill
+  cmp ah,al
+  jne doSubdivide3
+.doFill:
 
   ; Fill square with colour
 
@@ -895,7 +956,7 @@ colourTableInit:
 ;  db 0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xaa,0xbb,0xcc,0xdd,0xee,0xff,0x11,0x22
   db 0x00, 0xff, 0xff, 0xff, 0xff, 0xee, 0xee, 0xee, 0xee, 0xaa, 0xaa
   db 0xaa, 0xbb, 0xbb, 0xbb, 0x99, 0x99, 0x99, 0x88, 0x88, 0x11, 0x11
-  db 0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 0xff
+  db 0x33, 0x33, 0x22, 0x22, 0x66, 0x77, 0x55, 0x44, 0xcc, 0xdd, 0xff, 0x00, 0x00
 ;maskTableInit:
 ;  dw 0xc03f,0x30cf,0x0cf3,0x03fc
 codeEndInit:
@@ -910,9 +971,9 @@ aTable:
 bTable:
   resw itersY
 yTableLower:
-  resw 102
+  resw 102 ;itersY
 yTableUpper:
-  resw 102
+  resw 102 ;itersY
 itersXTable:
   resw itersY
 colourTable:
