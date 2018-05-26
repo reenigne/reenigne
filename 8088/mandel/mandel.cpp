@@ -252,10 +252,10 @@ private:
         else {
             if (b <= static_cast<int>(_frac*sqrt(3)*3/8)) {
                 int aa = _squares[(a >> 1) & 0x7fff];
-                int c2 = aa + bb;
-                int d = 8*c2 - 3*_frac;
-                int e = _squares[((c2 + d) >> 1) & 0x7fff] - _squares[((c2 - d) >> 1) & 0x7fff];
-                if (e + 4*a <= 3*_frac/8) {
+                SInt16 c2 = aa + bb;
+                SInt16 d = (8*c2 - 3*_frac) & 0xffff;
+                SInt16 e = _squares[((c2 + d) >> 1) & 0x7fff] - _squares[((c2 - d) >> 1) & 0x7fff];
+                if ((SInt16)(e + 4*a) <= 3*_frac/8) {
                     plot(xp, yp, 34);
                     return;
                 }

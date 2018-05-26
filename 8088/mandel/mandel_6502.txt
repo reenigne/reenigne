@@ -1,0 +1,90 @@
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,sp
+  jae escaped
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+
+; iterations in zero page as well
+; Keep y as 1
+
+loopTop:
+  clc                                                                          1 2
+zr:
+  lda $9999        ; a = low(zr^2)                                             3 4
+  tax              ; x = low(zr^2)                                             1 2
+zi:
+  adc $9999        ; a = low(zr^2) + low(zi^2) = low(zr^2 + zi^2)              3 4
+  sta zr_zi_2_0+1  ; Self-modify                                               2 3
+  lda (zr+1),y     ; a = high(zr^2)                                            2 5
+  adc (zi+1),y     ; a = high(zr^2) + high(zi^2) + cf = high(zr^2 + zi^2)      2 5
+  cmp #$07         ; test bailout                                              2 2
+  bcs escaped      ;                                                           2 2
+  sta zr_zi_2_1+1  ; Self-modify                                               2 3
+
+  clc              ;                                                           1 2
+  lda zr+1         ; a = low(zr)                                               2 3
+  adc zi+1         ; a = low(zr) + low(zi) = low(zr+zi)                        2 3
+  sta zr_zi+1      ;                                                           2 3
+  lda zr+2         ; a = high(zr)                                              2 3
+  adc zi+2         ; a = high(zr) + high(zi) + cf = high(zr+zi)                2 3
+  and #$3f                                                                     2 2
+  ora #$80         ; Fix up high byte of table address                         2 2
+  sta zr_zi+2      ;                                                           2 3
+
+  sec              ;                                                           1 2
+  txa              ; a = low(zr^2)                                             1 2
+  sbc (zi+1)       ; a = low(zr^2) - low(zi^2) = low(zr^2 - zi^2)              2 5
+  tax              ; Store while we calculate high part                        1 2
+  lda (zr+1),y     ; a = high(zr^2)                                            2 5
+  sbc (zi+1),y     ; a = high(zr^2) - high(zi^2) = high(zr^2 - zi^2)           2 5
+  sta t1+1         ; Store while we add cr to low part (self-modify)           2 3
+
+  clc              ;                                                           1 2
+  txa              ; low(zr^2 - zi^2)                                          1 2
+cr_0:
+  adc #$99         ; a = low(zr^2 - zi^2) + low(cr) = low(zr^2 - zi^2 + cr)    2 2
+  sta zr+1         ; new low(zr)                                               2 3
+t1:
+  lda #$99         ; a = high(zr^2 - zi^2)                                     2 2
+cr_1:
+  adc #$99         ; a = high(zr^2 - zi^2) + high(cr) = high(zr^2 - zi^2 + cr) 2 2
+  and #$3f                                                                     2 2
+  ora #$80         ; Fix up high byte of table address                         2 2
+  sta zr+2         ; new high(zr)                                              2 3
+
+  sec              ;                                                           1 2
+zr_zi:
+  lda $9999        ; a = low((zr+zi)^2)                                        3 4
+zr_zi_2_0:
+  sbc #$99         ; a = low((zr+zi)^2) - low(zr^2 + zi^2) = low(2*zr*zi)      2 2
+  tax              ; Store while we calculate high part                        1 2
+  lda (zr_zi+1),y  ; a = high((zr+zi)^2)                                       2 5
+zr_zi_2_1:
+  sbc #$99         ; a = high((zr+zi)^2) - high(zr^2 + zi^2) = high(2*zr*zi)   2 2
+  sta t2+1         ; Store while we add cr to low part (self-modify)           2 3
+
+  clc              ;                                                           1 2
+  txa              ; a = low(2*zr*zi)                                          1 2
+ci_0:
+  adc #$99         ; a = low(2*zr*zi) + low(ci) = low(2*zr*zi + ci)            2 2
+  sta zi+1         ; new low(zi)                                               2 3
+t2:
+  lda #$99         ; a = high(2*zr*zi)                                         2 2
+ci_1:
+  adc #$99         ; a = high(2*zr*zi) + high(ci) = high(2*zr*zi + ci)         2 2
+  and #$3f                                                                     2 2
+  ora #$80         ; Fix up high byte of table address                         2 2
+  sta zi+2         ; new high(zi)                                              2 3
+
+  dec iterations   ;                                                           2 5
+  bpl loopTop      ;                                                           2 3
+
+                   ; 97 bytes, 148 cycles

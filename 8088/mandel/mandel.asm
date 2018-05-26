@@ -72,7 +72,7 @@ itersY equ ((maxY + initialGrid - 1)/initialGrid)*initialGrid + 1
   mov ax,cs
   mov ds,ax
   mov cx,0x4000
-  mov bx,MULTIPLIER/2
+  mov bx,MULTIPLIER/8
   xor bp,bp
   xor di,di
   mov si,MULTIPLIER/4
@@ -273,47 +273,41 @@ mandelIters:
   mov [cs:savedSP],sp
   mov sp,0x1c00
 
-  cmp bx,-MULTIPLIER*3/4
-  jge .right
-  mov di,[bx+MULTIPLIER]
-  mov bp,[si]
-  add di,bp
-  cmp di,MULTIPLIER/16
-  jg .notLake
-  mov cl,33
-  jmp escaped
-.right:
-
-  cmp si,998  ; MULTIPLIER*sqrt(3)*3/8
-  jg .rightNotLake
-  mov di,[bx]
-  push bp
-  lea bp,[si+bp]       ; c2
-  push di
-  mov di,ax
-  add di,di
-  add di,di
-  add di,di
-  sub di,3*MULTIPLIER  ; d
-  mov ax,[bp+di]
-  neg di
-  sub ax,[bp+di]       ; e
-  mov bp,es
-  add bp,bp
-  add bp,bp
-  add ax,bp
-  pop di
-  pop bp
-  cmp ax,3*MULTIPLIER/8
-  jg .notLake3
-  mov cl,34
-  jmp escaped
+;  mov bp,[si]             ; y^2
+;  cmp bx,-MULTIPLIER*3/4
+;  jge .right
+;  mov di,[bx+MULTIPLIER]  ; (x+1)^2
+;  add di,bp               ; (x+1)^2 + y^2
+;  cmp di,MULTIPLIER/16    ; (x+1)^2 + y^2 > MULTIPLIER/16
+;  jg .notLake
+;  mov cl,33
+;  jmp escaped
+;.right:
+;
+;  cmp si,998  ; MULTIPLIER*sqrt(3)*3/8
+;  jg .rightNotLake
+;  add bp,[bx]             ; c2 = x^2 + y^2
+;  mov di,bp               ; c2
+;  add di,di               ; 2*c2
+;  add di,di               ; 4*c2
+;  add di,di               ; 8*c2
+;  sub di,3*MULTIPLIER     ; d = 8*c2 - 3*MULTIPLIER
+;  mov ax,[ds:bp+di]          ; (c2 + d)^2
+;  neg di
+;  sub ax,[ds:bp+di]          ; e = (c2 + d)^2 - (c2 - d)^2 = 4*c2*d
+;  mov bp,es               ; a
+;  add bp,bp
+;  add bp,bp               ; 4*a
+;  add ax,bp               ; e + 4*a
+;  cmp ax,3*MULTIPLIER/8   ; e + 4*a > 3*MULTIPLIER/8
+;  jg .rightNotLake
+;  mov cl,34
+;  jmp escaped
 
 .rightNotLake:
   mov bp,[si]  ; y*y
 .notLake:
   mov di,[bx]  ; x*x
-.notLake3:
   lea ax,[di+bp] ; x*x+y*y
   cmp ax,sp
   jae escaped5
@@ -546,9 +540,11 @@ doSubdivide4:
    add bx,8
    call subdivide3
    sub bx,8
+
 ;  call subdivide3    ;  (8,8)
 ;  sub bx,8
 ;  call subdivide3    ;  (0,8)
+
   sub si,16
   ret
 .noLowerHalf:
