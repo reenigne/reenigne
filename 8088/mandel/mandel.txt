@@ -212,11 +212,20 @@ y = sqrt(3)*3/8
 
 
 
+d.p. square:
 
 (x0 + 10*x1)^2 == x0^2 + 100*x1^2 + 2*10*x0*x1 = x0^2 + 100*x1^2 + 10*((x0+x1)^2 - (x0-x1)^2)/2
-(y0 + 10*y1)^2 == y0^2 + 100*y1^2 + 2*10*x0*y1 = y0^2 + 100*y1^2 + 10*((y0+y1)^2 - (y0-y1)^2)/2
-(x0 + 10*x1)*(y0 + 10*y1) = x0*y0 + 10*(x1*y0 + x0*y1) + 100*x1*y1 = ((x0+y0)^2 - (x0-y0)^2)/4
 
+
+(y0 + 10*y1)^2 == y0^2 + 100*y1^2 + 2*10*x0*y1 = y0^2 + 100*y1^2 + 10*((y0+y1)^2 - (y0-y1)^2)/2
+(x0 + 10*x1)*(y0 + 10*y1) = x0*y0 + 10*(x1*y0 + x0*y1) + 100*x1*y1
+x1*y0 + x0*y1 = ((x1 + y0)^2 - (x1 - y0)^2 + (x0 + y1)^2 - (x0 - y1)^2)/4
+x1*y0 + x0*y1 = (x0 + x1)*(y0 + y1) - x0*y0 - x1*y1 = ((x0 + x1 + y0 + y1)^2 - (x0 + x1 - y0 - y1)^2 - (x0 + y0)^2 + (x0 - y0)^2 - (x1 + y1)^2 + (x1 - y1)^2)/4
+
+1 dp square = 4 sp squares
+1 dp Mandel using 3 dp squares = 12 sp squares
+1 naive dp multiplication = 4 sp multiplications = 8 sp squares
+1 Karatsuba dp multiplication = 3 sp multiplications = 6 sp squares
 
 Plotted blocks:
 1026  2x2  4104

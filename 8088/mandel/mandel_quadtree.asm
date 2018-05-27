@@ -5,7 +5,7 @@ allocate:
   mov [freeList],ax
   ret
 
-; Deallocate block bx
+; Deallocate leaf block bx
 deallocate:
   mov ax,[freeList]
   mov [bx],ax
@@ -31,11 +31,43 @@ split:
   stosw
   ret
 
-; Unsplits split block bx
-unsplit:
+; Unsplits split leaf block bx
+unsplitLeaf:
   mov si,bx
+  lodsw
+  xchg ax,bx
+  call deallocate
+  lodsw
+  xchg ax,bx
+  call deallocate
+  lodsw
+  xchg ax,bx
+  call deallocate
+  lodsw
+  xchg ax,bx
+  call deallocate
+  ret
 
-
+; Recursively unsplits block bx
+unsplit:
+  push si
+  mov si,bx
+  lodsw
+  test al,1
+  jz .noUnsplit
+  xchg ax,bx
+  call unsplit
+  lodsw
+  xchg ax,bx
+  call unsplit
+  lodsw
+  xchg ax,bx
+  call unsplit
+  lodsw
+  xchg ax,bx
+  call unsplit
+  pop si
+  ret
 
 freeList: dw 0
 
