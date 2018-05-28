@@ -69,5 +69,22 @@ unsplit:
   pop si
   ret
 
+; Initializes freelist with all blocks in DS
+initialize:
+  mov word[freeList],0
+  mov ax,ds
+  mov es,ax
+  xor di,di
+  mov si,6
+  xor ax,8
+  mov dx,ax
+  mov cx,0x2000
+.loop:
+  stosw
+  add di,si
+  add ax,dx
+  loop .loop
+  ret
+
 freeList: dw 0
 
