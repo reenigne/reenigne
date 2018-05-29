@@ -74,11 +74,11 @@ initialize:
   mov word[freeList],0
   mov ax,ds
   mov es,ax
-  xor di,di
+  mov di,(listSpace + 7) & -8
   mov si,6
   xor ax,8
   mov dx,ax
-  mov cx,0x2000
+  mov cx,(0x10000 - ((listSpace + 7) & -8)) >> 3
 .loop:
   stosw
   add di,si
@@ -87,4 +87,4 @@ initialize:
   ret
 
 freeList: dw 0
-
+listSpace:
