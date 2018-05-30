@@ -5,6 +5,11 @@
 class Block
 {
 public:
+    Block()
+    {
+        for (int q = 0; q < 4; ++q)
+            setIterations(q, -1);
+    }
     ~Block()
     {
         for (int q = 0; q < 4; ++q)
@@ -13,13 +18,24 @@ public:
     }
     bool isQuad(int q)
     {
-        return (reinterpret_cast<uintptr_t>(_children[i]) & 1) != 0;
+        return (reinterpret_cast<uintptr_t>(_children[q]) & 1) != 0;
     }
     int iterations(int q)
     {
-        return reinterpret_cast<uintptr_t>(_children[i]) >> 1;
+        return reinterpret_cast<uintptr_t>(_children[q]) >> 1;
     }
-    
+    void setIterations(int q, int iters)
+    {
+        *reinterpret_cast<uintptr_t*>(_children + q) = (iters << 1) + 1;
+    }
+    Block* getChild(int q) { return _children[q]; }
+    void split(int q)
+    {
+        int iters = iterations(q);
+        Block* b = new Block();
+        _children[q] = b;
+        b->setIterations(0, iters);
+    }
 private:
     Block* _children[4];
 };
