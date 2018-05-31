@@ -146,6 +146,10 @@ public:
         for (int i = 0; i < 5; ++i)
             _blockCounts[i] = 0;
 
+        _blocks.allocate((_itersX/initialGrid)*(_itersY/initialGrid));
+
+
+
         // Coarse grid initially
         for (int yp = 0; yp < _itersY; yp += initialGrid)
             for (int xp = 0; xp < _itersX; xp += initialGrid)                                   
@@ -338,6 +342,7 @@ private:
     int _frame;
     int _totalIters;
     int _iteratedPixels;
+    Array<Block> _blocks;
 };
 
 class Program : public WindowProgram<MandelWindow>
