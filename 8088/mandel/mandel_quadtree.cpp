@@ -146,8 +146,16 @@ public:
         for (int i = 0; i < 5; ++i)
             _blockCounts[i] = 0;
 
-        _blocks.allocate((_itersX/initialGrid)*(_itersY/initialGrid));
-
+        int blocksX = _itersX >> (initialShift + 1);
+        int blocksY = _itersY >> (initialShift + 1);
+        _blocks.allocate(blocksX * blocksY);
+        for (int yp = 0; yp < blocksY; ++yp) {
+            for (int xp = 0; xp < blocksX; ++xp) {
+                for (int q = 0; q < 4; ++q) {
+                    _blocks[yp*blocksX + xp].setIterations(q, )
+                }
+            }
+        }
 
 
         // Coarse grid initially
@@ -275,21 +283,16 @@ private:
     {
         return ((yp * _frac)*9/4/200) & -2;
     }
-    void mandelIters(int xp, int yp)
+    int getMandelIters(int xp, int yp)
     {
-        if (iters(xp, yp) != 0xff)
-            return;
-        ++_iteratedPixels;
         int a = aFromXp(xp);
         int b = bFromYp(yp);
 
         int bb = _squares[(b >> 1) & 0x7fff];
         if (a < -_frac*3/4) {
             int a1a1 = _squares[((a + _frac) >> 1) & 0x7fff];
-            if (a1a1 + bb <= _frac/16) {
-                plot(xp, yp, 33);
-                return;
-            }
+            if (a1a1 + bb <= _frac/16)
+                return 33;
         }
         else {
             if (b <= static_cast<int>(_frac*sqrt(3)*3/8)) {
@@ -297,10 +300,8 @@ private:
                 SInt16 c2 = aa + bb;
                 SInt16 d = (8*c2 - 3*_frac) & 0xffff;
                 SInt16 e = _squares[((c2 + d) >> 1) & 0x7fff] - _squares[((c2 - d) >> 1) & 0x7fff];
-                if ((SInt16)(e + 4*a) <= 3*_frac/8) {
-                    plot(xp, yp, 34);
-                    return;
-                }
+                if ((SInt16)(e + 4*a) <= 3*_frac/8)
+                    return 34;
             }
         }
 
@@ -318,7 +319,14 @@ private:
             x = a + xx - yy;
             ++_totalIters;
         }
-        plot(xp, yp, i);
+        return u;
+    }
+    void mandelIters(int xp, int yp)
+    {
+        if (iters(xp, yp) != 0xff)
+            return;
+        ++_iteratedPixels;
+        plot(xp, yp, getMandelIters(xp, yp));
     }
     int _blockCounts[5];
     int _maxX;
