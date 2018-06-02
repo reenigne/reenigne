@@ -40,6 +40,9 @@ private:
     Block* _children[4];
 };
 
+static const int xForQuad[] = {0, 1, 1, 0};
+static const int yForQuad[] = {0, 0, 1, 1};
+
 class MandelWindow : public RootWindow
 {
 public:
@@ -152,7 +155,7 @@ public:
         for (int yp = 0; yp < blocksY; ++yp) {
             for (int xp = 0; xp < blocksX; ++xp) {
                 for (int q = 0; q < 4; ++q) {
-                    _blocks[yp*blocksX + xp].setIterations(q, )
+                    _blocks[yp*blocksX + xp].setIterations(q, getMandelIters(((xp << 1) + xForQuad[q]) << initialShift, ((yp << 1) + yForQuad[q]) << initialShift));
                 }
             }
         }
