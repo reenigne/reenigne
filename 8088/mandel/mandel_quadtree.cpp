@@ -152,13 +152,23 @@ public:
         int blocksX = _itersX >> (initialShift + 1);
         int blocksY = _itersY >> (initialShift + 1);
         _blocks.allocate(blocksX * blocksY);
+        // Initial coarse grid
         for (int yp = 0; yp < blocksY; ++yp) {
             for (int xp = 0; xp < blocksX; ++xp) {
                 for (int q = 0; q < 4; ++q) {
-                    _blocks[yp*blocksX + xp].setIterations(q, getMandelIters(((xp << 1) + xForQuad[q]) << initialShift, ((yp << 1) + yForQuad[q]) << initialShift));
+                    _blocks[yp*blocksX + xp].setIterations(q,
+                        getMandelIters(((xp << 1) + xForQuad[q]) << initialShift,
+                        ((yp << 1) + yForQuad[q]) << initialShift));
                 }
             }
         }
+        // Progressively refine
+        for (int yp = 0; yp < blocksY; ++yp) {
+            for (int xp = 0; xp < blocksX; ++xp) {
+                refine(xp, yp, &_blocks[yp*blocksX + xp]);
+            }
+        }
+
 
 
         // Coarse grid initially
@@ -209,6 +219,12 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
+    void refine(int xp, int yp, Block* block)
+    {
+
+    }
+
+
     int iters(int x, int y) { return _iters[y*_itersX + x]; }
     // aub
     // vwp
