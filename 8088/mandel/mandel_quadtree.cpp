@@ -133,8 +133,8 @@ public:
         _mode = 1;
         static int modeIncrements[] = {1, 2, 4};
 
-        int initialShift = 5;
-        int initialGrid = 1 << initialShift;
+        _initialShift = 5;
+        int initialGrid = 1 << _initialShift;
         _maxX = 320;
         _maxY = 101;
         _itersX = ((_maxX + initialGrid - 1)/initialGrid)*initialGrid + 1;
@@ -149,8 +149,8 @@ public:
         for (int i = 0; i < 5; ++i)
             _blockCounts[i] = 0;
 
-        int blocksX = _itersX >> (initialShift + 1);
-        int blocksY = _itersY >> (initialShift + 1);
+        int blocksX = _itersX >> (_initialShift + 1);
+        int blocksY = _itersY >> (_initialShift + 1);
         _blocks.allocate(blocksX * blocksY);
         // Initial coarse grid
         for (int yp = 0; yp < blocksY; ++yp) {
@@ -219,6 +219,12 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
+    int iters(int x, int y)
+    {
+        int s = _initialShift + 1;
+        Block* block = &_blocks[(y >> s)*blocksX + (x >> s)];
+
+    }
     void refine(int xp, int yp, Block* block)
     {
 
@@ -370,6 +376,7 @@ private:
     int _totalIters;
     int _iteratedPixels;
     Array<Block> _blocks;
+    int _initialShift;
 };
 
 class Program : public WindowProgram<MandelWindow>
