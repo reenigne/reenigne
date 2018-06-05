@@ -2,6 +2,10 @@
 #include "alfe/cga.h"
 #include "alfe/config_file.h"
 
+// Quadrants:
+//   01
+//   32
+
 class Block
 {
 public:
@@ -35,6 +39,29 @@ public:
         Block* b = new Block();
         _children[q] = b;
         b->setIterations(0, iters);
+    }
+    int pointIters(int x, int y, int size)
+    {
+        int q;
+        int h = 1 << (size - 1);
+        if (y < h) {
+            if (x < h)
+                q = 0;
+            else
+                q = 1;
+        }
+        else {
+            if (x < h)
+                q = 3;
+            else
+                q = 2;
+        }
+        int m = h - 1;
+        if (isQuad(q))
+            return pointIters(x & m, y & m, size - 1);
+        if ((x & m) == 0 && (y & m) == 0)
+            return iterations(q);
+        return -1;
     }
 private:
     Block* _children[4];
@@ -149,23 +176,23 @@ public:
         for (int i = 0; i < 5; ++i)
             _blockCounts[i] = 0;
 
-        int blocksX = _itersX >> (_initialShift + 1);
+        _blocksX = _itersX >> (_initialShift + 1);
         int blocksY = _itersY >> (_initialShift + 1);
-        _blocks.allocate(blocksX * blocksY);
+        _blocks.allocate(_blocksX * blocksY);
         // Initial coarse grid
         for (int yp = 0; yp < blocksY; ++yp) {
-            for (int xp = 0; xp < blocksX; ++xp) {
+            for (int xp = 0; xp < _blocksX; ++xp) {
                 for (int q = 0; q < 4; ++q) {
-                    _blocks[yp*blocksX + xp].setIterations(q,
-                        getMandelIters(((xp << 1) + xForQuad[q]) << initialShift,
-                        ((yp << 1) + yForQuad[q]) << initialShift));
+                    _blocks[yp*_blocksX + xp].setIterations(q,
+                        getMandelIters(((xp << 1) + xForQuad[q]) << _initialShift,
+                        ((yp << 1) + yForQuad[q]) << _initialShift));
                 }
             }
         }
         // Progressively refine
         for (int yp = 0; yp < blocksY; ++yp) {
-            for (int xp = 0; xp < blocksX; ++xp) {
-                refine(xp, yp, &_blocks[yp*blocksX + xp]);
+            for (int xp = 0; xp < _blocksX; ++xp) {
+                refine(xp, yp, &_blocks[yp*_blocksX + xp]);
             }
         }
 
@@ -178,7 +205,7 @@ public:
         // Progressively refine
         for (int yp = 0; yp < _itersY - 1; yp += initialGrid)
             for (int xp = 0; xp < _itersX - 1; xp += initialGrid)
-                subdivide(xp, yp, initialShift);
+                subdivide(xp, yp, _initialShift);
 
         ////Check that image is the same as the one we get with no guessing
         //Array<Byte> vram2(0x4000);
@@ -222,8 +249,8 @@ private:
     int iters(int x, int y)
     {
         int s = _initialShift + 1;
-        Block* block = &_blocks[(y >> s)*blocksX + (x >> s)];
-
+        int m = (1 << s) - 1;
+        return _blocks[(y >> s)*_blocksX + (x >> s)].pointIters(x & m, y & m);
     }
     void refine(int xp, int yp, Block* block)
     {
@@ -377,6 +404,7 @@ private:
     int _iteratedPixels;
     Array<Block> _blocks;
     int _initialShift;
+    int _blocksX;
 };
 
 class Program : public WindowProgram<MandelWindow>
