@@ -42,28 +42,38 @@ public:
     }
     int pointIters(int x, int y, int size)
     {
-        int q;
-        int h = 1 << (size - 1);
-        if (y < h) {
-            if (x < h)
-                q = 0;
-            else
-                q = 1;
-        }
-        else {
-            if (x < h)
-                q = 3;
-            else
-                q = 2;
-        }
-        int m = h - 1;
+        int q = quadForPoint(x, y, size);
+        int m = (1 << (size - 1)) - 1;
+        x &= m;
+        y &= m;
         if (isQuad(q))
-            return pointIters(x & m, y & m, size - 1);
-        if ((x & m) == 0 && (y & m) == 0)
+            return _children[q]->pointIters(x, y, size - 1);
+        if (x == 0 && y == 0)
             return iterations(q);
         return -1;
     }
+    int level(int x, int y, int size)
+    {
+        int q = quadForPoint(x, y, size);
+        int m = (1 << (size - 1)) - 1;
+        if (isQuad(q))
+            return 1 + _children[q]->level(x & m, y & m, size - 1);
+        return 0;
+    }
 private:
+    int quadForPoint(int x, int y, int size)
+    {
+        int h = 1 << (size - 1);
+        if (y < h) {
+            if (x < h)
+                return 0;
+            return 1;
+        }
+        if (x < h)
+            return 3;
+        return 2;
+    }
+
     Block* _children[4];
 };
 
@@ -250,7 +260,7 @@ private:
     {
         int s = _initialShift + 1;
         int m = (1 << s) - 1;
-        return _blocks[(y >> s)*_blocksX + (x >> s)].pointIters(x & m, y & m);
+        return _blocks[(y >> s)*_blocksX + (x >> s)].pointIters(x & m, y & m, 6);
     }
     void refine(int xp, int yp, Block* block)
     {
