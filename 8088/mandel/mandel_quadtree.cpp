@@ -201,9 +201,8 @@ public:
         }
         // Progressively refine
         for (int yp = 0; yp < blocksY; ++yp) {
-            for (int xp = 0; xp < _blocksX; ++xp) {
-                refine(xp, yp, &_blocks[yp*_blocksX + xp]);
-            }
+            for (int xp = 0; xp < _blocksX; ++xp)
+                refine(xp, yp, 6);
         }
 
 
@@ -258,13 +257,17 @@ public:
 private:
     int iters(int x, int y)
     {
-        int s = _initialShift + 1;
-        int m = (1 << s) - 1;
-        return _blocks[(y >> s)*_blocksX + (x >> s)].pointIters(x & m, y & m, 6);
+        blockForPoint(x, y)->pointIters(x & m, y & m, 6);
     }
-    void refine(int xp, int yp, Block* block)
+    void refine(int xp, int yp, int size)
     {
 
+    }
+    Block* blockForPoint(int x, int y)
+    {
+        int s = _initialShift + 1;
+        int m = (1 << s) - 1;
+        return &_blocks[(y >> s)*_blocksX + (x >> s)];
     }
 
 
@@ -381,7 +384,7 @@ private:
             x = a + xx - yy;
             ++_totalIters;
         }
-        return u;
+        return i;
     }
     void mandelIters(int xp, int yp)
     {
