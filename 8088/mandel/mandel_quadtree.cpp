@@ -52,6 +52,19 @@ public:
             return iterations(q);
         return -1;
     }
+    // Must be already split enough
+    void setPointIters(int x, int y, int size, int i)
+    {
+        int q = quadForPoint(x, y, size);
+        int m = (1 << (size - 1)) - 1;
+        x &= m;
+        y &= m;
+        if (isQuad(q)) {
+            _children[q]->setPointIters(x, y, size - 1, i);
+            return;
+        }
+        setIterations(q, i);
+    }
     int level(int x, int y, int size)
     {
         int q = quadForPoint(x, y, size);
@@ -200,9 +213,9 @@ public:
             }
         }
         // Progressively refine
-        for (int yp = 0; yp < blocksY; ++yp) {
-            for (int xp = 0; xp < _blocksX; ++xp)
-                refine(xp, yp, 6);
+        for (int yp = 0; yp < _itersY; yp += initialGrid) {
+            for (int xp = 0; xp < _itersX; xp += initialGrid)
+                refine(xp, yp, _initialShift);
         }
 
 
@@ -255,19 +268,52 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
-    int iters(int x, int y)
-    {
-        blockForPoint(x, y)->pointIters(x & m, y & m, 6);
-    }
-    void refine(int xp, int yp, int size)
-    {
-
-    }
     Block* blockForPoint(int x, int y)
     {
         int s = _initialShift + 1;
-        int m = (1 << s) - 1;
         return &_blocks[(y >> s)*_blocksX + (x >> s)];
+    }
+    int iters(int x, int y)
+    {
+        int s = _initialShift + 1;
+        int m = (1 << s) - 1;
+        blockForPoint(x, y)->pointIters(x & m, y & m, 6);
+    }
+    void setIters(int x, int y, int i)
+    {
+        int s = _initialShift + 1;
+        int m = (1 << s) - 1;
+        blockForPoint(x, y)->setPointIters(x & m, y & m, 6);
+    }
+    void refine(int xp, int yp, int size)
+    {
+        int z = 1 << (size - 1);
+        int a = iters(xp, yp);
+        int b = iters(xp + z, yp);
+        int c = iters(xp, yp + z);
+        int d = iters(xp + z, yp + z);
+        if (a == b && a == c && a == d)
+            return;
+        int h = z >> 1;
+
+
+        mandelIters(xp + h, yp);
+        if (s > 1 || yp < 100) {
+            mandelIters(xp, yp + h);
+            mandelIters(xp + h, yp + h);
+            mandelIters(xp + z, yp + h);
+        }
+
+        if (s > 1) {
+            subdivide(xp, yp, s - 1);
+            subdivide(xp + h, yp, s - 1);
+            if (yp + h <= 100) {
+                mandelIters(xp + h, yp + z);
+                subdivide(xp + h, yp + h, s - 1);
+                subdivide(xp, yp + h, s - 1);
+            }
+        }
+
     }
 
 
