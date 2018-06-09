@@ -6,21 +6,21 @@
 //   01
 //   32
 
-class Block
+class Node
 {
 public:
-    Block()
+    Node()
     {
         for (int q = 0; q < 4; ++q)
             setIterations(q, -1);
     }
-    ~Block()
+    ~Node()
     {
         for (int q = 0; q < 4; ++q)
-            if (isQuad(q))
+            if (isNode(q))
                 delete _children[q];
     }
-    bool isQuad(int q)
+    bool isNode(int q)
     {
         return (reinterpret_cast<uintptr_t>(_children[q]) & 1) != 0;
     }
@@ -32,11 +32,11 @@ public:
     {
         *reinterpret_cast<uintptr_t*>(_children + q) = (iters << 1) + 1;
     }
-    Block* getChild(int q) { return _children[q]; }
+    Node* getChild(int q) { return _children[q]; }
     void split(int q)
     {
         int iters = iterations(q);
-        Block* b = new Block();
+        Node* b = new Node();
         _children[q] = b;
         b->setIterations(0, iters);
     }
@@ -46,7 +46,7 @@ public:
         int m = (1 << (size - 1)) - 1;
         x &= m;
         y &= m;
-        if (isQuad(q))
+        if (isNode(q))
             return _children[q]->pointIters(x, y, size - 1);
         if (x == 0 && y == 0)
             return iterations(q);
@@ -59,7 +59,7 @@ public:
         int m = (1 << (size - 1)) - 1;
         x &= m;
         y &= m;
-        if (isQuad(q)) {
+        if (isNode(q)) {
             _children[q]->setPointIters(x, y, size - 1, i);
             return;
         }
@@ -69,7 +69,7 @@ public:
     {
         int q = quadForPoint(x, y, size);
         int m = (1 << (size - 1)) - 1;
-        if (isQuad(q))
+        if (isNode(q))
             return 1 + _children[q]->level(x & m, y & m, size - 1);
         return 0;
     }
@@ -87,8 +87,24 @@ private:
         return 2;
     }
 
-    Block* _children[4];
+    Node* _children[4];
 };
+
+class Block
+{
+public:
+    bool isNode() { return (p() & 1) != 0; }
+    int iterations(int q) { return p() >> 1; }
+    void setIterations(int iters)
+    {
+        *reinterpret_cast<uintptr_t*>(_p) = (iters << 1) + 1;
+    }
+private:
+    uintptr_t p() { return reinterpret_cast<uintptr_t>(*_p); }
+
+    Node** _p;
+};
+
 
 static const int xForQuad[] = {0, 1, 1, 0};
 static const int yForQuad[] = {0, 0, 1, 1};
@@ -268,7 +284,7 @@ public:
     CGAData* getData() { return &_data; }
     CGASequencer* getSequencer() { return &_sequencer; }
 private:
-    Block* blockForPoint(int x, int y)
+    Node* blockForPoint(int x, int y)
     {
         int s = _initialShift + 1;
         return &_blocks[(y >> s)*_blocksX + (x >> s)];
@@ -461,7 +477,7 @@ private:
     int _frame;
     int _totalIters;
     int _iteratedPixels;
-    Array<Block> _blocks;
+    Array<Node> _blocks;
     int _initialShift;
     int _blocksX;
 };
