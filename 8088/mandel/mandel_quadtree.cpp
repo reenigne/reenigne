@@ -94,10 +94,17 @@ class Block
 {
 public:
     bool isNode() { return (p() & 1) != 0; }
-    int iterations(int q) { return p() >> 1; }
+    int iterations() { return p() >> 1; }
     void setIterations(int iters)
     {
         *reinterpret_cast<uintptr_t*>(_p) = (iters << 1) + 1;
+    }
+    void split()
+    {
+        int iters = iterstions();
+        Node* n = new Node();
+        *_p = n;
+        n->setIterations(0, iters);
     }
 private:
     uintptr_t p() { return reinterpret_cast<uintptr_t>(*_p); }
@@ -238,7 +245,7 @@ public:
 
         // Coarse grid initially
         for (int yp = 0; yp < _itersY; yp += initialGrid)
-            for (int xp = 0; xp < _itersX; xp += initialGrid)                                   
+            for (int xp = 0; xp < _itersX; xp += initialGrid)
                 mandelIters(xp, yp);
         // Progressively refine
         for (int yp = 0; yp < _itersY - 1; yp += initialGrid)
