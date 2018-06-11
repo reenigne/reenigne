@@ -33,6 +33,7 @@ public:
         *reinterpret_cast<uintptr_t*>(_children + q) = (iters << 1) + 1;
     }
     Node* getChild(int q) { return _children[q]; }
+    Block getBlock(int q) { return &_children[q]; }
     void split(int q)
     {
         int iters = iterations(q);
