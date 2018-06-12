@@ -6,15 +6,21 @@
 //   01
 //   32
 
-class Node
+template<class T> class BlockT;
+typedef BlockT<void> Block;
+
+template<class T> class NodeT;
+typedef NodeT<void> Node;
+
+template<class T> class NodeT
 {
 public:
-    Node()
+    NodeT()
     {
         for (int q = 0; q < 4; ++q)
             setIterations(q, -1);
     }
-    ~Node()
+    ~NodeT()
     {
         for (int q = 0; q < 4; ++q)
             if (isNode(q))
@@ -91,9 +97,10 @@ private:
     Node* _children[4];
 };
 
-class Block
+template<class T> class BlockT
 {
 public:
+    BlockT(Node** node) : _p(node) { }
     bool isNode() { return (p() & 1) != 0; }
     int iterations() { return p() >> 1; }
     void setIterations(int iters)
