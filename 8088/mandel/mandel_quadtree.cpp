@@ -114,6 +114,14 @@ public:
         *_p = n;
         n->setIterations(0, iters);
     }
+    void combine()
+    {
+        if (isNode()) {
+            int i = (*_p)->pointIters(0, 0, 0);
+            delete *_p;
+            setIterations(i);
+        }
+    }
 private:
     uintptr_t p() { return reinterpret_cast<uintptr_t>(*_p); }
 
