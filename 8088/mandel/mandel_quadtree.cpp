@@ -122,6 +122,12 @@ public:
             setIterations(i);
         }
     }
+    int pointIters(int x, int y, int size)
+    {
+        if (!isNode())
+            return iterations();
+
+    }
 private:
     uintptr_t p() { return reinterpret_cast<uintptr_t>(*_p); }
 
