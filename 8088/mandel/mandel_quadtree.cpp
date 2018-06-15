@@ -126,7 +126,16 @@ public:
     {
         if (!isNode())
             return iterations();
-
+        return (*_p)->pointIters(x, y, size);
+    }
+    // Must be already split enough
+    void setPointIters(int x, int y, int size, int i)
+    {
+        if (!isNode()) {
+            setIterations(i);
+            return;
+        }
+        return (*_p)->pointIters(x, y, size);
     }
 private:
     uintptr_t p() { return reinterpret_cast<uintptr_t>(*_p); }
