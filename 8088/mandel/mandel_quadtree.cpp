@@ -314,6 +314,9 @@ public:
     }
     virtual void draw()
     {
+        _zoom *= 0.95;
+
+
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
         _output->restart();
         _animated.restart();
@@ -518,6 +521,10 @@ private:
     Array<Node> _blocks;
     int _initialShift;
     int _blocksX;
+
+    float _zoom;
+    float _centerX;
+    float _centerY;
 };
 
 class Program : public WindowProgram<MandelWindow>
