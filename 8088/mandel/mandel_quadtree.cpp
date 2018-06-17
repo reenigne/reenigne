@@ -445,11 +445,11 @@ private:
     }
     int aFromXp(int xp)
     {
-        return (((xp - 240) * _frac)*3/320) & -2;
+        return (((xp - 240) * _frac * _zoom)*3/320) & -2;
     }
     int bFromYp(int yp)
     {
-        return ((yp * _frac)*9/4/200) & -2;
+        return ((yp * _frac * _zoom)*9/4/200) & -2;
     }
     int getMandelIters(int xp, int yp)
     {
