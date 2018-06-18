@@ -315,6 +315,10 @@ public:
     virtual void draw()
     {
         _zoom *= 0.95;
+        for (int yp = 0; yp < _itersY; yp += initialGrid) {
+            for (int xp = 0; xp < _itersX; xp += initialGrid)
+                render(xp, yp, _initialShift);
+        }
 
 
         _data.change(0, -_regs, _regs + 0x4000, &_cgaBytes[0]);
