@@ -366,14 +366,18 @@ private:
         }
 
         if (s > 1) {
-            subdivide(xp, yp, s - 1);
-            subdivide(xp + h, yp, s - 1);
+            refine(xp, yp, s - 1);
+            refine(xp + h, yp, s - 1);
             if (yp + h <= 100) {
                 mandelIters(xp + h, yp + z);
-                subdivide(xp + h, yp + h, s - 1);
-                subdivide(xp, yp + h, s - 1);
+                refine(xp + h, yp + h, s - 1);
+                refine(xp, yp + h, s - 1);
             }
         }
+
+    }
+    void render(int xp, int yp, int shift)
+    {
 
     }
 
