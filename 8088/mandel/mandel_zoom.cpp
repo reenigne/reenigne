@@ -38,3 +38,12 @@ private:
     BlockZoom* _left;
     BlockZoom* _right;
 };
+
+class BlockZoomY
+{
+public:
+private:
+    int _end;
+    BlockZoom* _left;
+    BlockZoom* _right;
+};
