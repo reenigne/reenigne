@@ -96,14 +96,20 @@ doParticle:
 %rep particleCount
   xPosition%i_1:
     mov ax,1234
-  xVelocity%i_0:
-    add ax,[5678
+  xVelocity%i_1:
+    add ax,5678
     mov [xPosition%i_1 + 1],ax
-  yPosition%i_0:
+
+    cmp ax,160*256
+    jae rePosition%i
+
+  yPosition%i_1:
     mov cx,1234
-  yVelocity%i_0:
-    add cx,5678  ; y velocity
+    add cx,[yVelocity%i_0 + 2]  ; y velocity
     mov [yPosition%i_1 + 1],cx
+
+    cmp cx,100*256
+    jae rePosition%i
 
     mov bl,ch
     mov bh,yTable >> 8
@@ -121,6 +127,10 @@ doParticle:
     not al
     and al,99 ; Colour
     stosb  ; Draw
+
+    jmp noRePosition%i
+  rePosition%i:
+    ; TODO: pick a random
   %assign i i+1
 %endrep
 
