@@ -62,7 +62,7 @@ doParticle:
     mov [yPosition%i_1 + 1],cx
 
     mov bl,ch
-    mov bh,yTable >> 8
+    mov bh,yTable0 >> 8
     add bx,bx
     mov di,[bx]
     mov bl,ah
@@ -112,7 +112,7 @@ doParticle:
     jae rePosition%i
 
     mov bl,ch
-    mov bh,yTable >> 8
+    mov bh,yTable1 >> 8
     add bx,bx
     mov di,[bx]
     mov bl,ah
@@ -131,6 +131,39 @@ doParticle:
     jmp noRePosition%i
   rePosition%i:
     ; TODO: pick a random
+  noRePosition%i:
   %assign i i+1
 %endrep
+
+
+yTable0:
+%assign i 0
+%rep 100
+    dw i*80
+  %assign i i+1
+%endrep
+times 156 dw 8000
+
+yTable1:
+%assign i 0
+%rep 100
+    dw i*80 + 0x2000
+  %assign i i+1
+%endrep
+times 156 dw 8000
+
+maskTable:
+%assign i 0
+%rep 80
+    db 0xf0, 0x0f
+%endrep
+times 96 dw 0
+
+xTable:
+%assign i 0
+%rep 80
+    db 0xf0, 0x0f
+  %assign i i+1
+%endrep
+times 96 dw 0
 
