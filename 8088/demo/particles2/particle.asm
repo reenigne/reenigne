@@ -1,40 +1,4 @@
-; Each particle has:
-;   Colour
-;   Position (fractional)
-;   Velocity (fractional)
-;   Last address on page 0
-;   Last address on page 1
-;
-; Use ISAV mode
-; Pass 1: Erase all old particles (just restore byte from background image)
-; Pass 2: Move and redraw
-;
-; Unroll by particle and by page
-; 346 cycles per particle -> ~200 particles
-;
-
-
-; si = particle data pointer
-doParticle:
-  mov ax,[si]  ; x position
-  add ax,[si+2]  ; x velocity
-  mov [si],ax
-  mov cx,[si+4]  ; y position
-  add cx,[si+6]  ; y velocity
-  mov [si+4],cx
-  mov bl,ch
-  mov bh,yTable >> 8
-  add bx,bx
-  mov di,[bx]
-  mov bl,ah
-  mov bh,maskTable >> 8
-  mov al,[bx]
-  mov bh,xTable >> 8
-  add bx,bx
-  add di,[bx]
-
-
-%define particleCount 100
+%define particleCount 200
 
 ; Erase particles on page 0
 
@@ -76,6 +40,7 @@ doParticle:
     and ah,al
     not al
     and al,99 ; Colour
+    or al,ah
     stosb  ; Draw
   %assign i i+1
 %endrep
@@ -126,12 +91,15 @@ doParticle:
     and ah,al
     not al
     and al,99 ; Colour
+    or al,ah
     stosb  ; Draw
 
     jmp noRePosition%i
   rePosition%i:
-    ; TODO: pick a random
+    ; TODO
+    nop
   noRePosition%i:
+    nop
   %assign i i+1
 %endrep
 
