@@ -1,10 +1,10 @@
-%define particleCount 200
+%define particleCount 1
 
 ; Erase particles on page 0
 
 %assign i 0
 %rep particleCount
-  eraseOffset%i_0:
+  eraseOffset%[i]_0:
     mov di,1234
     mov al,[di]  ; Background image
     stosb        ; Erase
@@ -14,16 +14,16 @@
 ; Move/draw particles on page 0
 %assign i 0
 %rep particleCount
-  xPosition%i_0:
+  xPosition%[i]_0:
     mov ax,1234
-  xVelocity%i_0:
+  xVelocity%[i]_0:
     add ax,5678
-    mov [xPosition%i_1 + 1],ax
-  yPosition%i_0:
+    mov [xPosition%[i]_1 + 1],ax
+  yPosition%[i]_0:
     mov cx,1234
-  yVelocity%i_0:
+  yVelocity%[i]_0:
     add cx,5678  ; y velocity
-    mov [yPosition%i_1 + 1],cx
+    mov [yPosition%[i]_1 + 1],cx
 
     mov bl,ch
     mov bh,yTable0 >> 8
@@ -35,7 +35,7 @@
     mov bh,xTable >> 8
     add bx,bx
     add di,[bx]
-    mov [eraseOffset%i_0 + 1],di
+    mov [eraseOffset%[i]_0 + 1],di
     mov ah,[di]  ; Background image
     and ah,al
     not al
@@ -49,7 +49,7 @@
 
 %assign i 0
 %rep particleCount
-  eraseOffset%i_1:
+  eraseOffset%[i]_1:
     mov di,1234
     mov al,[di]  ; Background image
     stosb        ; Erase
@@ -59,19 +59,19 @@
 ; Move/draw particles on page 1
 %assign i 0
 %rep particleCount
-  xPosition%i_1:
+  xPosition%[i]_1:
     mov ax,1234
-  xVelocity%i_1:
+  xVelocity%[i]_1:
     add ax,5678
-    mov [xPosition%i_1 + 1],ax
+    mov [xPosition%[i]_1 + 1],ax
 
     cmp ax,160*256
     jae rePosition%i
 
-  yPosition%i_1:
+  yPosition%[i]_1:
     mov cx,1234
-    add cx,[yVelocity%i_0 + 2]  ; y velocity
-    mov [yPosition%i_1 + 1],cx
+    add cx,[yVelocity%[i]_0 + 2]  ; y velocity
+    mov [yPosition%[i]_1 + 1],cx
 
     cmp cx,100*256
     jae rePosition%i
@@ -94,14 +94,14 @@
     or al,ah
     stosb  ; Draw
 
-    jmp noRePosition%i
-  rePosition%i:
+    jmp noRePosition%[i]
+  rePosition%[i]:
     ; TODO
-    nop
-  noRePosition%i:
-    nop
+  noRePosition%[i]:
   %assign i i+1
 %endrep
+
+align 256
 
 
 yTable0:
