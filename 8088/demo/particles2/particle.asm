@@ -2,6 +2,8 @@
 
 ; Erase particles on page 0
 
+origin:
+
 %assign i 0
 %rep particleCount
   eraseOffset%[i]_0:
@@ -26,13 +28,13 @@
     mov [yPosition%[i]_1 + 1],cx
 
     mov bl,ch
-    mov bh,yTable0 >> 8
+    mov bh,(yTable0 - origin) >> 8
     add bx,bx
     mov di,[bx]
     mov bl,ah
-    mov bh,maskTable >> 8
+    mov bh,(maskTable - origin) >> 8
     mov al,[bx]
-    mov bh,xTable >> 8
+    mov bh,(xTable - origin) >> 8
     add bx,bx
     add di,[bx]
     mov [eraseOffset%[i]_0 + 1],di
@@ -66,7 +68,7 @@
     mov [xPosition%[i]_1 + 1],ax
 
     cmp ax,160*256
-    jae rePosition%i
+    jae rePosition%[i]
 
   yPosition%[i]_1:
     mov cx,1234
@@ -74,19 +76,19 @@
     mov [yPosition%[i]_1 + 1],cx
 
     cmp cx,100*256
-    jae rePosition%i
+    jae rePosition%[i]
 
     mov bl,ch
-    mov bh,yTable1 >> 8
+    mov bh,(yTable1 - origin) >> 8
     add bx,bx
     mov di,[bx]
     mov bl,ah
-    mov bh,maskTable >> 8
+    mov bh,(maskTable - origin) >> 8
     mov al,[bx]
-    mov bh,xTable >> 8
+    mov bh,(xTable - origin) >> 8
     add bx,bx
     add di,[bx]
-    mov [eraseOffset%i_0 + 1],di
+    mov [eraseOffset%[i]_1 + 1],di
     mov ah,[di]  ; Background image
     and ah,al
     not al
