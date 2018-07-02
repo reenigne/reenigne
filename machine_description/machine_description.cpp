@@ -1,12 +1,9 @@
 class RegisterClassDetails
 {
 public:
-
 private:
     BitSet _members;
 };
-
-Array<RegisterClassDetails>
 
 class RegisterClass
 {
@@ -15,8 +12,28 @@ private:
     int _index;
 };
 
-typedef int ConstantClass;
-typedef int Register;
+class ConstantClassDetails
+{
+public:
+private:
+    int _minimum;
+    int _maximum;
+    int _step;
+};
+
+class ConstantClass
+{
+public:
+private:
+    int _index;
+};
+
+class Register
+{
+public:
+private:
+    int _index;
+};
 
 class InstructionPattern
 {
