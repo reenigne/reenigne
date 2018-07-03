@@ -15,6 +15,12 @@ private:
 class ConstantClassDetails
 {
 public:
+    bool matches(int c)
+    {
+        if (c < _minimum || c > _maximum)
+            return false;
+        return (c - _minimum) % _step == 0;
+    }
 private:
     int _minimum;
     int _maximum;
