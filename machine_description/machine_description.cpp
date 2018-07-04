@@ -44,9 +44,23 @@ private:
 class InstructionPattern
 {
 public:
+    bool matches(Byte* data)
+    {
+
+    }
+private:
+
     Array<RegisterClass> _registerHoles;
     Array<ConstantClass> _constantHoles;
+};
 
+class Instruction
+{
+public:
+private:
+    InstructionPattern* _patter;
+    Array<Register> _registers;
+    Array<int> _constants;
 };
 
 class MachineDescription
