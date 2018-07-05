@@ -1,4 +1,4 @@
-%define particleCount 1
+%define particleCount 200
 
 ; Erase particles on page 0
 

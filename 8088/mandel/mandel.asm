@@ -1,7 +1,8 @@
 cpu 8086
 %ifdef XTSERVER
 org 0
-TIMING equ 1
+;TIMING equ 1
+TIMING equ 0
 %else
 org 0x100
 TIMING equ 0

@@ -42,10 +42,10 @@ MachineDescription machine8086;
         ("wordSize", 0, Boolean.type)})
         m->addRegister(r);
 
-    m->addCompountRegister("ax", "al", "ah", 0, Word.type);
-    m->addCompountRegister("cx", "cl", "ch", 1, Word.type);
-    m->addCompountRegister("dx", "dl", "dh", 2, Word.type);
-    m->addCompountRegister("bx", "bl", "bh", 3, Word.type);
+    m->addCompoundRegister("ax", "al", "ah", 0, Word.type);
+    m->addCompoundRegister("cx", "cl", "ch", 1, Word.type);
+    m->addCompoundRegister("dx", "dl", "dh", 2, Word.type);
+    m->addCompoundRegister("bx", "bl", "bh", 3, Word.type);
 
     for (Auto c in {
         // name         registers in class

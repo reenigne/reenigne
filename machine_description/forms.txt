@@ -1,0 +1,10 @@
+ALFE in-memory form:
+  Sequence of statements
+  Operators replaced with function calls (apart from && and ||)
+  Want to be able to have chunks of ALFE with "holes" to be replaced? Or are these holes just function/template arguments?
+
+ALFE text form:
+
+
+
+
