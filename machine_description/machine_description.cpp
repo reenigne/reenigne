@@ -41,6 +41,12 @@ private:
     int _index;
 };
 
+class BinaryMatcher
+{
+public:
+private:
+};
+
 class InstructionPattern
 {
 public:
@@ -49,7 +55,7 @@ public:
 
     }
 private:
-
+    Array<BinaryMatcher> _matchers;
     Array<RegisterClass> _registerHoles;
     Array<ConstantClass> _constantHoles;
 };
