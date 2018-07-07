@@ -47,6 +47,13 @@ public:
 private:
 };
 
+class ConstantByteMatcher : public BinaryMatcher
+{
+public:
+private:
+    Byte _match;
+};
+
 class InstructionPattern
 {
 public:
