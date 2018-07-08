@@ -50,6 +50,13 @@ private:
 class ConstantByteMatcher : public BinaryMatcher
 {
 public:
+    bool matches(Byte** data)
+    {
+        if (**data != _match)
+            return false;
+        ++*data;
+        return true;
+    }
 private:
     Byte _match;
 };
