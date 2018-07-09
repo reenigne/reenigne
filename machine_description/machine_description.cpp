@@ -44,6 +44,7 @@ private:
 class BinaryMatcher
 {
 public:
+    virtual bool matches(Byte** data) = 0;
 private:
 };
 
@@ -59,6 +60,15 @@ public:
     }
 private:
     Byte _match;
+};
+
+class Instruction
+{
+public:
+private:
+    InstructionPattern* _pattern;
+    Array<Register> _registers;
+    Array<int> _constants;
 };
 
 class InstructionPattern
