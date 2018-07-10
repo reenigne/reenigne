@@ -48,18 +48,21 @@ public:
 private:
 };
 
-class ConstantByteMatcher : public BinaryMatcher
+class ConstantMatcher : public BinaryMatcher
 {
 public:
     bool matches(Byte** data)
     {
-        if (**data != _match)
+        if ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift != _match)
             return false;
-        ++*data;
+        *data += _increment;
         return true;
     }
 private:
-    Byte _match;
+    DWord _match;
+    int _mask;
+    int _shift;
+    int _increment;
 };
 
 class Instruction
