@@ -48,10 +48,27 @@ public:
 private:
 };
 
-class ConstantMatcher : public BinaryMatcher
+class LiteralMatcher : public BinaryMatcher
 {
 public:
     bool matches(Byte** data)
+    {
+        if ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift != _match)
+            return false;
+        *data += _increment;
+        return true;
+    }
+private:
+    DWord _match;
+    int _mask;
+    int _shift;
+    int _increment;
+};
+
+class ConstantMatcher : public BinaryMatcher
+{
+public:
+    bool matches(Byte** data, int* d)
     {
         if ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift != _match)
             return false;
