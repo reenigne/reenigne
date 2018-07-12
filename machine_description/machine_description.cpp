@@ -70,8 +70,7 @@ class ConstantMatcher : public BinaryMatcher
 public:
     bool matches(Byte** data, int* d)
     {
-        if ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift != _match)
-            return false;
+        *d = ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift);
         *data += _increment;
         return true;
     }
