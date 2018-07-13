@@ -51,7 +51,7 @@ private:
 class LiteralMatcher : public BinaryMatcher
 {
 public:
-    bool matches(Byte** data)
+    bool matches(Byte** data, Instruction* instruction)
     {
         if ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift != _match)
             return false;
@@ -68,7 +68,7 @@ private:
 class ConstantMatcher : public BinaryMatcher
 {
 public:
-    bool matches(Byte** data, int* d)
+    bool matches(Byte** data, Instruction* instruction)
     {
         *d = ((*reinterpret_cast<DWord*>(*data) & _mask) >> _shift);
         *data += _increment;
@@ -79,6 +79,12 @@ private:
     int _mask;
     int _shift;
     int _increment;
+};
+
+class RegisterMatcher : public ConstantMatcher
+{
+public:
+    bool matches(Byte** data, Instruction* instruction)
 };
 
 class Instruction
