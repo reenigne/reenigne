@@ -353,6 +353,7 @@ private:
 class SnifferThread : public Thread
 {
 public:
+    SnifferThread() : _online(false) { }
     void setPort(String port, int baudRate)
     {
         _port = port;
@@ -391,7 +392,7 @@ public:
         deviceControlBlock.fErrorChar = FALSE;
         deviceControlBlock.fNull = FALSE;
         deviceControlBlock.fRtsControl = RTS_CONTROL_DISABLE;
-        deviceControlBlock.fAbortOnError = TRUE;
+        deviceControlBlock.fAbortOnError = FALSE; //TRUE;
         deviceControlBlock.wReserved = 0;
         deviceControlBlock.ByteSize = 8;
         deviceControlBlock.Parity = NOPARITY;
@@ -408,6 +409,7 @@ public:
         timeOuts.WriteTotalTimeoutConstant = 0;
         timeOuts.WriteTotalTimeoutMultiplier = 0;
         IF_ZERO_THROW(SetCommTimeouts(_stream, &timeOuts));
+        _online = true;
     }
     void tryRead(Byte* buffer, int bytes)
     {
@@ -462,6 +464,8 @@ public:
     }
     void beginCapture(QueueItem* item)
     {
+        if (!_online)
+            return;
         _item = item;
 
         for (int i = 0; i < 48; ++i)
@@ -482,6 +486,7 @@ private:
     Array<Byte> _data;
     int _lengths[48];
     QueueItem* _item;
+    bool _online;
 
     Event _overlappedEvent;
     OVERLAPPED _overlapped;
@@ -678,8 +683,16 @@ public:
 
         String snifferPort = configFile->get<String>("snifferPort");
         int snifferBaudRate = configFile->get<int>("snifferBaudRate");
-        _snifferThread.setPort(snifferPort, snifferBaudRate);
-        _snifferThread.start();
+        //_snifferThread.setPort(snifferPort, snifferBaudRate);
+        //_snifferThread.start();
+        try {
+            _snifferThread.setPort(snifferPort, snifferBaudRate);
+            _snifferThread.start();
+        }
+        catch (...)
+        {
+            console.write("Sniffer offline\n");
+        }
 
         _snifferActive = false;
     }
@@ -696,7 +709,7 @@ public:
                     Lock lock(&_mutex);
                     _queue.add(item);
                     item->writeNoEmail("<form action='http://reenigne.mooo."
-                        "com/cgi-bin/xtcancel.exe' method='post'>\n"
+                        "com:8088/cgi-bin/xtcancel.exe' method='post'>\n"
                         "<input type='hidden' name='secret' value='" +
                         item->secret() + "'/>\n"
                         "<button type='submit'>Cancel</button>\n"
