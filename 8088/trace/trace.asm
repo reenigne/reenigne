@@ -2,7 +2,7 @@
 
 FASTSAMPLING EQU 0     ; Set to one to sample at 14.318MHz. Default is 4.77MHz.
 LENGTH       EQU 2048  ; Number of samples to capture.
-REFRESH      EQU 0;19   ; Refresh period in cycles, or 0 to disable
+REFRESH      EQU 18;0;19   ; Refresh period in cycles, or 0 to disable
 
   cli
   mov ax,cs
@@ -180,6 +180,138 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  mov di,[si]  ; x*x
+  mov bp,[bx]  ; y*y
+  lea ax,[di+bp] ; x*x+y*y
+  cmp ax,ax
+  jne $+2
+  dec cx
+  mov bx,[si+bx] ; (x+y)*(x+y)
+  sub bx,ax  ; 2*x*y
+  add bx,dx  ; 2*x*y+b -> new y
+  mov si,es
+  add si,di
+  sub si,bp  ; x*x-y*y+a -> new x
+
+  ret
+
   mov al,0xff
   mov bl,0xff
   imul bl

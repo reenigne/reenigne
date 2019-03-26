@@ -443,6 +443,12 @@ private:
     double _white;
 };
 
+// The CGAData structure encapsulates the state of the (extended) CGA's VRAM
+// over a period of time (e.g. one CRT frame which contains several palette
+// register updates). The structure is a binary tree of arrays of changes. A
+// change consists of updates to a consecutive seqeuence of (VRAM or register)
+// addresses. The two sides of the binary tree each span the same number of
+// hdots, and that number is always a power of 2.
 class CGAData : Uncopyable
 {
 public:

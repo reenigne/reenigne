@@ -133,3 +133,384 @@ Suppose we want to move A[4..7]
 
 Suppose we want to store a pointer to A[4..7] somewhere
 
+
+Sending a message to another thread:
+  Create a new address space
+  Move message ravioli to new address space
+  Transfer new address space to message queue for target thread pool
+  Signal target thread pool that there is a new message
+  A thread from the target thread pool (goes idle and) is woken up
+  The target thread transfers new address space from thread pool message queue to itself
+  Move message ravioli to target thread address space
+  Remove transfer address space
+
+
+Instructions for ravioli:
+  Load pointer register r1 from field x of ravioli pointed to by register r2
+  Load non-pointer register v1 from field x of ravioli pointed to by register r2
+  Allocate a new ravioli and put its address in register r
+  Store pointer register r1 into field x of ravioli pointer to by register r2
+  Store non-pointer register v1 into field x of ravioli pointer to by register r2
+  Find value v in field x in ravioli tree pointed to by register r
+
+
+1 incoming pointer                                                          - data only node
+1 incoming pointer, 1 outgoing pointer                                      - member of a linked list
+2 incoming pointers, 1 outgoing pointer                                     -
+1 incoming pointer, 2 outgoing pointers
+2 incoming pointers
+3 incoming pointers
+4 incoming pointers                                                         - no point in this existing
+3 incoming pointers, 1 outgoing pointer
+2 incoming pointers, 2 outgoing pointers
+1 incoming pointer, 3 outgoing pointers
+1 incoming pointer, 3 outgoing pointers - reference only (reverse tree)
+3 incoming pointers, 1 outgoing pointer - reference only (forward tree)
+
+Programmer handles the outgoing pointers (possibly with the aid of built-in tree-rebalancing instructions) and the data
+CPU handles the incoming pointers
+Every raviolo must have at least one incoming pointer or we can't store it which means we can't have hardware interrupts
+Any unused fields in a raviolo are used for additional incoming pointers to avoid the need for extra reference-enumerating ravioli
+So there is no need to distinguish between normal and refernce-only ravioli
+So types are:
+  1 incoming 3 data 0 outgoing - maximum data
+  1 incoming 2 data 1 outgoing - high data in a linked list
+  1 incoming 1 data 2 outgoing - data in a binary tree (useful for hardware-assisted self-balancing trees)
+  1 incoming 0 data 3 outgoing - ternary tree
+  2 incoming 2 data 0 outgoing - high data
+  2 incoming 1 data 1 outgoing - data in a linked list
+  2 incoming 0 data 2 outgoing - binary tree
+  3 incoming 1 data 0 outgoing - data
+  3 incoming 0 data 1 outgoing - reference-enumerating
+Note incoming and outgoing pointers can be null (and indeed must be when a raviolo is initially allocated)
+References are enumerated in the order that they were added. We can have an instruction to get the first reference
+  And the other references?
+    We can't keep a pointer to a reference-only raviolo, since storing and reloading that pointer would get the target raviolo not the reference
+    Instead have "rotate references forward" and "rotate references backward" instructions for accessing other parents
+
+Cleanup:
+  Don't really want to waste memory on inaccessible ravioli - have a hardware-supported incremental mark-and-sweep garbage collector to find them and release them
+  We'd also like to avoid a pause when freeing a large structure
+    Freeing a structure (by removing all pointers that access it) places it on a "to cleanup" list
+    After each instruction, we reclaim a raviolo by:
+      Checking if there is a raviolo A on the "to cleanup" list
+      If there is:
+        Remove A from the "to cleanup" list
+        For each raviolo B that A has a pointer to:
+          Remove pointer-to-B from A
+          If there B has no references left (and is not pointed to by a pointer register):
+            Add it to the "to cleanup" list
+        Move highest-address raviolo into A's slot:
+          Copy values and outgoing pointers
+          Fix up incoming pointers found via reference enumeration
+          Fix up incoming pointers in registers
+          Fix up incoming pointers in referred-to objects
+          If incremental garbage collection in phase 1 already passed the new slot, clear raviolo's mark bit
+        Decrease highest-address
+  Incremental garbage collection:
+    Phase 1: Clear mark bits in address order
+    Phase 2: Walk tree of pointers and set mark bits
+      Need a "to mark" list much like the "to cleanup" list.
+      On phase 2 initialistion, add all ravioli pointed to by registers to the "to mark" list
+      On phase 2 iteration:
+        remove a raviolo from the "to mark" list
+        Mark it
+        Check each pointed-to raviolo:
+          If it's not already marked, add it to the "to mark" list
+    Phase 3: Check mark bits in address order. If mark bit is clear, remove all incoming references and place raviolo in "to cleanup" list
+    Note: Use non-temporal loads for all GC operations to avoid evicting important objects from the cache
+    Memory subsystem should prioritise real-work memory accesses over GC memory accesses
+    Real work should continue while GC is waiting for memory subsystem
+    Set mark on any new ravioli allocated, and any ravioli pointed to by registers
+    Can probably combine phases 1 and 3
+
+Weak associative arrays?
+  If key and/or value is unreferenced, then array entry is removed too
+
+Cache lines are usually 64 bytes, so 4 32-bit ravioli or 2 64-bit ravioli
+  On a 32-bit system, back pointers are 16-byte aligned, so there are 4 spare bits
+    Need one for GC and one for red/black. That only leaves 4 possibilities for incoming/outgoing pointer counts
+      However, in all but the 3-data case there are spare bits in the other pointers
+        We'd like to be able to use low bits of outgoing pointers to point to parts of a data node, for small string purposes
+          Is it actually useful to share such things? If they're pointed to by more than one raviolo then we'll be spending a raviolo on references anyway
+            We'd like to be able to have strings with gaps in them so that we can insert characters into a string without affecting the tree in a non-local way
+
+Back pointer: bbbbbbbb bbbbbbbb bbbbbbbb bbbbMRxy
+  xy (0 to 3) is the number of data (non-pointer) fields
+  For a pointer field, low bits:
+    0000       = incoming pointer
+    0001       = outgoing pointer to non-leaf, black child
+    0010       = outgoing pointer to non-leaf, red child is on left
+    0011       = outgoing pointer to non-leaf, red child is on right
+    0100..1111 = outgoing pointer to leaf (if this is a string, the string we're pointing to has: byte 4 is the first and the pointed-to byte is the last)
+
+If we have a red-black tree of red-black trees, we need to know when we are at the leaf of the first and the root of the second.
+  Data-only ravioli are definitely leaf nodes
+  Can we have an unambiguous "not leaf node" flag?
+
+If we have multiple pointers into (not the beginning of) a data raviolo then the byte-pointer comes from the outer pointer but the actual raviolo is addressed by the inner pointer
+  That way we save memory if the same small-string raviolo is used in 3 or more places (all left-aligned substrings of the same 12-byte string)
+
+What are the data structures we want to support in hardware?
+  Arrays of arbitrary objects (including strings)
+    With indexing - need counts in each node
+    Without indexing - ternary tree
+      How do we address it without indexing? We could try to keep a pointer to the current position, but we can't backtrack if data is shared.
+        We'd have to keep a stack of current positions
+  Binary search trees (including hash maps)
+  Pointers into unversioned objects use the incoming pointer to traverse the tree structure
+  Pointers into versioned objects are arrays of nodes that we have visited
+
+Operations:
+  Dereference pointer
+  Increment/decrement pointer
+  Index into array
+  Find item in search tree
+  Insert item
+  Remove item
+  Concatenate trees
+  Create a sub-tree from begin and end pointers into a tree
+
+Ravioli pointed to by pointer registers (and the ravioli those point to and so on for a few levels) are used as cache prefetch hints
+
+
+Typical cache sizes (per core)
+  line  64B                    4  ravioli
+  L1d - 16kB                   1K ravioli
+  L1i - 32kB (64kB / 2 cores)  2K ravioli
+  L2  -  1MB (2MB / 2 cores)  64K ravioli
+  L3  -  1MB (8MB / 8 cores)  64K ravioli
+  Mem -  1GB (8GB / 8 cores)  64M ravioli
+
+We'd like to be able to have self-balancing ternary trees - particularly important for reference trees
+  Use red-black trees, but each raviolo stores two nodes. 8 possibilities (two extra bits)
+    red single node
+    red parent with black left child
+    red parent with black right child
+    black single node
+    black parent with red left child
+    black parent with red right child
+    black parent with black left child
+    black parent with black right child
+  The single-node cases can be handled with a second incoming pointer
+  If all three pointers are leaves, then we don't actually need to distinguish the cases - we just assume the invariants hold
+  If two pointers are leaves and one is non-leaf, the possibilities are:
+    red parent with black left child, non-leaf on left - invalid, middle and right leaves have differing numbers of black nodes in their ancestry
+    red parent with black left child, non-leaf in middle - invalid, left and right leaves have differing numbers of black nodes in their ancestry
+    red parent with black left child, non-leaf on right - ok
+    red parent with black right child, non-leaf on left - ok
+    red parent with black right child, non-leaf in middle - invalid, left and right leaves have differing numbers of black nodes in their ancestry
+    red parent with black right child, non-leaf on right - invalid, left and middle leaves have differing numbers of black nodes in their ancestry
+    black parent with red left child, non-leaf on left - ok
+    black parent with red left child, non-leaf in middle - ok
+    black parent with red left child, non-leaf on right - ok
+    black parent with red right child, non-leaf on left - ok
+    black parent with red right child, non-leaf in middle - ok
+    black parent with red right child, non-leaf on right - ok
+    black parent with black left child, non-leaf on left - invalid, middle and right leaves have differing numbers of black nodes in their ancestry
+    black parent with black left child, non-leaf in middle - invalid, left and right leaves have differing numbers of black nodes in their ancestry
+    black parent with black left child, non-leaf on right - ok
+    black parent with black right child, non-leaf on left - ok
+    black parent with black right child, non-leaf in middle - invalid, left and right leaves have differing numbers of black nodes in their ancestry
+    black parent with black right child, non-leaf on right - invalid, left and middle leaves have differing numbers of black nodes in their ancestry
+    So, if the parent is red then we can determine the position of the child by which outgoing pointer is the non-leaf
+    If the parent is black then we need to distinguish between three cases:
+      red left child
+      red right child
+      black child (left/right determined by position of non-leaf child)
+  If there are two or three non-leaf outgoing pointers, the possibilities are:
+    red parent with black left child
+    red parent with black right child
+    black parent with red left child
+    black parent with red right child
+    black parent with black left child
+    black parent with black right child
+    In this case, the leftmost non-leaf outgoing pointer determines the child's colour and the second leftmost non-leaf outgoing pointer determines the child's position
+
+Efficiency of pure-data:
+        1 raviolo          3 fields  75%      12 bytes
+        4 ravioli          9 fields  56.25%   36 bytes
+       13 ravioli         27 fields  51.92%  108 bytes
+       40 ravioli         81 fields  50.63%  324 bytes
+      121 ravioli        243 fields  50.21%  972 bytes
+      364 ravioli        729 fields  50.07%    2.85kB
+     1093 ravioli       2187 fields  50.02%    8.54kB
+     3280 ravioli       6561 fields  50.01%   25.63kB
+     9841 ravioli      19683 fields  50.00%   76.89kB
+    29524 ravioli      59049 fields  50.00%  230.66kB
+    88573 ravioli     177147 fields  50.00%  691.98kB
+   265720 ravioli     531441 fields  50.00%    2.03MB
+   797161 ravioli    1594323 fields  50.00%    6.08MB
+  2391484 ravioli    4782969 fields  50.00%   18.25MB
+  7174453 ravioli   14348907 fields  50.00%   54.74MB
+ 21523360 ravioli   43046721 fields  50.00%  164.21MB
+ 64570081 ravioli  129140163 fields  50.00%  492.63MB
+193710244 ravioli  387420489 fields  50.00%    1.44GB
+581130733 ravioli 1162261467 fields  50.00%    4.32GB
+
+Data bytes per raviolo  Address bits  Extra bits  Total raviolo bits  Addressable RAM  bytes per field
+   12                      28             4          128                 4GB             4
+  13                      31             5          144                36GB
+  14                      33             5          152               152GB
+   15                      35             5          160               640GB             5
+  16                      39             5          176                11TB
+  17                      41             5          184                46TB
+   18                      43             5          192               192TB             6
+  19                      47             5          208                 3.25PB
+  20                      49             5          216                13.5PB
+   21                      51             5          224                56PB             7
+  22                      55             5          240               960PB
+  23                      57             5          248                 3.88EB
+   24                      59             5          256                16EB             8
+
+Memory latency ~100ns = 200 cycles
+Memory bandwidth ~12.8GB/s = 1280 bytes per latency cycle = 80 ravioli per latency cycle
+
+RAM technology  Burst length (bytes)
+SDRAM            8
+DDR             16
+DDR2            32
+DDR3/DDR4       64
+
+DDR4-3200W has 25.6GB/s peak transfer rate == 400 million bursts/second == 2.5ns burst cycle time
+CAS latency 12.5ns == 5 burst cycles
+
+If we have hardware garbage collection, do we need reference enumeration as well?
+  The reference enumeration means we can move objects without pausing, improving locality of reference
+  The hardware garbage collection is just for cycles
+
+Reduce size of pointers to 16 bits, halve size of ravioli, and add connecting "long pointers"
+  What about 64-bit systems?
+  Can we get away with 3 bits per non-data field? Yes - see below
+  This does mean we can't generally move a pointer across a 64kB boundary because we might not have enough space for all the long pointers it needs
+    This implies gaps in the address space
+
+Field  Bit  Meaning
+  0     0    a
+  0     1    b
+  0     2    c
+  1     0    d
+  1     1    e
+  1     2    f
+  2     0    g
+  2     1    h
+  2     2    i
+  3     0    j
+  3     1    k
+  3     2    l
+
+Order is always: incoming pointers (I), outgoing pointers (O), data (v)
+                    Need:  GC  parent  child  position
+  IIIv  Small data
+  IIvv  Medium data
+  Ivvv  Large data
+  IIIO  Reference          y
+  IIOv  Small data list    y
+  IOvv  Medium data list   y
+  IIOO  Binary tree        y   y
+  IOOv  Binary search tree y   y
+  IOOO  Ternary tree       y   y       y      y
+
+Long pointer ravioli:
+  IiIv
+  Iivv  These isn't enough space with 8-byte alignment to distinguish between this and the other cases.
+  IiIO
+  IiOv
+  IiOo
+  IOov
+  IOoO
+
+
+
+000111222333
+abcdefghijkl
+000.........  Incoming pointer in field 1, not marked as reachable by GC
+001.........  Incoming pointer in field 1, marked as reachable by GC
+010.........  Outgoing leaf pointer in field 1, not marked as reachable by GC
+011.........  Outgoing leaf pointer in field 1, marked as reachable by GC
+100.........  Outgoing non-leaf pointer in field 1, not marked as reachable by GC
+101.........  Outgoing non-leaf pointer in field 1, marked as reachable by GC
+110.........  5 bytes of data in fields 1-3
+111.........  6 bytes of data in fields 1-3
+
+00.000......  Incoming pointers in fields 1 and 2
+00.001......  Incoming pointers in fields 1 and 2
+01.00.......  Reserved
+10.00.......  Reserved
+...010......  Outgoing leaf pointer in field 2
+...011......  Outgoing leaf pointer in field 2
+...100......  Outgoing non-leaf pointer in field 2
+...101......  Outgoing non-leaf pointer in field 2
+...110......  3 bytes of data in fields 2-3
+...111......  4 bytes of data in fields 2-3
+
+......000...  1 byte of data in field 3, red parent
+......001...  2 bytes of data in field 3, black parent
+......010...  Outgoing leaf pointer in field 3, red parent
+......011...  Outgoing leaf pointer in field 3, black parent
+......100...  Outgoing non-leaf pointer in field 3, red parent
+......101...  Outgoing non-leaf pointer in field 3, black parent
+......110...  1 byte of data in field 3, red parent
+......111...  2 bytes of data in field 3, black parent
+
+.........0.0  Child on left
+.........1.0  Child on right
+..........00  Red child
+..........10  Black child
+...........1  Reserved
+
+Having the number of bytes of data in the raviolo with the data rather than the pointer raviolo is appealing. Can we generalise this to 128-bit ravioli?
+  Yes, because we have an extra bit in each field for the other bit of the byte count
+  Unused fields can be null incoming pointers
+
+
+
+0..01.......  Outgoing pointer in field 2
+0..10.XXXXXX  3 bytes of data in fields 2-3
+0..11.XXXXXX  4 bytes of data in fields 2-3
+0....0......  red parent node
+0....1......  black parent node
+0..0..0.....  Outgoing pointer in field 3
+0..0..10.XXX  1 byte of data in field 3
+0..0..11.XXX  2 bytes of data in field 3
+
+............  Not marked as reachable by GC
+............  Marked as reachable by GC
+
+
+0
+
+
+
+We won't have instructions for finding nodes in a binary search tree because the programmer could have made an unbalanced one that would have pathological behaviour
+  Or even one with cycles if modification of existing trees is allowed
+  Or we could have an instruction which doesn't try more than 32 or so iterations, and throws if it doesn't terminate
+
+For traversing an immutable, cactus structure we need a mutable stack (where we know the first parent is the one we want)
+
+
+
+https://en.wikipedia.org/wiki/Red%E2%80%93black_tree
+self-adjusting.pdf has some ideas about self-balancing ternary trees
+https://blogs.msdn.microsoft.com/ericlippert/2008/01/21/immutability-in-c-part-nine-academic-plus-my-avl-tree-implementation/
+
+
+Don't bother with reduced-pointer-size ravioli for now.
+
+
+Todo:
+
+Write an emulator for a ravioli CPU
+  Figure out what we want to do about hardware access, protection, and IPC
+    Have some protected instructions which can only be executed by OS code
+      If non-OS code executes them an exception will occur which can allow the OS to emulate them if it likes
+    How does the CPU know if it's running OS code or not?
+      Have a special register which holds the extent of the OS code
+    Need some way to access raw memory
+      Protected peek/poke instructions
+      To have areas of address space excluded from the GC, the GC walks the
+  Figure out paging
+    Works as it does on normal CPUs: below the Ravioli layer
+
+
+Write a ravioli C++ library

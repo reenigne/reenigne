@@ -1,0 +1,4 @@
+// harness### {
+//   compile();
+//   assert(output.length() == 0);
+// }

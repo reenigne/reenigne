@@ -1,0 +1,27 @@
+  Should 32-bit x86 and 16-bit x86 be separate primary targets?
+    No: they can share a lot of logic
+    Yes: 32-bit should not be cluttered up by 16-bit
+  Should 64-bit x86 and 32-bit x86 be separate primary targets?
+    No: they can share a lot of logic
+    Yes: 64-bit should not be cluttered up by 32-bit
+  Let's err on the side of code-sharing for now. It's easier to split it up later than combine.
+
+Execution strategies:
+  Dynamic:
+    Machine state is all emulator state
+    When executing an instruction:
+      Execute it in emulator
+      determine if it has changed since it was last reverse-engineered. If it has:
+        Save a snapshot of the machine state
+        Add it to the reverse-engineered code
+        If there is an alternate code path (call returned, branch taken/untaken) then add it to the static strategy list
+    When pressing the special "wait until now" key combo, save a snapshot of the machine state
+    When pressing a normal key, go back to the last snapshot before executing keypress
+    When hitting an illegal opcode, terminate emulation
+  Static:
+    Machine state is just CS:IP
+    Decompile to "throw UnexecutedCodeException();" and commented-out code
+    Assume code does not change
+    Add conditional branch targets and known call destinations to static strategy list
+
+Label
