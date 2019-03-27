@@ -162,7 +162,7 @@ public:
     {
         if (_parent != 0) {
             _parent->childRemoved(this);
-            LinkedListMember::remove();
+            LinkedListMember<WindowT<T>>::remove();
         }
     }
 

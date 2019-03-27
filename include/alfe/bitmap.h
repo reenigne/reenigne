@@ -40,9 +40,9 @@ template<class T> class RawFileFormatTemplate : public BitmapFileFormat<T>
 {
 public:
     RawFileFormatTemplate(Vector size)
-      : BitmapFileFormat(create<Body>(size)) { }
+      : BitmapFileFormat(this->create<Body>(size)) { }
 private:
-    class Body : public BitmapFileFormat::Body
+    class Body : public BitmapFileFormat<T>::Body
     {
     public:
         Body(Vector size) : _size(size) { }
@@ -86,7 +86,7 @@ public:
     {
         _stride = size.x*sizeof(Pixel);
         _size = size;
-        allocate(size.x*size.y);
+        this->allocate(size.x*size.y);
         _topLeft = reinterpret_cast<Byte*>(&Array<Pixel>::operator[](0));
     }
     void ensure(Vector s)

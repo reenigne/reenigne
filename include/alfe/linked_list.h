@@ -53,7 +53,7 @@ private:
 template<class T> class LinkedList : public LinkedListMember<T>
 {
 public:
-    void add(T* item) { insertBefore(item); }
+    void add(T* item) { this->insertBefore(item); }
 
     T* getNext(LinkedListMember<T>* c = 0)
     {
@@ -67,11 +67,11 @@ public:
 
     void release()
     {
-        _next = this;
-        _prev = this;
+        this->_next = this;
+        this->_prev = this;
     }
 
-    bool empty() const { return _next == this; }
+    bool empty() const { return this->_next == this; }
 
     class Iterator
     {
@@ -98,7 +98,7 @@ public:
 
         friend class LinkedList<T>;
     };
-    Iterator begin() { return Iterator(_next); }
+    Iterator begin() { return Iterator(this->_next); }
     Iterator end() { return Iterator(this); }
 };
 
@@ -109,8 +109,8 @@ public:
 
     void release()
     {
-        while (_next != this) {
-            T* t = static_cast<T*>(_next);
+        while (this->_next != this) {
+            T* t = static_cast<T*>(this->_next);
             t->remove();
             delete t;
         }

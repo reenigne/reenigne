@@ -41,7 +41,7 @@ public:
     FileSystemObjectT() { }
     FileSystemObjectT(const ConstHandle& other) : ConstHandle(other) { }
     FileSystemObjectT(const String& path,
-        const Directory& relativeTo = CurrentDirectory(),
+        const Directory& relativeTo = CurrentDirectoryT<T>(),
         bool windowsParsing = false)
     {
         *this = FileSystemObject::parse(path, relativeTo, windowsParsing);
@@ -325,7 +325,7 @@ public:
     DirectoryT(const ConstHandle& other) : FileSystemObject(other) { }
 
     DirectoryT(const String& path,
-        const Directory& relativeTo = CurrentDirectory(),
+        const Directory& relativeTo = CurrentDirectoryT<T>(),
         bool windowsParsing = false)
       : FileSystemObject(path, relativeTo, windowsParsing) { }
     DirectoryT(const String& path, bool windowsParsing)
@@ -796,7 +796,7 @@ private:
     friend class Console;
 };
 
-template<class T> void applyToWildcard(T functor, CharacterSource s,
+template<class T> void applyToWildcard(T functor, CharacterSourceT<T> s,
     int recurseIntoDirectories, Directory directory)
 {
     int subDirectoryStart = s.offset();

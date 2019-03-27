@@ -11,6 +11,9 @@ typedef ExceptionT<void> Exception;
 template<class T> class StringTemplate;
 typedef StringTemplate<Byte> String;
 
+template<class T> class CharacterSourceT;
+typedef CharacterSourceT<void> CharacterSource;
+
 template<class T> class StringTemplate
 {
 public:
@@ -25,16 +28,16 @@ public:
             if (c == 0)
                 break;
             if (c >= 0xdc00 && c < 0xe000)
-                throw Exception("String offset " + hex(offset) +
+                throw Exception("String offset " + Hex(offset) +
                     ": expected 0x0000..0xDBFF or 0xE000..0xFFFF, found " +
-                    hex(c, 4));
+                    Hex(c, 4));
             ++offset;
             if (c >= 0xd800 && c < 0xdc00) {
                 int c2 = *utf16;
                 ++utf16;
                 if (c2 < 0xdc00 || c2 >= 0xe000)
-                    throw Exception("String offset " + hex(offset) +
-                        ": expected 0xDC00..0xDFFF, found " + hex(c2, 4));
+                    throw Exception("String offset " + Hex(offset) +
+                        ": expected 0xDC00..0xDFFF, found " + Hex(c2, 4));
                 ++offset;
                 c = (((c & 0x3ff) << 10) | (c2 & 0x3ff)) + 0x10000;
             }
@@ -46,7 +49,8 @@ public:
     class Hex
     {
     public:
-        Hex(int n, int digits, bool ox) : _n(n), _digits(digits), _ox(ox) { }
+        Hex(int n, int digits = 8, bool ox = true)
+          : _n(n), _digits(digits), _ox(ox) { }
         String operator+(const char* a)
         {
             int l = bytes();
