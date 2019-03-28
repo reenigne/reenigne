@@ -662,9 +662,9 @@ protected:
                     RECT* r = reinterpret_cast<RECT*>(lParam);
                     Vector requestedSize(r->right - r->left,
                         r->bottom - r->top);
-                    ContainerWindow::setInnerSize(
-                        requestedSize + innerSize() - outerSize());
-                    Vector adjustedSize = outerSize();
+                    Vector adjust = adjustRect(innerSize()) - innerSize(); 
+                    ContainerWindow::setInnerSize(requestedSize - adjust);
+                    Vector adjustedSize = adjustRect(innerSize());
                     if (wParam == WMSZ_TOPLEFT || wParam == WMSZ_LEFT ||
                         wParam == WMSZ_BOTTOMLEFT)
                         r->left = r->right - adjustedSize.x;
