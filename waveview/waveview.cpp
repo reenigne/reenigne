@@ -34,62 +34,71 @@ public:
         }
         _offset = offset;
     }
-    void setSize(Vector size)
+    void setSize(Vector size, UInt32* hits)
     {
-        cancel();
-        join();
         _size = size;
-        int n = size.x*size.y;
-        _hits.ensure(n);
-        UInt32* hits = &_hits[0];
-        for (int i = 0; i < n; ++i)
-            hits[i] = 0;
-        restart();
+        _hits = hits;
     }
-    void draw(Bitmap<DWORD>* bitmap)
-    {
-        cancel();
-        join();
-        int nn = 0;
-        double exposure = 0;
-        UInt32* hits = &_hits[0];
-        Vector size = _size;
-        //int n = size.x * size.y;
-        //for (int i = 0; i < n; ++i) {
-        //    int h = hits[i];
-        //    if (h > 0) {
-        //        ++nn;
-        //        exposure -= h;
-        //    }
-        //}
-        float s = -0.01; //0;
-        //if (nn != 0)
-        //    s = static_cast<float>(nn/exposure);
-
-        auto pp = _hits.begin();
-        auto buffer = bitmap->data();
-        int stride = bitmap->stride();
-        for (int ys = 0; ys < size.y; ++ys) {
-            Byte* p = buffer;
-            for (int xs = 0; xs < size.x; ++xs) {
-                int c = byteClamp(255 - static_cast<int>(255.0f*exp((*pp)*s)));
-                p[0] = c;
-                p[1] = c;
-                p[2] = c;
-                p += 4;
-                ++pp;
-            }
-            buffer += stride;
-        }
-        restart();
-    }
-
 private:
-    Array<UInt32> _hits;
+    UInt32* _hits;
     Vector _size;
     Program* _program;
 
     float _offset;
+};
+
+class RenderThread : public ThreadTask
+{
+public:
+    RenderThread(BitmapWindow* window) : _window(window) { }
+    void run()
+    {
+        int nn = 0;
+        double exposure = 0;
+        UInt32* h = _hits;
+        Vector size = _size;
+        int n = size.x * size.y;
+        for (int i = 0; i < n; ++i) {
+            int hits = h[i];
+            if (hits > 0) {
+                ++nn;
+                exposure -= hits;
+            }
+        }
+        float s = -0.01f;
+        if (nn != 0)
+            s = static_cast<float>(nn/exposure);
+
+        _bitmap.ensure(_size);
+        auto buffer = _bitmap.data();
+        int stride = _bitmap.stride();
+        for (int ys = 0; ys < size.y; ++ys) {
+            Byte* p = buffer;
+            for (int xs = 0; xs < size.x; ++xs) {
+                int c = byteClamp(255 - static_cast<int>(255.0f*exp((*h)*s)));
+                p[0] = c;
+                p[1] = c;
+                p[2] = c;
+                p += 4;
+                ++h;
+            }
+            buffer += stride;
+        }
+
+        _lastBitmap = _bitmap;
+        _bitmap = _window->setNextBitmap(_bitmap);
+    }
+    void setSize(Vector size, UInt32* hits)
+    {
+        _size = size;
+        _hits = hits;
+    }
+private:
+    BitmapWindow* _window;
+    Bitmap<DWORD> _bitmap;
+    Bitmap<DWORD> _lastBitmap;
+    Vector _size;
+    UInt32* _hits;
 };
 
 typedef WaveViewThreadT<void> WaveViewThread;
@@ -97,13 +106,13 @@ typedef WaveViewThreadT<void> WaveViewThread;
 class WaveViewWindow : public RootWindow
 {
 public:
-    WaveViewWindow()
+    WaveViewWindow() : _renderThread(&_bitmap)
     {
         setText("Wave viewer");
         add(&_bitmap);
         add(&_animated);
         _animated.setDrawWindow(this);
-        _animated.setRate(2); //0);
+        _animated.setRate(60);
     }
     void create()
     {
@@ -112,26 +121,42 @@ public:
     }
     virtual void draw()
     {
-        _thread.draw(&_bitmap.bitmap());
-        _bitmap.invalidate();
-        //console.write("Invalidating\n");
+        _renderThread.restart();
         _animated.restart();
     }
     virtual void innerSizeSet(Vector size)
     {
+        join();
         _bitmap.setInnerSize(size);
-        _thread.setSize(size);
+        int n = size.x*size.y;
+        _hits.ensure(n);
+        UInt32* hits = &_hits[0];
+        for (int i = 0; i < n; ++i)
+            hits[i] = 0;
+        _waveViewThread.setSize(size, &_hits[0]);
+        _renderThread.setSize(size, &_hits[0]);
+        _waveViewThread.restart();
+        _renderThread.restart();
     }
     void setProgram(Program* program)
     {
         _program = program;
-        _thread.setProgram(program);
+        _waveViewThread.setProgram(program);
     }
-    void join() { _thread.cancel(); _thread.join(); }
+    void join()
+    {
+        _waveViewThread.cancel();
+        _renderThread.cancel();
+        _waveViewThread.join();
+        _renderThread.join();
+    }
 private:
+
     BitmapWindow _bitmap;
     AnimatedWindow _animated;
-    WaveViewThread _thread;
+    WaveViewThread _waveViewThread;
+    RenderThread _renderThread;
+    Array<UInt32> _hits;
 
     Program* _program;
 };
@@ -140,7 +165,7 @@ class Program : public WindowProgram<WaveViewWindow>
 {
 public:
     void run()
-    {
+    {                
         if (_arguments.count() < 2)
             throw Exception("Syntax: waveview <filename>");
 
