@@ -3,7 +3,7 @@
 template<class T> class WaveViewThreadT : public ThreadTask
 {
 public:
-    WaveViewThreadT() : _program (0) { }
+    WaveViewThreadT() : _program(0), _zoom(0) { }
     void setProgram(Program* program) { _program = program; restart(); }
     void run()
     {
@@ -39,10 +39,17 @@ public:
         _size = size;
         _hits = hits;
     }
+    void changeZoom(int amount, int x)
+    {
+
+        _zoom += amount;
+    }
 private:
     UInt32* _hits;
     Vector _size;
     Program* _program;
+    int _zoom;
+    double _zoomCenter;
 
     float _offset;
 };
@@ -149,6 +156,14 @@ public:
         _renderThread.cancel();
         _waveViewThread.join();
         _renderThread.join();
+    }
+    bool mouseInput(Vector position, int buttons, int wheel)
+    {
+        //bool lButton = (buttons & MK_LBUTTON) != 0;
+        //_host->_output->mouseInput(position, lButton);
+        if (wheel != 0) 
+            _waveViewThread.changeZoom(wheel, position.x);
+        return false;
     }
 private:
 
