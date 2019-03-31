@@ -3,7 +3,7 @@
 template<class T> class WaveViewThreadT : public ThreadTask
 {
 public:
-    WaveViewThreadT() : _program(0), _zoom(0) { }
+    WaveViewThreadT() : _program(0), _zoom(0), _firstSample(0) { }
     void setProgram(Program* program) { _program = program; restart(); }
     void run()
     {
@@ -19,6 +19,7 @@ public:
         int nSamples = _program->nSamples();
         double scale = nSamples / size.x;
         float yScale = size.y / 2.2f;
+        double zoom = exp(_zoom / 1200.0f);
         while (!cancelling()) {
             offset += e;
             if (offset >= 1.0)
@@ -27,7 +28,8 @@ public:
                 double xx = x;
                 xx += offset;
                 xx *= scale;
-                float y = program->getSampleInterpolated(xx);
+                float y = program->getSampleInterpolated(xx*zoom +
+                    _firstSample);
                 int yy = static_cast<int>((y + 1.1f)*yScale);
                 ++hits[yy*size.x + x];
             }
@@ -41,15 +43,16 @@ public:
     }
     void changeZoom(int amount, int x)
     {
-
+        _firstSample += x*_program->nSamples()*(exp(_zoom / 1200.0f) - exp((_zoom + amount) / 1200.0f)) / _size.x;
         _zoom += amount;
+        restart();
     }
 private:
     UInt32* _hits;
     Vector _size;
     Program* _program;
     int _zoom;
-    double _zoomCenter;
+    double _firstSample;
 
     float _offset;
 };
