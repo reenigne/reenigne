@@ -17,9 +17,8 @@ public:
         float offset = _offset;
         float e = (sqrtf(5) - 1)/2;
         int nSamples = _program->nSamples();
-        double scale = nSamples / size.x;
+        double scale = nSamples*exp(_zoom) / size.x;
         float yScale = size.y / 2.2f;
-        double zoom = exp(_zoom / 1200.0f);
         while (!cancelling()) {
             offset += e;
             if (offset >= 1.0)
@@ -27,8 +26,7 @@ public:
             for (int x = 0; x < size.x; ++x) {
                 double xx = x;
                 xx += offset;
-                xx *= scale;
-                float y = program->getSampleInterpolated(xx*zoom +
+                float y = program->getSampleInterpolated(xx*scale +
                     _firstSample);
                 int yy = static_cast<int>((y + 1.1f)*yScale);
                 ++hits[yy*size.x + x];
@@ -43,15 +41,21 @@ public:
     }
     void changeZoom(int amount, int x)
     {
-        _firstSample += x*_program->nSamples()*(exp(_zoom / 1200.0f) - exp((_zoom + amount) / 1200.0f)) / _size.x;
-        _zoom += amount;
+        float nz = _zoom - amount / 1200.0f;
+        _firstSample +=
+            x*(exp(_zoom) - exp(nz))*_program->nSamples() / _size.x;
+        _zoom = nz;
+        int n = _size.x * _size.y;
+        UInt32* hits = _hits;
+        for (int i = 0; i < n; ++i)
+            hits[i] = 0;
         restart();
     }
 private:
     UInt32* _hits;
     Vector _size;
     Program* _program;
-    int _zoom;
+    float _zoom;
     double _firstSample;
 
     float _offset;
@@ -162,14 +166,11 @@ public:
     }
     bool mouseInput(Vector position, int buttons, int wheel)
     {
-        //bool lButton = (buttons & MK_LBUTTON) != 0;
-        //_host->_output->mouseInput(position, lButton);
-        if (wheel != 0) 
+        if (wheel != 0)
             _waveViewThread.changeZoom(wheel, position.x);
         return false;
     }
 private:
-
     BitmapWindow _bitmap;
     AnimatedWindow _animated;
     WaveViewThread _waveViewThread;
@@ -222,6 +223,8 @@ public:
     float getSampleInterpolated(double sample)
     {
         int s = static_cast<int>(sample);
+        if (s < 0 || s >= nSamples())
+            return 0;
         float s0 = getSample(s);
         float s1 = getSample(s + 1);
         float o = static_cast<float>(sample - s);

@@ -699,15 +699,22 @@ protected:
                 {
                     int buttons;
                     int wheel;
+                    Vector position = vectorFromLParam(lParam);
                     if (uMsg == WM_MOUSEWHEEL) {
                         buttons = GET_KEYSTATE_WPARAM(wParam);
                         wheel = GET_WHEEL_DELTA_WPARAM(wParam);
+                        POINT p;
+                        p.x = position.x;
+                        p.y = position.y;
+                        IF_ZERO_THROW(ScreenToClient(_hWnd, &p));
+                        position.x = p.x;
+                        position.y = p.y;
                     }
                     else {
                         buttons = w;
                         wheel = 0;
                     }
-                    if (mouseInput(vectorFromLParam(lParam), buttons, wheel))
+                    if (mouseInput(position, buttons, wheel))
                         SetCapture(_hWnd);
                 }
                 break;
