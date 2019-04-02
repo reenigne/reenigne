@@ -4,6 +4,7 @@
 #define INCLUDED_COMPLEX_H
 
 #include "alfe/vectors.h"
+#include <cmath>
 
 template<class Real> class Complex
 {

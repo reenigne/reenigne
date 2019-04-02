@@ -7,6 +7,7 @@
 #define INCLUDED_SCANLINES_H
 
 #include "alfe/image_filter.h"
+#include <cmath>
 
 class ScanlineRenderer
 {

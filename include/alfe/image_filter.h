@@ -7,6 +7,7 @@
 #include <functional>
 #include <intrin.h>
 #include "alfe/tuple.h"
+#include <cmath>
 
 float sinint(float x)
 {

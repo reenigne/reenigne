@@ -72,16 +72,20 @@ public:
         UInt32* h = _hits;
         Vector size = _size;
         int n = size.x * size.y;
+        //int m = 0;
         for (int i = 0; i < n; ++i) {
             int hits = h[i];
             if (hits > 0) {
                 ++nn;
                 exposure -= hits;
             }
+            //m = max(m, hits);
         }
         float s = -0.01f;
         if (nn != 0)
             s = static_cast<float>(nn/exposure);
+        //if (m != 0)
+        //    s = static_cast<float>(log(1/255.0f)/m);
 
         _bitmap.ensure(_size);
         auto buffer = _bitmap.data();
@@ -89,7 +93,8 @@ public:
         for (int ys = 0; ys < size.y; ++ys) {
             Byte* p = buffer;
             for (int xs = 0; xs < size.x; ++xs) {
-                int c = byteClamp(255 - static_cast<int>(255.0f*exp((*h)*s)));
+                float v = 1 - expf((*h)*s);
+                int c = byteClamp(static_cast<int>(255.0f*pow(v, 2.2f)));
                 p[0] = c;
                 p[1] = c;
                 p[2] = c;
@@ -166,8 +171,11 @@ public:
     }
     bool mouseInput(Vector position, int buttons, int wheel)
     {
-        if (wheel != 0)
+        if (wheel != 0) {
+            _waveViewThread.cancel();
+            _waveViewThread.join();
             _waveViewThread.changeZoom(wheel, position.x);
+        }
         return false;
     }
 private:
@@ -179,6 +187,21 @@ private:
 
     Program* _program;
 };
+
+float sinc(float z)
+{
+    if (z == 0.0f)
+        return 1.0f;
+    z *= static_cast<float>(M_PI);
+    return sinf(z)/z;
+}
+
+static const int lobes = 10;
+
+float lanczos(float z)
+{
+    return sinc(z)*sinc(z/lobes);
+}
 
 class Program : public WindowProgram<WaveViewWindow>
 {
@@ -223,12 +246,30 @@ public:
     float getSampleInterpolated(double sample)
     {
         int s = static_cast<int>(sample);
-        if (s < 0 || s >= nSamples())
-            return 0;
-        float s0 = getSample(s);
-        float s1 = getSample(s + 1);
-        float o = static_cast<float>(sample - s);
-        return s0*(1 - o) + s1*o;
+        sample -= s;
+
+        float v = 0;
+        float t = 0;
+        int n = nSamples();
+        static const int r = lobes;
+        for (int x = -r; x <= r; ++x) {
+            int xx = s + x;
+            float y = 0;
+            if (xx >= 0 && xx < n)
+                y = getSample(xx);
+            float l = lanczos(static_cast<float>(x - sample));
+            t += l;
+            v += l*y;
+        }
+        return v/t;
+
+        //int s = static_cast<int>(sample);
+        //if (s < 0 || s >= n)
+        //    return 0;
+        //float s0 = getSample(s);
+        //float s1 = getSample(s + 1);
+        //float o = static_cast<float>(sample - s);
+        //return s0*(1 - o) + s1*o;
     }
     int nSamples() { return _nSamples - 1; }
 private:

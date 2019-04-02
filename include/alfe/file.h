@@ -41,7 +41,7 @@ public:
     FileSystemObjectT() { }
     FileSystemObjectT(const ConstHandle& other) : ConstHandle(other) { }
     FileSystemObjectT(const String& path,
-        const Directory& relativeTo = CurrentDirectoryT<T>(),
+        const DirectoryT<T>& relativeTo = CurrentDirectoryT<T>(),
         bool windowsParsing = false)
     {
         *this = FileSystemObject::parse(path, relativeTo, windowsParsing);
@@ -60,7 +60,7 @@ public:
     class Body : public ConstHandle::Body
     {
     public:
-        virtual Directory parent() const = 0;
+        virtual DirectoryT<T> parent() const = 0;
         virtual String name() const = 0;
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
@@ -119,9 +119,9 @@ private:
     static DirectoryT<T> windowsParseRoot(const String& path,
         const Directory& relativeTo, CharacterSource& s)
     {
-        CharacterSource s2 = s;
+        CharacterSourceT<T> s2 = s;
         int c = s2.get();
-        Directory dir = relativeTo;
+        DirectoryT<T> dir = relativeTo;
 
         // Process initial slashes
         if (c == '/' || c == '\\') {
@@ -187,8 +187,8 @@ private:
     static FileSystemObject windowsParse(const String& path,
         const Directory& relativeTo)
     {
-        CharacterSource s(path);
-        Directory dir = windowsParseRoot(path, relativeTo, s);
+        CharacterSourceT<T> s(path);
+        DirectoryT<T> dir = windowsParseRoot(path, relativeTo, s);
         int subDirectoryStart = s.offset();
         int c = s.get();
 
@@ -241,7 +241,7 @@ private:
 #endif
 
     static DirectoryT<T> parseRoot(const String& path,
-        const Directory& relativeTo, CharacterSource& s)
+        const DirectoryT<T>& relativeTo, CharacterSource& s)
     {
         CharacterSourceT<T> s2 = s;
         int c = s2.get();
@@ -305,7 +305,7 @@ private:
         return FileSystemObject(dir, name);
     }
 
-    FileSystemObjectT(const Directory& parent, const String& name)
+    FileSystemObjectT(const DirectoryT<T>& parent, const String& name)
       : ConstHandle(create<NamedBody>(parent, name)) { }
 
     friend class NamedBody;
@@ -315,7 +315,7 @@ private:
 
     template<class U> friend void applyToWildcard(U functor,
         const String& wildcard, int recurseIntoDirectories,
-        const Directory& relativeTo);
+        const DirectoryT<T>& relativeTo);
 };
 
 template<class T> class DirectoryT : public FileSystemObject
@@ -615,7 +615,7 @@ public:
         NullTerminatedWideString data(path());
         NullTerminatedWideString tempData(temp.path());
         if (ReplaceFile(data, tempData, NULL, REPLACEFILE_WRITE_THROUGH |
-            REPLACEFILE_IGNORE_MERGE_ERRORS) == 0) {
+            REPLACEFILE_IGNORE_MERGE_ERRORS, NULL, NULL) == 0) {
             {
                 PreserveSystemError p;
                 DeleteFile(tempData);  // Ignore any errors
@@ -740,8 +740,8 @@ private:
 public:
     AutoStreamT<T> openPipe()
     {
-        AutoStream f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0, OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL);
+        AutoStreamT<T> f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0,
+			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL);
         if (!f.valid())
             throw Exception::systemError("Opening pipe " + path());
         return f;
@@ -749,7 +749,7 @@ public:
     AutoStreamT<T> createPipe(bool overlapped = false)
     {
         NullTerminatedWideString data(path());
-        AutoStream f(CreateNamedPipe(
+        AutoStreamT<T> f(CreateNamedPipe(
             data,                // lpName
             PIPE_ACCESS_DUPLEX |
                 (overlapped ? FILE_FLAG_OVERLAPPED : 0),  // dwOpenMode

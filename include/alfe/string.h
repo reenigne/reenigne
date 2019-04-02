@@ -726,8 +726,8 @@ template<class T> class NullTerminatedWideStringT
 public:
     NullTerminatedWideStringT(String s)
     {
-        CharacterSource start(s);
-        CharacterSource cs = start;
+        CharacterSourceT<T> start(s);
+        CharacterSourceT<T> cs = start;
         int l = 1;
         do {
             int c = cs.get();

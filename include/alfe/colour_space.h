@@ -4,6 +4,7 @@
 #define INCLUDED_COLOUR_SPACE_H
 
 #include "alfe/vectors.h"
+#include <cmath>
 
 typedef Vector3<float> Colour;
 typedef Vector3<UInt8> SRGB;

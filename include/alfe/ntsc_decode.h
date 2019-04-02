@@ -7,6 +7,7 @@
 #include "alfe/fft.h"
 #include "alfe/image_filter.h"
 #include "alfe/colour_space.h"
+#include <cmath>
 
 float sinc(float z)
 {
