@@ -1,6 +1,33 @@
 #include "alfe/main.h"
 #include "alfe/config_file.h"
 
+class StateVectorAllocator
+{
+public:
+	StateVectorAllocator() : _nextAddress(0) { }
+	int allocate(int bytes)
+	{
+		int r = _nextAddress;
+		_nextAddress += bytes;
+		return r;
+	}
+private:
+	int _nextAddress;
+};
+
+class StateVector
+{
+public:
+	StateVector(StateVectorAllocator allocator)
+	{
+		_data.allocate(allocator.allocate(0));
+	}
+	StateVector(const StateVector& other) { _data = other._data.copy();	}
+	Byte* data(int address) { return &_data[address]; }
+private:
+	Array<Byte> _data;
+};
+
 class Program : public ProgramBase
 {
 public:
