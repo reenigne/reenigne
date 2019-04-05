@@ -25,3 +25,11 @@ Execution strategies:
     Add conditional branch targets and known call destinations to static strategy list
 
 Label
+
+
+If specified load address is 0x10000:
+  For .com file, should 0x10000 be the PSP or the start of loaded data?
+  For an .exe file, should 0x10000 be the start of image?
+  Let's make it as easy as possible to translate between physical addresses (used for generated labels) and offsets in the simple case.
+  So 0x10000 is the PSP for a .com file and start of image for an .exe file.
+    This may mean reducing the value in the config file (by the length of the PSP?)
