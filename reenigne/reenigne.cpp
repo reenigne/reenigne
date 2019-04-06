@@ -39,7 +39,7 @@ public:
         _ram = allocator.allocate(640*1024);
         _v = StateVector(allocator);
     }
-    Byte* ram() { }
+    Byte* ram() { return _v.data(_ram);  }
 private:
     StateVector _v;
     int _registers;
@@ -55,6 +55,8 @@ public:
     {
         int loadAddress = _configFile->get<int>("loadAddress");
         int imageSegment = loadAddress >> 4;
+
+        _ram = decompiler->ram();
 
         file.readIntoArray(&_program);
         int length = _program.count();
@@ -72,13 +74,15 @@ public:
                 headerLength > exeLength)
                 throw Exception(file.path() + " is corrupt\n");
             int relocationCount = readWord(6);
+            for (int i = 0; i < exeLength - headerLength; ++i)
+                _ram[i + loadAddress] = _program[i + headerLength];
 
             //Word imageSegment = loadSegment + headerParagraphs;
             int relocationData = readWord(0x18);
             for (int i = 0; i < relocationCount; ++i) {
                 Word offset = readWord(relocationData);
                 Word segment = readWord(relocationData + 2) + imageSegment;
-                writeWord(readWord(offset, 1) + imageSegment, offset, 1);
+                writeWord(readWord(offset + headerLength) + imageSegment, offset, 1);
                 relocationData += 4;
             }
             loadSegment = imageSegment;  // Prevent further access to header
@@ -107,6 +111,7 @@ public:
 private:
     ConfigFile* _configFile;
     Array<Byte> _program;
+    Byte* _ram;
 
     Byte readByte(int offset) { return _program[offset]; }
     Word readWord(int offset)
@@ -114,7 +119,11 @@ private:
         Word r = readByte(offset);
         return r + (readByte(offset + 1) << 8);
     }
-
+    void writeWord(int offset, Word word)
+    {
+        _ram[offset] = word;
+        _ram[offset + 1] = word >> 8;
+    }
 };
 
 class Program : public ProgramBase
