@@ -29,22 +29,93 @@ private:
 	Array<Byte> _data;
 };
 
+class ByteSource
+{
+public:
+    ByteSource(Byte* ram, Word ip) : _ram(ram), _ip(ip) { }
+    Byte get()
+    {
+        Byte b = _ram[_ip];
+        ++_ip;
+        return b;
+    }
+private:
+    Byte* _ram;
+    Word _ip;
+};
+
+class Instruction
+{
+
+};
+
+class InstructionPattern
+{
+
+};
+
+class InstructionDatabase
+{
+public:
+    Instruction decode(ByteSource s)
+    {
+        int o = 0;
+        do {
+            int b = s.get();
+            o = _decoderTree[b + o];
+            if (o < 0)
+                
+        } while (true);
+    }
+private:
+    Array<int> _decoderTree;
+    Array<InstructionPattern*> _patterns;
+};
+
 class Decompiler
 {
 public:
     Decompiler(ConfigFile* configFile) : _configFile(configFile)
     {
         StateVectorAllocator allocator;
-        _registers = allocator.allocate(8*2 + 4*2 + 2);
+        _registers = allocator.allocate(8*2 + 4*2 + 4);
         _ram = allocator.allocate(640*1024);
         _v = StateVector(allocator);
     }
-    Byte* ram() { return _v.data(_ram);  }
+    Byte* ram() { return _v.data(_ram); }
+    void setAX(Word v) { registers()[0] = v; }
+    void setCX(Word v) { registers()[1] = v; }
+    void setDX(Word v) { registers()[2] = v; }
+    void setBX(Word v) { registers()[3] = v; }
+    void setSP(Word v) { registers()[4] = v; }
+    void setBP(Word v) { registers()[5] = v; }
+    void setSI(Word v) { registers()[6] = v; }
+    void setDI(Word v) { registers()[7] = v; }
+    void setES(Word v) { registers()[8] = v; }
+    void setCS(Word v) { registers()[9] = v; }
+    void setSS(Word v) { registers()[10] = v; }
+    void setDS(Word v) { registers()[11] = v; }
+    void setIP(Word v) { registers()[12] = v; }
+    void setFlags(Word v) { registers()[13] = v; }
+    Word cs() { return registers()[9]; }
+    Word ip() { return registers()[12]; }
+
+    void dynamic()
+    {
+        do {
+            ByteSource s(ram() + (cs() << 4), ip());
+            Instruction i = _instructionDatabase.decode(s);
+
+        } while (true);
+    }
 private:
+    Word* registers() { return reinterpret_cast<Word*>(_v.data(_registers)); }
+
     StateVector _v;
     int _registers;
     int _ram;
     ConfigFile* _configFile;
+    InstructionDatabase _instructionDatabase;
 };
 
 class DOSLoader
@@ -60,6 +131,8 @@ public:
 
         file.readIntoArray(&_program);
         int length = _program.count();
+        Word cs;
+        Word ds;
         if (length >= 2 && readWord(0) == 0x5a4d) {  // .exe file?
             if (length < 0x21) {
                 throw Exception(file.path() +
@@ -77,36 +150,44 @@ public:
             for (int i = 0; i < exeLength - headerLength; ++i)
                 _ram[i + loadAddress] = _program[i + headerLength];
 
-            //Word imageSegment = loadSegment + headerParagraphs;
             int relocationData = readWord(0x18);
             for (int i = 0; i < relocationCount; ++i) {
                 Word offset = readWord(relocationData);
                 Word segment = readWord(relocationData + 2) + imageSegment;
-                writeWord(readWord(offset + headerLength) + imageSegment, offset, 1);
+                writeWord(offset + (segment << 4),
+                    readWord(offset + headerLength) + imageSegment);
                 relocationData += 4;
             }
-            loadSegment = imageSegment;  // Prevent further access to header
-            Word ss = readWord(0xe) + loadSegment;  // SS
-            setSS(ss);
-            setSP(readWord(0x10));
-            stackLow = ((exeLength - headerLength + 15) >> 4) + loadSegment;
-            if (stackLow < ss)
-                stackLow = 0;
-            else
-                stackLow = (stackLow - (int)ss) << 4;
-            ip = readWord(0x14);
-            setCS(readWord(0x16) + loadSegment);  // CS
+            decompiler->setSS(readWord(0xe) + imageSegment);
+            decompiler->setSP(readWord(0x10));
+            decompiler->setIP(readWord(0x14));
+            cs = readWord(0x16) + imageSegment;
+            ds = cs - 0x10;
         }
         else {
             if (length > 0xff00) {
                 throw Exception(file.path() +
                     " is too long to be a .com file\n");
             }
-            setSP(0xFFFE);
-            stackLow = length + 0x100;
+            for (int i = 0; i < length; ++i)
+                _ram[i + loadAddress + 0x100] = _program[i];
+            decompiler->setSS(imageSegment);
+            decompiler->setSP(0xFFFE);
+            decompiler->setIP(0x100);
+            cs = imageSegment;
+            ds = cs;
         }
-
-
+        decompiler->setAX(0x0000);
+        decompiler->setCX(0x00FF);
+        decompiler->setDX(cs);
+        decompiler->setBX(0x0000);
+        decompiler->setBP(0x091C);
+        decompiler->setSI(0x0100);
+        decompiler->setDI(0xFFFE);
+        decompiler->setES(cs);
+        decompiler->setCS(cs);
+        decompiler->setDS(ds);
+        decompiler->setFlags(2);
     }
 private:
     ConfigFile* _configFile;
@@ -151,6 +232,7 @@ public:
         DOSLoader loader(&configFile);
         loader.load(inputProgramFile, &decompiler);
 
+        decompiler.dynamic();
     }
 private:
 
