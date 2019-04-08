@@ -331,7 +331,7 @@ public:
     int count() const { return body() == 0 ? 0 : body()->size(); }
     Array copy() const
     {
-        Array r(create<Body>(count(), 0));
+        Array r(create<>(count(), 0));
         for (int i = 0; i < count(); ++i)
             r.body()->constructT((*this)[i]);
         return r;

@@ -57,8 +57,12 @@ template<class T> class OverloadedFunctionSetT;
 typedef OverloadedFunctionSetT<void> OverloadedFunctionSet;
 
 class Function;
-class BooleanType;
-class FuncoType;
+
+template<class T> class FuncoTypeT;
+typedef FuncoTypeT<void> FuncoType;
+
+template<class T> class BooleanTypeT;
+typedef BooleanTypeT<void> BooleanType;
 
 template<class T> class EvaluationContextT
 {
@@ -725,7 +729,7 @@ public:
             for (auto p : this->_arguments)
                 arguments.add(p.evaluate(context).rValue());
             TypeT<T> lType = l.type();
-            if (lType == FuncoType()) {
+            if (lType == FuncoTypeT<T>()) {
                 return l.template value<OverloadedFunctionSet>().evaluate(
                     arguments, this->span());
             }
@@ -883,14 +887,14 @@ private:
         ValueT<T> evaluate(EvaluationContext* context) const
         {
             ValueT<T> v = left().evaluate(context);
-            if (v.type() != BooleanType()) {
+            if (v.type() != BooleanTypeT<T>()) {
                 left().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
             if (!v.template value<bool>())
                 return false;
             v = right().evaluate(context);
-            if (v.type() != BooleanType()) {
+            if (v.type() != BooleanTypeT<T>()) {
                 right().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }

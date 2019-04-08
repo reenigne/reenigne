@@ -35,6 +35,15 @@ If specified load address is 0x10000:
     This may mean reducing the value in the config file (by the length of the PSP?)
 
 
+For speed, the decoder should be a 256-tree
+  Have an array
+  Each element of the array is either a non-leaf (index into another part of the array) or a leaf (index into an array of InstructionPatterns)
+
+
 Implement as needed:
   Program Segment Prefix (https://en.wikipedia.org/wiki/Program_Segment_Prefix)
   Environment block
+
+What does InstructionPattern need to contain for converting between Byte stream and parameters?
+  Ignore big-endian formats for now
+

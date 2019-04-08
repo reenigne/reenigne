@@ -1,5 +1,6 @@
 #include "alfe/main.h"
 #include "alfe/config_file.h"
+//#include "alfe/statement.h"
 
 class StateVectorAllocator
 {
@@ -44,32 +45,172 @@ private:
     Word _ip;
 };
 
+class InstructionPattern;
+
 class Instruction
 {
+public:
+    Instruction(InstructionPattern* pattern, Array<int> parameters)
+      : _pattern(pattern), _parameters(parameters)
+    {
 
+    }
+    String disassemble()
+    {
+
+    }
+    //StatementSequence decompile()
+    //{
+
+    //}
+
+private:
+    InstructionPattern* _pattern;
+    Array<int> _parameters;
+};
+
+class ByteType : public NamedNullary<Type, ByteType>
+{
+public:
+    static String name() { return "Byte"; }
+};
+
+class WordType : public NamedNullary<Type, WordType>
+{
+public:
+    static String name() { return "Word"; }
+};
+
+class InterpretationContext
+{
+public:
+    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
+    {
+        if (!identifier.valid())
+            identifier = TycoIdentifier(type.toString());
+        _types.add(identifier, type);
+    }
+private:
+    HashTable<TycoIdentifier, Type> _types;
+    HashTable<Identifier, Value> _values;
 };
 
 class InstructionPattern
 {
+public:
+    InstructionPattern() { }
+    InstructionPattern(InterpretationContext context, String parameters,
+        String assembly, String binary, String effect)
+    {
+        CharacterSource s(parameters);
+        TycoSpecifier tycoSpecifier = TycoSpecifier::parse(&s);
+        if (!tycoSpecifier.valid())
+            throw Exception("Expected TycoSpecifier");
 
+        Identifier objectIdentifier = Identifier::parse(&s);
+        if (objectIdentifier.isOperator()) {
+            objectIdentifier.span().throwError("Cannot create an object "
+                "with operator name");
+        }
+        String objectName = objectIdentifier.name();
+        if (has(objectIdentifier)) {
+            objectIdentifier.span().throwError(objectName +
+                " already exists");
+        }
+
+    }
+    virtual Instruction decode(Byte* bytes, int count)
+    {
+        return Instruction(this, Array<int>());
+    }
+private:
+    struct FieldData
+    {
+        int bitOffset;
+        int bitCount;
+        
+        UInt32 decodeField(Byte* bytes)
+        {
+            bytes += bitOffset >> 3;
+            int firstBit = bitOffset & 7;
+            UInt32 r = 0;
+            int b = bitCount + firstBit;
+            int s = 0;
+            while (b > 0) {
+                r += (*bytes) << s;
+                ++bytes;
+                s += 8;
+                b -= 8;
+            }
+            return (r >> firstBit) & ((1 << bitCount) - 1);
+        }
+        void encodeField(UInt32 value, Byte* bytes)
+        {
+            bytes += bitOffset >> 3;
+            int firstBit = bitOffset & 7;
+            assert(value < (1U << bitCount));
+            value <<= firstBit;
+            UInt32 mask = ((1 << bitCount) - 1) << firstBit;
+            while (mask != 0) {
+                *bytes = ((*bytes) & ~mask) | (value & mask);
+                ++bytes;
+                mask >>= 8;
+                value >>= 8;
+            }
+        }
+    };
+    Array<FieldData> _fieldData;
+    UInt32 _opcode;
+    UInt32 _mask;
+};
+
+class InvalidInstructionPattern : public InstructionPattern
+{
+public:
+    Instruction decode(Byte* bytes, int count)
+    {
+        String message = "Unknown opcode ";
+        for (int i = 0; i < count; ++i)
+            message += hex(bytes[i], 2);
+        throw Exception(message);
+    }
 };
 
 class InstructionDatabase
 {
 public:
+    InstructionDatabase()
+    {
+        _patterns.append(new InvalidInstructionPattern());
+        _decoderTree.allocate(0x100);
+        for (int i = 0; i < 0x100; ++i)
+            _decoderTree[i] = -1;
+    }
+    void add(InstructionPattern* pattern)
+    {
+        
+    }
+    ~InstructionDatabase()
+    {
+        for (auto p : _patterns)
+            if (p != 0)
+                delete p;
+    }
     Instruction decode(ByteSource s)
     {
+        AppendableArray<Byte> bytes;
         int o = 0;
         do {
             int b = s.get();
+            bytes.append(b);
             o = _decoderTree[b + o];
             if (o < 0)
-                
+                return _patterns[-1-o]->decode(&bytes[0], bytes.count());
         } while (true);
     }
 private:
     Array<int> _decoderTree;
-    Array<InstructionPattern*> _patterns;
+    AppendableArray<InstructionPattern*> _patterns;
 };
 
 class Decompiler
@@ -77,6 +218,15 @@ class Decompiler
 public:
     Decompiler(ConfigFile* configFile) : _configFile(configFile)
     {
+        _context.addType(ByteType());
+        _context.addType(WordType());
+        _instructionDatabase.add(new InstructionPattern(
+            "GeneralWordRegister* destination, Word source",
+            "mov ${*destination}, $source",
+            "byte(0xb0 + $destination).word(source)",
+            "*destination = source;"
+        ));
+
         StateVectorAllocator allocator;
         _registers = allocator.allocate(8*2 + 4*2 + 4);
         _ram = allocator.allocate(640*1024);
@@ -116,6 +266,7 @@ private:
     int _ram;
     ConfigFile* _configFile;
     InstructionDatabase _instructionDatabase;
+    InterpretationContext _context;
 };
 
 class DOSLoader
@@ -202,7 +353,7 @@ private:
     }
     void writeWord(int offset, Word word)
     {
-        _ram[offset] = word;
+        _ram[offset] = static_cast<Byte>(word);
         _ram[offset + 1] = word >> 8;
     }
 };

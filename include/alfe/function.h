@@ -11,7 +11,7 @@
 // in general have a type (or even a tyco, because we can't do kind checking).
 // However, OverloadedFunctionSet needs to be wrapped in a Value and placed in
 // a symbol table (e.g. in ConfigFile), so this is the stub type for that.
-class FuncoType : public NamedNullary<Type, FuncoType>
+template<class T> class FuncoTypeT : public NamedNullary<Type, FuncoTypeT<T>>
 {
 public:
     static String name() { return "@FunctionConstructor"; }

@@ -89,7 +89,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
@@ -121,7 +121,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
@@ -152,6 +152,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="reenigne.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\alfe\array.h" />
+    <ClInclude Include="..\include\alfe\config_file.h" />
+    <ClInclude Include="..\include\alfe\expression.h" />
+    <ClInclude Include="..\include\alfe\function.h" />
+    <ClInclude Include="..\include\alfe\main.h" />
+    <ClInclude Include="..\include\alfe\statement.h" />
+    <ClInclude Include="..\include\alfe\type.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

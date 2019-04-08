@@ -197,8 +197,8 @@ public:
                 Type type = _types[identifier];
                 Identifier objectIdentifier = Identifier::parse(&s);
                 if (objectIdentifier.isOperator()) {
-                    identifier.span().throwError("Cannot create an object "
-                        "with operator name");
+                    objectIdentifier.span().throwError("Cannot create an "
+                        "object with operator name");
                 }
                 String objectName = objectIdentifier.name();
                 if (has(objectIdentifier)) {

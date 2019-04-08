@@ -35,6 +35,9 @@ typedef LValueTypeT<void> LValueType;
 template<class T> class StructuredTypeT;
 typedef StructuredTypeT<void> StructuredType;
 
+template<class T> class BooleanTypeT;
+typedef BooleanTypeT<void> BooleanType;
+
 template<class T> class TycoT : public ConstHandle
 {
 public:
@@ -119,9 +122,9 @@ public:
         return _structure == other._structure &&
             _identifier == other._identifier;
     }
-    LValue member(Identifier identifier)
+    LValueT member(Identifier identifier)
     {
-        return LValue(_structure->getValue(_identifier).value<Structure*>(),
+        return LValueT(_structure->getValue(_identifier).value<Structure*>(),
             identifier);
     }
 private:
@@ -549,7 +552,8 @@ public:
     };
 };
 
-class BooleanType : public NamedNullary<Type, BooleanType>
+template<class T> class BooleanTypeT
+  : public NamedNullary<Type, BooleanTypeT<T>>
 {
 public:
     static String name() { return "Boolean"; }
