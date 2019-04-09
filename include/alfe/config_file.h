@@ -36,22 +36,10 @@ private:
 
 template<class V> using ConfigOption = ConfigOptionT<void, V>;
 
-class DispatchFunction : public Function
+template<class T> class ConfigFileT : public Scope
 {
 public:
-    class Body : public Function::Body
-    {
-    public:
-        virtual Value evaluate(List<Value> arguments) const = 0;
-        virtual Identifier identifier() const = 0;
-        virtual Value value() const = 0;
-    };
-};
-
-template<class T> class ConfigFileT : public Structure
-{
-public:
-    ConfigFileT() : _context(this)
+    ConfigFileT()
     {
         addType(IntegerType());
         addType(BooleanType());
@@ -130,8 +118,10 @@ public:
         const V& defaultValue)
     {
         StructuredType s(type);
-        if (s.valid())
-            addOption(name, s.lValueFromRValue(defaultValue, this));
+        if (s.valid()) {
+            addOption(name,
+                s.lValueFromRValue(defaultValue, &_structureOwner));
+        }
         else
             addOption(name, Value(type, defaultValue));
     }
@@ -177,7 +167,7 @@ public:
             s = source;
             Span span;
             if (Space::parseKeyword(&s, "include", &span)) {
-                Value e = Expression::parse(&s).evaluate(&_context).
+                Value e = Expression::parse(&s).evaluate(this).
                     convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
                 load(File(e.value<String>(), _file.parent()));
@@ -207,7 +197,7 @@ public:
                 }
                 Value value = StructuredType::empty();
                 if (Space::parseCharacter(&s, '=', &span))
-                    value = Expression::parse(&s).evaluate(&_context);
+                    value = Expression::parse(&s).evaluate(this);
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
                 value = value.rValue().convertTo(type);
@@ -235,13 +225,13 @@ public:
                 s.location().throwError("Expected an include statement, an "
                     "object creation statement or an assignment statement.");
             }
-            Value left = Expression::parseDot(&source).evaluate(&_context);
+            Value left = Expression::parseDot(&source).evaluate(this);
             Space::assertCharacter(&source, '=', &span);
             Expression e = Expression::parse(&source);
             if (!e.valid())
                 source.location().throwError("Expected expression.");
             Space::assertCharacter(&source, ';', &span);
-            Value loadedExpression = e.evaluate(&_context);
+            Value loadedExpression = e.evaluate(this);
             LValueType lValueType(left.type());
             if (!lValueType.valid())
                 left.span().throwError("LValue required");
@@ -288,21 +278,6 @@ public:
 
     File file() const { return _file; }
 
-    Value valueOfIdentifier(Identifier i)
-    {
-        Span s = i.span();
-        if (!has(i))
-            s.throwError("Unknown identifier " + i.name());
-        return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
-    }
-    Tyco resolveTycoIdentifier(TycoIdentifier i) const
-    {
-        String s = i.name();
-        if (!_types.hasKey(s))
-            return Tyco();
-        return _types[s];
-    }
-
     template<class U> U evaluate(String text, const U& def)
     {
         CharacterSource s(text);
@@ -311,7 +286,7 @@ public:
             Expression e = Expression::parse(&s);
             if (!e.valid())
                 return def;
-            Value v = e.evaluate(&_context);
+            Value v = e.evaluate(this);
             if (!v.valid())
                 return def;
             c = v.convertTo(typeFromCompileTimeType<U>());
@@ -324,26 +299,8 @@ public:
         return c.template value<U>();
     }
 private:
-
-    class EvaluationContext : public ::EvaluationContext
-    {
-    public:
-        EvaluationContext(ConfigFile* configFile) : _configFile(configFile) { }
-        Value valueOfIdentifier(Identifier i)
-        {
-            return _configFile->valueOfIdentifier(i);
-        }
-        Tyco resolveTycoIdentifier(TycoIdentifier i)
-        {
-            return _configFile->resolveTycoIdentifier(i);
-        }
-    private:
-        ConfigFile* _configFile;
-    };
-
-    HashTable<TycoIdentifier, Type> _types;
     File _file;
-    EvaluationContext _context;
+    StructureOwner _structureOwner;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

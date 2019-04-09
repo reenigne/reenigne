@@ -71,6 +71,7 @@ public:
         } while (true);
         return tycoSpecifier;
     }
+    Tyco resolve(Scope* scope) { return body()->resolve(scope); }
 protected:
     TycoSpecifierT() { }
     TycoSpecifierT(const ConstHandle& other)
@@ -80,6 +81,7 @@ protected:
     {
     public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
+        virtual Tyco resolve(Scope* scope) = 0;
     };
     class InstantiationBody : public Body
     {
@@ -88,6 +90,17 @@ protected:
             const TemplateArguments& arguments, const Span& span)
           : Body(span), _tycoIdentifier(tycoIdentifier), _arguments(arguments)
         { }
+        virtual Tyco resolve(Scope* scope)
+        {
+            Tyco t = scope->resolve(_tycoIdentifier);
+            List<Tyco> a = _arguments.resolve(scope);
+            for (auto argument in a) {
+                Template te = t;
+                assert(te.valid());
+                t = te.instantiate(a);
+            }
+            return t;
+        }
     private:
         TycoIdentifierT<T> _tycoIdentifier;
         TemplateArgumentsT<T> _arguments;
@@ -169,6 +182,7 @@ public:
             return body->count();
         return 0;
     }
+    List<Tyco> resolve(Scope* scope) { return body()->resolve(scope); }
 
     class Body : public ParseTreeObject::Body
     {
@@ -176,10 +190,19 @@ public:
         Body(const List<TycoSpecifier>& arguments, const Span& span)
           : ParseTreeObject::Body(span), _arguments(arguments) { }
         int count() const { return _arguments.count(); }
+        List<Tyco> resolve(Scope* scope)
+        {
+            List<Tyco> l;
+            for (auto s : _arguments)
+                l.add(scope->resolveTyco(s));
+            return l;
+        }
     private:
         List<TycoSpecifier> _arguments;
     };
 private:
+    const Body* body() const { return as<Body>(); }
+
     TemplateArgumentsT() { }
     TemplateArgumentsT(const ConstHandle& other)
       : ParseTreeObject(other) { }
@@ -197,6 +220,11 @@ private:
     public:
         PointerBody(const TycoSpecifier& referent, const Span& span)
           : Body(span), _referent(referent) { }
+        Tyco resolve(Scope* scope)
+        {
+            Type referent = scope->resolveTycoSpecifier(_referent);
+            return PointerType(referent);
+        }
     private:
         TycoSpecifier _referent;
     };
@@ -208,6 +236,16 @@ private:
           : Body(span), _returnType(returnType),
             _argumentTypes(argumentTypes)
         { }
+        Tyco resolve(Scope* scope)
+        {
+            Type ret = scope->resolveType(_returnType);
+            FunctionType f = FunctionTemplate().instantiate(ret);
+            for (auto a : _argumentTypes) {
+                Type t = scope->resolveType(a);
+                f = f.instantiate(t);
+            }
+            return f;
+        }
     private:
         TycoSpecifier _returnType;
         List<TycoSpecifier> _argumentTypes;
@@ -289,6 +327,10 @@ protected:
             auto o = other->to<Body>();
             return o != 0 && _name == o->_name;
         }
+        Tyco resolve(Scope* scope)
+        {
+            return scope->resolveTypeIdentifier(handle<TypeIdentifier>());
+        }
     private:
         String _name;
     };
@@ -315,6 +357,11 @@ private:
     public:
         Body(const Span& span)
           : TycoSpecifier::Body(span) { }
+        Tyco resolve(Scope* scope)
+        {
+            // TODO
+            return Tyco();
+        }
     };
     ClassTycoSpecifierT() { }
     ClassTycoSpecifierT(const Span& span)
@@ -345,6 +392,10 @@ private:
     public:
         Body(const Expression& expression, const Span& span)
           : TypeSpecifier::Body(span), _expression(expression) { }
+        Tyco resolve(Scope* scope)
+        {
+            return _expression.type();
+        }
     private:
         ExpressionT<T> _expression;
     };

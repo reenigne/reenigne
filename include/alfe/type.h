@@ -64,6 +64,14 @@ private:
 template<class T> class StructureT;
 typedef StructureT<void> Structure;
 
+class StructureOwner
+{
+public:
+    void addOwned(Reference<Structure> structure) { _owned.add(structure); }
+private:
+    List<Reference<Structure>> _owned;
+};
+
 template<class T> class StructureT
 {
 public:
@@ -95,10 +103,44 @@ public:
     {
         return _values.end();
     }
-    void addOwned(Reference<Structure> structure) { _owned.add(structure); }
 private:
     HashTable<Identifier, Value> _values;
-    List<Reference<Structure>> _owned;
+};
+
+class Scope : public Structure
+{
+public:
+    Value valueOfIdentifier(Identifier i)
+    {
+        Span s = i.span();
+        if (!has(i))
+            s.throwError("Unknown identifier " + i.name());
+        return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
+    }
+    Tyco resolveTycoIdentifier(TycoIdentifier i) const
+    {
+        String s = i.name();
+        if (!_tycos.hasKey(s))
+            return Tyco();
+        return _tycos[s];
+    }
+    Tyco resolveTycoSpecifier(TycoSpecifier s) const
+    {
+        return s.resolve(this);
+    }
+    Type resolveType(TycoSpecifier s) const
+    {
+        Tyco tyco = resolveTycoSpecifier(s);
+        Type t = resolveTycoSpecifier(s);
+        if (!t.valid()) {
+            s.span().throwError("Type constructor specifier " + s.toString() +
+                " does not specify a type but a type constructor of kind " +
+                tyco.kind().toString() + ".");
+        }
+        return t;
+    }
+private:
+    HashTable<TycoIdentifier, Tyco> _tycos;
 };
 
 template<class T> class LValueT;
@@ -1467,7 +1509,12 @@ public:
             List<StructuredType::Member>()), HashTable<Identifier, Value>());
         return e;
     }
-    Value lValueFromRValue(Any rValue, Structure* owner) const
+    // This is a bit of a hack. In order to allow access to members (e.g. "x"
+    // and "y" of a Vector) from a ConfigFile, we need to convert the Vector to
+    // a Structure, and that Structure needs to be owned by something. Hence
+    // the ConfigFile needs to have a StructureOwner to own those Structure
+    // objects.
+    Value lValueFromRValue(Any rValue, StructureOwner* owner) const
     {
         return body()->lValueFromRValue(rValue, owner);
     }
@@ -1483,6 +1530,7 @@ public:
     {
         return body()->setLValue(l, rValue);
     }
+    Type member(Identifier i) const { return body()->member(i); }
 protected:
     class Body : public Type::Body
     {
@@ -1723,7 +1771,7 @@ protected:
             return _name == o->_name && _names == o->_names &&
                 _members == o->_members;
         }
-        virtual Value lValueFromRValue(Any rValue, Structure* owner) const
+        virtual Value lValueFromRValue(Any rValue, StructureOwner* owner) const
         {
             return Value(type(), rValue);
         }
@@ -1765,7 +1813,7 @@ public:
     {
     public:
         Body() : StructuredType::Body("Vector", members()) { }
-        Value lValueFromRValue(Any rValue, Structure* owner) const
+        Value lValueFromRValue(Any rValue, StructureOwner* owner) const
         {
             auto r = Reference<Structure>::create<Structure>();
             owner->addOwned(r);

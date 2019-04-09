@@ -306,14 +306,14 @@ protected:
         Scope scope;
 
         TycoIdentifier voidIdentifier("Void");
-        TycoDefinitionStatement voidDefinition(voidIdentifier,
-            BuiltInTycoSpecifier(Kind::type));
-        scope.add(voidDefinition);
+//        TycoDefinitionStatement voidDefinition(voidIdentifier,
+//            BuiltInTycoSpecifier(Kind::type));
+//        scope.add(voidDefinition);
 
         TycoIdentifier stringIdentifier("String");
-        TycoDefinitionStatement stringDefinition(stringIdentifier,
-            BuiltInTycoSpecifier(Kind::type));
-        scope.add(stringDefinition);
+//        TycoDefinitionStatement stringDefinition(stringIdentifier,
+//            BuiltInTycoSpecifier(Kind::type));
+//        scope.add(stringDefinition);
 
         typedef FunctionDefinitionStatement::Parameter Parameter;
         List<Parameter> printParameters;

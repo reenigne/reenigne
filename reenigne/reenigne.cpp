@@ -69,18 +69,6 @@ private:
     Array<int> _parameters;
 };
 
-class ByteType : public NamedNullary<Type, ByteType>
-{
-public:
-    static String name() { return "Byte"; }
-};
-
-class WordType : public NamedNullary<Type, WordType>
-{
-public:
-    static String name() { return "Word"; }
-};
-
 class InterpretationContext
 {
 public:
