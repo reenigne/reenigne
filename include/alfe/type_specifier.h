@@ -32,6 +32,12 @@ typedef TypeOfTypeSpecifierT<void> TypeOfTypeSpecifier;
 template<class T> class TypeParameterT;
 typedef TypeParameterT<void> TypeParameter;
 
+template<class T> class TycoT;
+typedef TycoT<void> Tyco;
+
+template<class T> class ScopeT;
+typedef ScopeT<void> Scope;
+
 //TycoSpecifier :=
 //    TycoIdentifier ("<" TycoSpecifier \ "," ">")*
 //  | TycoSpecifier "*"
@@ -71,7 +77,11 @@ public:
         } while (true);
         return tycoSpecifier;
     }
-    Tyco resolve(Scope* scope) { return body()->resolve(scope); }
+    TycoT<T> resolve(const Scope* scope) const
+    {
+        return body()->resolve(scope);
+    }
+    String toString() const { return body()->toString(); }
 protected:
     TycoSpecifierT() { }
     TycoSpecifierT(const ConstHandle& other)
@@ -81,7 +91,8 @@ protected:
     {
     public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
-        virtual Tyco resolve(Scope* scope) = 0;
+        virtual Tyco resolve(const Scope* scope) const = 0;
+        virtual String toString() const = 0;
     };
     class InstantiationBody : public Body
     {
@@ -90,10 +101,10 @@ protected:
             const TemplateArguments& arguments, const Span& span)
           : Body(span), _tycoIdentifier(tycoIdentifier), _arguments(arguments)
         { }
-        virtual Tyco resolve(Scope* scope)
+        TycoT<T> resolve(const Scope* scope) const
         {
-            Tyco t = scope->resolve(_tycoIdentifier);
-            List<Tyco> a = _arguments.resolve(scope);
+            TycoT<T> t = scope->resolve(_tycoIdentifier);
+            List<TycoT<T>> a = _arguments.resolve(scope);
             for (auto argument in a) {
                 Template te = t;
                 assert(te.valid());
@@ -101,12 +112,17 @@ protected:
             }
             return t;
         }
+        String toString() const
+        {
+            return _tycoIdentifier.toString() + "<" + _arguments.toString() +
+                ">";
+        }
     private:
         TycoIdentifierT<T> _tycoIdentifier;
         TemplateArgumentsT<T> _arguments;
     };
 
-    const Body* body() { return as<Body>(); }
+    const Body* body() const { return as<Body>(); }
 private:
     static TycoSpecifier parseFundamental(CharacterSource* source)
     {
@@ -182,7 +198,11 @@ public:
             return body->count();
         return 0;
     }
-    List<Tyco> resolve(Scope* scope) { return body()->resolve(scope); }
+    List<Tyco> resolve(const Scope* scope) const
+    {
+        return body()->resolve(scope);
+    }
+    String toString() const { return body()->toString(); }
 
     class Body : public ParseTreeObject::Body
     {
@@ -190,12 +210,24 @@ public:
         Body(const List<TycoSpecifier>& arguments, const Span& span)
           : ParseTreeObject::Body(span), _arguments(arguments) { }
         int count() const { return _arguments.count(); }
-        List<Tyco> resolve(Scope* scope)
+        List<Tyco> resolve(const Scope* scope) const
         {
             List<Tyco> l;
             for (auto s : _arguments)
                 l.add(scope->resolveTyco(s));
             return l;
+        }
+        String toString() const
+        {
+            bool first = true;
+            String r;
+            for (auto s : _arguments) {
+                if (!first)
+                    r += ", ";
+                first = false;
+                r += s.toString();
+            }
+            return r;
         }
     private:
         List<TycoSpecifier> _arguments;
@@ -220,11 +252,12 @@ private:
     public:
         PointerBody(const TycoSpecifier& referent, const Span& span)
           : Body(span), _referent(referent) { }
-        Tyco resolve(Scope* scope)
+        TycoT<T> resolve(const Scope* scope) const
         {
             Type referent = scope->resolveTycoSpecifier(_referent);
             return PointerType(referent);
         }
+        String toString() const { return _referent.toString() + "*"; }
     private:
         TycoSpecifier _referent;
     };
@@ -236,7 +269,7 @@ private:
           : Body(span), _returnType(returnType),
             _argumentTypes(argumentTypes)
         { }
-        Tyco resolve(Scope* scope)
+        TycoT<T> resolve(const Scope* scope) const
         {
             Type ret = scope->resolveType(_returnType);
             FunctionType f = FunctionTemplate().instantiate(ret);
@@ -245,6 +278,18 @@ private:
                 f = f.instantiate(t);
             }
             return f;
+        }
+        String toString() const
+        {
+            String r = _returnType.toString() + "(";
+            bool first = true;
+            for (auto s : _argumentTypes) {
+                if (!first)
+                    r += ", ";
+                first = false;
+                r += s.toString();
+            }
+            return r + ")";
         }
     private:
         TycoSpecifier _returnType;
@@ -327,10 +372,11 @@ protected:
             auto o = other->to<Body>();
             return o != 0 && _name == o->_name;
         }
-        Tyco resolve(Scope* scope)
+        TycoT<T> resolve(const Scope* scope) const
         {
-            return scope->resolveTypeIdentifier(handle<TypeIdentifier>());
+            return scope->resolveTycoIdentifier(handle<TycoIdentifier>());
         }
+        String toString() const { return _name; }
     private:
         String _name;
     };
@@ -357,10 +403,15 @@ private:
     public:
         Body(const Span& span)
           : TycoSpecifier::Body(span) { }
-        Tyco resolve(Scope* scope)
+        TycoT<T> resolve(const Scope* scope) const
         {
             // TODO
-            return Tyco();
+            return TycoT<T>();
+        }
+        String toString() const
+        {
+            // TODO
+            return String();
         }
     };
     ClassTycoSpecifierT() { }
@@ -392,10 +443,11 @@ private:
     public:
         Body(const Expression& expression, const Span& span)
           : TypeSpecifier::Body(span), _expression(expression) { }
-        Tyco resolve(Scope* scope)
+        TycoT<T> resolve(const Scope* scope) const
         {
             return _expression.type();
         }
+        String toString() const { return _expression.toString(); }
     private:
         ExpressionT<T> _expression;
     };
@@ -603,21 +655,6 @@ private:
     private:
         TycoIdentifier _identifier;
         TemplateParameters _parameters;
-    };
-};
-
-class BuiltInTycoSpecifier : public TycoSpecifier
-{
-public:
-    BuiltInTycoSpecifier(const Kind& kind)
-      : TycoSpecifier(create<Body>(kind)) { }
-private:
-    class Body : public TycoSpecifier::Body
-    {
-    public:
-        Body(const Kind& kind) : TycoSpecifier::Body(Span()), _kind(kind) { }
-    private:
-        Kind _kind;
     };
 };
 

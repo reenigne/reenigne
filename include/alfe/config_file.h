@@ -137,12 +137,6 @@ private:
         set(name, defaultValue, Span());
     }
 public:
-    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
-    {
-        if (!identifier.valid())
-            identifier = TycoIdentifier(type.toString());
-        _types.add(identifier, type);
-    }
     void addFunco(Funco funco)
     {
         Identifier identifier = funco.identifier();
@@ -176,15 +170,7 @@ public:
             }
             TycoSpecifier tycoSpecifier = TycoSpecifier::parse(&s);
             if (tycoSpecifier.valid()) {
-                TycoIdentifier identifier(tycoSpecifier);
-                if (!identifier.valid()) {
-                    tycoSpecifier.span().throwError(
-                        "Don't understand this type specifier");
-                }
-                String name = identifier.name();
-                if (!_types.hasKey(identifier))
-                    identifier.span().throwError("Unknown type " + name);
-                Type type = _types[identifier];
+                Type type = resolveType(tycoSpecifier);
                 Identifier objectIdentifier = Identifier::parse(&s);
                 if (objectIdentifier.isOperator()) {
                     objectIdentifier.span().throwError("Cannot create an "

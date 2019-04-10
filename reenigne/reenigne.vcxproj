@@ -161,6 +161,7 @@
     <ClInclude Include="..\include\alfe\main.h" />
     <ClInclude Include="..\include\alfe\statement.h" />
     <ClInclude Include="..\include\alfe\type.h" />
+    <ClInclude Include="..\include\alfe\type_specifier.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

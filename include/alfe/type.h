@@ -107,10 +107,19 @@ private:
     HashTable<Identifier, Value> _values;
 };
 
-class Scope : public Structure
+template<class T> class ScopeT;
+typedef ScopeT<void> Scope;
+
+template<class T> class ScopeT : public Structure
 {
 public:
-    Value valueOfIdentifier(Identifier i)
+    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
+    {
+        if (!identifier.valid())
+            identifier = TycoIdentifier(type.toString());
+        _tycos.add(identifier, type);
+    }
+    ValueT<T> valueOfIdentifier(Identifier i)
     {
         Span s = i.span();
         if (!has(i))
@@ -128,7 +137,7 @@ public:
     {
         return s.resolve(this);
     }
-    Type resolveType(TycoSpecifier s) const
+    TypeT<T> resolveType(TycoSpecifier s) const
     {
         Tyco tyco = resolveTycoSpecifier(s);
         Type t = resolveTycoSpecifier(s);

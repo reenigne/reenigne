@@ -103,6 +103,7 @@ public:
         virtual Value evaluate(Scope* scope) const = 0;
         Expression expression() const { return handle<ConstHandle>(); }
         virtual Type type() const = 0;
+
     };
 
     ExpressionT(const String& string, const Span& span)
@@ -178,7 +179,7 @@ public:
         return body()->evaluate(scope).simplify();
     }
 
-    Type type() const { return body()->type(); }
+    TypeT<T> type() const { return body()->type(); }
 
 protected:
     const Body* body() const { return as<Body>(); }
@@ -412,7 +413,7 @@ private:
         {
             return true;
         }
-        Type type() const { return BooleanType(); }
+        TypeT<T> type() const { return BooleanType(); }
     };
     class FalseBody : public Body
     {
@@ -426,7 +427,7 @@ private:
         {
             return false;
         }
-        Type type() const { return BooleanType(); }
+        TypeT<T> type() const { return BooleanType(); }
     };
     class StringLiteralBody : public Body
     {
@@ -438,7 +439,7 @@ private:
         {
             return _string;
         }
-        Type type() const { return StringType(); }
+        TypeT<T> type() const { return StringType(); }
     private:
         String _string;
     };
@@ -462,7 +463,7 @@ private:
             }
             return Value(StructuredType("", members), values, this->span());
         }
-        Type type() const
+        TypeT<T> type() const
         {
             Type type = VoidType();
             int i = 0;
@@ -515,9 +516,9 @@ private:
             }
             return e;
         }
-        Type type() const
+        TypeT<T> type() const
         {
-            Type lType = _left.type();
+            TypeT<T> lType = _left.type();
             StructuredType s = lType;
             if (!s.valid())
                 span().throwError("Expression has no members");
@@ -547,7 +548,7 @@ public:
             return _n;
         }
         Rational value() const { return _n; }
-        Type type() const
+        TypeT<T> type() const
         {
             if (_n.denominator == 1)
                 return IntegerType();
@@ -794,7 +795,7 @@ public:
             }
             return f.evaluate(convertedArguments, this->span());
         }
-        Type type() const
+        TypeT<T> type() const
         {
             throw NotYetImplementedException();
         }
@@ -832,7 +833,7 @@ public:
             }
             return type.constructValue(Value(type, values, span));
         }
-        Type type() const
+        TypeT<T> type() const
         {
             throw NotYetImplementedException();
         }
@@ -933,7 +934,7 @@ private:
             }
             return v.template value<bool>();
         }
-        Type type() const { return BooleanType(); }
+        TypeT<T> type() const { return BooleanType(); }
     };
 };
 
@@ -981,7 +982,7 @@ private:
             }
             return v.template value<bool>();
         }
-        Type type() const { return BooleanType(); }
+        TypeT<T> type() const { return BooleanType(); }
     };
 };
 
@@ -1030,10 +1031,10 @@ private:
                 return _trueExpression.evaluate(scope);
             return _falseExpression.evaluate(scope);
         }
-        Type type() const
+        TypeT<T> type() const
         {
-            Type tt = _trueExpression.type();
-            Type ft = _falseExpression.type();
+            TypeT<T> tt = _trueExpression.type();
+            TypeT<T> ft = _falseExpression.type();
             if (tt != ft) {
                 span().throwError("True expression has type " + tt.toString() +
                     " and false expression has type " + ft.toString() + ".");

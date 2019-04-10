@@ -14,9 +14,9 @@ template<class T> class IdentifierT : public ExpressionT<T>
     public:
         Body(const Span& span) : Expression::Body(span) { }
         virtual String name() const = 0;
-        ValueT<T> evaluate(EvaluationContext* context) const
+        ValueT<T> evaluate(Scope* scope) const
         {
-            return context->valueOfIdentifier(this->expression());
+            return scope->valueOfIdentifier(this->expression());
         }
         virtual bool isOperator() const = 0;
     };
