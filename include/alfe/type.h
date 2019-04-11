@@ -12,6 +12,7 @@
 #include "alfe/vectors.h"
 #include "alfe/rational.h"
 #include "alfe/reference.h"
+#include "alfe/statement.h"
 #include <type_traits>
 
 template<class T> class TemplateT;
@@ -148,8 +149,17 @@ public:
         }
         return t;
     }
+    ObjectDefinitionStatement resolve(Identifier identifier)
+    {
+        if (_objects.hasKey(identifier))
+            return _objects[identifier];
+        if (_parent == 0)
+            identifier.span().throwError("Unknown identifier " + identifier.toString());
+    }
 private:
     HashTable<TycoIdentifier, Tyco> _tycos;
+    HashTable<Identifier, ObjectDefinitionStatement> _objects;
+    Scope* _parent;
 };
 
 template<class T> class LValueT;

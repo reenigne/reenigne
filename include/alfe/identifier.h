@@ -6,6 +6,7 @@
 #include "alfe/operator.h"
 #include "alfe/expression.h"
 #include "alfe/type_specifier.h"
+#include "alfe/statement.h"
 
 template<class T> class IdentifierT : public ExpressionT<T>
 {
@@ -13,12 +14,20 @@ template<class T> class IdentifierT : public ExpressionT<T>
     {
     public:
         Body(const Span& span) : Expression::Body(span) { }
+        Identifier identifier() const { return handle<ConstHandle>(); }
         virtual String name() const = 0;
         ValueT<T> evaluate(Scope* scope) const
         {
             return scope->valueOfIdentifier(this->expression());
         }
         virtual bool isOperator() const = 0;
+        void resolve(Scope* scope)
+        {
+            _definition = scope->resolve(identifier());
+        }
+
+    private:
+        ObjectDefinitionStatement _definition;
     };
     class NameBody : public Body
     {

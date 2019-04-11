@@ -73,7 +73,7 @@ public:
     }
     StatementT() { }
 protected:
-    StatementT(const Body* body) : ParseTreeObject(body) { }
+    StatementT(const ConstHandle& other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -95,7 +95,7 @@ public:
         if (!Space::parseCharacter(&s, ';', &span))
             return ExpressionStatement();
         *source = s;
-        if (!expression.is<FunctionCallExpression>())
+        if (!FunctionCallExpression(expression).valid())
             source->location().throwError("Statement has no effect");
         return ExpressionStatement(expression, expression.span() + span);
     }
@@ -120,7 +120,7 @@ public:
 
         const Operator* op;
         for (op = ops; op->valid(); ++op)
-            if (Space::parseOperator(&s, op->name(), &span))
+            if (Space::parseOperator(&s, op->toString(), &span))
                 break;
         if (!op->valid())
             return ExpressionStatement();
@@ -134,7 +134,7 @@ public:
             right), left.span() + span);
     }
     ExpressionStatement(const Expression& expression, const Span& span)
-      : Statement(new Body(expression, span)) { }
+      : Statement(create<Body>(expression, span)) { }
 private:
     ExpressionStatement() { }
 
@@ -158,12 +158,13 @@ public:
             return FromStatement();
         Expression dll = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return new Body(dll, span);
+        return FromStatement(dll, span);
     }
 private:
     FromStatement() { }
-    FromStatement(const Body* body)
-      : Statement(body) { }
+    FromStatement(const Statement& other) : Statement(other) { }
+    FromStatement(Expression expression, Span span)
+      : Statement(create<Body>(expression, span)) { }
 
     class Body : public Statement::Body
     {
@@ -175,14 +176,24 @@ private:
     };
 };
 
-class FunctionDefinitionStatement : public Statement
+class ObjectDefinitionStatement : public Statement
+{
+protected:
+    ObjectDefinitionStatement(const ConstHandle& other) : Statement(other) { }
+};
+
+template<class T> class FunctionDefinitionStatementT;
+typedef FunctionDefinitionStatementT<void> FunctionDefinitionStatement;
+
+template<class T> class FunctionDefinitionStatementT
+  : public ObjectDefinitionStatement
 {
 public:
     class Parameter : public ParseTreeObject
     {
     public:
         Parameter(const TycoSpecifier& typeSpecifier, const Identifier& name)
-          : ParseTreeObject(new Body(typeSpecifier, name)) { }
+          : ParseTreeObject(create<Body>(typeSpecifier, name)) { }
 
         static Parameter parse(CharacterSource* source)
         {
@@ -204,14 +215,15 @@ public:
                 _typeSpecifier(typeSpecifier), _name(name) { }
         private:
             TycoSpecifier _typeSpecifier;
-            Identifier _name;
+            IdentifierT<T> _name;
         };
     };
 
-    FunctionDefinitionStatement(const TycoSpecifier& returnTypeSpecifier,
+    FunctionDefinitionStatementT(const TycoSpecifier& returnTypeSpecifier,
         const Identifier& name, const List<Parameter>& parameterList,
         const Statement& body)
-      : Statement(new Body(returnTypeSpecifier, name, parameterList, body)) { }
+      : ObjectDefinitionStatement(
+          create<Body>(returnTypeSpecifier, name, parameterList, body)) { }
 
     static FunctionDefinitionStatement parse(CharacterSource* source)
     {
@@ -252,8 +264,7 @@ private:
         return list;
     }
 
-    FunctionDefinitionStatement() { }
-    FunctionDefinitionStatement(const Body* body) : Statement(body) { }
+    FunctionDefinitionStatementT() { }
 
     class Body : public Statement::Body
     {
@@ -271,7 +282,11 @@ private:
     };
 };
 
-class VariableDefinitionStatement : public Statement
+template<class T> class VariableDefinitionStatementT;
+typedef VariableDefinitionStatementT<void> VariableDefinitionStatement;
+
+template<class T> class VariableDefinitionStatementT
+  : public ObjectDefinitionStatement
 {
 public:
     static VariableDefinitionStatement parse(CharacterSource* source)
@@ -293,11 +308,12 @@ public:
             initializer, typeSpecifier.span() + span);
     }
 private:
-    VariableDefinitionStatement() { }
-    VariableDefinitionStatement(const TycoSpecifier& typeSpecifier,
+    VariableDefinitionStatementT() { }
+    VariableDefinitionStatementT(const TycoSpecifier& typeSpecifier,
         const Identifier& identifier, const Expression& initializer,
         const Span& span)
-      : Statement(new Body(typeSpecifier, identifier, initializer, span)) { }
+      : ObjectDefinitionStatement(
+          new Body(typeSpecifier, identifier, initializer, span)) { }
 
     class Body : public Statement::Body
     {
@@ -327,10 +343,12 @@ public:
             span += statement.span();
             sequence.add(statement);
         } while (true);
-        return new Body(sequence, span);
+        return StatementSequence(sequence, span);
     }
 private:
-    StatementSequence(const Body* body) : ParseTreeObject(body) { }
+    StatementSequence(List<Statement> sequence, Span span)
+      : ParseTreeObject(create<Body>(sequence, span))
+    { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -352,11 +370,12 @@ public:
             return CompoundStatement();
         StatementSequence sequence = StatementSequence::parse(source);
         Space::assertCharacter(source, '}', &span);
-        return new Body(sequence, span);
+        return CompoundStatement(sequence, span);
     }
 private:
     CompoundStatement() { }
-    CompoundStatement(const Body* body) : Statement(body) { }
+    CompoundStatement(StatementSequence sequence, Span span)
+      : Statement(create<Body>(sequence, span)) { }
 
     class Body : public Statement::Body
     {
@@ -385,15 +404,14 @@ public:
         TycoSpecifier tycoSpecifier = TycoSpecifier::parse(source);
         Span span;
         Space::assertCharacter(source, ';', &span);
-        return new Body(tycoSignifier, tycoSpecifier,
+        return TycoDefinitionStatement(tycoSignifier, tycoSpecifier,
             tycoSignifier.span() + span);
     }
     TycoDefinitionStatement(const TycoSignifier& tycoSignifier,
-        const TycoSpecifier& tycoSpecifier)
-      : Statement(new Body(tycoSignifier, tycoSpecifier, Span())) { }
+        const TycoSpecifier& tycoSpecifier, Span span)
+      : Statement(create<Body>(tycoSignifier, tycoSpecifier, span)) { }
 private:
     TycoDefinitionStatement() { }
-    TycoDefinitionStatement(const Body* body) : Statement(body) { }
 
     class Body : public Statement::Body
     {

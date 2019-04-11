@@ -47,3 +47,8 @@ Implement as needed:
 What does InstructionPattern need to contain for converting between Byte stream and parameters?
   Ignore big-endian formats for now
 
+
+  Want to implement resolve() for all TycoSpecifiers
+  That includes TypeOfTypeSpecifier, which requires knowing the type of an Expression
+  Knowning the type of an Identifier (which is an Expression) requires resolving the identifier
+

@@ -93,17 +93,18 @@ public:
     {
     public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
-        virtual Expression toString() const
+        virtual Expression stringify() const
         {
             return create<
                 typename FunctionCallExpressionT<T>::FunctionCallBody>(
                 Expression(expression()).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
-        virtual Value evaluate(Scope* scope) const = 0;
+        virtual String toString() const = 0;
+        virtual Value evaluate() const = 0;
         Expression expression() const { return handle<ConstHandle>(); }
-        virtual Type type() const = 0;
-
+        virtual TypeT<T> type() const = 0;
+        virtual void resolve(Scope* scope) = 0;
     };
 
     ExpressionT(const String& string, const Span& span)
@@ -154,7 +155,12 @@ public:
         return create<DotBody>(*this, identifier);
     }
 
-    Expression toString() const { return body()->toString(); }
+    // toString() creates a compile-time String which is a pretty-printed
+    // representation of the Expression.
+    // stringify() create a run-time Expression which converts the value of
+    // the expression into a String.
+    Expression stringify() const { return body()->stringify(); }
+    String toString() const { return body()->toString(); }
 
     static Expression parseDot(CharacterSource* source)
     {
@@ -362,7 +368,7 @@ private:
                         expression += Expression(string,
                             stringStartSpan + stringEndSpan);
                         string = "";
-                        expression += part.toString();
+                        expression += part.stringify();
                     }
                     break;
                 default:
@@ -401,45 +407,61 @@ private:
         return Expression();
     }
 
-    class TrueBody : public Body
+    class BooleanBody : public Body
     {
     public:
-        TrueBody(const Span& span) : Body(span) { }
-        Expression toString() const
+        Expression stringify() const
         {
-            return Expression("true", this->span());
-        }
-        ValueT<T> evaluate(Scope* scope) const
-        {
-            return true;
+            return Expression(toString(), this->span());
         }
         TypeT<T> type() const { return BooleanType(); }
+        void resolve(Scope* scope) { }
     };
-    class FalseBody : public Body
+    class TrueBody : public BooleanBody
     {
     public:
-        FalseBody(const Span& span) : Body(span) { }
-        Expression toString() const
-        {
-            return Expression("false", this->span());
-        }
-        ValueT<T> evaluate(Scope* scope) const
-        {
-            return false;
-        }
-        TypeT<T> type() const { return BooleanType(); }
+        TrueBody(const Span& span) : BooleanBody(span) { }
+        String toString() const { return "true"; }
+        ValueT<T> evaluate() const { return true; }
+    };
+    class FalseBody : public BooleanBody
+    {
+    public:
+        FalseBody(const Span& span) : BooleanBody(span) { }
+        String toString() const { return "false"; }
+        ValueT<T> evaluate() const { return false; }
     };
     class StringLiteralBody : public Body
     {
     public:
         StringLiteralBody(const String& string, const Span& span)
           : Body(span), _string(string) { }
-        Expression toString() const { return this->expression(); }
-        ValueT<T> evaluate(Scope* scope) const
+        Expression stringify() const { return this->expression(); }
+        String toString() const
         {
-            return _string;
+            CharacterSource s(_string);
+            String r = "\"";
+            do {
+                int c = s.get();
+                if (c == -1)
+                    break;
+                switch (c) {
+                    case '\"':
+                        r += "\\\"";
+                        break;
+                    case '$':
+                        r += "\\$";
+                        break;
+                    default:
+                        r += codePoint(c);
+                        break;
+                }
+            } while (true);
+            return r + "\"";
         }
+        ValueT<T> evaluate() const { return _string; }
         TypeT<T> type() const { return StringType(); }
+        void resolve(Scope* scope) { }
     private:
         String _string;
     };
@@ -448,13 +470,13 @@ private:
     public:
         ArrayLiteralBody(const List<Expression>& expressions, const Span& span)
           : Body(span), _expressions(expressions) { }
-        ValueT<T> evaluate(Scope* scope) const
+        ValueT<T> evaluate() const
         {
             HashTable<Identifier, Value> values;
             List<typename StructuredTypeT<T>::Member> members;
             int i = 0;
             for (auto e : _expressions) {
-                ValueT<T> v = e.evaluate(scope);
+                ValueT<T> v = e.evaluate();
                 Type t = v.type();
                 String n = decimal(i);
                 values.add(n, v);
@@ -482,6 +504,37 @@ private:
             }
             return ArrayType(type);
         }
+        Expression stringify() const
+        {
+            Expression r("{", Span());
+            bool first = true;
+            for (auto e : _expressions) {
+                if (!first)
+                    r += Expression(", ", Span());
+                first = false;
+                r += e.stringify();
+            }
+            r += Expression("}", Span());
+            r.setSpan(span());
+            return r;
+        }
+        String toString() const
+        {
+            String r = "{";
+            bool first = true;
+            for (auto e : _expressions) {
+                if (!first)
+                    r += ", ";
+                first = false;
+                r += e.toString();
+            }
+            return r + "}";
+        }
+        void resolve(Scope* scope)
+        {
+            for (auto e : _expressions)
+                e->resolve(scope);
+        }
     private:
         List<Expression> _expressions;
     };
@@ -490,9 +543,9 @@ private:
     public:
         DotBody(const Expression& left, const IdentifierT<T>& right)
           : Body(left.span() + right.span()), _left(left), _right(right) { }
-        ValueT<T> evaluate(Scope* scope) const
+        ValueT<T> evaluate() const
         {
-            ValueT<T> e = _left.evaluate(scope);
+            ValueT<T> e = _left.evaluate();
 
             LValueTypeT<T> lValueType(e.type());
             if (!lValueType.valid()) {
@@ -521,8 +574,20 @@ private:
             TypeT<T> lType = _left.type();
             StructuredType s = lType;
             if (!s.valid())
-                span().throwError("Expression has no members");
+                _left.span().throwError("Expression has no members");
             return s.member(_right);
+        }
+        String toString() const
+        {
+            return _left.toString() + "." + _right.toString();
+        }
+        void resolve(Scope* scope)
+        {
+            _left.resolve(scope);
+            StructuredType t = _left.type();
+            if (!t.valid())
+                _left.span().throwError("Expression has no members");
+            _right.resolve(t.scope());
         }
     private:
         ExpressionT<T> _left;
@@ -542,11 +607,11 @@ public:
     {
     public:
         Body(Rational n, const Span& span) : Expression::Body(span), _n(n) { }
-        Expression toString() const { return expression(); }
-        ValueT<T> evaluate(Scope* scope) const
+        String toString() const
         {
-            return _n;
+            return decimal(_n.numerator) + "/" + decimal(_n.denominator);
         }
+        ValueT<T> evaluate() const { return _n; }
         Rational value() const { return _n; }
         TypeT<T> type() const
         {
@@ -554,6 +619,7 @@ public:
                 return IntegerType();
             return RationalType();
         }
+        void resolve(Scope* scope) { }
     private:
         Rational _n;
     };
@@ -745,6 +811,23 @@ public:
         Body(const Span& span, const List<Expression>& arguments)
           : Expression::Body(span), _arguments(arguments) { }
         List<Expression> _arguments;
+        void resolve(Scope* scope)
+        {
+            for (auto e : _arguments)
+                e.resolve(scope);
+        }
+        String toString() const
+        {
+            String r = "(";
+            bool first = true;
+            for (auto e : _arguments) {
+                if (!first)
+                    r += ", ";
+                first = false;
+                r += e.toString();
+            }
+            return r + ")";
+        }
     };
 
     class FunctionCallBody : public Body
@@ -753,12 +836,12 @@ public:
         FunctionCallBody(const Expression& function,
             const List<Expression>& arguments, const Span& span)
           : Body(span, arguments), _function(function) { }
-        ValueT<T> evaluate(Scope* scope) const
+        ValueT<T> evaluate() const
         {
-            ValueT<T> l = _function.evaluate(scope).rValue();
+            ValueT<T> l = _function.evaluate().rValue();
             List<Value> arguments;
             for (auto p : this->_arguments)
-                arguments.add(p.evaluate(scope).rValue());
+                arguments.add(p.evaluate().rValue());
             TypeT<T> lType = l.type();
             if (lType == FuncoTypeT<T>()) {
                 return l.template value<OverloadedFunctionSet>().evaluate(
@@ -799,6 +882,15 @@ public:
         {
             throw NotYetImplementedException();
         }
+        String toString() const
+        {
+            return _function.toString() + Body::toString();
+        }
+        void resolve(Scope* scope)
+        {
+            _function.resolve(scope);
+            Body::resolve(scope);
+        }
     private:
         Expression _function;
     };
@@ -837,6 +929,12 @@ public:
         {
             throw NotYetImplementedException();
         }
+        String toString() const { return _type.toString() + Body::toString(); }
+        void resolve(Scope* scope)
+        {
+            _type.resolve(scope);
+            Body::resolve(scope);
+        }
     private:
         TycoSpecifier _type;
     };
@@ -868,7 +966,7 @@ private:
     template<class U> friend class ExpressionT;
 };
 
-template<class T> class BinaryExpression : public Expression
+template<class T> class BinaryExpressionT : public Expression
 {
 protected:
     class Body : public Expression::Body
@@ -880,6 +978,12 @@ protected:
             _left(left), _right(right), _operatorSpan(operatorSpan) { }
         Expression left() const { return _left; }
         Expression right() const { return _right; }
+        void resolve(const Scope* scope)
+        {
+            _left.resolve(scope);
+            _right.resolve(scope);
+        }
+        TypeT<T> type() const { return BooleanType(); }
     private:
         Expression _left;
         Expression _right;
@@ -887,11 +991,12 @@ protected:
     };
 };
 
+typedef BinaryExpressionT<void> BinaryExpression;
+
 template<class T> class LogicalAndExpressionT;
 typedef LogicalAndExpressionT<void> LogicalAndExpression;
 
-template<class T> class LogicalAndExpressionT
-  : public BinaryExpression<LogicalAndExpression>
+template<class T> class LogicalAndExpressionT : public BinaryExpression
 {
 public:
     static Expression parse(CharacterSource* source)
@@ -934,12 +1039,19 @@ private:
             }
             return v.template value<bool>();
         }
-        TypeT<T> type() const { return BooleanType(); }
+        String toString() const
+        {
+            return "(" + left().toString() + " && " + right().toString() + ")";
+        }
+        Expression stringify() const
+        {
+            return ConditionalExpression(left(), right.stringify(),
+                Expression("false", Span()));
+        }
     };
 };
 
-template<class T> class LogicalOrExpressionT
-  : public BinaryExpression<LogicalOrExpression>
+template<class T> class LogicalOrExpressionT : public BinaryExpression
 {
 public:
     static Expression parse(CharacterSource* source)
@@ -982,7 +1094,15 @@ private:
             }
             return v.template value<bool>();
         }
-        TypeT<T> type() const { return BooleanType(); }
+        String toString() const
+        {
+            return "(" + left().toString() + " && " + right().toString() + ")";
+        }
+        Expression stringify() const
+        {
+            return ConditionalExpression(left(), Expression("true", Span()),
+                right.stringify());
+        }
     };
 };
 
@@ -1009,6 +1129,11 @@ public:
         }
         return e;
     }
+    ConditionalExpressionT(Expression condition, Expression trueExpression,
+        Expression falseExpression)
+      : Expression(create<Body>(condition, Span(), trueExpression, Span(),
+          falseExpression))
+    { }
 private:
     class Body : public Expression::Body
     {
