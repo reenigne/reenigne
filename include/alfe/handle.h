@@ -145,6 +145,10 @@ protected:
     {
     protected:
         template<class T> T handle() { return T(ConstHandle(this, true)); }
+        template<class T> const T handle() const
+        {
+            return T(ConstHandle(this, true));
+        }
         virtual bool equals(const Body* other) const { return false; }
     private:
         bool equals(const ConstHandle::Body* other) const

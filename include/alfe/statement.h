@@ -6,6 +6,9 @@
 template<class T> class StatementT;
 typedef StatementT<void> Statement;
 
+template<class T> class IdentifierT;
+typedef IdentifierT<void> Identifier;
+
 template<class T> class StatementT : public ParseTreeObject
 {
 public:
@@ -72,19 +75,24 @@ public:
         return statement;
     }
     StatementT() { }
+    void resolve(Scope* scope) { body()->resolve(scope); }
 protected:
-    StatementT(const ConstHandle& other) : ParseTreeObject(other) { }
+    StatementT(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
     public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
+        virtual void resolve(Scope* scope) = 0;
     };
 };
 
 class ExpressionStatement : public Statement
 {
 public:
+    ExpressionStatement(Expression expression, Span span)
+      : ExpressionStatement(create<Body>(expression, span)) { }
+
     static ExpressionStatement parse(CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -133,16 +141,16 @@ public:
             FunctionCallExpression::unary(OperatorAmpersand(), Span(), left),
             right), left.span() + span);
     }
-    ExpressionStatement(const Expression& expression, const Span& span)
-      : Statement(create<Body>(expression, span)) { }
 private:
     ExpressionStatement() { }
+    ExpressionStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
     public:
         Body(const Expression& expression, const Span& span)
           : Statement::Body(span), _expression(expression) { }
+        void resolve(Scope* scope) { _expression.resolve(scope); }
     private:
         Expression _expression;
     };
@@ -158,19 +166,18 @@ public:
             return FromStatement();
         Expression dll = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return FromStatement(dll, span);
+        return create<Body>(dll, span);
     }
 private:
     FromStatement() { }
-    FromStatement(const Statement& other) : Statement(other) { }
-    FromStatement(Expression expression, Span span)
-      : Statement(create<Body>(expression, span)) { }
+    FromStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
     public:
         Body(const Expression& expression, const Span& span)
           : Statement::Body(span), _expression(expression) { }
+        void resolve(Scope* scope) { _expression.resolve(scope); }
     private:
         Expression _expression;
     };
@@ -178,8 +185,26 @@ private:
 
 class ObjectDefinitionStatement : public Statement
 {
+public:
+    ObjectDefinitionStatement() { }
+    void setResolvedScope(Scope* scope) { body()->setResolvedScope(scope); }
+    Scope* getResolvedScope() const { return body()->getResolvedScope(); }
+    Type type() const { return body()->type(); }
 protected:
-    ObjectDefinitionStatement(const ConstHandle& other) : Statement(other) { }
+    ObjectDefinitionStatement(Handle other) : Statement(other) { }
+
+    class Body : public Statement::Body
+    {
+    public:
+        void setResolvedScope(Scope* scope) { _resolvedScope = scope; }
+        Scope* getResolvedScope() const { return _resolvedScope; }
+        Type type() const = 0;
+    private:
+        Scope* _resolvedScope;
+    };
+
+    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 };
 
 template<class T> class FunctionDefinitionStatementT;
@@ -189,12 +214,9 @@ template<class T> class FunctionDefinitionStatementT
   : public ObjectDefinitionStatement
 {
 public:
-    class Parameter : public ParseTreeObject
+    class Parameter : public VariableDefinitionStatement
     {
     public:
-        Parameter(const TycoSpecifier& typeSpecifier, const Identifier& name)
-          : ParseTreeObject(create<Body>(typeSpecifier, name)) { }
-
         static Parameter parse(CharacterSource* source)
         {
             TycoSpecifier typeSpecifier = TycoSpecifier::parse(source);
@@ -203,10 +225,11 @@ public:
             Identifier name = Identifier::parse(source);
             if (!name.valid())
                 source->location().throwError("Expected identifier");
-            return Parameter(typeSpecifier, name);
+            return create<Body>(typeSpecifier, name);
         }
     private:
         Parameter() { }
+        Parameter(Handle other) : ParseTreeObject(other) { }
         class Body : public ParseTreeObject::Body
         {
         public:
@@ -218,12 +241,6 @@ public:
             IdentifierT<T> _name;
         };
     };
-
-    FunctionDefinitionStatementT(const TycoSpecifier& returnTypeSpecifier,
-        const Identifier& name, const List<Parameter>& parameterList,
-        const Statement& body)
-      : ObjectDefinitionStatement(
-          create<Body>(returnTypeSpecifier, name, parameterList, body)) { }
 
     static FunctionDefinitionStatement parse(CharacterSource* source)
     {
@@ -243,8 +260,7 @@ public:
         Statement body = FromStatement::parse(source);
         if (!body.valid())
             body = Statement::parseOrFail(source);
-        return FunctionDefinitionStatement(returnTypeSpecifier, name,
-            parameterList, body);
+        return create<Body>(returnTypeSpecifier, name, parameterList, body);
     }
 private:
     static List<Parameter> parseParameterList(CharacterSource* source)
@@ -265,8 +281,10 @@ private:
     }
 
     FunctionDefinitionStatementT() { }
+    FunctionDefinitionStatementT(Handle other)
+      : ObjectDefinitionStatement(other) { }
 
-    class Body : public Statement::Body
+    class Body : public ObjectDefinitionStatement::Body
     {
     public:
         Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
@@ -274,6 +292,20 @@ private:
           : Statement::Body(returnTypeSpecifier.span() + body.span()),
             _returnTypeSpecifier(returnTypeSpecifier), _name(name),
             _parameterList(parameterList), _body(body) { }
+        Type type() const
+        {
+            FunctionType t(_returnTypeSpecifier);
+            for (auto p : _parameterList) {
+
+            }
+        }
+        void resolve(Scope* scope)
+        {
+            _returnTypeSpecifier.resolve(scope);
+            for (auto p : _parameterList) {
+
+            }
+        }
     private:
         TycoSpecifier _returnTypeSpecifier;
         Identifier _name;
@@ -304,18 +336,15 @@ public:
             initializer = Expression::parseOrFail(source);
         Span span;
         Space::assertCharacter(source, ';', &span);
-        return VariableDefinitionStatement(typeSpecifier, identifier,
-            initializer, typeSpecifier.span() + span);
+        return create<Body>(typeSpecifier, identifier, initializer,
+            typeSpecifier.span() + span);
     }
 private:
     VariableDefinitionStatementT() { }
-    VariableDefinitionStatementT(const TycoSpecifier& typeSpecifier,
-        const Identifier& identifier, const Expression& initializer,
-        const Span& span)
-      : ObjectDefinitionStatement(
-          new Body(typeSpecifier, identifier, initializer, span)) { }
+    VariableDefinitionStatementT(Handle other)
+      : ObjectDefinitionStatement(other) { }
 
-    class Body : public Statement::Body
+    class Body : public ObjectDefinitionStatement::Body
     {
     public:
         Body(const TycoSpecifier& typeSpecifier, const Identifier& identifier,
@@ -343,12 +372,10 @@ public:
             span += statement.span();
             sequence.add(statement);
         } while (true);
-        return StatementSequence(sequence, span);
+        return create<Body>(sequence, span);
     }
 private:
-    StatementSequence(List<Statement> sequence, Span span)
-      : ParseTreeObject(create<Body>(sequence, span))
-    { }
+    StatementSequence(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -370,12 +397,11 @@ public:
             return CompoundStatement();
         StatementSequence sequence = StatementSequence::parse(source);
         Space::assertCharacter(source, '}', &span);
-        return CompoundStatement(sequence, span);
+        return create<Body>(sequence, span);
     }
 private:
     CompoundStatement() { }
-    CompoundStatement(StatementSequence sequence, Span span)
-      : Statement(create<Body>(sequence, span)) { }
+    CompoundStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -404,14 +430,12 @@ public:
         TycoSpecifier tycoSpecifier = TycoSpecifier::parse(source);
         Span span;
         Space::assertCharacter(source, ';', &span);
-        return TycoDefinitionStatement(tycoSignifier, tycoSpecifier,
+        return create<Body>(tycoSignifier, tycoSpecifier,
             tycoSignifier.span() + span);
     }
-    TycoDefinitionStatement(const TycoSignifier& tycoSignifier,
-        const TycoSpecifier& tycoSpecifier, Span span)
-      : Statement(create<Body>(tycoSignifier, tycoSpecifier, span)) { }
 private:
     TycoDefinitionStatement() { }
+    TycoDefinitionStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -436,11 +460,11 @@ public:
         if (!Space::parseKeyword(source, "nothing", &span))
             return NothingStatement();
         Space::assertCharacter(source, ';', &span);
-        return NothingStatement(span);
+        return create<Body>(span);
     }
 private:
     NothingStatement() { }
-    NothingStatement(const Span& span) : Statement(new Body(span)) { }
+    NothingStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -511,11 +535,11 @@ private:
                 }
         if (unlessStatement)
             condition = !condition;
-        return new Body(condition, statement, elseStatement, span);
+        return create<Body>(condition, statement, elseStatement, span);
     }
 
     ConditionalStatement() { }
-    ConditionalStatement(const Body* body) : Statement(body) { }
+    ConditionalStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -561,11 +585,11 @@ public:
                 cases.add(c);
         } while (true);
         Space::assertCharacter(source, '}', &span);
-        return new Body(expression, defaultCase, cases, span);
+        return create<Body>(expression, defaultCase, cases, span);
     }
 private:
     SwitchStatement() { }
-    SwitchStatement(const Body* body) : Statement(body) { }
+    SwitchStatement(Handle other) { }
 
     class Case : public ParseTreeObject
     {
@@ -593,13 +617,12 @@ private:
             Statement statement = Statement::parseOrFail(source);
             span += statement.span();
             if (defaultType)
-                return new DefaultBody(statement, span);
-            return new ValueBody(expressions, statement, span);
+                return create<DefaultBody>(statement, span);
+            return create<ValueBody>(expressions, statement, span);
         }
         bool isDefault() const { return as<Case>()->isDefault(); }
 
         Case() { }
-        Case(const Body* body) : ParseTreeObject(body) { }
 
         class Body : public ParseTreeObject::Body
         {
@@ -611,6 +634,8 @@ private:
             Statement _statement;
         };
     private:
+        Case(Handle other) : ParseTreeObject(other) { }
+
         class DefaultBody : public Body
         {
         public:
@@ -654,12 +679,11 @@ public:
             return ReturnStatement();
         Expression expression = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return new Body(expression, span);
+        return create<Body>(expression, span);
     }
 private:
     ReturnStatement() { }
-    ReturnStatement(const Body* body)
-      : Statement(body) { }
+    ReturnStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -681,11 +705,11 @@ public:
             return IncludeStatement();
         Expression expression = Expression::parseOrFail(source);
         Space::assertCharacter(source, ';', &span);
-        return new Body(expression, span);
+        return create<Body>(expression, span);
     }
 private:
     IncludeStatement() { }
-    IncludeStatement(const Body* body) : Statement(body) { }
+    IncludeStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -712,7 +736,7 @@ public:
     }
 private:
     BreakOrContinueStatementT() { }
-    BreakOrContinueStatementT(const Body* body) : Statement(body) { }
+    BreakOrContinueStatementT(Handle other) : Statement(other) { }
 
     static BreakOrContinueStatement parseBreak(CharacterSource* source)
     {
@@ -724,7 +748,7 @@ private:
             Space::assertCharacter(source, ';', &span);
         else
             span += statement.span();
-        return new BreakBody(statement, span);
+        return create<BreakBody>(statement, span);
     }
 
     static BreakOrContinueStatement parseContinue(CharacterSource* source)
@@ -733,7 +757,7 @@ private:
         if (!Space::parseKeyword(source, "continue", &span))
             return BreakOrContinueStatement();
         Space::assertCharacter(source, ';', &span);
-        return new ContinueBody(span);
+        return create<ContinueBody>(span);
     }
 
     class Body : public Statement::Body
@@ -767,11 +791,11 @@ public:
         if (!Space::parseKeyword(source, "forever", &span))
             return ForeverStatement();
         Statement statement = Statement::parseOrFail(source);
-        return new Body(statement, span + statement.span());
+        return create<Body>(statement, span + statement.span());
     }
 private:
     ForeverStatement() { }
-    ForeverStatement(const Body* body) : Statement(body) { }
+    ForeverStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -819,12 +843,12 @@ public:
         }
         if (foundUntil)
             condition = !condition;
-        return new Body(doStatement, condition, statement,
+        return create<Body>(doStatement, condition, statement,
             doneStatement, span);
     }
 private:
     WhileStatement() { }
-    WhileStatement(const Body* body) : Statement(body) { }
+    WhileStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -866,12 +890,12 @@ public:
             doneStatement = Statement::parseOrFail(source);
             span += doneStatement.span();
         }
-        return new Body(preStatement, expression, postStatement,
+        return create<Body>(preStatement, expression, postStatement,
             statement, doneStatement, span);
     }
 private:
     ForStatement() { }
-    ForStatement(const Body* body) : Statement(body) { }
+    ForStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -891,7 +915,10 @@ private:
     };
 };
 
-class LabelStatement : public Statement
+template<class T> class LabelStatementT;
+typedef LabelStatementT<void> LabelStatement;
+
+template<class T> class LabelStatementT : public Statement
 {
 public:
     static LabelStatement parse(CharacterSource* source)
@@ -903,11 +930,11 @@ public:
         Span span;
         if (!Space::parseCharacter(&s2, ':', &span))
             return LabelStatement();
-        return new Body(identifier, identifier.span() + span);
+        return create<Body>(identifier, identifier.span() + span);
     }
 private:
-    LabelStatement() { }
-    LabelStatement(const Body* body) : Statement(body) { }
+    LabelStatementT() { }
+    LabelStatementT(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -915,7 +942,7 @@ private:
         Body(const Identifier& identifier, const Span& span)
           : Statement::Body(span), _identifier(identifier) { }
     private:
-        Identifier _identifier;
+        IdentifierT<T> _identifier;
     };
 };
 
@@ -930,11 +957,11 @@ public:
         Expression expression = Expression::parseOrFail(source);
         Span span2;
         Space::parseCharacter(source, ';', &span);
-        return new Body(expression, span);
+        return create<Body>(expression, span);
     }
 private:
     GotoStatement() { }
-    GotoStatement(const Body* body) : Statement(body) { }
+    GotoStatement(Handle other) : Statement(other) { }
 
     class Body : public Statement::Body
     {
@@ -943,24 +970,6 @@ private:
           : Statement::Body(span), _expression(expression) { }
     private:
         Expression _expression;
-    };
-};
-
-class RunTimeStack;
-
-class BuiltInStatement : public Statement
-{
-public:
-    BuiltInStatement(void (*execute)(RunTimeStack* stack))
-      : Statement(new Body(execute)) { }
-protected:
-    class Body : public Statement::Body
-    {
-    public:
-        Body(void (*execute)(RunTimeStack* stack))
-          : Statement::Body(Span()), _execute(execute) { }
-    private:
-        void (*_execute)(RunTimeStack* stack);
     };
 };
 

@@ -161,10 +161,11 @@ public:
             s = source;
             Span span;
             if (Space::parseKeyword(&s, "include", &span)) {
-                Value e = Expression::parse(&s).evaluate(this).
-                    convertTo(StringType());
+                Expression e = Expression::parse(&s);
+                e.resolve(this);
+                Value v = e.evaluate().convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
-                load(File(e.value<String>(), _file.parent()));
+                load(File(v.value<String>(), _file.parent()));
                 source = s;
                 continue;
             }
@@ -176,14 +177,17 @@ public:
                     objectIdentifier.span().throwError("Cannot create an "
                         "object with operator name");
                 }
-                String objectName = objectIdentifier.name();
+                String objectName = objectIdentifier.toString();
                 if (has(objectIdentifier)) {
                     objectIdentifier.span().throwError(objectName +
                         " already exists");
                 }
                 Value value = StructuredType::empty();
-                if (Space::parseCharacter(&s, '=', &span))
-                    value = Expression::parse(&s).evaluate(this);
+                if (Space::parseCharacter(&s, '=', &span)) {
+                    Expression e = Expression::parse(&s);
+                    e.resolve(this);
+                    value = e.evaluate();
+                }
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
                 value = value.rValue().convertTo(type);
@@ -211,13 +215,16 @@ public:
                 s.location().throwError("Expected an include statement, an "
                     "object creation statement or an assignment statement.");
             }
-            Value left = Expression::parseDot(&source).evaluate(this);
+            Expression le = Expression::parseDot(&source);
+            le.resolve(this);
+            Value left = le.evaluate();
             Space::assertCharacter(&source, '=', &span);
             Expression e = Expression::parse(&source);
             if (!e.valid())
                 source.location().throwError("Expected expression.");
             Space::assertCharacter(&source, ';', &span);
-            Value loadedExpression = e.evaluate(this);
+            e.resolve(this);
+            Value loadedExpression = e.evaluate();
             LValueType lValueType(left.type());
             if (!lValueType.valid())
                 left.span().throwError("LValue required");
@@ -257,7 +264,7 @@ public:
         } while (true);
         for (auto i : *this) {
             if (!i.value().valid())
-                throw Exception(_file.path() + ": " + i.key().name() +
+                throw Exception(_file.path() + ": " + i.key().toString() +
                     " not defined and no default is available.");
         }
     }
@@ -272,7 +279,8 @@ public:
             Expression e = Expression::parse(&s);
             if (!e.valid())
                 return def;
-            Value v = e.evaluate(this);
+            e.resolve(this);
+            Value v = e.evaluate();
             if (!v.valid())
                 return def;
             c = v.convertTo(typeFromCompileTimeType<U>());

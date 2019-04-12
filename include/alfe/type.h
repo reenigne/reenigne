@@ -124,7 +124,7 @@ public:
     {
         Span s = i.span();
         if (!has(i))
-            s.throwError("Unknown identifier " + i.name());
+            s.throwError("Unknown identifier " + i.toString());
         return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
     }
     Tyco resolveTycoIdentifier(TycoIdentifier i) const
@@ -151,10 +151,16 @@ public:
     }
     ObjectDefinitionStatement resolve(Identifier identifier)
     {
-        if (_objects.hasKey(identifier))
-            return _objects[identifier];
-        if (_parent == 0)
-            identifier.span().throwError("Unknown identifier " + identifier.toString());
+        if (_objects.hasKey(identifier)) {
+            ObjectDefinitionStatement s = _objects[identifier];
+            s.setResolvedScope(this);
+            return s;
+        }
+        if (_parent == 0) {
+            identifier.span().throwError("Unknown identifier " +
+                identifier.toString());
+        }
+        return _parent->resolve(identifier);
     }
 private:
     HashTable<TycoIdentifier, Tyco> _tycos;
@@ -332,7 +338,7 @@ public:
     {
         if (LValueType(inner).valid())
             return inner;
-        return LValueType(create<Body>(inner));
+        return create<Body>(inner);
     }
     Type inner() const { return body()->inner(); }
 private:
@@ -1262,7 +1268,7 @@ public:
 
     static FunctionType nullary(const Type& returnType)
     {
-        return FunctionType(create<NullaryBody>(returnType));
+        return create<NullaryBody>(returnType);
     }
     FunctionTypeT(Type returnType, Type argumentType)
       : Tyco(FunctionType(

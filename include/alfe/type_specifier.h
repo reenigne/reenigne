@@ -84,8 +84,7 @@ public:
     String toString() const { return body()->toString(); }
 protected:
     TycoSpecifierT() { }
-    TycoSpecifierT(const ConstHandle& other)
-      : ParseTreeObject(other) { }
+    TycoSpecifierT(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -236,15 +235,14 @@ private:
     const Body* body() const { return as<Body>(); }
 
     TemplateArgumentsT() { }
-    TemplateArgumentsT(const ConstHandle& other)
-      : ParseTreeObject(other) { }
+    TemplateArgumentsT(Handle other) : ParseTreeObject(other) { }
 };
 
 template<class T> class TypeSpecifierT : public TycoSpecifier
 {
 public:
     TypeSpecifierT() { }
-    TypeSpecifierT(const ConstHandle& other) : TycoSpecifier(other) { }
+    TypeSpecifierT(Handle other) : TycoSpecifier(other) { }
 
 private:
     class PointerBody : public TycoSpecifier::Body
@@ -356,7 +354,7 @@ public:
     }
     String name() const { return as<Body>()->name(); }
 protected:
-    TycoIdentifierT(const ConstHandle& other) : TycoSpecifier(other) { }
+    TycoIdentifierT(Handle other) : TycoSpecifier(other) { }
     class Body : public TycoSpecifier::Body
     {
     public:
@@ -395,7 +393,7 @@ public:
         Space::assertCharacter(source, '{', &span2);
         // TODO: Parse class contents
         Space::assertCharacter(source, '}', &span2);
-        return ClassTycoSpecifier(span + span2);
+        return create<Body>(span + span2);
     }
 private:
     class Body : public TycoSpecifier::Body
@@ -414,17 +412,13 @@ private:
             return String();
         }
     };
-    ClassTycoSpecifierT() { }
-    ClassTycoSpecifierT(const Span& span)
-      : TycoSpecifier(create<Body>(span)) { }
 };
 
 template<class T> class TypeOfTypeSpecifierT : public TypeSpecifier
 {
 public:
     TypeOfTypeSpecifierT() { }
-    TypeOfTypeSpecifierT(const ConstHandle& other)
-      : TypeSpecifier(other) { }
+    TypeOfTypeSpecifierT(Handle other) : TypeSpecifier(other) { }
     static TypeOfTypeSpecifier parse(CharacterSource* source)
     {
         Span span;
@@ -469,8 +463,7 @@ template<class T> class TemplateParameterT : public ParseTreeObject
 {
 public:
     TemplateParameterT() { }
-    TemplateParameterT(const ConstHandle& other)
-      : ParseTreeObject(other) { }
+    TemplateParameterT(Handle other) : ParseTreeObject(other) { }
     static TemplateParameter parse(CharacterSource* source)
     {
         TemplateParameter parameter = parseFundamental(source);
@@ -592,8 +585,7 @@ template<class T> class TemplateParametersT : public ParseTreeObject
 {
 public:
     TemplateParametersT() { }
-    TemplateParametersT(const ConstHandle& other)
-      : ParseTreeObject(other) { }
+    TemplateParametersT(Handle other) : ParseTreeObject(other) { }
     static TemplateParameters parse(CharacterSource* source)
     {
         CharacterSource s2 = *source;
@@ -643,7 +635,7 @@ public:
     }
 private:
     TycoSignifier() { }
-    TycoSignifier(const ConstHandle& other) : ParseTreeObject(other) { }
+    TycoSignifier(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {

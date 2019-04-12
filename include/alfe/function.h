@@ -140,7 +140,7 @@ template<class T> class OverloadedFunctionSetT : public Handle
                     int r = f.compareTo(b);
                     if (r == 3) {
                         span.throwError("Ambiguous function call of " +
-                            _identifier.name() + " with argument types " +
+                            _identifier.toString() + " with argument types " +
                             argumentTypesString(argumentTypes) +
                             ". Could be " + b.toString() + " or " +
                             f.toString() + ".");
@@ -149,7 +149,7 @@ template<class T> class OverloadedFunctionSetT : public Handle
             }
             if (bestCandidates.count() == 0) {
                 span.throwError("No matches for function " +
-                    _identifier.name() + " with argument types " +
+                    _identifier.toString() + " with argument types " +
                     argumentTypesString(argumentTypes) + ".");
             }
             // We have a choice of possible funcos here. Logically they should

@@ -87,7 +87,7 @@ template<class T> class ExpressionT : public ParseTreeObject
 {
 public:
     ExpressionT() { }
-    ExpressionT(const ConstHandle& other) : ParseTreeObject(other) { }
+    ExpressionT(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
@@ -102,7 +102,7 @@ public:
         }
         virtual String toString() const = 0;
         virtual Value evaluate() const = 0;
-        Expression expression() const { return handle<ConstHandle>(); }
+        Expression expression() const { return handle<Handle>(); }
         virtual TypeT<T> type() const = 0;
         virtual void resolve(Scope* scope) = 0;
     };
@@ -180,15 +180,14 @@ public:
         } while (true);
     }
 
-    ValueT<T> evaluate(Scope* scope) const
-    {
-        return body()->evaluate(scope).simplify();
-    }
+    void resolve(Scope* scope) { body()->resolve(scope); }
+    ValueT<T> evaluate() const { return body()->evaluate().simplify(); }
 
     TypeT<T> type() const { return body()->type(); }
 
 protected:
     const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 
     static Expression parseElement(CharacterSource* source)
     {
@@ -628,8 +627,7 @@ public:
 template<class T> class FunctionCallExpressionT : public Expression
 {
 public:
-    FunctionCallExpressionT(const ConstHandle& other)
-      : Expression(other) { }
+    FunctionCallExpressionT(Handle other) : Expression(other) { }
 
     static List<Expression> parseList(CharacterSource* source)
     {
@@ -654,9 +652,9 @@ public:
             return Expression();
         List<Expression> arguments = parseList(source);
         Space::assertCharacter(source, ')', &span);
-        Expression e = FunctionCallExpression(
-            create<ConstructorCallBody>(t, arguments, t.span() + span));
-        return parseRemainder(e, source);
+        return parseRemainder(
+            create<ConstructorCallBody>(t, arguments, t.span() + span),
+            source);
     }
 
     static Expression parse(CharacterSource* source)

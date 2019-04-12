@@ -14,18 +14,18 @@ template<class T> class IdentifierT : public ExpressionT<T>
     {
     public:
         Body(const Span& span) : Expression::Body(span) { }
-        Identifier identifier() const { return handle<ConstHandle>(); }
-        virtual String name() const = 0;
-        ValueT<T> evaluate(Scope* scope) const
+        Identifier identifier() const { return handle<Handle>(); }
+        ValueT<T> evaluate() const
         {
-            return scope->valueOfIdentifier(this->expression());
+            return _definition.getResolvedScope()
+                ->valueOfIdentifier(this->expression());
         }
         virtual bool isOperator() const = 0;
         void resolve(Scope* scope)
         {
             _definition = scope->resolve(identifier());
         }
-
+        Type type() const { return _definition.type(); }
     private:
         ObjectDefinitionStatement _definition;
     };
@@ -34,7 +34,7 @@ template<class T> class IdentifierT : public ExpressionT<T>
     public:
         NameBody(const String& name, const Span& span)
             : Body(span), _name(name) { }
-        String name() const { return _name; }
+        String toString() const { return _name; }
         bool isOperator() const { return false; }
         Hash hash() const { return Body::hash().mixin(_name.hash()); }
         bool equals(const ConstHandle::Body* other) const
@@ -50,7 +50,7 @@ template<class T> class IdentifierT : public ExpressionT<T>
     public:
         OperatorBody(const Operator& op, const Span& span)
             : Body(span), _op(op) { }
-        String name() const { return "operator" + _op.toString(); }
+        String toString() const { return "operator" + _op.toString(); }
         bool isOperator() const { return true; }
         Hash hash() const { return Body::hash().mixin(_op.hash()); }
         bool equals(const ConstHandle::Body* other) const
@@ -64,8 +64,7 @@ template<class T> class IdentifierT : public ExpressionT<T>
 
 public:
     IdentifierT() { }
-    IdentifierT(const ConstHandle& other)
-      : ExpressionT<T>(other) { }
+    IdentifierT(Handle other) : ExpressionT<T>(other) { }
     IdentifierT(const String& name)
       : ExpressionT<T>(IdentifierT::template create<NameBody>(name, Span()))
     { }
@@ -207,7 +206,6 @@ public:
       : Expression(IdentifierT::template create<OperatorBody>(op, span))
     { }
 
-    String name() const { return body()->name(); }
     bool isOperator() const { return body()->isOperator(); }
 
 private:

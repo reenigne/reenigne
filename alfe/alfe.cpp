@@ -315,13 +315,13 @@ protected:
 //            BuiltInTycoSpecifier(Kind::type));
 //        scope.add(stringDefinition);
 
-        typedef FunctionDefinitionStatement::Parameter Parameter;
-        List<Parameter> printParameters;
-        printParameters.add(Parameter(stringIdentifier, Identifier("string")));
+//        typedef FunctionDefinitionStatement::Parameter Parameter;
+//        List<Parameter> printParameters;
+//        printParameters.add(Parameter(stringIdentifier, Identifier("string")));
 
-        FunctionDefinitionStatement printFunction(voidIdentifier,
-            Identifier("print"), printParameters, BuiltInStatement(print));
-        scope.add(printFunction);
+//        FunctionDefinitionStatement printFunction(voidIdentifier,
+//            Identifier("print"), printParameters, BuiltInStatement(print));
+//        scope.add(printFunction);
 
         CharacterSource source(contents, file.path());
         Space::parse(&source);

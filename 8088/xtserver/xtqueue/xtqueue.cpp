@@ -497,13 +497,12 @@ class AudioCapture : public Handle
 public:
     static AudioCapture audioCapture()
     {
-        return AudioCapture(1);
+        return create<Body>(1);
     }
     AudioCapture() { }
     void finish(File file) { to<Body>()->finish(file); }
 private:
     AudioCapture(Handle h) : Handle(h) { }
-    AudioCapture(int) : Handle(create<Body>()) { }
     class Body : public Handle::Body
     {
     public:
