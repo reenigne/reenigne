@@ -198,7 +198,7 @@ protected:
     public:
         void setResolvedScope(Scope* scope) { _resolvedScope = scope; }
         Scope* getResolvedScope() const { return _resolvedScope; }
-        Type type() const = 0;
+        virtual Type type() const = 0;
     private:
         Scope* _resolvedScope;
     };
@@ -227,10 +227,11 @@ public:
                 source->location().throwError("Expected identifier");
             return create<Body>(typeSpecifier, name);
         }
+        void resolve(Scope* scope) { body()->resolve(scope); }
     private:
         Parameter() { }
-        Parameter(Handle other) : ParseTreeObject(other) { }
-        class Body : public ParseTreeObject::Body
+        Parameter(Handle other) : VariableDefinitionStatement(other) { }
+        class Body : public VariableDefinitionStatement::Body
         {
         public:
             Body(const TycoSpecifier& typeSpecifier, const Identifier& name)
@@ -295,22 +296,26 @@ private:
         Type type() const
         {
             FunctionType t(_returnTypeSpecifier);
-            for (auto p : _parameterList) {
-
-            }
+            for (auto p : _parameterList)
+                t.instantiate(p.type());
+            return t;
         }
         void resolve(Scope* scope)
         {
             _returnTypeSpecifier.resolve(scope);
             for (auto p : _parameterList) {
-
+                p.resolve(scope);
+                _scope.addObject(p.name(), p);
             }
+            _scope.setParentScope(scope);
+            _body.resolve(&_scope);
         }
     private:
         TycoSpecifier _returnTypeSpecifier;
         Identifier _name;
         List<Parameter> _parameterList;
         Statement _body;
+        Scope _scope;
     };
 };
 
@@ -351,10 +356,22 @@ private:
             const Expression& initializer, const Span& span)
           : Statement::Body(span), _typeSpecifier(typeSpecifier),
             _identifier(identifier), _initializer(initializer) { }
+        Type type() const { return _typeSpecifier.type(); }
+        void resolve(Scope* scope)
+        {
+            _typeSpecifier.resolve(scope);
+            _scope.setParentScope(scope);
+            _scope.addObject(_identifier, variableDefinitionStatement());
+        }
+        VariableDefinitionStatement variableDefinitionStatement()
+        {
+            return as<Handle>();
+        }
     private:
         TycoSpecifier _typeSpecifier;
         Identifier _identifier;
         Expression _initializer;
+        Scope _scope;
     };
 };
 
@@ -374,6 +391,7 @@ public:
         } while (true);
         return create<Body>(sequence, span);
     }
+    void resolve(Scope* scope) { body()->resolve(scope); }
 private:
     StatementSequence(Handle other) : ParseTreeObject(other) { }
 
@@ -382,6 +400,11 @@ private:
     public:
         Body(const List<Statement>& sequence, const Span& span)
           : ParseTreeObject::Body(span), _sequence(sequence) { }
+        void resolve(Scope* scope)
+        {
+            for (auto s : _sequence)
+                s.resolve(scope);
+        }
     private:
         List<Statement> _sequence;
     };
@@ -408,6 +431,7 @@ private:
     public:
         Body(const StatementSequence& sequence, const Span& span)
           : Statement::Body(span), _sequence(sequence) { }
+        void resolve(Scope* scope) { _sequence.resolve(scope); }
     private:
         StatementSequence _sequence;
     };
@@ -444,7 +468,10 @@ private:
             const TycoSpecifier& tycoSpecifier, const Span& span)
           : Statement::Body(span), _tycoSignifier(tycoSignifier),
             _tycoSpecifier(tycoSpecifier) { }
+        void resolve(Scope* scope)
+        {
 
+        }
     private:
         TycoSignifier _tycoSignifier;
         TycoSpecifier _tycoSpecifier;
@@ -470,6 +497,7 @@ private:
     {
     public:
         Body(const Span& span) : Statement::Body(span) { }
+        void resolve(Scope* scope) { }
     };
 };
 
@@ -548,6 +576,12 @@ private:
             const Statement& falseStatement, const Span& span)
           : Statement::Body(span), _condition(condition),
             _trueStatement(trueStatement), _falseStatement(falseStatement) { }
+        void resolve(Scope* scope)
+        {
+            _condition.resolve(scope);
+            _trueStatement.resolve(scope);
+            _falseStatement.resolve(scope);
+        }
     private:
         Expression _condition;
         Statement _trueStatement;
@@ -621,6 +655,7 @@ private:
             return create<ValueBody>(expressions, statement, span);
         }
         bool isDefault() const { return as<Case>()->isDefault(); }
+        void resolve(Scope* scope) { body()->resolve(scope); }
 
         Case() { }
 
@@ -630,6 +665,10 @@ private:
             Body(const Statement& statement, const Span& span)
               : ParseTreeObject::Body(span), _statement(statement) { }
             virtual bool isDefault() const = 0;
+            virtual void resolve(Scope* scope)
+            {
+                _statement.resolve(scope);
+            }
         private:
             Statement _statement;
         };
@@ -650,6 +689,12 @@ private:
                 const Statement& statement, const Span& span)
               : Body(statement, span), _expressions(expressions) { }
             bool isDefault() const { return false; }
+            void resolve(Scope* scope)
+            {
+                for (auto e : _expressions)
+                    e.resolve(scope);
+                Body::resolve(scope);
+            }
         private:
             List<Expression> _expressions;
         };
@@ -662,6 +707,13 @@ private:
             const List<Case>& cases, const Span& span)
           : Statement::Body(span), _expression(expression),
             _defaultCase(defaultCase), _cases(cases) { }
+        void resolve(Scope* scope)
+        {
+            _expression.resolve(scope);
+            _defaultCase.resolve(scope);
+            for (auto c : _cases)
+                c.resolve(scope);
+        }
     private:
         Expression _expression;
         Case _defaultCase;
@@ -690,6 +742,7 @@ private:
     public:
         Body(const Expression& expression, const Span& span)
           : Statement::Body(span), _expression(expression) { }
+        void resolve(Scope* scope) { _expression.resolve(scope); }
     private:
         Expression _expression;
     };
@@ -716,6 +769,7 @@ private:
     public:
         Body(const Expression& expression, const Span& span)
           : Statement::Body(span), _expression(expression) { }
+        void resolve(Scope* scope) { _expression.resolve(scope); }
     private:
         Expression _expression;
     };
@@ -764,6 +818,7 @@ private:
     {
     public:
         Body(const Span& span) : Statement::Body(span) { }
+        void resolve(Scope* scope) { }
     };
 
     class BreakBody : public Body
@@ -802,6 +857,7 @@ private:
     public:
         Body(const Statement& statement, const Span& span)
           : Statement::Body(span), _statement(statement) { }
+        void resolve(Scope* scope) { _statement.resolve(scope); }
     private:
         Statement _statement;
     };
@@ -859,6 +915,13 @@ private:
           : Statement::Body(span), _doStatement(doStatement),
             _condition(condition), _statement(statement),
             _doneStatement(doneStatement) { }
+        void resolve(Scope* scope)
+        {
+            _doStatement.resolve(scope);
+            _condition.resolve(scope);
+            _statement.resolve(scope);
+            _doneStatement.resolve(scope);
+        }
     private:
         Statement _doStatement;
         Expression _condition;
@@ -906,6 +969,14 @@ private:
           : Statement::Body(span), _preStatement(preStatement),
             _condition(condition), _postStatement(postStatement),
             _statement(statement), _doneStatement(doneStatement) { }
+        void resolve(Scope* scope)
+        {
+            _preStatement.resolve(scope);
+            _condition.resolve(scope);
+            _postStatement.resolve(scope);
+            _statement.resolve(scope);
+            _doneStatement.resolve(scope);
+        }
     private:
         Statement _preStatement;
         Expression _condition;
@@ -941,6 +1012,10 @@ private:
     public:
         Body(const Identifier& identifier, const Span& span)
           : Statement::Body(span), _identifier(identifier) { }
+        void resolve(Scope* scope)
+        {
+
+        }
     private:
         IdentifierT<T> _identifier;
     };
@@ -968,6 +1043,7 @@ private:
     public:
         Body(const Expression& expression, const Span& span)
           : Statement::Body(span), _expression(expression) { }
+        void resolve(Scope* scope) { _expression.resolve(scope); }
     private:
         Expression _expression;
     };

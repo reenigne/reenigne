@@ -36,7 +36,7 @@ private:
 
 template<class V> using ConfigOption = ConfigOptionT<void, V>;
 
-template<class T> class ConfigFileT : public Scope
+template<class T> class ConfigFileT : public Structure
 {
 public:
     ConfigFileT()
@@ -134,6 +134,8 @@ public:
 private:
     void addOption(String name, Value defaultValue)
     {
+        VariableDefinitionStatment s(defaultValue.type(), name);
+        _scope.addObject(name, s);
         set(name, defaultValue, Span());
     }
 public:
@@ -162,7 +164,7 @@ public:
             Span span;
             if (Space::parseKeyword(&s, "include", &span)) {
                 Expression e = Expression::parse(&s);
-                e.resolve(this);
+                e.resolve(&_scope);
                 Value v = e.evaluate().convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
                 load(File(v.value<String>(), _file.parent()));
@@ -185,7 +187,7 @@ public:
                 Value value = StructuredType::empty();
                 if (Space::parseCharacter(&s, '=', &span)) {
                     Expression e = Expression::parse(&s);
-                    e.resolve(this);
+                    e.resolve(&_scope);
                     value = e.evaluate();
                 }
                 Space::assertCharacter(&s, ';', &span);
@@ -216,14 +218,14 @@ public:
                     "object creation statement or an assignment statement.");
             }
             Expression le = Expression::parseDot(&source);
-            le.resolve(this);
+            le.resolve(&_scope);
             Value left = le.evaluate();
             Space::assertCharacter(&source, '=', &span);
             Expression e = Expression::parse(&source);
             if (!e.valid())
                 source.location().throwError("Expected expression.");
             Space::assertCharacter(&source, ';', &span);
-            e.resolve(this);
+            e.resolve(&_scope);
             Value loadedExpression = e.evaluate();
             LValueType lValueType(left.type());
             if (!lValueType.valid())
@@ -295,6 +297,7 @@ public:
 private:
     File _file;
     StructureOwner _structureOwner;
+    Scope _scope;
 };
 
 #endif // INCLUDED_CONFIG_FILE_H

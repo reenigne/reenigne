@@ -111,14 +111,19 @@ private:
 template<class T> class ScopeT;
 typedef ScopeT<void> Scope;
 
-template<class T> class ScopeT : public Structure
+template<class T> class ScopeT
 {
 public:
+    ScopeT() : _parent(0) { }
     void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
     {
         if (!identifier.valid())
             identifier = TycoIdentifier(type.toString());
         _tycos.add(identifier, type);
+    }
+    void addObject(Identifier i, ObjectDefintionStatement s)
+    {
+        _objects[i] = s;
     }
     ValueT<T> valueOfIdentifier(Identifier i)
     {
@@ -162,10 +167,13 @@ public:
         }
         return _parent->resolve(identifier);
     }
+    void setParentScope(Scope* parent) { _parent = parent; }
+    void setFunctionScope(Scope* score) { _functionScope = scope; }
 private:
     HashTable<TycoIdentifier, Tyco> _tycos;
     HashTable<Identifier, ObjectDefinitionStatement> _objects;
     Scope* _parent;
+    Scope* _functionScope;
 };
 
 template<class T> class LValueT;
