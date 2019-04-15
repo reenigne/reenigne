@@ -168,7 +168,8 @@ public:
         return _parent->resolve(identifier);
     }
     void setParentScope(Scope* parent) { _parent = parent; }
-    void setFunctionScope(Scope* score) { _functionScope = scope; }
+    void setFunctionScope(Scope* scope) { _functionScope = scope; }
+    Scope* functionScope() { return _functionScope; }
 private:
     HashTable<TycoIdentifier, Tyco> _tycos;
     HashTable<Identifier, ObjectDefinitionStatement> _objects;

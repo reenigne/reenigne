@@ -103,7 +103,7 @@ public:
         if (!Space::parseCharacter(&s, ';', &span))
             return ExpressionStatement();
         *source = s;
-        if (!FunctionCallExpression(expression).valid())
+        if (!expression.mightHaveSideEffect())
             source->location().throwError("Statement has no effect");
         return ExpressionStatement(expression, expression.span() + span);
     }

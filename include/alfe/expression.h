@@ -56,6 +56,9 @@ typedef StructureT<void> Structure;
 template<class T> class OverloadedFunctionSetT;
 typedef OverloadedFunctionSetT<void> OverloadedFunctionSet;
 
+template<class T> class VariableDefinitionT;
+typedef VariableDefinitionT<void> VariableDefinition;
+
 class Function;
 
 template<class T> class FuncoTypeT;
@@ -105,6 +108,7 @@ public:
         Expression expression() const { return handle<Handle>(); }
         virtual TypeT<T> type() const = 0;
         virtual void resolve(Scope* scope) = 0;
+        virtual bool mightHaveSideEffect() const = 0;
     };
 
     ExpressionT(const String& string, const Span& span)
@@ -182,8 +186,8 @@ public:
 
     void resolve(Scope* scope) { body()->resolve(scope); }
     ValueT<T> evaluate() const { return body()->evaluate().simplify(); }
-
     TypeT<T> type() const { return body()->type(); }
+    bool mightHaveSideEffect() const { return body()-<mightHaveSideEffect(); }
 
 protected:
     const Body* body() const { return as<Body>(); }
@@ -207,6 +211,9 @@ protected:
         e = FunctionCallExpressionT<T>::parseConstructorCall(source);
         if (e.valid())
             return e;
+        e = VariableDefinitionT<T>::parse(source);
+        if (e.valid())
+            return e;
         Span span;
         if (Space::parseKeyword(source, "true", &span))
             return create<TrueBody>(span);
@@ -214,13 +221,28 @@ protected:
             return create<FalseBody>(span);
         CharacterSource s2 = *source;
         if (Space::parseCharacter(&s2, '(', &span)) {
-            e = parse(&s2);
-            if (!e.valid())
-                return e;
-            Span span2;
-            Space::assertCharacter(&s2, ')', &span2);
-            *source = s2;
-            return e;
+            List<Expression> expressions;
+            bool foundExpression = false;
+            do {
+                Span span2;
+                if (Space::parseCharacter(&s2, ')', &span2)) {
+                    *source = s2;
+                    if (expressions.count() == 0)
+                        return create<UnitBody>(span + span2);
+                    if (expressions.count() == 1)
+                        return *expressions.begin();
+                    return create<TupleBody>(expressions, span + span2);
+                }
+                if (foundExpression &&
+                    !Space::parseCharacter(&s2, ',', &span2)) {
+                    return Expression();
+                }
+                e = parse(&s2);
+                if (!e.valid)
+                    return e;
+                expressions.add(e);
+                foundExpression = true;
+            } while (true);
         }
         if (Space::parseCharacter(&s2, '{', &span)) {
             List<Expression> expressions;
@@ -406,6 +428,77 @@ private:
         return Expression();
     }
 
+    class UnitBody : public Body
+    {
+    public:
+        UnitBody(const Span& span) : Body(span) { }
+        Expression stringify() const { return Expression("()", this->span()); }
+        String toString() const { return "()"; }
+        ValueT<T> evaluate() const { return ValueT<T>(); }
+        TypeT<T> type() const { return VoidType(); }
+        void resolve(Scope* scope) { }
+    };
+    class TupleBody : public Body
+    {
+    public:
+        TupleBody(List<Expression> expressions, const Span& span)
+          : Body(span), _expressions(expressions) { }
+        Expression stringify() const
+        {
+            Expression r("(", Span());
+            bool first = true;
+            for (auto e : _expressions) {
+                if (!first)
+                    r += Expression(", ", Span());
+                first = false;
+                r += e.stringify();
+            }
+            r += Expression(")", Span());
+            r.setSpan(span());
+            return r;
+        }
+        String toString() const
+        {
+            String r = "(";
+            bool first = true;
+            for (auto e : _expressions) {
+                if (!first)
+                    r += ", ";
+                first = false;
+                r += e.toString();
+            }
+            return r + ")";
+        }
+        ValueT<T> evaluate() const
+        {
+            List<ValueT<T>> v;
+            for (auto e : _expressions)
+                v.add(e.evaluate());
+            return ValueT<T>(v, type());
+        }
+        TypeT<T> type() const
+        {
+            TupleTyco t;
+            for (auto e : _expressions)
+                t = t.instantiate(e.type());
+            return t;
+        }
+        void resolve(Scope* scope)
+        {
+            for (auto e : _expressions)
+                e.resolve(scope);
+        }
+        bool mightHaveSideEffect() const
+        {
+            for (auto e : _expressions) {
+                if (e.mightHaveSideEffect())
+                    return true;
+            }
+            return false;
+        }
+    private:
+        List<Expression> _expressions;
+    };
     class BooleanBody : public Body
     {
     public:
@@ -534,6 +627,14 @@ private:
             for (auto e : _expressions)
                 e->resolve(scope);
         }
+        bool mightHaveSideEffect() const
+        {
+            for (auto e : _expressions) {
+                if (e.mightHaveSideEffect())
+                    return true;
+            }
+            return false;
+        }
     private:
         List<Expression> _expressions;
     };
@@ -587,6 +688,10 @@ private:
             if (!t.valid())
                 _left.span().throwError("Expression has no members");
             _right.resolve(t.scope());
+        }
+        bool mightHaveSideEffect() const
+        {
+            return _left.mightHaveSideEffect();
         }
     private:
         ExpressionT<T> _left;
@@ -889,6 +994,8 @@ public:
             _function.resolve(scope);
             Body::resolve(scope);
         }
+        // TODO: check if it's a pure function
+        bool mightHaveSideEffect() const { return true; }
     private:
         Expression _function;
     };
@@ -923,16 +1030,14 @@ public:
             }
             return type.constructValue(Value(type, values, span));
         }
-        TypeT<T> type() const
-        {
-            throw NotYetImplementedException();
-        }
+        TypeT<T> type() const { return _type;  }
         String toString() const { return _type.toString() + Body::toString(); }
         void resolve(Scope* scope)
         {
             _type.resolve(scope);
             Body::resolve(scope);
         }
+        bool mightHaveSideEffect() const { return true; }
     private:
         TycoSpecifier _type;
     };
@@ -964,6 +1069,71 @@ private:
     template<class U> friend class ExpressionT;
 };
 
+template<class T> class VariableDefinitionT : public Expression
+{
+public:
+    static VariableDefinitionT parse(CharacterSource* source)
+    {
+        CharacterSource s = *source;
+        TycoSpecifier t = TycoSpecifier::parse(&s);
+        if (!t.valid())
+            return Expression();
+        Span span;
+        Identifier i = Identifier::parse(&s);
+        if (!i.valid())
+            return;
+        *source = s;
+        Expression e;
+        Span span = t.span() + i.span();
+        if (Space::parseCharacter(&s, '=', &span)) {
+            e = Expression::parse(&s);
+            if (e.valid()) {
+                *source = s;
+                span += e.span();
+            }
+        }
+        return create<Body>(t, i, e, span);
+    }
+private:
+    class Body : public Expression::Body
+    {
+    public:
+        Body(TycoSpecifier tycoSpecifier, Identifier identifier,
+            Expression initializer, Span span)
+          : Expression::Body(span), _tycoSpecifier(tycoSpecifier),
+            _identifier(identifier), _initializer(initializer)
+        { }
+        String toString() const
+        {
+            String r = _tycoSpecifier.toString() + " " +
+                _identifier.toString();
+            if (_initializer.valid())
+                r += " = " + _initializer.toString();
+            return r;
+        }
+        ValueT<T> evaluate() const
+        {
+            ValueT<T> e = _initializer.evaluate();
+            return e.convertTo(_type);
+        }
+        TypeT<T> type() const { return _type; }
+        void resolve(Scope* scope)
+        {
+            _type = _tycoSpecifier.resolve(scope);
+            _initializer.resolve(scope);
+            _scope.setParentScope(scope);
+            _scope.setFunctionScope(scope->functionScope());
+        }
+        bool mightHaveSideEffect() const { return true; }
+    private:
+        TycoSpecifier _tycoSpecifier;
+        Type _type;
+        Identifier _identifier;
+        Expression _initializer;
+        Scope _scope;
+    };
+};
+
 template<class T> class BinaryExpressionT : public Expression
 {
 protected:
@@ -982,6 +1152,10 @@ protected:
             _right.resolve(scope);
         }
         TypeT<T> type() const { return BooleanType(); }
+        bool mightHaveSideEffect() const
+        {
+            return _left.mightHaveSideEffect() || _right.mightHaveSideEffect();
+        }
     private:
         Expression _left;
         Expression _right;
@@ -1163,6 +1337,12 @@ private:
                     " and false expression has type " + ft.toString() + ".");
             }
             return _trueExpression.type();
+        }
+        bool mightHaveSideEffect() const
+        {
+            return _condition.mightHaveSideEffect() ||
+                _trueExpression.mightHaveSideEffect() ||
+                _falseExpression.mightHaveSideEffect();
         }
     private:
         Expression _condition;
