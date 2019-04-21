@@ -187,7 +187,7 @@ public:
     void resolve(Scope* scope) { body()->resolve(scope); }
     ValueT<T> evaluate() const { return body()->evaluate().simplify(); }
     TypeT<T> type() const { return body()->type(); }
-    bool mightHaveSideEffect() const { return body()-<mightHaveSideEffect(); }
+    bool mightHaveSideEffect() const { return body()->mightHaveSideEffect(); }
 
 protected:
     const Body* body() const { return as<Body>(); }
@@ -1094,6 +1094,9 @@ public:
         }
         return create<Body>(t, i, e, span);
     }
+    VariableDefinitionT(TypeT<T> type, Identifier identifier)
+      : Expression(create<Body>(type, identifier, Expression(), Span()))
+    { }
 private:
     class Body : public Expression::Body
     {
@@ -1127,7 +1130,7 @@ private:
         bool mightHaveSideEffect() const { return true; }
     private:
         TycoSpecifier _tycoSpecifier;
-        Type _type;
+        TypeT<T> _type;
         Identifier _identifier;
         Expression _initializer;
         Scope _scope;

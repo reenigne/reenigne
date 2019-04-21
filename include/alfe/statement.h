@@ -20,9 +20,6 @@ public:
         statement = FunctionDefinitionStatement::parse(source);
         if (statement.valid())
             return statement;
-        statement = VariableDefinitionStatement::parse(source);
-        if (statement.valid())
-            return statement;
         statement = ExpressionStatement::parseAssignment(source);
         if (statement.valid())
             return statement;
@@ -85,6 +82,8 @@ protected:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
         virtual void resolve(Scope* scope) = 0;
     };
+
+    Body* body() { return as<Body>(); }
 };
 
 class ExpressionStatement : public Statement
@@ -183,38 +182,13 @@ private:
     };
 };
 
-class ObjectDefinitionStatement : public Statement
-{
-public:
-    ObjectDefinitionStatement() { }
-    void setResolvedScope(Scope* scope) { body()->setResolvedScope(scope); }
-    Scope* getResolvedScope() const { return body()->getResolvedScope(); }
-    Type type() const { return body()->type(); }
-protected:
-    ObjectDefinitionStatement(Handle other) : Statement(other) { }
-
-    class Body : public Statement::Body
-    {
-    public:
-        void setResolvedScope(Scope* scope) { _resolvedScope = scope; }
-        Scope* getResolvedScope() const { return _resolvedScope; }
-        virtual Type type() const = 0;
-    private:
-        Scope* _resolvedScope;
-    };
-
-    const Body* body() const { return as<Body>(); }
-    Body* body() { return as<Body>(); }
-};
-
 template<class T> class FunctionDefinitionStatementT;
 typedef FunctionDefinitionStatementT<void> FunctionDefinitionStatement;
 
-template<class T> class FunctionDefinitionStatementT
-  : public ObjectDefinitionStatement
+template<class T> class FunctionDefinitionStatementT : public Statement
 {
 public:
-    class Parameter : public VariableDefinitionStatement
+    class Parameter : public VariableDefinitionT<T>
     {
     public:
         static Parameter parse(CharacterSource* source)
@@ -231,7 +205,7 @@ public:
     private:
         Parameter() { }
         Parameter(Handle other) : VariableDefinitionStatement(other) { }
-        class Body : public VariableDefinitionStatement::Body
+        class Body : public VariableDefinitionT<T>::Body
         {
         public:
             Body(const TycoSpecifier& typeSpecifier, const Identifier& name)
@@ -282,10 +256,9 @@ private:
     }
 
     FunctionDefinitionStatementT() { }
-    FunctionDefinitionStatementT(Handle other)
-      : ObjectDefinitionStatement(other) { }
+    FunctionDefinitionStatementT(Handle other) : Statement(other) { }
 
-    class Body : public ObjectDefinitionStatement::Body
+    class Body : public Statement::Body
     {
     public:
         Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
@@ -293,7 +266,7 @@ private:
           : Statement::Body(returnTypeSpecifier.span() + body.span()),
             _returnTypeSpecifier(returnTypeSpecifier), _name(name),
             _parameterList(parameterList), _body(body) { }
-        Type type() const
+        TypeT<T> type() const
         {
             FunctionType t(_returnTypeSpecifier);
             for (auto p : _parameterList)
@@ -315,62 +288,6 @@ private:
         Identifier _name;
         List<Parameter> _parameterList;
         Statement _body;
-        Scope _scope;
-    };
-};
-
-template<class T> class VariableDefinitionStatementT;
-typedef VariableDefinitionStatementT<void> VariableDefinitionStatement;
-
-template<class T> class VariableDefinitionStatementT
-  : public ObjectDefinitionStatement
-{
-public:
-    static VariableDefinitionStatement parse(CharacterSource* source)
-    {
-        CharacterSource s = *source;
-        TycoSpecifier typeSpecifier = TycoSpecifier::parse(&s);
-        if (!typeSpecifier.valid())
-            return VariableDefinitionStatement();
-        Identifier identifier = Identifier::parse(&s);
-        if (!identifier.valid())
-            return VariableDefinitionStatement();
-        *source = s;
-        Expression initializer;
-        if (Space::parseCharacter(source, '='))
-            initializer = Expression::parseOrFail(source);
-        Span span;
-        Space::assertCharacter(source, ';', &span);
-        return create<Body>(typeSpecifier, identifier, initializer,
-            typeSpecifier.span() + span);
-    }
-private:
-    VariableDefinitionStatementT() { }
-    VariableDefinitionStatementT(Handle other)
-      : ObjectDefinitionStatement(other) { }
-
-    class Body : public ObjectDefinitionStatement::Body
-    {
-    public:
-        Body(const TycoSpecifier& typeSpecifier, const Identifier& identifier,
-            const Expression& initializer, const Span& span)
-          : Statement::Body(span), _typeSpecifier(typeSpecifier),
-            _identifier(identifier), _initializer(initializer) { }
-        Type type() const { return _typeSpecifier.type(); }
-        void resolve(Scope* scope)
-        {
-            _typeSpecifier.resolve(scope);
-            _scope.setParentScope(scope);
-            _scope.addObject(_identifier, variableDefinitionStatement());
-        }
-        VariableDefinitionStatement variableDefinitionStatement()
-        {
-            return as<Handle>();
-        }
-    private:
-        TycoSpecifier _typeSpecifier;
-        Identifier _identifier;
-        Expression _initializer;
         Scope _scope;
     };
 };
@@ -408,6 +325,8 @@ private:
     private:
         List<Statement> _sequence;
     };
+
+    Body* body() { return as<Body>(); }
 };
 
 class CompoundStatement : public Statement
@@ -674,6 +593,8 @@ private:
         };
     private:
         Case(Handle other) : ParseTreeObject(other) { }
+
+        Body* body() { return as<Body>(); }
 
         class DefaultBody : public Body
         {

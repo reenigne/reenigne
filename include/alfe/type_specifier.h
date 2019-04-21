@@ -383,6 +383,8 @@ protected:
 template<class T> class ClassTycoSpecifierT : public TycoSpecifier
 {
 public:
+    ClassTycoSpecifierT() { }
+    ClassTycoSpecifierT(Handle other) : TycoSpecifier(other) { }
     static ClassTycoSpecifier parse(CharacterSource* source)
     {
         Location start = source->location();
@@ -399,8 +401,7 @@ private:
     class Body : public TycoSpecifier::Body
     {
     public:
-        Body(const Span& span)
-          : TycoSpecifier::Body(span) { }
+        Body(const Span& span) : TycoSpecifier::Body(span) { }
         TycoT<T> resolve(const Scope* scope) const
         {
             // TODO

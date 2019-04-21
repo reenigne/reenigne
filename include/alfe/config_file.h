@@ -131,10 +131,14 @@ public:
         addDefaultOption(name, typeFromCompileTimeType<V>(), defaultValue);
         return ConfigOption<V>(this, name);
     }
+    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
+    {
+        _scope.addType(type, identifier);
+    }
 private:
     void addOption(String name, Value defaultValue)
     {
-        VariableDefinitionStatment s(defaultValue.type(), name);
+        VariableDefinition s(defaultValue.type(), name);
         _scope.addObject(name, s);
         set(name, defaultValue, Span());
     }
@@ -173,7 +177,7 @@ public:
             }
             TycoSpecifier tycoSpecifier = TycoSpecifier::parse(&s);
             if (tycoSpecifier.valid()) {
-                Type type = resolveType(tycoSpecifier);
+                Type type = _scope.resolveType(tycoSpecifier);
                 Identifier objectIdentifier = Identifier::parse(&s);
                 if (objectIdentifier.isOperator()) {
                     objectIdentifier.span().throwError("Cannot create an "

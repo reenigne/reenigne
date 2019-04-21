@@ -121,7 +121,7 @@ public:
             identifier = TycoIdentifier(type.toString());
         _tycos.add(identifier, type);
     }
-    void addObject(Identifier i, ObjectDefintionStatement s)
+    void addObject(Identifier i, VariableDefinition s)
     {
         _objects[i] = s;
     }
@@ -154,7 +154,7 @@ public:
         }
         return t;
     }
-    ObjectDefinitionStatement resolve(Identifier identifier)
+    VariableDefinition resolveVariable(Identifier identifier)
     {
         if (_objects.hasKey(identifier)) {
             ObjectDefinitionStatement s = _objects[identifier];
@@ -167,12 +167,17 @@ public:
         }
         return _parent->resolve(identifier);
     }
+    FunctionDefinitionStatement resolveFunction(Identifier identifier)
+    {
+        return FunctionDefinitionStatement();
+    }
     void setParentScope(Scope* parent) { _parent = parent; }
     void setFunctionScope(Scope* scope) { _functionScope = scope; }
     Scope* functionScope() { return _functionScope; }
 private:
     HashTable<TycoIdentifier, Tyco> _tycos;
-    HashTable<Identifier, ObjectDefinitionStatement> _objects;
+    HashTable<Identifier, VariableDefinition> _objects;
+    HashTable<Identifier, FunctionDefinitionStatement> _functions;
     Scope* _parent;
     Scope* _functionScope;
 };

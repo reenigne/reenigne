@@ -23,11 +23,11 @@ template<class T> class IdentifierT : public ExpressionT<T>
         virtual bool isOperator() const = 0;
         void resolve(Scope* scope)
         {
-            _definition = scope->resolve(identifier());
+            _definition = scope->resolveVariable(identifier());
         }
-        Type type() const { return _definition.type(); }
+        TypeT<T> type() const { return _definition.type(); }
     private:
-        ObjectDefinitionStatement _definition;
+        VariableDefinition _definition;
     };
     class NameBody : public Body
     {
