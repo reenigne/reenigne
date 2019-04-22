@@ -1,0 +1,8 @@
+Should we have unified call syntax?
+  Meaning: f(x, y) means the same thing as x->f(y) (and f(&x, y) means the same thing as x.f(y))
+  Upside: Simpler
+  Downside: Less expressive
+
+Extension to virtual function calls "Void f(virtual X* x)" and multimethods "Void f(virtual X* x, virtual Y* y)"
+
+For now (and unless we find a really good counterexample) let's use UCS. Implement virtual function calls and multimethods once they are needed.

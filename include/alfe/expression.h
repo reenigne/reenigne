@@ -991,13 +991,14 @@ public:
         }
         void resolve(Scope* scope)
         {
-            _function.resolve(scope);
             Body::resolve(scope);
+            _function.resolve(scope);
         }
         // TODO: check if it's a pure function
         bool mightHaveSideEffect() const { return true; }
     private:
         Expression _function;
+        Funco _resolvedFunco;
     };
 
     class ConstructorCallBody : public Body
@@ -1034,8 +1035,8 @@ public:
         String toString() const { return _type.toString() + Body::toString(); }
         void resolve(Scope* scope)
         {
-            _type.resolve(scope);
             Body::resolve(scope);
+            _type.resolve(scope);
         }
         bool mightHaveSideEffect() const { return true; }
     private:
