@@ -82,8 +82,8 @@ public:
         return body()->resolve(scope);
     }
     String toString() const { return body()->toString(); }
-protected:
     TycoSpecifierT() { }
+protected:
     TycoSpecifierT(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
@@ -102,12 +102,12 @@ protected:
         { }
         TycoT<T> resolve(const Scope* scope) const
         {
-            TycoT<T> t = scope->resolve(_tycoIdentifier);
+            TycoT<T> t = scope->resolveTycoIdentifier(_tycoIdentifier);
             List<TycoT<T>> a = _arguments.resolve(scope);
-            for (auto argument in a) {
+            for (auto argument : a) {
                 Template te = t;
                 assert(te.valid());
-                t = te.instantiate(a);
+                t = te.instantiate(argument);
             }
             return t;
         }
@@ -213,7 +213,7 @@ public:
         {
             List<Tyco> l;
             for (auto s : _arguments)
-                l.add(scope->resolveTyco(s));
+                l.add(scope->resolveTycoSpecifier(s));
             return l;
         }
         String toString() const
@@ -353,8 +353,8 @@ public:
         return create<Body>(name, Span(location, endLocation));
     }
     String name() const { return as<Body>()->name(); }
-protected:
     TycoIdentifierT(Handle other) : TycoSpecifier(other) { }
+protected:
     class Body : public TycoSpecifier::Body
     {
     public:

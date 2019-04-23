@@ -8,6 +8,9 @@
 #include "alfe/type_specifier.h"
 #include "alfe/statement.h"
 
+template<class T> class ResolutionPathT;
+typedef ResolutionPathT<void> ResolutionPath;
+
 template<class T> class IdentifierT : public ExpressionT<T>
 {
     class Body : public ExpressionT<T>::Body
@@ -15,19 +18,20 @@ template<class T> class IdentifierT : public ExpressionT<T>
     public:
         Body(const Span& span) : Expression::Body(span) { }
         Identifier identifier() const { return handle<Handle>(); }
-        ValueT<T> evaluate() const
+        ValueT<T> evaluate(Structure* context) const
         {
-            return _definition.getResolvedScope()
-                ->valueOfIdentifier(this->expression());
+            return _path.evaluate(context, identifier());
         }
         virtual bool isOperator() const = 0;
         void resolve(Scope* scope)
         {
-            _definition = scope->resolveVariable(identifier());
+            _definition = scope->resolveVariable(identifier(), &_path);
         }
         TypeT<T> type() const { return _definition.type(); }
+        bool mightHaveSideEffect() const { return false; }
     private:
         VariableDefinition _definition;
+        ResolutionPath _path;
     };
     class NameBody : public Body
     {

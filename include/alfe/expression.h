@@ -104,7 +104,7 @@ public:
                 List<Expression>(), span());
         }
         virtual String toString() const = 0;
-        virtual Value evaluate() const = 0;
+        virtual Value evaluate(Structure* context) const = 0;
         Expression expression() const { return handle<Handle>(); }
         virtual TypeT<T> type() const = 0;
         virtual void resolve(Scope* scope) = 0;
@@ -185,7 +185,10 @@ public:
     }
 
     void resolve(Scope* scope) { body()->resolve(scope); }
-    ValueT<T> evaluate() const { return body()->evaluate().simplify(); }
+    ValueT<T> evaluate(Structure* context) const
+    {
+        return body()->evaluate(context).simplify();
+    }
     TypeT<T> type() const { return body()->type(); }
     bool mightHaveSideEffect() const { return body()->mightHaveSideEffect(); }
 
@@ -238,7 +241,7 @@ protected:
                     return Expression();
                 }
                 e = parse(&s2);
-                if (!e.valid)
+                if (!e.valid())
                     return e;
                 expressions.add(e);
                 foundExpression = true;
@@ -434,9 +437,10 @@ private:
         UnitBody(const Span& span) : Body(span) { }
         Expression stringify() const { return Expression("()", this->span()); }
         String toString() const { return "()"; }
-        ValueT<T> evaluate() const { return ValueT<T>(); }
+        ValueT<T> evaluate(Structure* context) const { return ValueT<T>(); }
         TypeT<T> type() const { return VoidType(); }
         void resolve(Scope* scope) { }
+        bool mightHaveSideEffect() const { return false; }
     };
     class TupleBody : public Body
     {
@@ -469,12 +473,12 @@ private:
             }
             return r + ")";
         }
-        ValueT<T> evaluate() const
+        ValueT<T> evaluate(Structure* context) const
         {
             List<ValueT<T>> v;
             for (auto e : _expressions)
-                v.add(e.evaluate());
-            return ValueT<T>(v, type());
+                v.add(e.evaluate(context));
+            return ValueT<T>(type(), v);
         }
         TypeT<T> type() const
         {
@@ -502,26 +506,28 @@ private:
     class BooleanBody : public Body
     {
     public:
+        BooleanBody(const Span& span) : Body(span) { }
         Expression stringify() const
         {
             return Expression(toString(), this->span());
         }
         TypeT<T> type() const { return BooleanType(); }
         void resolve(Scope* scope) { }
+        bool mightHaveSideEffect() const { return false; }
     };
     class TrueBody : public BooleanBody
     {
     public:
         TrueBody(const Span& span) : BooleanBody(span) { }
         String toString() const { return "true"; }
-        ValueT<T> evaluate() const { return true; }
+        ValueT<T> evaluate(Structure* context) const { return true; }
     };
     class FalseBody : public BooleanBody
     {
     public:
         FalseBody(const Span& span) : BooleanBody(span) { }
         String toString() const { return "false"; }
-        ValueT<T> evaluate() const { return false; }
+        ValueT<T> evaluate(Structure* context) const { return false; }
     };
     class StringLiteralBody : public Body
     {
@@ -551,9 +557,10 @@ private:
             } while (true);
             return r + "\"";
         }
-        ValueT<T> evaluate() const { return _string; }
+        ValueT<T> evaluate(Structure* context) const { return _string; }
         TypeT<T> type() const { return StringType(); }
         void resolve(Scope* scope) { }
+        bool mightHaveSideEffect() const { return false; }
     private:
         String _string;
     };
@@ -562,13 +569,13 @@ private:
     public:
         ArrayLiteralBody(const List<Expression>& expressions, const Span& span)
           : Body(span), _expressions(expressions) { }
-        ValueT<T> evaluate() const
+        ValueT<T> evaluate(Structure* context) const
         {
             HashTable<Identifier, Value> values;
             List<typename StructuredTypeT<T>::Member> members;
             int i = 0;
             for (auto e : _expressions) {
-                ValueT<T> v = e.evaluate();
+                ValueT<T> v = e.evaluate(context);
                 Type t = v.type();
                 String n = decimal(i);
                 values.add(n, v);
@@ -625,7 +632,7 @@ private:
         void resolve(Scope* scope)
         {
             for (auto e : _expressions)
-                e->resolve(scope);
+                e.resolve(scope);
         }
         bool mightHaveSideEffect() const
         {
@@ -643,15 +650,15 @@ private:
     public:
         DotBody(const Expression& left, const IdentifierT<T>& right)
           : Body(left.span() + right.span()), _left(left), _right(right) { }
-        ValueT<T> evaluate() const
+        ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> e = _left.evaluate();
+            ValueT<T> e = _left.evaluate(context);
 
             LValueTypeT<T> lValueType(e.type());
             if (!lValueType.valid()) {
                 if (!e.type().member(_right).valid()) {
                     this->span().throwError("Expression has no member named " +
-                        _right.name());
+                        _right.toString());
                 }
                 auto m = e.template value<HashTable<IdentifierT<T>,
                     ValueT<T>>>();
@@ -660,9 +667,10 @@ private:
             }
             else {
                 TypeT<T> t = lValueType.inner().member(_right);
-                if (!t.valid())
+                if (!t.valid()) {
                     this->span().throwError("Expression has no member named " +
-                        _right.name());
+                        _right.toString());
+                }
                 e = Value(LValueTypeT<T>::wrap(t),
                     e.template value<LValueT<T>>().member(_right),
                     this->span());
@@ -715,7 +723,7 @@ public:
         {
             return decimal(_n.numerator) + "/" + decimal(_n.denominator);
         }
-        ValueT<T> evaluate() const { return _n; }
+        ValueT<T> evaluate(Structure* context) const { return _n; }
         Rational value() const { return _n; }
         TypeT<T> type() const
         {
@@ -724,10 +732,13 @@ public:
             return RationalType();
         }
         void resolve(Scope* scope) { }
+        bool mightHaveSideEffect() const { return false; }
     private:
         Rational _n;
     };
 };
+
+class Funco;
 
 template<class T> class FunctionCallExpressionT : public Expression
 {
@@ -939,12 +950,12 @@ public:
         FunctionCallBody(const Expression& function,
             const List<Expression>& arguments, const Span& span)
           : Body(span, arguments), _function(function) { }
-        ValueT<T> evaluate() const
+        ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> l = _function.evaluate().rValue();
+            ValueT<T> l = _function.evaluate(context).rValue();
             List<Value> arguments;
             for (auto p : this->_arguments)
-                arguments.add(p.evaluate().rValue());
+                arguments.add(p.evaluate(context).rValue());
             TypeT<T> lType = l.type();
             if (lType == FuncoTypeT<T>()) {
                 return l.template value<OverloadedFunctionSet>().evaluate(
@@ -1004,24 +1015,23 @@ public:
     class ConstructorCallBody : public Body
     {
     public:
-        ConstructorCallBody(const TycoSpecifier& type,
+        ConstructorCallBody(const TycoSpecifier& tycoSpecifier,
             const List<Expression>& arguments, const Span& span)
-          : Body(span, arguments), _type(type) { }
-        ValueT<T> evaluate(Scope* scope) const
+          : Body(span, arguments), _tycoSpecifier(tycoSpecifier) { }
+        ValueT<T> evaluate(Structure* context) const
         {
-            Type t = scope->resolveType(_type);
-
             List<ValueT<T>> arguments;
             for (auto p : this->_arguments)
-                arguments.add(p.evaluate(scope));
+                arguments.add(p.evaluate(context));
 
-            StructuredTypeT<T> type = t;
-            if (!type.valid())
-                ti.span().throwError(
+            StructuredTypeT<T> type = _type;
+            if (!type.valid()) {
+                _tycoSpecifier.span().throwError(
                     "Only structure types can be constructed at the moment.");
+            }
             auto members = type.members();
             List<Any> values;
-            Span span = _type.span();
+            Span span = _tycoSpecifier.span();
             auto ai = arguments.begin();
             for (int i = 0; i < members.count(); ++i) {
                 ValueT<T> value = ai->convertTo(members[i].type());
@@ -1036,11 +1046,12 @@ public:
         void resolve(Scope* scope)
         {
             Body::resolve(scope);
-            _type.resolve(scope);
+            _type = scope->resolveType(_tycoSpecifier);
         }
         bool mightHaveSideEffect() const { return true; }
     private:
-        TycoSpecifier _type;
+        TycoSpecifier _tycoSpecifier;
+        Type _type;
     };
 private:
     static Expression parseRemainder(Expression e, CharacterSource* source)
@@ -1078,11 +1089,10 @@ public:
         CharacterSource s = *source;
         TycoSpecifier t = TycoSpecifier::parse(&s);
         if (!t.valid())
-            return Expression();
-        Span span;
+            return VariableDefinitionT();
         Identifier i = Identifier::parse(&s);
         if (!i.valid())
-            return;
+            return VariableDefinitionT();
         *source = s;
         Expression e;
         Span span = t.span() + i.span();
@@ -1095,10 +1105,18 @@ public:
         }
         return create<Body>(t, i, e, span);
     }
+    VariableDefinitionT() { }
+    VariableDefinitionT(TycoSpecifier tycoSpecifier, Identifier identifier)
+      : Expression(create<Body>(tycoSpecifier, identifier, Expression(),
+          Span()))
+    { }
     VariableDefinitionT(TypeT<T> type, Identifier identifier)
       : Expression(create<Body>(type, identifier, Expression(), Span()))
     { }
+    IdentifierT<T> identifier() const { return body()->identifier(); }
 private:
+    VariableDefinitionT(Handle other) : Expression(other) { }
+
     class Body : public Expression::Body
     {
     public:
@@ -1106,6 +1124,11 @@ private:
             Expression initializer, Span span)
           : Expression::Body(span), _tycoSpecifier(tycoSpecifier),
             _identifier(identifier), _initializer(initializer)
+        { }
+        Body(TypeT<T> type, Identifier identifier, Expression initializer,
+            Span span)
+          : Expression::Body(span), _type(type), _identifier(identifier),
+            _initializer(initializer)
         { }
         String toString() const
         {
@@ -1115,20 +1138,22 @@ private:
                 r += " = " + _initializer.toString();
             return r;
         }
-        ValueT<T> evaluate() const
+        ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> e = _initializer.evaluate();
+            ValueT<T> e = _initializer.evaluate(context);
             return e.convertTo(_type);
         }
         TypeT<T> type() const { return _type; }
         void resolve(Scope* scope)
         {
-            _type = _tycoSpecifier.resolve(scope);
+            if (!_type.valid())
+                _type = _tycoSpecifier.resolve(scope);
             _initializer.resolve(scope);
             _scope.setParentScope(scope);
             _scope.setFunctionScope(scope->functionScope());
         }
         bool mightHaveSideEffect() const { return true; }
+        IdentifierT<T> identifier() const { return _identifier; }
     private:
         TycoSpecifier _tycoSpecifier;
         TypeT<T> _type;
@@ -1136,6 +1161,8 @@ private:
         Expression _initializer;
         Scope _scope;
     };
+
+    const Body* body() const { return as<Body>(); }
 };
 
 template<class T> class BinaryExpressionT : public Expression
@@ -1159,6 +1186,11 @@ protected:
         bool mightHaveSideEffect() const
         {
             return _left.mightHaveSideEffect() || _right.mightHaveSideEffect();
+        }
+        void resolve(Scope* scope)
+        {
+            _left.resolve(scope);
+            _right.resolve(scope);
         }
     private:
         Expression _left;
@@ -1199,16 +1231,16 @@ private:
         Body(const Expression& left, const Span& operatorSpan,
             const Expression& right)
           : BinaryExpression::Body(left, operatorSpan, right) { }
-        ValueT<T> evaluate(Scope* scope) const
+        ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> v = left().evaluate(scope);
+            ValueT<T> v = left().evaluate(context);
             if (v.type() != BooleanTypeT<T>()) {
                 left().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
             if (!v.template value<bool>())
                 return false;
-            v = right().evaluate(scope);
+            v = right().evaluate(context);
             if (v.type() != BooleanTypeT<T>()) {
                 right().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
@@ -1221,7 +1253,7 @@ private:
         }
         Expression stringify() const
         {
-            return ConditionalExpression(left(), right.stringify(),
+            return ConditionalExpression(left(), right().stringify(),
                 Expression("false", Span()));
         }
     };
@@ -1254,16 +1286,16 @@ private:
         Body(const Expression& left, const Span& operatorSpan,
             const Expression& right)
           : BinaryExpression::Body(left, operatorSpan, right) { }
-        ValueT<T> evaluate(Scope* scope) const
+        ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> v = left().evaluate(scope);
+            ValueT<T> v = left().evaluate(context);
             if (v.type() != BooleanType()) {
                 left().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
             if (!v.template value<bool>())
                 return false;
-            v = right().evaluate(scope);
+            v = right().evaluate(context);
             if (v.type() != BooleanType()) {
                 right().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
@@ -1277,7 +1309,7 @@ private:
         Expression stringify() const
         {
             return ConditionalExpression(left(), Expression("true", Span()),
-                right.stringify());
+                right().stringify());
         }
     };
 };
@@ -1321,16 +1353,16 @@ private:
             _condition(condition), _s1(s1), _trueExpression(trueExpression),
             _s2(s2), _falseExpression(falseExpression)
         { }
-        ValueT<T> evaluate(Scope* scope) const
+        ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> v = _condition.evaluate(scope).rValue();
+            ValueT<T> v = _condition.evaluate(context).rValue();
             if (v.type() != BooleanType()) {
                 _condition.span().throwError("Conditional operator requires "
                     "operand of type Boolean.");
             }
             if (v.template value<bool>())
-                return _trueExpression.evaluate(scope);
-            return _falseExpression.evaluate(scope);
+                return _trueExpression.evaluate(context);
+            return _falseExpression.evaluate(context);
         }
         TypeT<T> type() const
         {
@@ -1347,6 +1379,18 @@ private:
             return _condition.mightHaveSideEffect() ||
                 _trueExpression.mightHaveSideEffect() ||
                 _falseExpression.mightHaveSideEffect();
+        }
+        String toString() const
+        {
+            return "(" + _condition.toString() + " ? " +
+                _trueExpression.toString() + " : " +
+                _falseExpression.toString() + ")";
+        }
+        void resolve(Scope* scope)
+        {
+            _condition.resolve(scope);
+            _trueExpression.resolve(scope);
+            _falseExpression.resolve(scope);
         }
     private:
         Expression _condition;

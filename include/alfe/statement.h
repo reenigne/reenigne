@@ -188,35 +188,6 @@ typedef FunctionDefinitionStatementT<void> FunctionDefinitionStatement;
 template<class T> class FunctionDefinitionStatementT : public Statement
 {
 public:
-    class Parameter : public VariableDefinitionT<T>
-    {
-    public:
-        static Parameter parse(CharacterSource* source)
-        {
-            TycoSpecifier typeSpecifier = TycoSpecifier::parse(source);
-            if (!typeSpecifier.valid())
-                return Parameter();
-            Identifier name = Identifier::parse(source);
-            if (!name.valid())
-                source->location().throwError("Expected identifier");
-            return create<Body>(typeSpecifier, name);
-        }
-        void resolve(Scope* scope) { body()->resolve(scope); }
-    private:
-        Parameter() { }
-        Parameter(Handle other) : VariableDefinitionStatement(other) { }
-        class Body : public VariableDefinitionT<T>::Body
-        {
-        public:
-            Body(const TycoSpecifier& typeSpecifier, const Identifier& name)
-              : ParseTreeObject::Body(typeSpecifier.span() + name.span()),
-                _typeSpecifier(typeSpecifier), _name(name) { }
-        private:
-            TycoSpecifier _typeSpecifier;
-            IdentifierT<T> _name;
-        };
-    };
-
     static FunctionDefinitionStatement parse(CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -230,7 +201,8 @@ public:
         if (!Space::parseCharacter(&s, '('))
             return FunctionDefinitionStatement();
         *source = s;
-        List<Parameter> parameterList = parseParameterList(source);
+        List<VariableDefinitionT<T>> parameterList =
+            parseParameterList(source);
         Space::assertCharacter(source, ')');
         Statement body = FromStatement::parse(source);
         if (!body.valid())
@@ -238,16 +210,19 @@ public:
         return create<Body>(returnTypeSpecifier, name, parameterList, body);
     }
 private:
-    static List<Parameter> parseParameterList(CharacterSource* source)
+    static List<VariableDefinitionT<T>> parseParameterList(
+        CharacterSource* source)
     {
-        List<Parameter> list;
-        Parameter parameter = Parameter::parse(source);
+        List<VariableDefinitionT<T>> list;
+        VariableDefinitionT<T> parameter =
+            VariableDefinitionT<T>::parse(source);
         if (!parameter.valid())
             return list;
         list.add(parameter);
         Span span;
         while (Space::parseCharacter(source, ',', &span)) {
-            Parameter parameter = Parameter::parse(source);
+            VariableDefinitionT<T> parameter =
+                VariableDefinitionT<T>::parse(source);
             if (!parameter.valid())
                 source->location().throwError("Expected parameter");
             list.add(parameter);
@@ -262,7 +237,8 @@ private:
     {
     public:
         Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
-            const List<Parameter>& parameterList, const Statement& body)
+            const List<VariableDefinitionT<T>>& parameterList,
+            const Statement& body)
           : Statement::Body(returnTypeSpecifier.span() + body.span()),
             _returnTypeSpecifier(returnTypeSpecifier), _name(name),
             _parameterList(parameterList), _body(body) { }
@@ -278,7 +254,7 @@ private:
             _returnTypeSpecifier.resolve(scope);
             for (auto p : _parameterList) {
                 p.resolve(scope);
-                _scope.addObject(p.name(), p);
+                _scope.addObject(p.identifier(), p);
             }
             _scope.setParentScope(scope);
             _body.resolve(&_scope);
@@ -286,7 +262,7 @@ private:
     private:
         TycoSpecifier _returnTypeSpecifier;
         Identifier _name;
-        List<Parameter> _parameterList;
+        List<VariableDefinitionT<T>> _parameterList;
         Statement _body;
         Scope _scope;
     };
@@ -573,7 +549,7 @@ private:
                 return create<DefaultBody>(statement, span);
             return create<ValueBody>(expressions, statement, span);
         }
-        bool isDefault() const { return as<Case>()->isDefault(); }
+        bool isDefault() const { return body()->isDefault(); }
         void resolve(Scope* scope) { body()->resolve(scope); }
 
         Case() { }
@@ -595,6 +571,7 @@ private:
         Case(Handle other) : ParseTreeObject(other) { }
 
         Body* body() { return as<Body>(); }
+        const Body* body() const { return as<Body>(); }
 
         class DefaultBody : public Body
         {

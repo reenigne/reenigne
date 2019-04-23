@@ -169,7 +169,7 @@ public:
             if (Space::parseKeyword(&s, "include", &span)) {
                 Expression e = Expression::parse(&s);
                 e.resolve(&_scope);
-                Value v = e.evaluate().convertTo(StringType());
+                Value v = e.evaluate(this).convertTo(StringType());
                 Space::assertCharacter(&s, ';', &span);
                 load(File(v.value<String>(), _file.parent()));
                 source = s;
@@ -192,7 +192,7 @@ public:
                 if (Space::parseCharacter(&s, '=', &span)) {
                     Expression e = Expression::parse(&s);
                     e.resolve(&_scope);
-                    value = e.evaluate();
+                    value = e.evaluate(this);
                 }
                 Space::assertCharacter(&s, ';', &span);
                 source = s;
@@ -223,14 +223,14 @@ public:
             }
             Expression le = Expression::parseDot(&source);
             le.resolve(&_scope);
-            Value left = le.evaluate();
+            Value left = le.evaluate(this);
             Space::assertCharacter(&source, '=', &span);
             Expression e = Expression::parse(&source);
             if (!e.valid())
                 source.location().throwError("Expected expression.");
             Space::assertCharacter(&source, ';', &span);
             e.resolve(&_scope);
-            Value loadedExpression = e.evaluate();
+            Value loadedExpression = e.evaluate(this);
             LValueType lValueType(left.type());
             if (!lValueType.valid())
                 left.span().throwError("LValue required");
@@ -285,8 +285,8 @@ public:
             Expression e = Expression::parse(&s);
             if (!e.valid())
                 return def;
-            e.resolve(this);
-            Value v = e.evaluate();
+            e.resolve(&_scope);
+            Value v = e.evaluate(this);
             if (!v.valid())
                 return def;
             c = v.convertTo(typeFromCompileTimeType<U>());

@@ -126,7 +126,7 @@ public:
     {
         return ConstHandle::operator==(other);
     }
-    bool operator!=(const ConstHandle& other) const
+    bool operator!=(const Handle& other) const
     {
         return ConstHandle::operator!=(other);
     }
@@ -163,6 +163,7 @@ protected:
     template<class T> T* to() { return body()->to<T>(); }
 private:
     Handle(Body* body, bool acquire) { set(body, acquire); }
+    Handle(ConstHandle other) : ConstHandle(other) { }
     friend class ConstHandle::Body;
     friend class Any;
     template<class T> friend class Array;

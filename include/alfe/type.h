@@ -39,20 +39,20 @@ typedef StructuredTypeT<void> StructuredType;
 template<class T> class BooleanTypeT;
 typedef BooleanTypeT<void> BooleanType;
 
-template<class T> class TycoT : public ConstHandle
+template<class T> class TycoT : public Handle
 {
 public:
     TycoT() { }
-    TycoT(const ConstHandle& other) : ConstHandle(other) { }
+    TycoT(const Handle& other) : Handle(other) { }
     String toString() const { return body()->toString(); }
     Kind kind() const { return body()->kind(); }
 protected:
-    class Body : public ConstHandle::Body
+    class Body : public Handle::Body
     {
     public:
         virtual String toString() const = 0;
         virtual Kind kind() const = 0;
-        Tyco tyco() const { return handle<ConstHandle>(); }
+        Tyco tyco() const { return handle<Handle>(); }
     };
 private:
     const Body* body() const { return as<Body>(); }
@@ -154,18 +154,19 @@ public:
         }
         return t;
     }
-    VariableDefinition resolveVariable(Identifier identifier)
+    VariableDefinition resolveVariable(Identifier identifier,
+        ResolutionPath* path)
     {
         if (_objects.hasKey(identifier)) {
-            ObjectDefinitionStatement s = _objects[identifier];
-            s.setResolvedScope(this);
+            VariableDefinition s = _objects[identifier];
+            *path = ResolutionPath::local();
             return s;
         }
         if (_parent == 0) {
             identifier.span().throwError("Unknown identifier " +
                 identifier.toString());
         }
-        return _parent->resolve(identifier);
+        return _parent->resolveVariable(identifier, path);
     }
     FunctionDefinitionStatement resolveFunction(Identifier identifier)
     {
@@ -180,6 +181,57 @@ private:
     HashTable<Identifier, FunctionDefinitionStatement> _functions;
     Scope* _parent;
     Scope* _functionScope;
+};
+
+template<class T> class ResolutionPathT;
+typedef ResolutionPathT<void> ResolutionPath;
+
+template<class T> class ResolutionPathT : public ConstHandle
+{
+public:
+    ResolutionPathT() { }
+    static ResolutionPathT local() { return create<HereBody>(); }
+    ValueT<T> evaluate(Structure* context, Identifier identifier) const
+    {
+        return body()->evaluate(context, identifier);
+    }
+private:
+    ResolutionPathT(ConstHandle other) : ConstHandle(other) { }
+    class Body : public ConstHandle::Body
+    {
+    public:
+        virtual Value evaluate(Structure* context, Identifier identifier) const
+            = 0;
+    };
+    class ParentBody : public Body
+    {
+    public:
+        ValueT<T> evaluate(Structure* context, Identifier identifier) const
+        {
+            throw NotYetImplementedException();
+        }
+    private:
+        ResolutionPath _rest;
+    };
+    class OuterBody : public Body
+    {
+    public:
+        ValueT<T> evaluate(Structure* context, Identifier identifier) const
+        {
+            throw NotYetImplementedException();
+        }
+    private:
+        ResolutionPath _rest;
+    };
+    class HereBody : public Body
+    {
+    public:
+        ValueT<T> evaluate(Structure* context, Identifier identifier) const
+        {
+            return context->getValue(identifier);
+        }
+    };
+    const Body* body() const { return as<Body>(); }
 };
 
 template<class T> class LValueT;
@@ -217,7 +269,7 @@ template<class T> class TypeT : public Tyco
 {
 public:
     TypeT() { }
-    TypeT(const ConstHandle& other) : Tyco(other) { }
+    TypeT(const Handle& other) : Tyco(other) { }
     TypeT(const Tyco& other) : Tyco(to<Body>(other)) { }
 
     Type member(IdentifierT<T> i) const { return body()->member(i); }
@@ -464,7 +516,7 @@ private:
 template<class T> class TemplateT : public Tyco
 {
 public:
-    TemplateT(const ConstHandle& other) : Tyco(other) { }
+    TemplateT(const Handle& other) : Tyco(other) { }
     Tyco instantiate(const Tyco& argument) const
     {
         return body()->instantiate(argument);
@@ -538,7 +590,7 @@ protected:
                 return _root.body()->finalInstantiate(this->tyco(), argument);
             return create<PartialBody>(_root, this->tyco(), argument);
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<PartialBody>();
             return o != 0 && Template(_parent) == Template(o->_parent) &&
@@ -568,7 +620,7 @@ private:
         Body(int n) : _n(n) { }
         String toString() const { return decimal(_n); }
 
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<Body>();
             return o != 0 && _n == o->_n;
@@ -613,7 +665,7 @@ class IntegerType : public NamedNullary<Type, IntegerType>
 {
 public:
     IntegerType() { }
-    IntegerType(const ConstHandle& other) : NamedNullary(other) { }
+    IntegerType(const Handle& other) : NamedNullary(other) { }
     static String name() { return "Integer"; }
     class Body : public NamedNullary<Type, IntegerType>::Body
     {
@@ -847,7 +899,7 @@ protected:
         {
             return _contained.toString() + "[" + _indexer.toString() + "]";
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<Body>();
             return o != 0 && _contained == o->_contained &&
@@ -1052,7 +1104,7 @@ private:
         {
             return _contained.toString() + "[]";
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<Body>();
             return o != 0 && _contained == o->_contained;
@@ -1091,7 +1143,7 @@ template<class T> class TupleTycoT : public NamedNullary<Tyco, TupleTyco>
 {
 public:
     TupleTycoT() : NamedNullary(instance()) { }
-    TupleTycoT(const Tyco& tyco) : NamedNullary(to<Body>(tyco)) { }
+    //TupleTycoT(const Tyco& tyco) : NamedNullary(to<Body>(tyco)) { }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const
@@ -1136,14 +1188,14 @@ public:
                     ") to instantiate Tuple because it requires a type");
             }
 
-            TupleTyco t(new NonUnitBody(this, argument));
+            TupleTyco t(create<NonUnitBody>(handle<TupleTyco>(), argument));
             _instantiations.add(argument, t);
             return t;
         }
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
-    TupleTycoT(const Body* body) : NamedNullary(body) { }
+    TupleTycoT(const Handle& other) : NamedNullary(other) { }
 private:
 
     class NonUnitBody : public Body
@@ -1159,7 +1211,7 @@ private:
             *needComma = true;
             return s + _contained.toString();
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<NonUnitBody>();
             return o != 0 && _parent == o->_parent &&
@@ -1239,7 +1291,7 @@ private:
     public:
         Body(const Type &referent) : _referent(referent) { }
         String toString() const { return _referent.toString() + "*"; }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<Body>();
             return o != 0 && _referent == o->_referent;
@@ -1347,7 +1399,7 @@ private:
         {
             return _returnType.toString() + "(";
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<NullaryBody>();
             return o != 0 && _returnType != o->_returnType;
@@ -1371,7 +1423,7 @@ private:
             *needComma = true;
             return s + _argumentType.toString();
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<ArgumentBody>();
             return o != 0 && _parent == o->_parent &&
@@ -1463,7 +1515,7 @@ protected:
         {
             return Value(type(), *static_cast<T*>(p));
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<Body>();
             return o != 0 && _context == o->_context && _name == o->_name &&
@@ -1537,7 +1589,7 @@ public:
 
     StructuredTypeT() { }
     StructuredTypeT(const Tyco& tyco) : Type(to<Body>(tyco)) { }
-    StructuredTypeT(const ConstHandle& other) : Type(other) { }
+    StructuredTypeT(const Handle& other) : Type(other) { }
     StructuredTypeT(String name, List<Member> members)
       : Type(create<Body>(name, members)) { }
     const HashTable<Identifier, int> names() const { return body()->names(); }
@@ -1570,6 +1622,7 @@ public:
         return body()->setLValue(l, rValue);
     }
     Type member(Identifier i) const { return body()->member(i); }
+    Scope* scope() { return body()->scope(); }
 protected:
     class Body : public Type::Body
     {
@@ -1802,7 +1855,7 @@ protected:
                 return Type();
             return _members[_names[i]].type();
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(const Handle::Body* other) const
         {
             auto o = other->to<Body>();
             if (o == 0)
@@ -1822,6 +1875,7 @@ protected:
         void setLValue(LValue l, Value rValue) const
         {
         }
+        Scope* scope() { return &_scope; }
     private:
         bool canConvertHelper(const Type& type, const Member* to, String* why)
             const
@@ -1839,7 +1893,9 @@ protected:
         String _name;
         HashTable<Identifier, int> _names;
         Array<Member> _members;
+        Scope _scope;
     };
+    Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
 
     friend class Body;

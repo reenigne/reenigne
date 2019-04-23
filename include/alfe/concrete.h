@@ -303,7 +303,7 @@ private:
     const Body* body() const { return as<Body>(); }
     Body* body() { return const_cast<Body*>(as<Body>()); }
     ConcreteTypeTemplate(int bases)
-      : Type(Array<int>::create<ConstHandle, BaseBody>(bases, bases)) { }
+      : Type(Array<int>::create<Handle, BaseBody>(bases, bases)) { }
     int elements() const { return body()->elements(); }
     int& element(int i) { return (*body())[i]; }
     int element(int i) const { return i >= elements() ? 0 : (*body())[i]; }
