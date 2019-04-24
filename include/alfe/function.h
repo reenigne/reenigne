@@ -17,7 +17,10 @@ public:
     static String name() { return "@FunctionConstructor"; }
 };
 
-class Funco : public Handle
+template<class T> class FuncoT;
+typedef FuncoT<void> Funco;
+
+template<class T> class FuncoT : public Handle
 {
 protected:
     class Body : public Handle::Body
@@ -63,8 +66,8 @@ protected:
     };
     const Body* body() const { return as<Body>(); }
 public:
-    Funco() { }
-    Funco(const Handle& other) : Handle(other) { }
+    FuncoT() { }
+    FuncoT(const Handle& other) : Handle(other) { }
     Value evaluate(List<Value> arguments, Span span) const
     {
         return body()->evaluate(arguments, span);

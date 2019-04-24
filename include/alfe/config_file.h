@@ -145,10 +145,7 @@ private:
 public:
     void addFunco(Funco funco)
     {
-        Identifier identifier = funco.identifier();
-        if (!has(identifier))
-            set(identifier, OverloadedFunctionSet(identifier), Span());
-        get<OverloadedFunctionSet>(identifier).add(funco);
+        _scope.addFunction(funco.identifier(), funco);
     }
 
     void load(File file)

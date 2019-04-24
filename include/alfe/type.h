@@ -114,7 +114,7 @@ typedef ScopeT<void> Scope;
 template<class T> class ScopeT
 {
 public:
-    ScopeT() : _parent(0) { }
+    ScopeT() : _parent(0), _functionScope(this) { }
     void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
     {
         if (!identifier.valid())
@@ -125,13 +125,20 @@ public:
     {
         _objects[i] = s;
     }
-    ValueT<T> valueOfIdentifier(Identifier i)
+    void addFunction(Identifier i, Funco f)
     {
-        Span s = i.span();
-        if (!has(i))
-            s.throwError("Unknown identifier " + i.toString());
-        return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
+        if (_functionScope == this)
+            _functions.add(i, f);
+        else
+            _functionScope->addFunction(i, f);
     }
+    //ValueT<T> valueOfIdentifier(Identifier i)
+    //{
+    //    Span s = i.span();
+    //    if (!_objects.has(i))
+    //        s.throwError("Unknown identifier " + i.toString());
+    //    return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
+    //}
     Tyco resolveTycoIdentifier(TycoIdentifier i) const
     {
         String s = i.name();
@@ -168,17 +175,86 @@ public:
         }
         return _parent->resolveVariable(identifier, path);
     }
-    FunctionDefinitionStatement resolveFunction(Identifier identifier)
+    FuncoT<T> resolveFunction(Identifier identifier, List<Type> argumentTypes)
     {
-        return FunctionDefinitionStatement();
+        List<Funco> funcos = getFuncosForIdentifier(identifier);
+
+        List<Funco> bestCandidates;
+        for (auto f : funcos) {
+            if (!f.argumentsMatch(argumentTypes))
+                continue;
+            List<Funco> newBestCandidates;
+            bool newBest = true;
+            for (auto b : bestCandidates) {
+                int r = f.compareTo(b);
+                if (r == 2) {
+                    // b better than f
+                    newBest = false;
+                    break;
+                }
+                if (r != 1)
+                    newBestCandidates.add(b);
+            }
+            if (newBest) {
+                bestCandidates = newBestCandidates;
+                bestCandidates.add(f);
+            }
+        }
+        for (auto f : bestCandidates) {
+            for (auto b : bestCandidates) {
+                int r = f.compareTo(b);
+                if (r == 3) {
+                    identifier.span().throwError(
+                        "Ambiguous function call of " + identifier.toString() +
+                        " with argument types " +
+                        argumentTypesString(argumentTypes) + ". Could be " +
+                        b.toString() + " or " + f.toString() + ".");
+                }
+            }
+        }
+        if (bestCandidates.count() == 0) {
+            identifier.span().throwError("No matches for function " +
+                identifier.toString() + " with argument types " +
+                argumentTypesString(argumentTypes) + ".");
+        }
+        // We have a choice of possible funcos here. Logically they should
+        // be equivalent, but some may be more optimal. For now we'll just
+        // choose the first one, but later we may want to try to figure out
+        // which one is most optimal.
+        return *bestCandidates.begin();
     }
     void setParentScope(Scope* parent) { _parent = parent; }
     void setFunctionScope(Scope* scope) { _functionScope = scope; }
     Scope* functionScope() { return _functionScope; }
 private:
+    String argumentTypesString(List<Type> argumentTypes) const
+    {
+        String s;
+        bool needComma = false;
+        for (auto t : argumentTypes) {
+            if (needComma)
+                s += ", ";
+            needComma = true;
+            s += t.toString();
+        }
+        return s;
+    }
+
+    List<Funco> getFuncosForIdentifier(Identifier i)
+    {
+        if (_functionScope != this)
+            return _functionScope->getFuncosForIdentifier(i);
+        List<Funco> r;
+        if (_parent != 0)
+            r = _parent->getFuncosForIdentifier(i);
+        if (_functions.hasKey(i))
+            r.add(_functions[i]);
+        return r;
+    }
+
     HashTable<TycoIdentifier, Tyco> _tycos;
     HashTable<Identifier, VariableDefinition> _objects;
-    HashTable<Identifier, FunctionDefinitionStatement> _functions;
+    HashTable<Identifier, Funco> _functions;
     Scope* _parent;
     Scope* _functionScope;
 };
@@ -1143,7 +1219,6 @@ template<class T> class TupleTycoT : public NamedNullary<Tyco, TupleTyco>
 {
 public:
     TupleTycoT() : NamedNullary(instance()) { }
-    //TupleTycoT(const Tyco& tyco) : NamedNullary(to<Body>(tyco)) { }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
     Tyco instantiate(const Tyco& argument) const

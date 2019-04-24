@@ -180,6 +180,80 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov cx,79
+
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+  lodsb
+  stosb
+  add di,cx
+  stosb
+  add di,cx
+  movsb
+  add di,cx
+
+  ret
+
+
+
+
+
+
+
+
   mov di,[si]  ; x*x
   mov bp,[bx]  ; y*y
   lea ax,[di+bp] ; x*x+y*y

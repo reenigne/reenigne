@@ -738,7 +738,8 @@ public:
     };
 };
 
-class Funco;
+template<class T> class FuncoT;
+typedef FuncoT<void> Funco;
 
 template<class T> class FunctionCallExpressionT : public Expression
 {
@@ -924,11 +925,12 @@ public:
     protected:
         Body(const Span& span, const List<Expression>& arguments)
           : Expression::Body(span), _arguments(arguments) { }
-        List<Expression> _arguments;
         void resolve(Scope* scope)
         {
-            for (auto e : _arguments)
+            for (auto e : _arguments) {
                 e.resolve(scope);
+                _argumentTypes.add(e.type());
+            }
         }
         String toString() const
         {
@@ -942,6 +944,9 @@ public:
             }
             return r + ")";
         }
+
+        List<Expression> _arguments;
+        List<Type> _argumentTypes;
     };
 
     class FunctionCallBody : public Body
@@ -952,10 +957,14 @@ public:
           : Body(span, arguments), _function(function) { }
         ValueT<T> evaluate(Structure* context) const
         {
-            ValueT<T> l = _function.evaluate(context).rValue();
+            ValueT<T> l;
+            if (!_resolvedFunco.valid())
+                l = _function.evaluate(context).rValue();
             List<Value> arguments;
             for (auto p : this->_arguments)
                 arguments.add(p.evaluate(context).rValue());
+            if (_resolvedFunco.valid())
+                return _resolvedFunco.evaluate(arguments, this->span());
             TypeT<T> lType = l.type();
             if (lType == FuncoTypeT<T>()) {
                 return l.template value<OverloadedFunctionSet>().evaluate(
@@ -1003,7 +1012,12 @@ public:
         void resolve(Scope* scope)
         {
             Body::resolve(scope);
-            _function.resolve(scope);
+            Identifier i = _function;
+            if (!i.valid()) {
+                _function.resolve(scope);
+                return;
+            }
+            _resolvedFunco = scope->resolveFunction(i, _argumentTypes);
         }
         // TODO: check if it's a pure function
         bool mightHaveSideEffect() const { return true; }
