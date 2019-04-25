@@ -304,7 +304,13 @@ private:
     public:
         ValueT<T> evaluate(Structure* context, Identifier identifier) const
         {
-            return context->getValue(identifier);
+            Span s = identifier.span();
+            //if (!has(i))
+            //    s.throwError("Unknown identifier " + i.name());
+            return Value(
+                LValueType::wrap(context->getValue(identifier).type()),
+                LValue(context, identifier), s);
+            //return context->getValue(identifier);
         }
     };
     const Body* body() const { return as<Body>(); }

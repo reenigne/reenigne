@@ -692,7 +692,7 @@ private:
         void resolve(Scope* scope)
         {
             _left.resolve(scope);
-            StructuredType t = _left.type();
+            StructuredType t = _left.type().rValue();
             if (!t.valid())
                 _left.span().throwError("Expression has no members");
             _right.resolve(t.scope());
