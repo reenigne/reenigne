@@ -79,6 +79,7 @@ public:
         addFunco(PowerIntegerInteger());
         addFunco(PowerRationalInteger());
         addFunco(NegativeRational());
+        addFunco(FloorRational());
         addFunco(IndexArray());
         addFunco(LogicalNotBoolean());
         addFunco(LessThanIntegerInteger());

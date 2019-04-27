@@ -402,4 +402,22 @@ public:
     };
 };
 
+class FloorRational : public Nullary<Function, NegativeRational>
+{
+public:
+    class Body : public Nullary::Body
+    {
+    public:
+        Value evaluate(List<Value> arguments, Span span) const
+        {
+            return Value(arguments.begin()->value<Rational>().floor());
+        }
+        Identifier identifier() const { return "floor"; }
+        FunctionType type() const
+        {
+            return FunctionType(IntegerType(), RationalType());
+        }
+    };
+};
+
 #endif // INCLUDED_RATIONAL_FUNCTIONS_H

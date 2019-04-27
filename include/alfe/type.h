@@ -1713,7 +1713,11 @@ protected:
         {
             int n = 0;
             for (auto i : members) {
-                _names.add(i.name(), n);
+                String name = i.name();
+                _names.add(name, n);
+                Identifier identifier(name);
+                _scope.addObject(identifier,
+                    VariableDefinition(i.type(), identifier));
                 ++n;
             }
         }
