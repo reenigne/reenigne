@@ -1001,10 +1001,7 @@ public:
             }
             return f.evaluate(convertedArguments, this->span());
         }
-        TypeT<T> type() const
-        {
-            throw NotYetImplementedException();
-        }
+        TypeT<T> type() const { return _resolvedFunco.type().returnType(); }
         String toString() const
         {
             return _function.toString() + Body::toString();

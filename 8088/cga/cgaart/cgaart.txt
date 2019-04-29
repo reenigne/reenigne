@@ -63,4 +63,4 @@ file:
   change over time, if applicable).
 
 The current source code for cgaart can be found at
-https://github.com/reenigne/reenigne/tree/master/8088/cga/calibrate/cgaart .
+https://github.com/reenigne/reenigne/tree/master/8088/cga/cgaart .

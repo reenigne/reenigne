@@ -1440,6 +1440,7 @@ public:
     {
         body()->addParameterTycos(list);
     }
+    Type returnType() const { return body()->returnType(); }
 private:
     class Body : public Tyco::Body
     {
@@ -1469,6 +1470,7 @@ private:
         }
         virtual bool argumentsMatch(List<Type>::Iterator* i) const = 0;
         virtual void addParameterTycos(List<Tyco>* list) const = 0;
+        virtual Type returnType() const = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -1488,6 +1490,7 @@ private:
         Hash hash() const { return Body::hash().mixin(_returnType.hash()); }
         bool argumentsMatch(List<Type>::Iterator* i) const { return true; }
         virtual void addParameterTycos(List<Tyco>* list) const { }
+        Type returnType() const { return _returnType; }
     private:
         Type _returnType;
     };
@@ -1531,6 +1534,7 @@ private:
             _parent.addParameterTycos(list);
             list->add(_argumentType);
         }
+        Type returnType() const { return _parent.returnType(); }
     private:
         FunctionTypeT<T> _parent;
         Type _argumentType;
