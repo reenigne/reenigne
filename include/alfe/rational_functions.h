@@ -402,7 +402,7 @@ public:
     };
 };
 
-class FloorRational : public Nullary<Function, NegativeRational>
+class FloorRational : public Nullary<Function, FloorRational>
 {
 public:
     class Body : public Nullary::Body

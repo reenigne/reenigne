@@ -127,8 +127,15 @@ public:
     }
     void addFunction(Identifier i, Funco f)
     {
-        if (_functionScope == this)
-            _functions.add(i, f);
+        if (_functionScope == this) {
+            if (_functions.hasKey(i))
+                _functions[i].add(f);
+            else {
+                List<Funco> l;
+                l.add(f);
+                _functions.add(i, l);
+            }
+        }
         else
             _functionScope->addFunction(i, f);
     }
@@ -177,27 +184,29 @@ public:
     }
     FuncoT<T> resolveFunction(Identifier identifier, List<Type> argumentTypes)
     {
-        List<Funco> funcos = getFuncosForIdentifier(identifier);
+        List<List<Funco>> funcos = getFuncosForIdentifier(identifier);
 
         List<Funco> bestCandidates;
-        for (auto f : funcos) {
-            if (!f.argumentsMatch(argumentTypes))
-                continue;
-            List<Funco> newBestCandidates;
-            bool newBest = true;
-            for (auto b : bestCandidates) {
-                int r = f.compareTo(b);
-                if (r == 2) {
-                    // b better than f
-                    newBest = false;
-                    break;
+        for (auto ff : funcos) {
+            for (auto f : ff) {
+                if (!f.argumentsMatch(argumentTypes))
+                    continue;
+                List<Funco> newBestCandidates;
+                bool newBest = true;
+                for (auto b : bestCandidates) {
+                    int r = f.compareTo(b);
+                    if (r == 2) {
+                        // b better than f
+                        newBest = false;
+                        break;
+                    }
+                    if (r != 1)
+                        newBestCandidates.add(b);
                 }
-                if (r != 1)
-                    newBestCandidates.add(b);
-            }
-            if (newBest) {
-                bestCandidates = newBestCandidates;
-                bestCandidates.add(f);
+                if (newBest) {
+                    bestCandidates = newBestCandidates;
+                    bestCandidates.add(f);
+                }
             }
         }
         for (auto f : bestCandidates) {
@@ -240,11 +249,11 @@ private:
         return s;
     }
 
-    List<Funco> getFuncosForIdentifier(Identifier i)
+    List<List<Funco>> getFuncosForIdentifier(Identifier i)
     {
         if (_functionScope != this)
             return _functionScope->getFuncosForIdentifier(i);
-        List<Funco> r;
+        List<List<Funco>> r;
         if (_parent != 0)
             r = _parent->getFuncosForIdentifier(i);
         if (_functions.hasKey(i))
@@ -254,7 +263,7 @@ private:
 
     HashTable<TycoIdentifier, Tyco> _tycos;
     HashTable<Identifier, VariableDefinition> _objects;
-    HashTable<Identifier, Funco> _functions;
+    HashTable<Identifier, List<Funco>> _functions;
     Scope* _parent;
     Scope* _functionScope;
 };

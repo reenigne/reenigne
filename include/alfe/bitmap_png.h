@@ -10,9 +10,9 @@
 template<class T> class PNGFileFormat : public BitmapFileFormat<T>
 {
 public:
-    PNGFileFormat() : BitmapFileFormat(create<Body>()) { }
+    PNGFileFormat() : BitmapFileFormat<T>(Handle::create<Body>()) { }
 private:
-    class Body : public BitmapFileFormat::Body
+    class Body : public BitmapFileFormat<T>::Body
     {
     public:
         virtual void save(Bitmap<T>& bitmap, const File& file) const
@@ -36,14 +36,14 @@ private:
         {
             FileStream* stream =
                 static_cast<FileStream*>(png_get_io_ptr(png_ptr));
-            stream->read(static_cast<Byte*>(data), length);
+            stream->read(static_cast<Byte*>(data), static_cast<int>(length));
         }
         static void userWriteData(png_structp png_ptr, png_bytep data,
             png_size_t length)
         {
             FileStream* stream =
                 static_cast<FileStream*>(png_get_io_ptr(png_ptr));
-            stream->write(static_cast<void*>(data), length);
+            stream->write(static_cast<void*>(data), static_cast<int>(length));
         }
         static void userFlushData(png_structp png_ptr) { }
         static void userErrorFunction(png_structp png_ptr,

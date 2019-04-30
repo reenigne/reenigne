@@ -213,7 +213,7 @@ private:
 #endif
 };
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_WINDOWS)
 template<class WindowClass> class WindowProgram : public ProgramBase
 {
 public:
