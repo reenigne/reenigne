@@ -210,6 +210,8 @@ public:
                     value.value<Structure*>()->set(Identifier("*"),
                         objectName, span);
                 }
+				_scope.addObject(objectIdentifier,
+					VariableDefinition(type, objectIdentifier));
                 set(objectIdentifier, value, span);
 
                 continue;
