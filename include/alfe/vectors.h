@@ -222,7 +222,7 @@ public:
     }
     bool operator!=(const Vector3& o) const
     {
-        return x != o.x || y != o.y && z == o.z;
+        return x != o.x || y != o.y || z != o.z;
     }
     const Vector3& operator+=(const T& n)
     {
