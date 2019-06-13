@@ -9,22 +9,29 @@ cpu 8086
   sti
 
   mov si,0x81
-searchLoop
+findInitialSpaces:
+  lodsb
+  cmp al,0x20
+  je findInitialSpaces
+  lea dx,[si-1]
+  jmp startSearch
+
+searchLoop:
   lodsb
   cmp al,0x20
   je foundEnd
+startSearch:
   cmp al,0x0d
   jne searchLoop
 foundEnd:
   dec si
   mov byte[si],0
-  cmp si,0x81
+  cmp si,dx
   je error
 
   ; Load meta file
 
   mov ax,0x3d00
-  mov dx,0x81
   int 0x21               ; open file
   jc error
   mov bx,ax
@@ -76,7 +83,7 @@ success:
   inc dx
   mov al,[cgadStart+41]
   out dx,al
-  lea si,cgadStart+42
+  lea si,[cgadStart+42]
   mov dl,0xd4
   mov cx,16
   mov bl,0
