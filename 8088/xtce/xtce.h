@@ -2104,7 +2104,7 @@ public:
         cs() = 0;
         ss() = 0;
         ds() = 0;
-        _flags = 0;
+        _flags = 2;
 
         _busState = tIdle;
         _io._type = ioPassive;
@@ -3158,23 +3158,19 @@ private:
                 _completed = false;
                 break;
             case 0x27: // DAA
-                wait(1);
-                if (af() || (al() & 0x0f) > 9) {
-                    _data = al() + 6;
-                    al() = static_cast<Byte>(_data);
-                    setAF(true);
-                    if ((_data & 0x100) != 0)
-                        setCF(true);
-                }
-                if (cf() || al() > 0x9f) {
-                    al() += 0x60;
-                    setCF(true);
-                }
-                da();
+                _wordSize = false;
+                _source = (af() || (al() & 0x0f) > 9) ? 6 : 0;
+                _destination = al();
+                add();
+                _destination = _data;
+                _source = (cf() || _data > 0x9f) ? 0x60 : 0;
+                add();
+                al() = _data;
+                wait(3);
                 break;
             case 0x2f: // DAS
                 {
-                    wait(1);
+                    _wordSize = false;
                     Byte t = al();
                     if (af() || ((al() & 0xf) > 9)) {
                         _data = al() - 6;
@@ -3188,30 +3184,46 @@ private:
                         setCF(true);
                     }
                 }
-                da();
+
+                _wordSize = false;
+                _data = al();
+                setPZS();
+                wait(3);
+
                 break;
             case 0x37: // AAA
                 wait(1);
-                if (af() || ((al() & 0xf) > 9)) {
-                    al() += 6;
+                _destination = al();
+                _source = 6;
+                _wordSize = false;
+                _data = _destination + _source;
+                setOFAdd();
+                if (af() || ((_destination & 0xf) > 9)) {
+                    al() = _data;
                     ++ah();
                     setCA();
                 }
                 else {
+                    _data = al();
                     clearCA();
                     wait(1);
                 }
-
                 aa();
                 break;
             case 0x3f: // AAS
                 wait(1);
-                if (af() || ((al() & 0xf) > 9)) {
-                    al() -= 6;
+                _destination = al();
+                _source = 6;
+                _wordSize = false;
+                _data = _destination - _source;
+                setOFSub();
+                if (af() || ((_destination & 0xf) > 9)) {
+                    al() = _data;
                     --ah();
                     setCA();
                 }
                 else {
+                    _data = al();
                     clearCA();
                     wait(1);
                 }
@@ -3463,6 +3475,7 @@ private:
                 wait(1);
                 _address = fetchInstructionWord();
                 _accessNumber = 1;
+                _segment = 3;
                 busRead();
                 setAccum();
                 wait(1);
@@ -3472,6 +3485,7 @@ private:
                 _address = fetchInstructionWord();
                 _data = getAccum();
                 _accessNumber = 7;
+                _segment = 3;
                 busWrite();
                 break;
             case 0xa4: case 0xa5: // MOVS
@@ -4327,16 +4341,9 @@ private:
         setSF();
         setPF();
     }
-    void da()
-    {
-        _wordSize = false;
-        _data = al();
-        setPZS();
-        wait(2);
-    }
     void aa()
     {
-        setOF(false); // TODO: Figure out if this is ever set by AAA/AAS
+        setPZS();
         al() &= 0x0f;
         wait(6);
     }
