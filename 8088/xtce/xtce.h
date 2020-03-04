@@ -3159,74 +3159,88 @@ private:
                 break;
             case 0x27: // DAA
                 _wordSize = false;
-                _source = (af() || (al() & 0x0f) > 9) ? 6 : 0;
                 _destination = al();
-                add();
-                _destination = _data;
-                _source = (cf() || _data > 0x9f) ? 0x60 : 0;
-                add();
-                al() = _data;
-                wait(3);
-                break;
-            case 0x2f: // DAS
+                setOF(false);
                 {
-                    _wordSize = false;
-                    Byte t = al();
-                    if (af() || ((al() & 0xf) > 9)) {
-                        _data = al() - 6;
-                        al() = static_cast<Byte>(_data);
+                    bool oldAF = af();
+                    if (af() || (al() & 0x0f) > 9) {
+                        _source = 6;
+                        _data = _destination + _source;
+                        setOFAdd();
+                        _destination = _data;
                         setAF(true);
-                        if ((_data & 0x100) != 0)
-                            setCF(true);
                     }
-                    if (cf() || t > 0x9f) {
-                        al() -= 0x60;
+                    if (cf() || al() > (oldAF ? 0x9f : 0x99)) {
+                        _source = 0x60;
+                        _data = _destination + _source;
+                        setOFAdd();
+                        _destination = _data;
                         setCF(true);
                     }
                 }
-
-                _wordSize = false;
-                _data = al();
+                al() = _destination;
                 setPZS();
                 wait(3);
-
+                break;
+            case 0x2f: // DAS
+                _wordSize = false;
+                _destination = al();
+                setOF(false);
+                {
+                    bool oldAF = af();
+                    if (af() || (al() & 0x0f) > 9) {
+                        _source = 6;
+                        _data = _destination - _source;
+                        setOFSub();
+                        _destination = _data;
+                        setAF(true);
+                    }
+                    if (cf() || al() > (oldAF ? 0x9f : 0x99)) {
+                        _source = 0x60;
+                        _data = _destination - _source;
+                        setOFSub();
+                        _destination = _data;
+                        setCF(true);
+                    }
+                }
+                al() = _destination;
+                setPZS();
+                wait(3);
                 break;
             case 0x37: // AAA
                 wait(1);
-                _destination = al();
-                _source = 6;
                 _wordSize = false;
-                _data = _destination + _source;
-                setOFAdd();
-                if (af() || ((_destination & 0xf) > 9)) {
-                    al() = _data;
+                if (af() || (al() & 0xf) > 9) {
+                    _source = 6;
                     ++ah();
                     setCA();
                 }
                 else {
-                    _data = al();
+                    _source = 0;
                     clearCA();
                     wait(1);
                 }
+                _destination = al();
+                _data = _destination + _source;
+                setOFAdd();
                 aa();
                 break;
             case 0x3f: // AAS
                 wait(1);
-                _destination = al();
-                _source = 6;
                 _wordSize = false;
-                _data = _destination - _source;
-                setOFSub();
-                if (af() || ((_destination & 0xf) > 9)) {
-                    al() = _data;
+                if (af() || (al() & 0xf) > 9) {
+                    _source = 6;
                     --ah();
                     setCA();
                 }
                 else {
-                    _data = al();
+                    _source = 0;
                     clearCA();
                     wait(1);
                 }
+                _destination = al();
+                _data = _destination - _source;
+                setOFSub();
                 aa();
                 break;
             case 0x40: case 0x41: case 0x42: case 0x43:
@@ -3714,6 +3728,7 @@ private:
                             _data <<= 1;
                             _data |= (cf() ? 1 : 0);
                             setOFRotate();
+                            setAF(false);
                             break;
                         case 1:  // ROR
                             setCF((_data & 1) != 0);
@@ -3721,11 +3736,13 @@ private:
                             if (cf())
                                 _data |= (!_wordSize ? 0x80 : 0x8000);
                             setOFRotate();
+                            setAF(false);
                             break;
                         case 2:  // RCL
                             setCF(topBit(_data));
                             _data = (_data << 1) | (oldCF ? 1 : 0);
                             setOFRotate();
+                            setAF(false);
                             break;
                         case 3:  // RCR
                             setCF((_data & 1) != 0);
@@ -3734,18 +3751,20 @@ private:
                                 _data |= (!_wordSize ? 0x80 : 0x8000);
                             setCF((_destination & 1) != 0);
                             setOFRotate();
+                            setAF(false);
                             break;
                         case 4:  // SHL
                             setCF(topBit(_data));
                             _data <<= 1;
                             setOFRotate();
+                            setAF((_data & 0x10) != 0);
                             setPZS();
                             break;
                         case 5:  // SHR
                             setCF((_data & 1) != 0);
                             _data >>= 1;
                             setOFRotate();
-                            setAF(true);
+                            setAF(false);
                             setPZS();
                             break;
                         case 6:  // SETMO
@@ -3763,7 +3782,7 @@ private:
                             else
                                 _data |= (_destination & 0x8000);
                             setOFRotate();
-                            setAF(true);
+                            setAF(false);
                             setPZS();
                             break;
                     }
@@ -3962,15 +3981,17 @@ private:
                         if (_wordSize) {
                             ax() = _data;
                             dx() = _destination;
-                            _data |= dx();
                             setCOMul(dx() != ((ax() & 0x8000) == 0 || modRMReg() == 4 ? 0 : 0xffff));
+                            _data = dx();
                         }
                         else {
                             al() = static_cast<Byte>(_data);
                             ah() = static_cast<Byte>(_destination);
                             setCOMul(ah() != ((al() & 0x80) == 0 || modRMReg() == 4 ? 0 : 0xff));
+                            _data = ah();
                         }
-                        setZF();
+                        setSF();
+                        setPF();
                         if (_useMemory)
                             wait(1);
                         break;
@@ -4340,6 +4361,7 @@ private:
 
         setSF();
         setPF();
+        setAF(false);
     }
     void aa()
     {
@@ -4467,6 +4489,7 @@ private:
     {
         setCF(carry);
         setOF(carry);
+        setZF(!carry);
         if (!carry)
             wait(1);
     }
