@@ -3805,10 +3805,11 @@ private:
                 wait(1);
                 _wordSize = false;
                 mul(fetchInstructionByte(), ah());
-                al() += _data;
+                _destination = al();
+                _source = _data;
+                add();
+                al() = _data;
                 ah() = 0;
-                _wordSize = true;  // Probably incorrect
-                setPZS();
                 break;
             case 0xd6: // SALC
                 wait(1);
