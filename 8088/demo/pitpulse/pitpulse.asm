@@ -18,8 +18,23 @@ patchPulseWidth_%1:
 patchPulseWidthNext_%1:
     mov byte[cs:patchPulseWidth_%1 + 1],99
   push cx
-  %if SCHEME_Y != 0
-    push bx
+  push bx
+patchPhase0_%1:
+  mov bx,9999
+  %if %1 > 1
+    push bp
+patchPhase1_%1:
+    mov bp,9999
+    %if %1 > 2
+      push si
+patchPhase2_%1:
+      mov si,9999
+      %if %1 > 3
+        push di
+patchPhase3_%1:
+        mov di,9999
+      %endif
+    %endif
   %endif
 %endmacro
 
@@ -31,15 +46,18 @@ patchPulseWidthNext_%1:
 ; cl = pulseWidthNext
 
 %macro interruptEnd 1
-  mov [cs:patchPhase0_%1],bx
+  mov [cs:patchPhase0_%1 + 1],bx
   %if %1 > 1
-    mov [cs:patchPhase1_%1],bp
+    mov [cs:patchPhase1_%1 + 1],bp
     %if %1 > 2
-      mov [cs:patchPhase2_%1],si
+      mov [cs:patchPhase2_%1 + 1],si
       %if %1 > 3
-        mov [cs:patchPhase3_%1],di
+        mov [cs:patchPhase3_%1 + 1],di
+        pop di
       %endif
+      pop si
     %endif
+    pop bp
   %endif
   mov byte[cs:patchPulseWidthNext_%1 + 4],cl
   %if SCHEME_Y != 0
@@ -102,8 +120,6 @@ patchOldInterrupt_%1:
 
 interrupt8_1:
   interruptStart 1
-patchCount0_1:
-  mov ax,9999
 patchPulseWidth0_1:
   mov cl,99
   interruptEnd 1
@@ -111,10 +127,6 @@ patchPulseWidth0_1:
 
 interrupt8_2:
   interruptStart 2
-patchPhase0_2:
-  mov bx,9999
-patchPhase1_2:
-  mov bp,9999
   cmp bp,bx
   jl next1_2
   mov ax,bx
@@ -139,12 +151,6 @@ done_2:
 
 interrupt8_3:
   interruptStart 3
-patchPhase0_3:
-  mov bx,9999
-patchPhase1_3:
-  mov bp,9999
-patchPhase2_3:
-  mov si,9999
   cmp bp,bx
   jl next12_3
   cmp si,bx
@@ -182,14 +188,6 @@ done_3:
 
 interrupt8_4
   interruptStart 4
-patchPhase0_4:
-  mov bx,9999
-patchPhase1_4:
-  mov bp,9999
-patchPhase2_4:
-  mov si,9999
-patchPhase3_4:
-  mov di,9999
   cmp bp,bx
   jl next123_4
   cmp si,bx

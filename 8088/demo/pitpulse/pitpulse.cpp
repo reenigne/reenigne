@@ -14,10 +14,31 @@ Word phaseA;
 Word countA;
 Byte pulseWidthA;
 Word nextCount;
-Word lastCount;
 Word currentCount;
+#ifdef SCHEME_Y
 Word phase;
 Word interruptCount;
+Word lastCount;
+#endif
+#ifdef SCHEME_X
+bool nextDoOldInterrupt;
+bool currentDoOldInterrupt;
+#endif
+struct SongRecord
+{
+    Word _countA;
+    Word _countB;
+    Word _countC;
+    Word _countD;
+    Byte _pulseWidthA;
+    Byte _pulseWidthB;
+    Byte _pulseWidthC;
+    Byte _pulseWidthD;
+};
+SongRecord* songStart;
+SongRecord* songPointer;
+SongRecord* songEnd;
+
 
 void interruptStart()
 {
@@ -36,18 +57,59 @@ void interruptEnd()
         phase += interruptCount;
         doOldInterrupt();
     }
-#endif
     lastCount = currentCount;
+#endif
+#ifdef SCHEME_X
+    if (currentDoOldInterrupt)
+        doOldInterrupt();
+    currentDoOldInterrupt = nextDoOldInterrupt;
+#endif
     currentCount = nextCount;
     outportb(0x40, nextCount & 0xff);
     outportb(0x40, nextCount >> 8);
 }
 
+void doOldInterrupt()
+{
+    if (songPointer == songEnd)
+        songPointer = songStart;
+#ifndef SCHEME_X
+    pulseWidthA = songPointer->_pulseWidthA;
+    countA = songPointer->_countA;
+#endif
+    pulseWidthB = songPointer->_pulseWidthB;
+    pulseWidthC = songPointer->_pulseWidthC;
+    pulseWidthD = songPointer->_pulseWidthD;
+    countB = songPointer->_countB;
+    countC = songPointer->_countC;
+    countD = songPointer->_countD;
+    ++songPointer;
+    if (pulseWidthD != 0) {
+        setInterrupt(8, interrupt8_4);
+        return;
+    }
+    if (pulseWidthC != 0) {
+        setInterrupt(8, interrupt8_3);
+        return;
+    }
+    if (pulseWidthB != 0) {
+        setInterrupt(8, interrupt8_2);
+        return;
+    }
+    setInterrupt(8, interrupt8_1);
+}
+
+
+// 1 channel
+
 void interrupt8_1()  // Just finished counting down from lastCount, now counting down from currentCount
 {
     interruptStart();
-    Word nextCount = countA;
+    nextCount = countA;
     pulseWidthNext = pulseWidthA;
+#if SCHEME_X
+    nextDoOldInterrupt = true;
+#endif
     interruptEnd();
 }
 
@@ -63,7 +125,11 @@ void coalesceA()
     phaseA -= nextCount;
     if (phaseA < coalesceCount) {
         phaseA += countA;
+#if SCHEME_X
+        nextDoOldInterrupt = true;
+#else
         pulseWidthNext += pulseWidthA;
+#endif
     }
 }
 
@@ -84,12 +150,18 @@ void interrupt8_2()
     nextCount = phaseA;
     phaseA = countA;
     pulseWidthNext = pulseWidthA;
+#if SCHEME_X
+    nextDoOldInterrupt = true;
+#endif
     coalesceB();
     goto done;
 nextB:
     nextCount = phaseB;
     phaseB = countB;
     pulseWidthNext = pulseWidthB;
+#if SCHEME_X
+    nextDoOldInterrupt = false;
+#endif
     coalesceA();
 done:
     interruptEnd();
@@ -121,6 +193,9 @@ void interrupt8_3()
     nextCount = phaseA;
     phaseA = countA;
     pulseWidthNext = pulseWidthA;
+#if SCHEME_X
+    nextDoOldInterrupt = true;
+#endif
     coalesceB();
     coalesceC();
     goto done;
@@ -130,6 +205,9 @@ nextBC:
     nextCount = phaseB;
     phaseB = countB;
     pulseWidthNext = pulseWidthB;
+#if SCHEME_X
+    nextDoOldInterrupt = false;
+#endif
     coalesceA();
     coalesceC();
     goto done;
@@ -137,6 +215,9 @@ nextC:
     nextCount = phaseC;
     phaseC = countC;
     pulseWidthNext = pulseWidthC;
+#if SCHEME_X
+    nextDoOldInterrupt = false;
+#endif
     coalesceA();
     coalesceB();
 done:
@@ -171,6 +252,9 @@ void interrupt8_4()
     nextCount = phaseA;
     phaseA = countA;
     pulseWidthNext = pulseWidthA;
+#if SCHEME_X
+    nextDoOldInterrupt = true;
+#endif
     coalesceB();
     coalesceC();
     coalesceD();
@@ -183,6 +267,9 @@ nextBCD:
     nextCount = phaseB;
     phaseB = countB;
     pulseWidthNext = pulseWidthB;
+#if SCHEME_X
+    nextDoOldInterrupt = false;
+#endif
     coalesceA();
     coalesceC();
     coalesceD();
@@ -193,6 +280,9 @@ nextCD:
     nextCount = phaseC;
     phaseC = countC;
     pulseWidthNext = pulseWidthC;
+#if SCHEME_X
+    nextDoOldInterrupt = false;
+#endif
     coalesceA();
     coalesceB();
     coalesceD();
@@ -201,11 +291,14 @@ nextD:
     nextCount = phaseD;
     phaseD = countD;
     pulseWidthNext = pulseWidthD;
+#if SCHEME_X
+    nextDoOldInterrupt = false;
+#endif
     coalesceA();
     coalesceB();
     coalesceC();
 done:
-    interruptEnd(nextCount);
+    interruptEnd();
 }
 
 
