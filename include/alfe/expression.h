@@ -438,7 +438,7 @@ private:
         Expression stringify() const { return Expression("()", this->span()); }
         String toString() const { return "()"; }
         ValueT<T> evaluate(Structure* context) const { return ValueT<T>(); }
-        TypeT<T> type() const { return VoidType(); }
+        TypeT<T> type() const { return VoidTypeT<T>(); }
         void resolve(Scope* scope) { }
         bool mightHaveSideEffect() const { return false; }
     };
@@ -482,7 +482,7 @@ private:
         }
         TypeT<T> type() const
         {
-            TupleTyco t;
+            TupleTycoT<T> t;
             for (auto e : _expressions)
                 t = t.instantiate(e.type());
             return t;
@@ -558,7 +558,7 @@ private:
             return r + "\"";
         }
         ValueT<T> evaluate(Structure* context) const { return _string; }
-        TypeT<T> type() const { return StringType(); }
+        TypeT<T> type() const { return StringTypeT<T>(); }
         void resolve(Scope* scope) { }
         bool mightHaveSideEffect() const { return false; }
     private:
@@ -586,7 +586,7 @@ private:
         }
         TypeT<T> type() const
         {
-            Type type = VoidType();
+            TypeT<T> type = VoidType();
             int i = 0;
             for (auto e : _expressions) {
                 if (i == 0)
@@ -728,7 +728,7 @@ public:
         TypeT<T> type() const
         {
             if (_n.denominator == 1)
-                return IntegerType();
+                return IntegerTypeT<T>();
             return RationalType();
         }
         void resolve(Scope* scope) { }
@@ -1006,7 +1006,7 @@ public:
         {
             return _function.toString() + Body::toString();
         }
-        void resolve(Scope* scope)
+        void resolve(ScopeT<T>* scope)
         {
             Body::resolve(scope);
             Identifier i = _function;
@@ -1014,7 +1014,7 @@ public:
                 _function.resolve(scope);
                 return;
             }
-            _resolvedFunco = scope->resolveFunction(i, _argumentTypes);
+            _resolvedFunco = scope->resolveFunction(i, this->_argumentTypes);
         }
         // TODO: check if it's a pure function
         bool mightHaveSideEffect() const { return true; }
@@ -1054,7 +1054,7 @@ public:
         }
         TypeT<T> type() const { return _type;  }
         String toString() const { return _type.toString() + Body::toString(); }
-        void resolve(Scope* scope)
+        void resolve(ScopeT<T>* scope)
         {
             Body::resolve(scope);
             _type = scope->resolveType(_tycoSpecifier);
@@ -1155,7 +1155,7 @@ private:
             return e.convertTo(_type);
         }
         TypeT<T> type() const { return _type; }
-        void resolve(Scope* scope)
+        void resolve(ScopeT<T>* scope)
         {
             if (!_type.valid())
                 _type = _tycoSpecifier.resolve(scope);
