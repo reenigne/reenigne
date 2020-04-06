@@ -1,0 +1,35 @@
+JP1: ATMega328 programming
+  1 PB4/MISO
+  2 +5V
+  3 PB5/SCK
+  4 PB3/MOSI
+  5 PC6/RESET
+  6 GND
+
+JP2: 8087 connector
+
+
+JP3: 1
+  1 -DACK0BRD - redundant, same as ISA bus -DACK0
+
+JP4: 4
+  1 HOLDA
+  2 PIT output
+  3 PIT gate
+  4 PIT clock
+
+JP5: 1
+  1 LOCK
+
+JP6: 1
+  1 +DRQ0 JP6/1 == U28.19 == U73.9
+
+JP7: 2
+  1 CGA LCLK
+  2 CGA HCLK
+
+JP9: 4
+  1 INT
+  2 +IRQ0
+  3 +IRQ1
+  4 HRQ DMA

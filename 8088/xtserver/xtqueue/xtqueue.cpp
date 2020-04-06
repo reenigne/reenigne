@@ -497,7 +497,7 @@ class AudioCapture : public Handle
 public:
     static AudioCapture audioCapture()
     {
-        return create<Body>(1);
+		return create<Body>(); // 1);
     }
     AudioCapture() { }
     void finish(File file) { to<Body>()->finish(file); }
@@ -623,6 +623,9 @@ public:
             FILE_FLAG_OVERLAPPED,
             NULL),          // hTemplate must be NULL for comm devices
             String("Quickboot COM port"));
+		if (!_arduinoCom.valid()) {
+			IF_ZERO_THROW(0);
+		}
 
         DCB deviceControlBlock;
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));
