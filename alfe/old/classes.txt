@@ -1,0 +1,103 @@
+Two similar ways of creating objects:
+
+Structure { ... }
+Class { ... }
+
+Structure is the equivalent of a C++ struct or class
+  Inherit from Object, which has no members
+  Passed by value
+  Can be allocated on stack, heap or inside another object
+
+Class is the equivalent of a Java or C# class
+  Inherit from Handle, which is a pointer
+  Body is heap allocated and reference counted
+  Any Class can also be written as a Structure.
+    T = Class : Base { ... } is equivalent to:
+      T = Structure : Base
+      {
+          ...
+          operator=<@U>(U other) { _bpdy = other._bpdy; if (!valid()) throw; }
+          constructor<@U>(U other) { *this = other; }
+      private:
+          Body = Structure : Base::Structure { ... };
+          Body* body() { return dynamic_cast<Body*>(_body); }
+      };
+  Compiler generates a Structure method for each Body method
+  Casting from one Class type to another does the appropriate Body dynamic cast
+  Excess dynamic casting is optimized away
+
+
+Also have Immutable which inherits from ConstReference?
+
+
+
+
+
+
+
+Foo<@T> = Class { ... };
+
+Foo<@T> where T : Bar = Class { ... };
+
+Foo<@T, @U> where T : U = Class { ... };
+
+
+
+
+Inner classes:
+
+It would be nice to be able to access outer class members from an inner class
+
+A = Structure {
+  Int a;
+  B = Structure {
+    Int b;
+    Int foo()
+    {
+      return a+b;
+    }
+  };
+};
+
+Which instance of the inner class is used? There needs to be an implicit "A* outer" pointer in B which is dereferenced to find outer class members
+  Only added if B methods reference outer class members
+  Any B created by an A method is automatically given an outer_chain pointer equal to this.
+    It then must be illegal to create a B from outside an A context, because there's no valid
+  Should "outer" be reference counted?
+    Maybe only if A inherits from Reference
+
+
+Inner objects/functions:
+
+Four cases to consider:
+  Function inside object
+    This is just a method.
+    There is an implicit "this" pointer passed to the function as a hidden first parameter.
+    Taking the address of the function yields something which must be combined with an object pointer to become callable.
+      Might just be a free function pointer with an extra parameter
+    Can also make a closure by taking the address of the (method, object) pair - that can be called like a normal function but is larger than a naked function pointer
+  Function inside function
+    This is a nested function similar to how they work in modern C++
+    Variables from outer function are automatically available to inner function
+    There is a static chain pointer "here" that points to the stack frame of the outer function
+    Taking the address of the inner function yields something which must be combined with a stack frame pointer to become callable.
+      Might just be a free function pointer with an extra parameter
+    Can also make a closure by taking the address of the (function, context) pair - that can be called like a normal function but is larger than a naked function pointer
+  Object inside object
+    Inner object contains pointer to outer object
+    Constructors of inner object require an extra parameter which is the outer object pointer
+    Generally we would not expect to be to hand off a type C to a template and expect that template to be able to do "Auto x = new C;"
+      As a matter of convention, also don't pass a context object e and have the template do "auto x = new C(e);"
+      Instead we should be passing an object f, and the template should be calling it to create the object: "Auto x = f->create<C>();"
+  Object inside function
+    Similar to other cases by analogy
+    Creating the object needs environment pointer
+    In this case there is no outer object to pass to a template to create objects
+      We can instead pass a closure to the template: "Container<C> c(function() { return new C; });"
+        The closure doesn't look like it captures anything, but if C's methods use the environment then "new C" implicitly passes the environment pointer to the C constructor, so the closure must capture it.
+        This also works for the object inside object case
+When resolving names, the compiler does a depth-first seach of the (environment, parent) tree
+  To disambiguate, can use this->, environment-> or parent-> (here-> is also possible but the default)
+Prioritise ALFE to C++ translator so that I can play with this. But in the meantime (and for implementing the translator) it would be a good idea to:
+  Have ALFE objects (e.g. Type) derive from something that has a context object
+

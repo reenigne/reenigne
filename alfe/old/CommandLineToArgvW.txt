@@ -1,0 +1,287 @@
+_CommandLineToArgvW@8:
+75DC9E66 8B FF                mov         edi,edi
+75DC9E68 55                   push        ebp
+75DC9E69 8B EC                mov         ebp,esp
+75DC9E6B 81 EC 10 02 00 00    sub         esp,210h
+75DC9E71 A1 AC 9F 17 76       mov         eax,dword ptr [___security_cookie (76179FACh)]
+75DC9E76 33 C5                xor         eax,ebp
+75DC9E78 89 45 FC             mov         dword ptr [ebp-4],eax
+75DC9E7B 53                   push        ebx
+75DC9E7C 56                   push        esi
+75DC9E7D 8B 75 0C             mov         esi,dword ptr [ebp+0Ch]
+75DC9E80 33 DB                xor         ebx,ebx
+75DC9E82 57                   push        edi
+75DC9E83 8B 7D 08             mov         edi,dword ptr [ebp+8]
+75DC9E86 89 9D F0 FD FF FF    mov         dword ptr [ebp-210h],ebx
+75DC9E8C 3B F3                cmp         esi,ebx
+75DC9E8E 0F 84 3A 88 19 00    je          _CommandLineToArgvW@8+0C4h (75F626CEh)
+75DC9E94 68 04 01 00 00       push        104h
+75DC9E99 8D 85 F4 FD FF FF    lea         eax,[ebp-20Ch]
+75DC9E9F 50                   push        eax
+75DC9EA0 53                   push        ebx
+75DC9EA1 FF 15 20 12 DB 75    call        dword ptr [__imp__GetModuleFileNameW@12 (75DB1220h)]
+75DC9EA7 33 C0                xor         eax,eax
+75DC9EA9 66 39 07             cmp         word ptr [edi],ax
+75DC9EAC 0F 84 00 88 19 00    je          _CommandLineToArgvW@8+48h (75F626B2h)
+75DC9EB2 8D 8D F0 FD FF FF    lea         ecx,[ebp-210h]
+75DC9EB8 51                   push        ecx
+75DC9EB9 56                   push        esi
+75DC9EBA 50                   push        eax
+75DC9EBB 50                   push        eax
+75DC9EBC 57                   push        edi
+75DC9EBD C7 06 01 00 00 00    mov         dword ptr [esi],1
+75DC9EC3 E8 72 00 00 00       call        _Parse_Cmdline@20 (75DC9F3Ah)
+75DC9EC8 8B 06                mov         eax,dword ptr [esi]
+75DC9ECA 85 C0                test        eax,eax
+75DC9ECC 7E 5D                jle         _CommandLineToArgvW@8+0BDh (75DC9F2Bh)
+75DC9ECE 8B 8D F0 FD FF FF    mov         ecx,dword ptr [ebp-210h]
+75DC9ED4 BA FF FF FF 7F       mov         edx,7FFFFFFFh
+75DC9ED9 2B D1                sub         edx,ecx
+75DC9EDB C1 EA 02             shr         edx,2
+75DC9EDE 4A                   dec         edx
+75DC9EDF 3B C2                cmp         eax,edx
+75DC9EE1 7F 48                jg          _CommandLineToArgvW@8+0BDh (75DC9F2Bh)
+75DC9EE3 8D 44 81 04          lea         eax,[ecx+eax*4+4]
+75DC9EE7 50                   push        eax
+75DC9EE8 6A 40                push        40h
+75DC9EEA FF 15 34 13 DB 75    call        dword ptr [__imp__LocalAlloc@8 (75DB1334h)]
+75DC9EF0 8B D8                mov         ebx,eax
+75DC9EF2 85 DB                test        ebx,ebx
+75DC9EF4 0F 84 D0 87 19 00    je          _CommandLineToArgvW@8+0B9h (75F626CAh)
+75DC9EFA 8D 85 F0 FD FF FF    lea         eax,[ebp-210h]
+75DC9F00 50                   push        eax
+75DC9F01 8B 06                mov         eax,dword ptr [esi]
+75DC9F03 56                   push        esi
+75DC9F04 8D 44 83 04          lea         eax,[ebx+eax*4+4]
+75DC9F08 50                   push        eax
+75DC9F09 53                   push        ebx
+75DC9F0A 57                   push        edi
+75DC9F0B E8 2A 00 00 00       call        _Parse_Cmdline@20 (75DC9F3Ah)
+75DC9F10 85 C0                test        eax,eax
+75DC9F12 0F 84 A5 87 19 00    je          _CommandLineToArgvW@8+0ACh (75F626BDh)
+75DC9F18 8B 4D FC             mov         ecx,dword ptr [ebp-4]
+75DC9F1B 5F                   pop         edi
+75DC9F1C 5E                   pop         esi
+75DC9F1D 8B C3                mov         eax,ebx
+75DC9F1F 33 CD                xor         ecx,ebp
+75DC9F21 5B                   pop         ebx
+75DC9F22 E8 B9 F8 09 00       call        @__security_check_cookie@4 (75E697E0h)
+75DC9F27 C9                   leave
+75DC9F28 C2 08 00             ret         8
+75DC9F2B 68 16 02 00 00       push        216h
+75DC9F30 E9 9B 87 19 00       jmp         _CommandLineToArgvW@8+0C6h (75F626D0h)
+75DC9F35 90                   nop
+75DC9F36 90                   nop
+75DC9F37 90                   nop
+75DC9F38 90                   nop
+75DC9F39 90                   nop
+_Parse_Cmdline@20:
+75DC9F3A 8B FF                mov         edi,edi
+75DC9F3C 55                   push        ebp
+75DC9F3D 8B EC                mov         ebp,esp
+75DC9F3F 51                   push        ecx
+75DC9F40 53                   push        ebx
+75DC9F41 8B 5D 14             mov         ebx,dword ptr [ebp+14h]
+75DC9F44 8B 0B                mov         ecx,dword ptr [ebx]
+75DC9F46 33 C0                xor         eax,eax
+75DC9F48 56                   push        esi
+75DC9F49 8B 75 10             mov         esi,dword ptr [ebp+10h]
+75DC9F4C 89 4D FC             mov         dword ptr [ebp-4],ecx
+75DC9F4F 8B 4D 08             mov         ecx,dword ptr [ebp+8]
+75DC9F52 C7 03 01 00 00 00    mov         dword ptr [ebx],1
+75DC9F58 39 45 0C             cmp         dword ptr [ebp+0Ch],eax
+75DC9F5B 74 09                je          _Parse_Cmdline@20+2Ch (75DC9F66h)
+75DC9F5D 8B 55 0C             mov         edx,dword ptr [ebp+0Ch]
+75DC9F60 83 45 0C 04          add         dword ptr [ebp+0Ch],4
+75DC9F64 89 32                mov         dword ptr [edx],esi
+75DC9F66 66 83 39 22          cmp         word ptr [ecx],22h
+75DC9F6A 57                   push        edi
+75DC9F6B 6A 02                push        2
+75DC9F6D 5F                   pop         edi
+75DC9F6E 0F 84 05 6A 0F 00    je          _Parse_Cmdline@20+36h (75EC0979h)
+75DC9F74 03 C7                add         eax,edi
+75DC9F76 85 F6                test        esi,esi
+75DC9F78 0F 85 CB FE FF FF    jne         _Parse_Cmdline@20+83h (75DC9E49h)
+75DC9F7E 0F B7 11             movzx       edx,word ptr [ecx]
+75DC9F81 03 CF                add         ecx,edi
+75DC9F83 66 83 FA 20          cmp         dx,20h
+75DC9F87 77 EB                ja          _Parse_Cmdline@20+7Dh (75DC9F74h)
+75DC9F89 66 85 D2             test        dx,dx
+75DC9F8C 0F 84 6D 95 0C 00    je          _Parse_Cmdline@20+0A2h (75E934FFh)
+75DC9F92 85 F6                test        esi,esi
+75DC9F94 74 0D                je          _Parse_Cmdline@20+0B7h (75DC9FA3h)
+75DC9F96 8B 55 18             mov         edx,dword ptr [ebp+18h]
+75DC9F99 3B 02                cmp         eax,dword ptr [edx]
+75DC9F9B 7F 06                jg          _Parse_Cmdline@20+0B7h (75DC9FA3h)
+75DC9F9D 33 D2                xor         edx,edx
+75DC9F9F 66 89 56 FE          mov         word ptr [esi-2],dx
+75DC9FA3 83 65 10 00          and         dword ptr [ebp+10h],0
+75DC9FA7 66 83 39 00          cmp         word ptr [ecx],0
+75DC9FAB 74 0D                je          _Parse_Cmdline@20+1CDh (75DC9FBAh)
+75DC9FAD 0F B7 11             movzx       edx,word ptr [ecx]
+75DC9FB0 66 83 FA 20          cmp         dx,20h
+75DC9FB4 75 2C                jne         _Parse_Cmdline@20+0D3h (75DC9FE2h)
+75DC9FB6 03 CF                add         ecx,edi
+75DC9FB8 EB F3                jmp         _Parse_Cmdline@20+0CAh (75DC9FADh)
+75DC9FBA 8B 4D 18             mov         ecx,dword ptr [ebp+18h]
+75DC9FBD 5F                   pop         edi
+75DC9FBE 85 F6                test        esi,esi
+75DC9FC0 74 1C                je          _Parse_Cmdline@20+1E4h (75DC9FDEh)
+75DC9FC2 3B 01                cmp         eax,dword ptr [ecx]
+75DC9FC4 0F 8F 3C 95 0C 00    jg          _Parse_Cmdline@20+1E0h (75E93506h)
+75DC9FCA 8B 45 FC             mov         eax,dword ptr [ebp-4]
+75DC9FCD 39 03                cmp         dword ptr [ebx],eax
+75DC9FCF 0F 8F 31 95 0C 00    jg          _Parse_Cmdline@20+1E0h (75E93506h)
+75DC9FD5 33 C0                xor         eax,eax
+75DC9FD7 40                   inc         eax
+75DC9FD8 5E                   pop         esi
+75DC9FD9 5B                   pop         ebx
+75DC9FDA C9                   leave
+75DC9FDB C2 14 00             ret         14h
+75DC9FDE 89 01                mov         dword ptr [ecx],eax
+75DC9FE0 EB F3                jmp         _Parse_Cmdline@20+1E6h (75DC9FD5h)
+75DC9FE2 66 83 FA 09          cmp         dx,9
+75DC9FE6 74 CE                je          _Parse_Cmdline@20+0D9h (75DC9FB6h)
+75DC9FE8 66 83 39 00          cmp         word ptr [ecx],0
+75DC9FEC 74 CC                je          _Parse_Cmdline@20+1CDh (75DC9FBAh)
+75DC9FEE 83 7D 0C 00          cmp         dword ptr [ebp+0Ch],0
+75DC9FF2 74 10                je          _Parse_Cmdline@20+0FDh (75DCA004h)
+75DC9FF4 8B 55 FC             mov         edx,dword ptr [ebp-4]
+75DC9FF7 39 13                cmp         dword ptr [ebx],edx
+75DC9FF9 7D 09                jge         _Parse_Cmdline@20+0FDh (75DCA004h)
+75DC9FFB 8B 55 0C             mov         edx,dword ptr [ebp+0Ch]
+75DC9FFE 83 45 0C 04          add         dword ptr [ebp+0Ch],4
+75DCA002 89 32                mov         dword ptr [edx],esi
+75DCA004 FF 03                inc         dword ptr [ebx]
+75DCA006 EB 45                jmp         _Parse_Cmdline@20+0FFh (75DCA04Dh)
+75DCA008 66 83 39 5C          cmp         word ptr [ecx],5Ch
+75DCA00C 0F 84 34 69 0F 00    je          _Parse_Cmdline@20+108h (75EC0946h)
+75DCA012 66 83 39 22          cmp         word ptr [ecx],22h
+75DCA016 0F 84 EB 69 0F 00    je          _Parse_Cmdline@20+119h (75EC0A07h)
+75DCA01C 66 83 7D 08 00       cmp         word ptr [ebp+8],0
+75DCA021 0F 85 29 69 0F 00    jne         _Parse_Cmdline@20+152h (75EC0950h)
+75DCA027 0F B7 11             movzx       edx,word ptr [ecx]
+75DCA02A 66 85 D2             test        dx,dx
+75DCA02D 74 33                je          _Parse_Cmdline@20+1ACh (75DCA062h)
+75DCA02F 83 7D 10 00          cmp         dword ptr [ebp+10h],0
+75DCA033 74 21                je          _Parse_Cmdline@20+183h (75DCA056h)
+75DCA035 85 DB                test        ebx,ebx
+75DCA037 74 12                je          _Parse_Cmdline@20+1A5h (75DCA04Bh)
+75DCA039 03 C7                add         eax,edi
+75DCA03B 85 F6                test        esi,esi
+75DCA03D 74 0C                je          _Parse_Cmdline@20+1A5h (75DCA04Bh)
+75DCA03F 8B 5D 18             mov         ebx,dword ptr [ebp+18h]
+75DCA042 3B 03                cmp         eax,dword ptr [ebx]
+75DCA044 7F 05                jg          _Parse_Cmdline@20+1A5h (75DCA04Bh)
+75DCA046 66 89 16             mov         word ptr [esi],dx
+75DCA049 03 F7                add         esi,edi
+75DCA04B 03 CF                add         ecx,edi
+75DCA04D 33 DB                xor         ebx,ebx
+75DCA04F 43                   inc         ebx
+75DCA050 83 65 08 00          and         dword ptr [ebp+8],0
+75DCA054 EB B2                jmp         _Parse_Cmdline@20+10Dh (75DCA008h)
+75DCA056 66 83 FA 20          cmp         dx,20h
+75DCA05A 74 06                je          _Parse_Cmdline@20+1ACh (75DCA062h)
+75DCA05C 66 83 FA 09          cmp         dx,9
+75DCA060 75 D3                jne         _Parse_Cmdline@20+18Fh (75DCA035h)
+75DCA062 03 C7                add         eax,edi
+75DCA064 85 F6                test        esi,esi
+75DCA066 74 0E                je          _Parse_Cmdline@20+0BDh (75DCA076h)
+75DCA068 8B 55 18             mov         edx,dword ptr [ebp+18h]
+75DCA06B 3B 02                cmp         eax,dword ptr [edx]
+75DCA06D 7F 07                jg          _Parse_Cmdline@20+0BDh (75DCA076h)
+75DCA06F 33 D2                xor         edx,edx
+75DCA071 66 89 16             mov         word ptr [esi],dx
+75DCA074 03 F7                add         esi,edi
+75DCA076 8B 5D 14             mov         ebx,dword ptr [ebp+14h]
+75DCA079 E9 29 FF FF FF       jmp         _Parse_Cmdline@20+0C0h (75DC9FA7h)
+75DCA07E 39 19                cmp         dword ptr [ecx],ebx
+75DCA080 0F 84 31 D1 06 00    je          75E371B7
+75DCA086 8B 85 1C FB FF FF    mov         eax,dword ptr [ebp-4E4h]
+75DCA08C 8B 10                mov         edx,dword ptr [eax]
+75DCA08E 51                   push        ecx
+75DCA08F 8D 8D 24 FB FF FF    lea         ecx,[ebp-4DCh]
+75DCA095 51                   push        ecx
+75DCA096 6A 01                push        1
+75DCA098 50                   push        eax
+75DCA099 FF 52 24             call        dword ptr [edx+24h]
+75DCA09C E9 16 D1 06 00       jmp         75E371B7
+75DCA0A1 90                   nop
+75DCA0A2 90                   nop
+75DCA0A3 90                   nop
+75DCA0A4 90                   nop
+75DCA0A5 90                   nop
+
+75E934FF 2B CF                sub         ecx,edi
+75E93501 E9 9D 6A F3 FF       jmp         _Parse_Cmdline@20+0B7h (75DC9FA3h)
+75E93506 33 C0                xor         eax,eax
+75E93508 E9 CB 6A F3 FF       jmp         _Parse_Cmdline@20+1E9h (75DC9FD8h)
+
+75EC0946 03 CF                add         ecx,edi
+75EC0948 FF 45 08             inc         dword ptr [ebp+8]
+75EC094B E9 B8 96 F0 FF       jmp         _Parse_Cmdline@20+10Dh (75DCA008h)
+75EC0950 81 45 08 FF FF 00 00 add         dword ptr [ebp+8],0FFFFh
+75EC0957 03 C7                add         eax,edi
+75EC0959 85 F6                test        esi,esi
+75EC095B 0F 84 BB 96 F0 FF    je          _Parse_Cmdline@20+16Eh (75DCA01Ch)
+75EC0961 8B 55 18             mov         edx,dword ptr [ebp+18h]
+75EC0964 3B 02                cmp         eax,dword ptr [edx]
+75EC0966 0F 8F B0 96 F0 FF    jg          _Parse_Cmdline@20+16Eh (75DCA01Ch)
+75EC096C 6A 5C                push        5Ch
+75EC096E 5A                   pop         edx
+75EC096F 66 89 16             mov         word ptr [esi],dx
+75EC0972 03 F7                add         esi,edi
+75EC0974 E9 A3 96 F0 FF       jmp         _Parse_Cmdline@20+16Eh (75DCA01Ch)
+75EC0979 03 CF                add         ecx,edi
+75EC097B EB 11                jmp         _Parse_Cmdline@20+56h (75EC098Eh)
+75EC097D 8B 5D 18             mov         ebx,dword ptr [ebp+18h]
+75EC0980 3B 03                cmp         eax,dword ptr [ebx]
+75EC0982 8B 5D 14             mov         ebx,dword ptr [ebp+14h]
+75EC0985 7F 1B                jg          _Parse_Cmdline@20+54h (75EC09A2h)
+75EC0987 66 89 16             mov         word ptr [esi],dx
+75EC098A 03 F7                add         esi,edi
+75EC098C EB 14                jmp         _Parse_Cmdline@20+54h (75EC09A2h)
+75EC098E 0F B7 11             movzx       edx,word ptr [ecx]
+75EC0991 66 83 FA 22          cmp         dx,22h
+75EC0995 74 0F                je          _Parse_Cmdline@20+5Fh (75EC09A6h)
+75EC0997 66 85 D2             test        dx,dx
+75EC099A 74 0A                je          _Parse_Cmdline@20+5Fh (75EC09A6h)
+75EC099C 03 C7                add         eax,edi
+75EC099E 85 F6                test        esi,esi
+75EC09A0 75 DB                jne         _Parse_Cmdline@20+45h (75EC097Dh)
+75EC09A2 03 CF                add         ecx,edi
+75EC09A4 EB E8                jmp         _Parse_Cmdline@20+56h (75EC098Eh)
+75EC09A6 03 C7                add         eax,edi
+75EC09A8 85 F6                test        esi,esi
+75EC09AA 74 0E                je          _Parse_Cmdline@20+73h (75EC09BAh)
+75EC09AC 8B 55 18             mov         edx,dword ptr [ebp+18h]
+75EC09AF 3B 02                cmp         eax,dword ptr [edx]
+75EC09B1 7F 07                jg          _Parse_Cmdline@20+73h (75EC09BAh)
+75EC09B3 33 D2                xor         edx,edx
+75EC09B5 66 89 16             mov         word ptr [esi],dx
+75EC09B8 03 F7                add         esi,edi
+75EC09BA 66 83 39 22          cmp         word ptr [ecx],22h
+75EC09BE 0F 85 DF 95 F0 FF    jne         _Parse_Cmdline@20+0B7h (75DC9FA3h)
+75EC09C4 03 CF                add         ecx,edi
+75EC09C6 E9 D8 95 F0 FF       jmp         _Parse_Cmdline@20+0B7h (75DC9FA3h)
+
+75F626A1 4A                   dec         edx
+75F626A2 83 CA FE             or          edx,0FFFFFFFEh
+75F626A5 42                   inc         edx
+75F626A6 E9 6C E3 F5 FF       jmp         _Parse_Cmdline@20+12Ah (75EC0A17h)
+75F626AB 8B CA                mov         ecx,edx
+75F626AD E9 7C E3 F5 FF       jmp         _Parse_Cmdline@20+141h (75EC0A2Eh)
+75F626B2 8D BD F4 FD FF FF    lea         edi,[ebp-20Ch]
+75F626B8 E9 F5 77 E6 FF       jmp         _CommandLineToArgvW@8+4Eh (75DC9EB2h)
+75F626BD 53                   push        ebx
+75F626BE FF 15 30 13 DB 75    call        dword ptr [__imp__LocalFree@4 (75DB1330h)]
+75F626C4 33 DB                xor         ebx,ebx
+75F626C6 6A 0D                push        0Dh
+75F626C8 EB 06                jmp         _CommandLineToArgvW@8+0C6h (75F626D0h)
+75F626CA 6A 08                push        8
+75F626CC EB 02                jmp         _CommandLineToArgvW@8+0C6h (75F626D0h)
+75F626CE 6A 57                push        57h
+75F626D0 FF 15 14 11 DB 75    call        dword ptr [__imp__SetLastError@4 (75DB1114h)]
+75F626D6 E9 3D 78 E6 FF       jmp         _CommandLineToArgvW@8+0CCh (75DC9F18h)
+75F626DB 66 83 7D F2 01       cmp         word ptr [ebp-0Eh],1
+

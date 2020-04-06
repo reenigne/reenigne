@@ -17,7 +17,7 @@ Special syntax for types. Given types Foo, Bar:
     "Either<Foo>" has no special syntax and is not particularly useful - it's just an alias for "Foo".
     "Either<>" has no special syntax and is just an alias for "Bottom".
     If you store a non-reference type in an either, it'll be boxed
-  "Foo?" means "Maybe<Foo>" and is only applicable to reference types
+  "Foo?" means "Maybe<Foo>" and is only applicable to reference types  (nb: in Haskell, Maybe a = Just a | Nothing)
     It's also equivalent to "Foo | ()"
   "(Foo, Bar)" means "Tuple<Foo, Bar>"
     "(Foo)" means "Tuple<Foo>" which is exactly equivalent to "Foo" (so we can parenthesize

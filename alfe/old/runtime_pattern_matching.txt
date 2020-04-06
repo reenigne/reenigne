@@ -1,0 +1,43 @@
+Suppose we are writing a compiler, and want to walk trees and perform transformations. We'd like to write something like:
+
+void process(Statement s)
+{
+    switch (s) {
+        case "if ($Expression c) $Statement s1 else $Statement s2":
+            c.doSomething();
+            process(s1);
+            process(s2);
+            break;
+        ...
+    }
+}
+
+The string insert syntax $foo here has been extended to lvalues. Instead of inserting a string to be determined at runtime, "$Type name" (if matched) creates a variable called "name" of type "Type"
+with value from the object being matched against.
+
+"if ($Expression c) $Statement s1 else $Statement s2" has type Pattern<Expression, Statement, Statement>
+
+If $ is followed by a type specifier, then following whitespace is absorbed and the identifier is also parsed out of the string.
+
+The case statement compiles to something like:
+  (Expression, Statement, Statement)? c = s.match(pattern_literal);
+  if (c is (Expression, Statement, Statement)) {
+      c[0].doSomething();
+      process(c[1]);
+      process(c[2]);
+  }
+
+pattern_literal is a (compiler-generated) object that looks something like:
+
+Class Pattern<Expression, Statement, Statement> {
+    String _literal0 = "if (";
+    Expression* _placeHolder1 = &c;
+    String _literal2 = ") ";
+    Statement* _placeHolder3 = &s1;
+    String _literal4 = " else ";
+    Statement* _placeHolder5 = &s2;
+    String _literal6 = "";
+}
+
+Ideally the pattern literal is parsed at compile time into an IfStatement object where the fields are PlaceHolder<Expression>, PlaceHolder<Statement> and PlaceHolder<Statement>
+
