@@ -44,7 +44,6 @@ bool alerting = false;
 #include "alfe/stream.h"
 #include "alfe/file_stream.h"
 #include "alfe/character_source.h"
-#include "alfe/thread.h"
 #if defined(_WIN32) && defined(_WINDOWS)
 #include "alfe/vectors.h"
 #include "alfe/colour_space.h"
