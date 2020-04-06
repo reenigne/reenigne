@@ -3,6 +3,36 @@
 #ifndef INCLUDED_TYPE_H
 #define INCLUDED_TYPE_H
 
+template<class T> class TemplateT;
+typedef TemplateT<void> Template;
+
+template<class T> class TypeT;
+typedef TypeT<void> Type;
+
+template<class T> class PointerTypeT;
+typedef PointerTypeT<void> PointerType;
+
+template<class T> class FunctionTypeT;
+typedef FunctionTypeT<void> FunctionType;
+
+template<class T> class FunctionTemplateT;
+typedef FunctionTemplateT<void> FunctionTemplate;
+
+template<class T> class VoidTypeT;
+typedef VoidTypeT<void> VoidType;
+
+template<class T> class TupleTycoT;
+typedef TupleTycoT<void> TupleTyco;
+
+template<class T> class StringTypeT;
+typedef StringTypeT<void> StringType;
+
+template<class T> class IntegerTypeT;
+typedef IntegerTypeT<void> IntegerType;
+
+template<class T> class RationalTypeT;
+typedef RationalTypeT<void> RationalType;
+
 #include "alfe/any.h"
 #include "alfe/hash_table.h"
 #include "alfe/nullary.h"
@@ -14,12 +44,6 @@
 #include "alfe/reference.h"
 #include "alfe/statement.h"
 #include <type_traits>
-
-template<class T> class TemplateT;
-typedef TemplateT<void> Template;
-
-template<class T> class TypeT;
-typedef TypeT<void> Type;
 
 template<class T> class ValueT;
 typedef ValueT<void> Value;
@@ -115,7 +139,7 @@ template<class T> class ScopeT
 {
 public:
     ScopeT() : _parent(0), _functionScope(this) { }
-    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
+    void addType(TypeT<T> type, TycoIdentifier identifier = TycoIdentifier())
     {
         if (!identifier.valid())
             identifier = TycoIdentifier(type.toString());
@@ -125,7 +149,7 @@ public:
     {
         _objects[i] = s;
     }
-    void addFunction(Identifier i, Funco f)
+    void addFunction(Identifier i, FuncoT<T> f)
     {
         if (_functionScope == this) {
             if (_functions.hasKey(i))
@@ -160,7 +184,7 @@ public:
     TypeT<T> resolveType(TycoSpecifier s) const
     {
         Tyco tyco = resolveTycoSpecifier(s);
-        Type t = resolveTycoSpecifier(s);
+        TypeT<T> t = resolveTycoSpecifier(s);
         if (!t.valid()) {
             s.span().throwError("Type constructor specifier " + s.toString() +
                 " does not specify a type but a type constructor of kind " +
@@ -184,14 +208,14 @@ public:
     }
     FuncoT<T> resolveFunction(Identifier identifier, List<Type> argumentTypes)
     {
-        List<List<Funco>> funcos = getFuncosForIdentifier(identifier);
+        List<List<FuncoT<T>>> funcos = getFuncosForIdentifier(identifier);
 
-        List<Funco> bestCandidates;
+        List<FuncoT<T>> bestCandidates;
         for (auto ff : funcos) {
             for (auto f : ff) {
                 if (!f.argumentsMatch(argumentTypes))
                     continue;
-                List<Funco> newBestCandidates;
+                List<FuncoT<T>> newBestCandidates;
                 bool newBest = true;
                 for (auto b : bestCandidates) {
                     int r = f.compareTo(b);
@@ -722,7 +746,7 @@ private:
     const Body* body() const { return as<Body>(); }
 };
 
-class StringType : public NamedNullary<Type, StringType>
+template<class T> class StringTypeT : public NamedNullary<Type, StringType>
 {
 public:
     static String name() { return "String"; }
@@ -752,11 +776,11 @@ public:
     };
 };
 
-class IntegerType : public NamedNullary<Type, IntegerType>
+template<class T> class IntegerTypeT : public NamedNullary<Type, IntegerType>
 {
 public:
-    IntegerType() { }
-    IntegerType(const Handle& other) : NamedNullary(other) { }
+    IntegerTypeT() { }
+    IntegerTypeT(const Handle& other) : NamedNullary(other) { }
     static String name() { return "Integer"; }
     class Body : public NamedNullary<Type, IntegerType>::Body
     {
@@ -811,7 +835,7 @@ public:
     static String name() { return "Label"; }
 };
 
-class VoidType : public NamedNullary<Type, VoidType>
+template<class T> class VoidTypeT : public NamedNullary<Type, VoidType>
 {
 public:
     static String name() { return "Void"; }
@@ -912,7 +936,7 @@ public:
     };
 };
 
-class RationalType : public NamedNullary<Type, RationalType>
+template<class T> class RationalTypeT : public NamedNullary<Type, RationalType>
 {
 public:
     static String name() { return "Rational"; }
@@ -1227,9 +1251,6 @@ public:
     };
 };
 
-template<class T> class TupleTycoT;
-typedef TupleTycoT<void> TupleTyco;
-
 template<class T> class TupleTycoT : public NamedNullary<Tyco, TupleTyco>
 {
 public:
@@ -1371,10 +1392,10 @@ private:
     friend class NonUnitBody;
 };
 
-class PointerType : public Type
+template<class T> class PointerTypeT : public Type
 {
 public:
-    PointerType(const Type& referent) : Type(create<Body>(referent)) { }
+    PointerTypeT(const Type& referent) : Type(create<Body>(referent)) { }
 private:
     class Body : public Type::Body
     {
@@ -1410,12 +1431,6 @@ public:
         }
     };
 };
-
-template<class T> class FunctionTypeT;
-typedef FunctionTypeT<void> FunctionType;
-
-template<class T> class FunctionTemplateT;
-typedef FunctionTemplateT<void> FunctionTemplate;
 
 template<class T> class FunctionTypeT : public Tyco
 {
