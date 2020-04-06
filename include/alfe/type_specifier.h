@@ -100,12 +100,12 @@ protected:
             const TemplateArguments& arguments, const Span& span)
           : Body(span), _tycoIdentifier(tycoIdentifier), _arguments(arguments)
         { }
-        TycoT<T> resolve(const Scope* scope) const
+        TycoT<T> resolve(const ScopeT<T>* scope) const
         {
             TycoT<T> t = scope->resolveTycoIdentifier(_tycoIdentifier);
             List<TycoT<T>> a = _arguments.resolve(scope);
             for (auto argument : a) {
-                Template te = t;
+                TemplateT<T> te = t;
                 assert(te.valid());
                 t = te.instantiate(argument);
             }
@@ -209,7 +209,7 @@ public:
         Body(const List<TycoSpecifier>& arguments, const Span& span)
           : ParseTreeObject::Body(span), _arguments(arguments) { }
         int count() const { return _arguments.count(); }
-        List<Tyco> resolve(const Scope* scope) const
+        List<Tyco> resolve(const ScopeT<T>* scope) const
         {
             List<Tyco> l;
             for (auto s : _arguments)
@@ -250,7 +250,7 @@ private:
     public:
         PointerBody(const TycoSpecifier& referent, const Span& span)
           : Body(span), _referent(referent) { }
-        TycoT<T> resolve(const Scope* scope) const
+        TycoT<T> resolve(const ScopeT<T>* scope) const
         {
             Type referent = scope->resolveTycoSpecifier(_referent);
             return PointerType(referent);
@@ -267,7 +267,7 @@ private:
           : Body(span), _returnType(returnType),
             _argumentTypes(argumentTypes)
         { }
-        TycoT<T> resolve(const Scope* scope) const
+        TycoT<T> resolve(const ScopeT<T>* scope) const
         {
             Type ret = scope->resolveType(_returnType);
             FunctionType f = FunctionTemplate().instantiate(ret);
@@ -370,7 +370,7 @@ protected:
             auto o = other->to<Body>();
             return o != 0 && _name == o->_name;
         }
-        TycoT<T> resolve(const Scope* scope) const
+        TycoT<T> resolve(const ScopeT<T>* scope) const
         {
             return scope->resolveTycoIdentifier(handle<TycoIdentifier>());
         }
