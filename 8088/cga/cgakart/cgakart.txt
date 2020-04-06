@@ -1,0 +1,248 @@
+  add cx,0x9990     ; 4 0 4
+  add dx,0x9990     ; 4 0 4
+  mov bl,ch         ; 2 0 2
+  mov bh,dh         ; 2 0 2
+  mov bx,[bx]       ; 2 2 4
+  or bl,cl          ; 2 0 2
+  or bh,dl          ; 2 0 2
+  mov al,[ss:bx]    ; 3 1 4
+  stosb             ; 1 1 2    26 IOs == 11.5 fps                                                    doesn't clear low bit of bx
+
+
+  add al,0x99       ; 2 0 2
+  adc bl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  mov si,[bx]       ; 2 2 4
+  mov bp,ax         ; 2 0 2
+  and bp,dx         ; 2 0 2            dx = 0xf0f0
+  mov al,[bp+si]    ; 2 1 3
+  stosb             ; 1 1 2    24 IOs == 12.4 fps                                                    doesn't clear low bit of bx
+
+
+  add al,0x99       ; 2 0 2
+  adc bl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  mov si,ax         ; 2 0 2
+  and si,dx         ; 2 0 2            dx = 0xf0f0
+  or si,[bx]        ; 2 2 4
+  movsb             ; 1 2 3    22 IOs == 13.6 fps     18 bytes == 216000 bytes for entire unroll     doesn't clear low bit of bx
+
+  add dx,0x9999     ; 4 0 4
+  add cx,0x9999     ; 4 0 4
+  mov bl,dh         ; 2 0 2
+  mov bh,ch         ; 2 0 2
+  mov si,bx         ; 2 0 2
+  mov si,[bx+si]    ; 2 2 4
+  mov bl,dl         ; 2 0 2
+  mov bh,cl         ; 2 0 2
+  mov bp,bx         ; 2 0 2
+  and bp,sp         ; 2 0 2
+  mov al,[bp+si]    ; 2 1 3
+  stosb             ; 1 2 2    31 IOs, 27 bytes
+
+
+
+  add al,0x99       ; 2 0 2
+  adc cl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc ch,0x99       ; 3 0 3
+  mov si,ax         ; 2 0 2
+  and si,sp         ; 2 0 2            sp = 0xf0f0
+  mov bx,cx         ; 2 0 2
+  add bx,bx         ; 2 0 2
+  or si,[bx]        ; 2 2 4
+  ss: movsb         ; 2 2 3    27 IOs, 23 bytes
+
+  add al,0x99       ; 2 0 2
+  adc bl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  mov si,bx         ; 2 0 2
+  mov si,[bx+si]    ; 2 2 4
+  mov bp,ax         ; 2 0 2
+  and bp,sp         ; 2 0 2            sp = 0xf0f0
+  add si,bp         ; 2 0 2
+  ss: movsb         ; 1 2 3    27 IOs, 23 bytes
+
+  add cl,0x99       ; 3 0 3
+  adc bl,0x99       ; 3 0 3
+  add ch,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  mov si,bx         ; 2 0 2
+  mov si,[bx+si]    ; 2 2 4
+  mov bp,cx         ; 2 0 2
+  and bp,sp         ; 2 0 2            sp = 0xf0f0
+  mov al,[bp+si]    ; 2 1 3
+  stosb             ; 1 1 2    27 IOs, 23 bytes
+
+  add al,0x99       ; 2 0 2
+  adc bl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  rol bx,1          ; 2 0 2
+  mov si,ax         ; 2 0 2
+  and si,sp         ; 2 0 2            sp = 0xf0f0
+  ss: add si,[bx]   ; 3 2 5
+  ror bx,1          ; 2 0 2
+  movsb             ; 1 2 3    27 IOs, 23 bytes
+
+  add al,0x99       ; 2 0 2
+  adc bl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  mov si,bx         ; 2 0 2
+  mov si,[bx+si]    ; 2 2 4
+  mov bp,ax         ; 2 0 2
+  and bp,sp         ; 2 0 2            sp = 0xf0f0
+  add si,bp         ; 2 0 2
+  ss: movsb         ; 2 2 4    27 IOs, 23 bytes
+
+
+
+  add al,cl         ; 2 0 2
+  adc bl,ch         ; 2 0 2
+  add ah,dl         ; 2 0 2
+  adc bh,dh         ; 2 0 2
+  mov si,bx         ; 2 0 2
+  mov si,[bx+si]    ; 2 2 4
+  mov bp,ax         ; 2 0 2
+  and bp,sp         ; 2 0 2
+  add si,bp         ; 2 0 2
+  ss: movsb         ; 2 2 4    24 IOs, 20 bytes
+
+
+
+
+
+  add al,0x99       ; 2 0 2
+  adc bl,0x99       ; 3 0 3
+  add ah,0x99       ; 3 0 3
+  adc bh,0x99       ; 3 0 3
+  mov si,bx         ; 2 0 2
+  movsb             ; 1 2 3
+
+  add al,cl         ; 2 0 2
+  adc bl,ch         ; 2 0 2
+  add ah,dl         ; 2 0 2
+  adc bh,dh         ; 2 0 2
+  mov si,bx         ; 2 0 2
+  movsb             ; 1 2 3    13 IOs, 11 bytes
+
+  add ax,cx         ; 2 0 2
+  add dx,bp         ; 2 0 2
+  xchg bl,ah        ; 2 0 2
+  mov si,bx         ; 2 0 2
+  xchg bl,ah        ; 2 0 2
+  movsb             ; 1 2 3
+
+  add ax,cx         ; 2 0 2
+  add dx,bp         ; 2 0 2
+  mov bl,ah         ; 2 0 2
+  mov bh,dh         ; 2 0 2
+  mov si,bx         ; 2 0 2
+  movsb             ; 1 2 3
+
+
+Also need code pointers: table of 321*50*2 = 32100 bytes
+
+Optimisations:
+  Can replace "add al,0"s and "add ah,0"s with clc. In that case can replace:
+    "adc bl,1" with "inc bl"
+    "adc bh,1" with "inc bh"
+    "adc bl,0xff" with "dec bl"
+    "adc bh,0xff" with "dec bh"
+  Can use cl, ch, dl and dh for the most common offsets in each row
+    Can we also use sub and sbb to double their effectiveness?
+
+  (Space optimisation) If orientation crosses branch cut then do it in two parts
+
+Playfield is 32768x65536 movement units, 2048x4096 texels, 128x256 tiles
+Tiles are 16x16, there are up to 256 of them
+Map laid out as follows:
+  Each map location is a word
+    bits 0..3 = bits 0..3 of tile number
+    bits 4..7 = 0
+    bits 8..11 = bits 4..7 of tile number
+    bits 12..15 = 0
+  If the 0 bits are changed to 1 they shift tiles but horizontal wrap causes the tile number to be increased by 16
+Tile data segment laid out as follows:
+  bits 0..3 = bits 0..3 of tile number
+  bits 4..7 = horizontal (bl:al) axis
+  bits 8..11 = bits 4..7 of tile number
+  bits 12..15 = vertical (bh:ah) axis
+Tiles 0..15 (bit pattern xxxx0000xxxxxxxx) give 16 stacks of 256 bytes each - use one for interrupts, so we have 240 usable tiles and 3840 bytes of spare space in SS
+  Because sp is 0xf0f0 we only actually have a 240 byte stack but that's ok
+Use standard CGA composite mode with ISAV, 65-255 colours
+
+0000   0  0  0
+0100   1  0  1
+0001   1  0 -1
+1000   1  1  0
+0010   1 -1  0
+0101   2  0  0      1010   2  0  0                           01010000  10100000
+0200   2  0  2
+0002   2  0 -2
+1100   2  1  1
+1001   2  1 -1
+2000   2  2  0
+0110   2 -1  1
+0011   2 -1 -1
+0020   2 -2  0
+0201   3  0  1      1110   3  0  1                          *01010100  11100000 *10100100
+0102   3  0 -1      1011   3  0 -1
+1101   3  1  0      2010   3  1  0
+1200   3  1  2
+1002   3  1 -2
+2100   3  2  1
+2001   3  2 -1
+0111   3 -1  0      1020   3 -1  0
+0210   3 -1  2
+0012   3 -1 -2
+0120   3 -2  1
+0021   3 -2 -1
+0202   4  0  0      1111   4  0  0       2020   4  0  0
+1210   4  0  2
+1012   4  0 -2
+1201   4  1  1      2110   4  1  1
+1102   4  1 -1      2011   4  1 -1
+2101   4  2  0
+2200   4  2  2
+2002   4  2 -2
+0211   4 -1  1      1120   4 -1  1
+0112   4 -1 -1      1021   4 -1 -1
+0121   4 -2  0
+0220   4 -2  2
+0022   4 -2 -2
+1211   5  0  1      2120   5  0  1
+1112   5  0 -1      2021   5  0 -1
+1202   5  1  0      2111   5  1  0
+2210   5  1  2
+2012   5  1 -2
+2201   5  2  1
+2102   5  2 -1
+0212   5 -1  0      1121   5 -1  0
+1220   5 -1  2
+1022   5 -1 -2
+0221   5 -2  1
+0122   5 -2 -1
+1212   6  0  0      2121   6  0  0
+2220   6  0  2
+2022   6  0 -2
+2211   6  1  1
+2112   6  1 -1
+2202   6  2  0
+1221   6 -1  1
+1122   6 -1 -1
+0222   6 -2  0
+2221   7  0  1
+2122   7  0 -1
+2212   7  1  0
+1222   7 -1  0
+2222   8  0  0
+
+
+
+Table of look offsets needs to contain 50x240 = 12000 entries = 48000 bytes. So can't really unroll that whole table into code
+
