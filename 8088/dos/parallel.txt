@@ -6,6 +6,19 @@ Use standard cable:
 5 <=> 10
 6 <=> 11
 
+Parallel cable I made:
+  USB white     2                      15
+  USB green     3                      13
+  USB black     4                      12
+  USB red       5                      10
+  brown         17 18 19 21 22 23 25   17 18 19 21 22 23 25
+  brown/white   15                     2
+  green         6                      11
+  green/white   13                     3
+  orange        11                     6
+  orange/white  10                     5
+  blue          17 18 19 21 22 23 25   17 18 19 21 22 23 25
+  blue/white    12                     4
 
 
 PLIP uses Ack (pin 10) to indicate nybble
