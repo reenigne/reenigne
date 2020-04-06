@@ -313,7 +313,7 @@ private:
     template<class U> friend class DirectoryT;
     friend class Console;
 
-    template<class U> friend void applyToWildcard(U functor,
+    template<class U> friend void applyToWildcard(U& functor,
         const String& wildcard, int recurseIntoDirectories,
         const DirectoryT<T>& relativeTo);
 };
@@ -343,17 +343,19 @@ public:
     {
         return File(child(fileName));
     }
-    template<class F> void applyToContents(F functor, bool recursive,
+    template<class F> void applyToContents(F& functor, bool recursive,
         const String& wildcard = "*") const
     {
         FindHandleT<T> handle(*this, wildcard);
         while (!handle.complete()) {
             if (handle.isDirectory()) {
-                Directory child = handle.directory();
-                if (recursive)
-                    child.applyToContents(functor, true);
-                else
-                    functor(child);
+                if (!handle.isSymlink()) {
+                    Directory child = handle.directory();
+                    if (recursive)
+                        child.applyToContents(functor, true);
+                    else
+                        functor(child);
+                }
             }
             else
                 functor(handle.file());
@@ -694,8 +696,7 @@ public:
     FileStreamT<T> openAppend() const
     {
 #ifdef _WIN32
-        return open(name(), GENERIC_WRITE, 0, OPEN_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL);
+        return open(GENERIC_WRITE, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL);
 #else
         return open(name(), O_WRONLY | O_APPEND);
 #endif
@@ -796,8 +797,8 @@ private:
     friend class Console;
 };
 
-template<class T> void applyToWildcard(T functor, CharacterSourceT<T> s,
-    int recurseIntoDirectories, Directory directory)
+template<class T, class V = Void> void applyToWildcard(T& functor,
+	CharacterSourceT<V> s, int recurseIntoDirectories, Directory directory)
 {
     int subDirectoryStart = s.offset();
     int c = s.get();
@@ -888,12 +889,12 @@ template<class T> void applyToWildcard(T functor, CharacterSourceT<T> s,
         }
         else
             if (c == -1)
-                functor(handle.file());
+                functor((File)handle.file());
         handle.next();
     }
 }
 
-template<class T> void applyToWildcard(T functor, const String& wildcard,
+template<class T> void applyToWildcard(T& functor, const String& wildcard,
     int recurseIntoDirectories = true,
     const Directory& relativeTo = CurrentDirectory())
 {
