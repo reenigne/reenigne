@@ -649,11 +649,15 @@ outputCharacterRoutine:
   jne .noKeyboard
   push ds
   push si
+  push di
   push bx
   push cx
+  push dx
   call sendChar
+  pop dx
   pop cx
   pop bx
+  pop di
   pop si
   pop ds
 .noKeyboard:
