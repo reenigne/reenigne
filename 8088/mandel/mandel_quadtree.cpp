@@ -157,7 +157,7 @@ public:
         _sequencer.setROM(
             File(configFile->get<String>("cgaROM"), configPath.parent()));
 
-        _output->setConnector(1);  // new composite,  0 for RGBI
+        _output->setConnector(1);  // old composite,  0 for RGBI
         _output->setScanlineProfile(0);    // rectangle
         _output->setHorizontalProfile(0);  // rectangle
         _output->setScanlineWidth(1);
