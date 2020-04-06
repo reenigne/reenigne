@@ -29,5 +29,11 @@
     <ClInclude Include="..\..\include\alfe\main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="xtce.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\..\include\alfe.natvis" />
   </ItemGroup>
 </Project>
