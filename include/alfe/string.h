@@ -704,7 +704,7 @@ String::Hex hex(int n, int digits = 8, bool ox = true)
     return String::Hex(n, digits, ox);
 }
 
-String::Decimal decimal(int n) { return String::Decimal(n); }
+String::Decimal decimal(int n, int w = 0) { return String::Decimal(n, w); }
 String::CodePoint codePoint(int n) { return String::CodePoint(n); }
 
 String format(const char* format, ...)
