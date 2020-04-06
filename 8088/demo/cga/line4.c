@@ -332,14 +332,14 @@ noAdjust0:
   jle noAdjust1        ; 2 0  8  4/16
   add di,ax            ; 2 0  8  3
   xchg sp,ax           ; 1 0  4  3
-  sub si,di            ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
 noAdjust1:
   xor [di],cl          ; 2 2 16 21
   add si,bp            ; 2 0  8  3
   jle noAdjust2        ; 2 0  8  4/16
   add di,ax            ; 2 0  8  3
   xchg sp,ax           ; 1 0  4  3
-  sub si,di            ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
 noAdjust2:
   xor [di],ch          ; 2 2 16 21
   inc di               ; 1 0  4  2
@@ -347,8 +347,49 @@ noAdjust2:
   jle noAdjust3        ; 2 0  8  4/16
   add di,ax            ; 2 0  8  3
   xchg sp,ax           ; 1 0  4  3
-  sub si,di            ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
 noAdjust3:
+
+// Without using SP:
+
+lineLoop0:
+  xor [di],dl          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust0        ; 2 0  8  4/16
+  add di,8192          ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
+  jmp noAdjust0_1
+noAdjust0:
+  xor [di],dh          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust1        ; 2 0  8  4/16
+  add di,8192          ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
+  jmp noAdjust1_1
+noAdjust0_1:
+  xor [di],dh          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust1_1      ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  sub si,bx            ; 2 0  8  3
+noAdjust1:
+  xor [di],cl          ; 2 2 16 21
+  add si,bp            ; 2 0  8  3
+  jle noAdjust2        ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,bx            ; 2 0  8  3
+noAdjust2:
+  xor [di],ch          ; 2 2 16 21
+  inc di               ; 1 0  4  2
+  add si,bp            ; 2 0  8  3
+  jle noAdjust3        ; 2 0  8  4/16
+  add di,ax            ; 2 0  8  3
+  xchg sp,ax           ; 1 0  4  3
+  sub si,bx            ; 2 0  8  3
+noAdjust3:
+
+
 
 // Erase: 12 IOs for 4 pixels (80 iterations needed @ 11 bytes per = 880 bytes):
 lineLoop0:
