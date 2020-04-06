@@ -196,14 +196,71 @@ public:
         }
 
         class Iterator
+          : public std::iterator<std::random_access_iterator_tag, T>
         {
         public:
+            using difference_type =
+                typename std::iterator<std::random_access_iterator_tag, T>::
+                difference_type;
+
             Iterator() : _p(0) { }
-            T& operator*() { return *_p; }
+            T& operator[](difference_type n) const { return _p[n]; }
+            T& operator*() const { return *_p; }
             T* operator->() { return _p; }
             const Iterator& operator++() { ++_p; return *this; }
-            bool operator==(const Iterator& other) { return _p == other._p; }
-            bool operator!=(const Iterator& other) { return _p != other._p; }
+            const Iterator& operator--() { --_p; return *this; }
+            Iterator operator++(int) { Iterator r = *this; ++_p; return r; }
+            Iterator operator--(int) { Iterator r = *this; --_p; return r; }
+            const Iterator& operator+=(difference_type n) { _p += n; return *this; }
+            const Iterator& operator-=(difference_type n) { _p -= n; return *this; }
+            Iterator operator+(difference_type n) const
+            {
+                Iterator r = *this;
+                r += n;
+                return r;
+            }
+            Iterator operator-(difference_type n) const
+            {
+                Iterator r = *this;
+                r -= n;
+                return r;
+            }
+            friend inline Iterator operator+(difference_type n, const Iterator& a)
+            {
+                return a + n;
+            }
+            friend inline Iterator operator-(difference_type n, const Iterator& a)
+            {
+                return a - n;
+            }
+            bool operator==(const Iterator& other) const
+            {
+                return _p == other._p;
+            }
+            bool operator!=(const Iterator& other) const
+            {
+                return _p != other._p;
+            }
+            bool operator<(const Iterator& other) const
+            {
+                return _p < other._p;
+            }
+            bool operator>(const Iterator& other) const
+            {
+                return _p > other._p;
+            }
+            bool operator<=(const Iterator& other) const
+            {
+                return _p <= other._p;
+            }
+            bool operator>=(const Iterator& other) const
+            {
+                return _p >= other._p;
+            }
+            ptrdiff_t operator-(const Iterator& other) const
+            {
+                return _p - other._p;
+            }
         private:
             T* _p;
             Iterator(T* p) : _p(p) { }
@@ -211,19 +268,89 @@ public:
         };
 
         class ConstIterator
+          : public std::iterator<std::random_access_iterator_tag, T>
         {
+            using difference_type =
+                typename std::iterator<std::random_access_iterator_tag, T>::
+                difference_type;
         public:
             ConstIterator() : _p(0) { }
+            const T& operator[](difference_type n) const { return _p[n]; }
             const T& operator*() const { return *_p; }
             const T* operator->() const { return _p; }
             const ConstIterator& operator++() { ++_p; return *this; }
-            bool operator==(const ConstIterator& other)
+            const ConstIterator& operator--() { --_p; return *this; }
+            ConstIterator operator++(int)
+            {
+                ConstIterator r = *this;
+                ++_p;
+                return r;
+            }
+            ConstIterator operator--(int)
+            {
+                ConstIterator r = *this;
+                --_p;
+                return r;
+            }
+            const ConstIterator& operator+=(difference_type n)
+            {
+                _p += n;
+                return *this;
+            }
+            const ConstIterator& operator-=(difference_type n)
+            {
+                _p -= n;
+                return *this;
+            }
+            const ConstIterator& operator+(difference_type n) const
+            {
+                ConstIterator r = *this;
+                r += n;
+                return r;
+            }
+            const ConstIterator& operator-(difference_type n) const
+            {
+                ConstIterator r = *this;
+                r -= n;
+                return r;
+            }
+            friend inline Iterator operator+(difference_type n,
+                const ConstIterator& a)
+            {
+                return a + n;
+            }
+            friend inline Iterator operator-(difference_type n,
+                const ConstIterator& a)
+            {
+                return a - n;
+            }
+            bool operator==(const ConstIterator& other) const
             {
                 return _p == other._p;
             }
-            bool operator!=(const ConstIterator& other)
+            bool operator!=(const ConstIterator& other) const
             {
                 return _p != other._p;
+            }
+            bool operator<(const ConstIterator& other) const
+            {
+                return _p < other._p;
+            }
+            bool operator>(const ConstIterator& other) const
+            {
+                return _p > other._p;
+            }
+            bool operator<=(const ConstIterator& other) const
+            {
+                return _p <= other._p;
+            }
+            bool operator>=(const ConstIterator& other) const
+            {
+                return _p >= other._p;
+            }
+            ptrdiff_t operator-(const ConstIterator& other) const
+            {
+                return other._p - _p;
             }
         private:
             const T* _p;
@@ -294,6 +421,7 @@ public:
                 body()->constructT(p);
         }
     }
+	Array(const AppendableArray<T>& a) { *this = Handle(a); }
     explicit Array(int n)
     {
         if (n != 0)
@@ -554,6 +682,9 @@ private:
     // For access to body().
     template<class Key, class Value> friend class HashTable;
     template<class Key> friend class Set;
+
+	// For conversion to Handle
+	template<class U> friend class Array;
 };
 
 #endif // INCLUDED_ARRAY_H
