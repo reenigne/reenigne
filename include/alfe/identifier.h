@@ -17,13 +17,13 @@ template<class T> class IdentifierT : public ExpressionT<T>
     {
     public:
         Body(const Span& span) : Expression::Body(span) { }
-        Identifier identifier() const { return handle<Handle>(); }
+        Identifier identifier() const { return this->handle<Handle>(); }
         ValueT<T> evaluate(Structure* context) const
         {
             return _path.evaluate(context, identifier());
         }
         virtual bool isOperator() const = 0;
-        void resolve(Scope* scope)
+        void resolve(ScopeT<T>* scope)
         {
             _definition = scope->resolveVariable(identifier(), &_path);
         }
