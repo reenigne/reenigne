@@ -3,6 +3,8 @@
 #ifndef INCLUDED_STATEMENT_H
 #define INCLUDED_STATEMENT_H
 
+#include "alfe/parse_tree_object.h"
+
 template<class T> class StatementT;
 typedef StatementT<void> Statement;
 
@@ -271,6 +273,7 @@ private:
 class StatementSequence : public ParseTreeObject
 {
 public:
+	StatementSequence() { }
     static StatementSequence parse(CharacterSource* source)
     {
         Span span;
@@ -285,6 +288,8 @@ public:
         return create<Body>(sequence, span);
     }
     void resolve(Scope* scope) { body()->resolve(scope); }
+	List<Statement>::Iterator begin() { return body()->begin(); }
+	List<Statement>::Iterator end() { return body()->end(); }
 private:
     StatementSequence(Handle other) : ParseTreeObject(other) { }
 
@@ -298,6 +303,8 @@ private:
             for (auto s : _sequence)
                 s.resolve(scope);
         }
+		List<Statement>::Iterator begin() { return _sequence.begin(); }
+		List<Statement>::Iterator end() { return _sequence.end(); }
     private:
         List<Statement> _sequence;
     };
