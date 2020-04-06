@@ -49,6 +49,11 @@ public:
     {
         return (_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     }
+    bool isSymlink() const
+    {
+        return (_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
+            _data.dwReserved0 == IO_REPARSE_TAG_SYMLINK;
+    }
     String name() const
     {
         return _data.cFileName;
