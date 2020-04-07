@@ -6,7 +6,8 @@
 class NamedPipe
 {
 public:
-    NamedPipe(String name = "", int size = 4096, int timeOut = 120)
+    NamedPipe(String name = "", int size = 4096, int timeOut = 120,
+        bool overlappedRead = false, bool overlappedWrite = false)
     {
         if (name == "") {
             static volatile long unique;
@@ -22,7 +23,7 @@ public:
         NullTerminatedWideString data(name);
         HANDLE r = CreateNamedPipe(
             data,
-            PIPE_ACCESS_INBOUND /*| readMode */,
+            PIPE_ACCESS_INBOUND | (overlappedRead ? FILE_FLAG_OVERLAPPED : 0),
             PIPE_TYPE_BYTE | PIPE_WAIT,
             1,
             size,
@@ -38,7 +39,8 @@ public:
             0,                         // No sharing
             &sa,
             OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL /*| dwWriteMode*/,
+            FILE_ATTRIBUTE_NORMAL
+              | (overlappedWrite ? FILE_FLAG_OVERLAPPED : 0),
             NULL                       // Template file
         );
         IF_FALSE_THROW(w != INVALID_HANDLE_VALUE);

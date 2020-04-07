@@ -300,7 +300,7 @@ public:
     {
         _serialPort = serialPort;
         memset(&_overlapped, 0, sizeof(OVERLAPPED));
-        _overlappedEvent = Event(CreateEvent(NULL, TRUE, FALSE, NULL));
+        _overlappedEvent = Event(true);
         _overlapped.hEvent = _overlappedEvent;
     }
     void threadProc()

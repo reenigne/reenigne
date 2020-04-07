@@ -2,6 +2,7 @@
 #include "alfe/config_file.h"
 #include "alfe/windows_handle.h"
 #include "alfe/named_pipe.h"
+#include "alfe/thread.h"
 
 class Execute
 {
@@ -39,19 +40,50 @@ public:
         dueTime.QuadPart = -timeout * 10000000;
         IF_ZERO_THROW(SetWaitableTimer(hT, &dueTime, 0, NULL, NULL, FALSE));
 
-
+        OVERLAPPED overlapped = { 0 };
+        Event event(true);
+        overlapped.hEvent = event;
+        int bufferLength = 0x10000;
+        DWORD bytesRead = 0;
+        Array<char> buffer(bufferLength);
+        BOOL rr = ReadFile(pipe.read(), &buffer[0], bufferLength,
+            &bytesRead, &overlapped);
+        if (rr == 0)
+            IF_FALSE_THROW(GetLastError() == ERROR_IO_PENDING);
 
         HANDLE handles[3] = {
             hTimer,
             hProcess,
+            event
+        };
+        int events = 3;
 
-        }
-
-        _timedOut =
-            (WaitForSingleObject(hCapture, timeout * 1000) != WAIT_OBJECT_0);
-        if (_timedOut)
-            IF_FALSE_THROW(TerminateProcess(pi.hProcess, 0) != 0);
-        IF_FALSE_THROW(GetExitCodeProcess(pi.hProcess, &_result) != 0);
+        do {
+            int r = WaitForMultipleObjects(events, &handles[0], FALSE,
+                INFINITE);
+            switch (r) {
+                case 0:
+                    _timedOut = true;
+                    IF_FALSE_THROW(TerminateProcess(hProcess, 0) != 0);
+                    break;
+                case 1:
+                    IF_FALSE_THROW(
+                        GetExitCodeProcess(pi.hProcess, &_result) != 0);
+                    break;
+                case 2:
+                    DWORD bytes;
+                    IF_ZERO_THROW(GetOverlappedResult(pipe.read(),
+                        &overlapped, &bytes, TRUE));
+                    _output += String(&buffer[0], bytes, true);
+                    if (GetLastError() != ERROR_HANDLE_EOF) {
+                        BOOL rr = ReadFile(pipe.read(), &buffer[0],
+                            bufferLength, &bytesRead, &overlapped);
+                        if (rr == 0)
+                            IF_FALSE_THROW(GetLastError() == ERROR_IO_PENDING);
+                    }
+                    break;
+            }
+        } while (true);
     }
     bool timedOut() { return _timedOut; }
     int result() { return _result; }

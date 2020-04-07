@@ -245,8 +245,9 @@ public:
     };
 
     StringTemplate() : StringTemplate(0, 0, 0) { }
-    StringTemplate(const char* data, int length)
-      : StringTemplate(reinterpret_cast<const T*>(data), length, length, false)
+    StringTemplate(const char* data, int length, bool owning = false)
+      : StringTemplate(reinterpret_cast<const T*>(data), length, length,
+          owning)
     { }
     StringTemplate(const char* data)
       : StringTemplate(data, static_cast<int>(strlen(data))) { }

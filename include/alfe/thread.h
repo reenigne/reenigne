@@ -9,11 +9,12 @@
 class Event : public WindowsHandle
 {
 public:
-    Event()
+    Event(bool manualReset = false)
     {
-        HANDLE handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+        HANDLE handle = CreateEvent(NULL, manualReset ? TRUE : FALSE, FALSE,
+            NULL);
         IF_NULL_THROW(handle);
-        WindowsHandle::operator=(handle);
+        *this = handle;
     }
     Event(HANDLE handle) : WindowsHandle(handle) { }
     void signal() { IF_ZERO_THROW(SetEvent(*this)); }

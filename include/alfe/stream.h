@@ -14,7 +14,7 @@ public:
 #ifdef _WIN32
     StreamT() : WindowsHandle() { }
     StreamT(HANDLE handle, const File& file = File(), bool own = true)
-      : WindowsHandle(handle, own), _file(file) { }
+      : WindowsHandle(create<Body>(*this, handle, own)), _file(file) { }
     HANDLE handle() const { return operator HANDLE(); }
 #else
     StreamT() : Handle(create<Body>()), _fileDescriptor(-1) { }
@@ -210,22 +210,26 @@ private:
         return readResult;
 #endif
     }
-    class Body : public Handle::Body
+    class Body
+#ifdef _WIN32
+      : public WindowsHandle::Body
+#else
+      : public Handle::Body
+#endif
     {
     public:
+        Body(const Stream& stream, HANDLE handle, bool own)
+          : _stream(stream),
+#ifdef _WIN32
+            WindowsHandle::Body(handle)
+
+        {
+        }
+        ~Body() { _stream.close(); }
+        StreamT<T> _stream;
         mutable CircularBuffer<Byte> _buffer;
     };
     const Body* body() const { return as<Body>(); }
-    class OwningBody : public Body
-    {
-    public:
-        OwningBody(Stream stream) : _stream(stream) { }
-        ~OwningBody()
-        {
-            _stream.close();
-        }
-        StreamT<T> _stream;
-    };
 
 //#ifdef _WIN32
 //    StreamT(HANDLE handle, const File& file, const Handle& other)
