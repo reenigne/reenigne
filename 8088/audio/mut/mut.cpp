@@ -653,7 +653,7 @@ public:
         int bytesPerSecond = outputWaveRate * blockAlign;
         int count = static_cast<int>(length.toDouble());
         int l = count * bytesPerSecond;
-        AutoStream st = File(outputWave).openWrite();
+        Stream st = File(outputWave).openWrite();
         st.write("RIFF");
         st.write<UInt32>(l + 0x20);
         st.write("WAVEfmt ");

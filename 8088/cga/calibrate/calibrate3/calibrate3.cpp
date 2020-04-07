@@ -119,14 +119,14 @@ public:
 
         _top = Bitmap<SRGB>(Vector(760, 240));
         _bottom = Bitmap<SRGB>(Vector(760, 240));
-        AutoStream topStream = File("q:\\top_decoded.raw", true).openRead();
-        AutoStream bottomStream = File("q:\\bottom_decoded.raw", true).openRead();
+        Stream topStream = File("q:\\top_decoded.raw", true).openRead();
+        Stream bottomStream = File("q:\\bottom_decoded.raw", true).openRead();
         topStream.read(_top.data(), 760*240*3);
         bottomStream.read(_bottom.data(), 760*240*3);
         _topRaw.allocate(450*1024);
         _bottomRaw.allocate(450*1024);
-        AutoStream topRawStream = File("q:\\top.raw", true).openRead();
-        AutoStream bottomRawStream = File("q:\\bottom.raw", true).openRead();
+        Stream topRawStream = File("q:\\top.raw", true).openRead();
+        Stream bottomRawStream = File("q:\\bottom.raw", true).openRead();
         topRawStream.read(&_topRaw[0], 450*1024);
         bottomRawStream.read(&_bottomRaw[0], 450*1024);
 

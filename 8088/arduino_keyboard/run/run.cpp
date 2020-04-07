@@ -27,7 +27,7 @@ public:
         String data = File(fileName, true).contents();
         int l = data.length();
 
-        _com = AutoStream(CreateFile(
+        _com = Stream(CreateFile(
             L"COM2",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access

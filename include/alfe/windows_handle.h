@@ -14,6 +14,10 @@ public:
     { }
     bool valid() const { return _handle != INVALID_HANDLE_VALUE; }
     operator HANDLE() const { return _handle; }
+    void setHandleInformation(DWORD dwMask, DWORD dwFlags)
+    {
+        IF_ZERO_THROW(SetHandleInformation(*this, dwMask, dwFlags));
+    }
 private:
     class Body : public ConstHandle::Body { };
     class NonOwningBody : public Body { };

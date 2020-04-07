@@ -20,12 +20,13 @@ public:
                 "</head>\n"
                 "<body><h1>XT Server</h1>\n<p>");
         try {
-            Stream in(GetStdHandle(STD_INPUT_HANDLE));
+            Stream in(GetStdHandle(STD_INPUT_HANDLE),
+                String("standard input"), false);
 
             bool eof;
             String process = in.readString(&eof, 80);
 
-            AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+            Stream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
             s.write<int>(0);                 // emailLength
             s.write<int>(process.length());  // fileNameLength
             s.write(process);                // fileName

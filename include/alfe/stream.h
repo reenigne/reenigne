@@ -3,19 +3,19 @@
 #ifndef INCLUDED_STREAM_H
 #define INCLUDED_STREAM_H
 
-template<class T> class StreamT : public Handle
+template<class T> class StreamT
+#ifdef _WIN32
+  : public WindowsHandle
+#else
+  : public Handle
+#endif
 {
 public:
 #ifdef _WIN32
-    StreamT()
-      : Handle(create<Body>()), _handle(INVALID_HANDLE_VALUE) { }
-    StreamT(HANDLE handle, const File& file = File())
-      : Handle(create<Body>()), _handle(handle), _file(file) { }
-    operator HANDLE() const { return _handle; }
-    bool valid() const
-    {
-        return _handle != INVALID_HANDLE_VALUE && _handle != NULL;
-    }
+    StreamT() : WindowsHandle() { }
+    StreamT(HANDLE handle, const File& file = File(), bool own = true)
+      : WindowsHandle(handle, own), _file(file) { }
+    HANDLE handle() const { return operator HANDLE(); }
 #else
     StreamT() : Handle(create<Body>()), _fileDescriptor(-1) { }
     StreamT(int fileDescriptor, const File& file = File())
@@ -51,7 +51,7 @@ public:
             return;
 #ifdef _WIN32
         DWORD bytesWritten;
-        if (WriteFile(_handle, buffer, bytes, &bytesWritten, NULL) == 0 ||
+        if (WriteFile(handle(), buffer, bytes, &bytesWritten, NULL) == 0 ||
             bytesWritten != bytes)
             throw Exception::systemError("Writing file " + _file.path());
 #else
@@ -181,9 +181,7 @@ public:
     void close()
     {
 #ifdef _WIN32
-        if (_handle != INVALID_HANDLE_VALUE)
-            CloseHandle(_handle);
-        _handle = INVALID_HANDLE_VALUE;
+        *this = Stream();
 #else
         if (_fileDescriptor != -1)
             ::close(_fileDescriptor);
@@ -197,7 +195,7 @@ private:
             return 0;
 #ifdef _WIN32
         DWORD bytesRead;
-        if (ReadFile(_handle, destination, bytes, &bytesRead, NULL) == 0) {
+        if (ReadFile(handle(), destination, bytes, &bytesRead, NULL) == 0) {
             DWORD error = GetLastError();
             if (error == ERROR_HANDLE_EOF || error == ERROR_BROKEN_PIPE ||
                 error == ERROR_PIPE_NOT_CONNECTED)
@@ -229,37 +227,20 @@ private:
         StreamT<T> _stream;
     };
 
-#ifdef _WIN32
-    StreamT(HANDLE handle, const File& file, const Handle& other)
-      : Handle(other), _handle(handle), _file(file) { }
-#else
-    StreamT(int fileDescriptor, const File& file, const Handle& other)
-      : Handle(other), _fileDescriptor(fileDescriptor), _file(file) { }
-#endif
+//#ifdef _WIN32
+//    StreamT(HANDLE handle, const File& file, const Handle& other)
+//      : Handle(other), _handle(handle), _file(file) { }
+//#else
+//    StreamT(int fileDescriptor, const File& file, const Handle& other)
+//      : Handle(other), _fileDescriptor(fileDescriptor), _file(file) { }
+//#endif
 
-#ifdef _WIN32
-    HANDLE _handle;
-#else
+#ifndef _WIN32
     int _fileDescriptor;
 #endif
     File _file;
 
     friend class Body;
-    friend class AutoStreamT<void>;
-};
-
-template<class T> class AutoStreamT : public Stream
-{
-public:
-    AutoStreamT() { }
-#ifdef _WIN32
-    AutoStreamT(HANDLE handle, const File& file = File())
-      : Stream(handle, file, create<OwningBody>(Stream(handle, file))) { }
-#else
-    AutoStreamT(int fileDescriptor, const File& file = File())
-      : Stream(fileDescriptor, file,
-        create<OwningBody>(Stream(fileDescriptor, file))) { }
-#endif
 };
 
 #endif // INCLUDED_STREAM_H

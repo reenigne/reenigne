@@ -163,14 +163,15 @@ class Program : public WindowProgram<KeyboardWindow>
 public:
     void run()
     {
-        _com = AutoStream(CreateFile(
+        _com = Stream(CreateFile(
             L"COM3",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
             NULL,           // default security attributes
             OPEN_EXISTING,  // must use OPEN_EXISTING
             0,              // not overlapped I/O
-            NULL));         // hTemplate must be NULL for comm devices
+            NULL),          // hTemplate must be NULL for comm devices
+            String("COM3"));
 
         DCB deviceControlBlock;
         SecureZeroMemory(&deviceControlBlock, sizeof(DCB));

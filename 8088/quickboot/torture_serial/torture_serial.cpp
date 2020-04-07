@@ -11,13 +11,13 @@ public:
                 runtest(divisor);
             } catch (...) { }
             console.write(String("\n"));
-            _com = AutoStream();
+            _com = Stream();
         }
     }
 
     void runtest(int divisor)
     {
-        _com = AutoStream(CreateFile(
+        _com = Stream(CreateFile(
             L"COM1",
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access

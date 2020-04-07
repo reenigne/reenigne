@@ -280,8 +280,8 @@ public:
         _output = Bitmap<SRGB>(Vector(1536, 1024));
         _rgb = ColourSpace::rgb();
 
-        AutoStream st = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
-        AutoStream sb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
+        Stream st = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
+        Stream sb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
 
         static const int samples = 450*1024;
         static const int sampleSpaceBefore = 256;

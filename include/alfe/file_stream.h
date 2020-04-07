@@ -3,14 +3,15 @@
 #ifndef INCLUDED_FILE_STREAM_H
 #define INCLUDED_FILE_STREAM_H
 
-template<class T> class FileStreamT : public AutoStream
+template<class T> class FileStreamT : public Stream
 {
 public:
 #ifdef _WIN32
-    FileStreamT(HANDLE handle, const File& file) : AutoStream(handle, file) { }
+    FileStreamT(HANDLE handle, const File& file)
+      : Stream(handle, file, true) { }
 #else
     FileStreamT(int fileDescriptor, const File& file)
-      : AutoStream(fileDescriptor, file) { }
+      : Stream(fileDescriptor, file, true) { }
 #endif
 #ifndef _WIN32
     void sync()

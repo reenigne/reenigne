@@ -41,6 +41,7 @@ bool alerting = false;
 #include "alfe/file.h"
 #include "alfe/find_handle.h"
 #include "alfe/circular_buffer.h"
+#include "alfe/windows_handle.h"
 #include "alfe/stream.h"
 #include "alfe/file_stream.h"
 #include "alfe/character_source.h"
@@ -148,7 +149,8 @@ private:
         }
 
         BEGIN_CHECKED {
-            console = Stream(GetStdHandle(STD_OUTPUT_HANDLE), Console());
+            console = Stream(GetStdHandle(STD_OUTPUT_HANDLE), Console(),
+                false);
             // We can't validate console here because we might be in a GUI
             // program where there is no console.
             //if (!console.valid())

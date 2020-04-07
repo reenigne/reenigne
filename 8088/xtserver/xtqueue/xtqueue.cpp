@@ -365,7 +365,7 @@ public:
         _overlapped.hEvent = _overlappedEvent;
 
         NullTerminatedWideString snifferPath(_port);
-        _stream = AutoStream(CreateFile(
+        _stream = Stream(CreateFile(
             snifferPath,
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -554,7 +554,7 @@ private:
             }
             void write(File file)
             {
-                AutoStream stream = file.openWrite();
+                Stream stream = file.openWrite();
                 stream.write("RIFF");
                 stream.write<UInt32>(_bytes + 0x24);
                 stream.write("WAVEfmt ");
@@ -614,7 +614,7 @@ public:
 
         // Open handle to Arduino for rebooting machine
         NullTerminatedWideString quickBootPath(quickBootPort);
-        _arduinoCom = AutoStream(CreateFile(
+        _arduinoCom = Stream(CreateFile(
             quickBootPath,
             GENERIC_READ | GENERIC_WRITE,
             0,              // must be opened with exclusive-access
@@ -1686,7 +1686,7 @@ public:
         while (true)
         {
             console.write("Waiting for connection\n");
-            AutoStream s =
+            Stream s =
                 File(configFile.get<String>("pipe"), true).createPipe();
 
             bool connected = (ConnectNamedPipe(s, NULL) != 0) ? true :

@@ -119,6 +119,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\alfe\expression.h" />
+    <ClInclude Include="..\include\alfe\file.h" />
+    <ClInclude Include="..\include\alfe\file_stream.h" />
+    <ClInclude Include="..\include\alfe\named_pipe.h" />
+    <ClInclude Include="..\include\alfe\stream.h" />
+    <ClInclude Include="..\include\alfe\windows_handle.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

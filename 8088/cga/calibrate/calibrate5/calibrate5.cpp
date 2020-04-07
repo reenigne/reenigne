@@ -358,7 +358,7 @@ public:
         //Array<Byte> data(1024);
         //for (int i = 0; i < 1024; ++i)
         //    data[i] = static_cast<Byte>(_tSamples[i]*256);
-        AutoStream h = File("output.dat").openWrite();
+        Stream h = File("output.dat").openWrite();
         h.write(reinterpret_cast<Byte*>(&_tSamples[0]), 1024*sizeof(double));
     }
     void setCalibrateWindow(CalibrateWindow* window)
@@ -374,8 +374,8 @@ public:
         double contrast = 1.052;
         _aPower = 0;
 
-        AutoStream st = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
-        AutoStream sb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
+        Stream st = File("q:\\Pictures\\reenigne\\top.raw", true).openRead();
+        Stream sb = File("q:\\Pictures\\reenigne\\bottom.raw", true).openRead();
 
         static const int samples = 450*1024;
         static const int sampleSpaceBefore = 256;
@@ -409,8 +409,8 @@ public:
         decoder.decode(bt, _top);
         decoder.decode(bb, _bottom);
 
-        //AutoStream topStream = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
-        //AutoStream bottomStream = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
+        //Stream topStream = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
+        //Stream bottomStream = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
         //topStream.read(_top.data(), 760*240*3);
         //bottomStream.read(_bottom.data(), 760*240*3);
 

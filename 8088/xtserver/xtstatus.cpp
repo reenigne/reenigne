@@ -11,7 +11,7 @@ public:
             "Content-Type: text/javascript; charset=utf-8'\n\n");
         console.write("updateStatus('");
         try {
-            AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+            Stream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
             s.write<int>(0);    // emailLength
             s.write<int>(0);    // fileNameLength
             s.write<int>(0);    // dataLength

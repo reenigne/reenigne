@@ -226,6 +226,6 @@ private:
     Queue _compressedFrames;
     WriteThread _writeThread;
     ThreadPool _compressPool;
-    AutoStream _outputStream;
+    Stream _outputStream;
     List<CompressTask*> _tasks;
 };

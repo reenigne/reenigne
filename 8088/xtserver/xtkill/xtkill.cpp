@@ -11,7 +11,7 @@ public:
         if (_arguments.count() > 1)
             process = _arguments[1];
 
-        AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+        Stream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
         s.write<int>(0);                 // emailLength
         s.write<int>(process.length());  // fileNameLength
         s.write(process);                // fileName

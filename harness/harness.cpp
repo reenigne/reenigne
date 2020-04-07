@@ -1,67 +1,7 @@
 #include "alfe/main.h"
 #include "alfe/config_file.h"
 #include "alfe/windows_handle.h"
-
-BOOL APIENTRY MyCreatePipeEx(OUT LPHANDLE lpReadPipe, OUT LPHANDLE lpWritePipe,
-    IN LPSECURITY_ATTRIBUTES lpPipeAttributes, IN DWORD nSize,
-    DWORD dwReadMode, DWORD dwWriteMode)
-{
-    HANDLE ReadPipeHandle, WritePipeHandle;
-    DWORD dwError;
-    WCHAR PipeNameBuffer[MAX_PATH];
-
-    //
-    //  Set the default timeout to 120 seconds
-    //
-
-    if (nSize == 0) {
-        nSize = 4096;
-    }
-
-    static volatile long PipeSerialNumber;
-
-    wsprintf(PipeNameBuffer,
-        L"\\\\.\\Pipe\\ALFEAnonymousPipe.%08x.%08x",
-        GetCurrentProcessId(),
-        InterlockedIncrement(&PipeSerialNumber)
-    );
-
-    ReadPipeHandle = CreateNamedPipe(
-        PipeNameBuffer,
-        PIPE_ACCESS_INBOUND | dwReadMode,
-        PIPE_TYPE_BYTE | PIPE_WAIT,
-        1,             // Number of pipes
-        nSize,         // Out buffer size
-        nSize,         // In buffer size
-        120 * 1000,    // Timeout in ms
-        lpPipeAttributes
-    );
-
-    if (!ReadPipeHandle) {
-        return FALSE;
-    }
-
-    WritePipeHandle = CreateFile(
-        PipeNameBuffer,
-        GENERIC_WRITE,
-        0,                         // No sharing
-        lpPipeAttributes,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL | dwWriteMode,
-        NULL                       // Template file
-    );
-
-    if (INVALID_HANDLE_VALUE == WritePipeHandle) {
-        dwError = GetLastError();
-        CloseHandle(ReadPipeHandle);
-        SetLastError(dwError);
-        return FALSE;
-    }
-
-    *lpReadPipe = ReadPipeHandle;
-    *lpWritePipe = WritePipeHandle;
-    return(TRUE);
-}
+#include "alfe/named_pipe.h"
 
 class Execute
 {
@@ -76,20 +16,8 @@ public:
         IF_NULL_THROW(hTimer);
         WindowsHandle hT(hTimer);
 
-        SECURITY_ATTRIBUTES saAttr;
-        saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-        saAttr.bInheritHandle = TRUE;
-        saAttr.lpSecurityDescriptor = NULL;
-
-        HANDLE hChildStd_OUT_Rd;
-        HANDLE hChildStd_OUT_Wr;
-        IF_FALSE_THROW(
-            CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0) != 0);
-        WindowsHandle hChildRead = hChildStd_OUT_Rd;
-        WindowsHandle hChildWrite = hChildStd_OUT_Wr;
-
-        IF_FALSE_THROW(SetHandleInformation(hChildStd_OUT_Rd,
-            HANDLE_FLAG_INHERIT, 0) != 0);
+        NamedPipe pipe;
+        pipe.read().setHandleInformation(HANDLE_FLAG_INHERIT, 0);
 
         PROCESS_INFORMATION pi;
         ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
@@ -97,8 +25,8 @@ public:
         STARTUPINFO si;
         ZeroMemory(&si, sizeof(STARTUPINFO));
         si.cb = sizeof(STARTUPINFO);
-        si.hStdError = hChildStd_OUT_Wr;
-        si.hStdOutput = hChildStd_OUT_Wr;
+        si.hStdError = pipe.write();
+        si.hStdOutput = pipe.write();
         si.hStdInput = NULL;
         si.dwFlags |= STARTF_USESTDHANDLES;
 

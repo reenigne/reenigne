@@ -1023,7 +1023,7 @@ private:
 
     Array<Byte> _buffer;
     Byte* _b;
-    AutoStream _vbiCapPipe;
+    Stream _vbiCapPipe;
     bool _doneCapture;
     NTSCCaptureDecoder _decoder;
 
@@ -1087,7 +1087,7 @@ private:
 
     CalibrateWindow* _calibrateWindow;
 
-    AutoStream _outputStream;
+    Stream _outputStream;
 };
 
 typedef CalibrateBitmapWindowT<void> CalibrateBitmapWindow;

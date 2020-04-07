@@ -43,7 +43,7 @@ public:
         _contrast = 0.95841076343534182;
         _brightness = -0.0089814384392818136;
 
-        AutoStream s = File("output.dat").openRead();
+        Stream s = File("output.dat").openRead();
         s.read(reinterpret_cast<Byte*>(_tSamples), 1024*sizeof(double));
         for (int i = 0; i < 1024; ++i)
             _tSamples[i] = _tSamples[i]*_contrast + _brightness;

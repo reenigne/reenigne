@@ -554,9 +554,6 @@ private:
 template<class T> class FileStreamT;
 typedef FileStreamT<void> FileStream;
 
-template<class T> class AutoStreamT;
-typedef AutoStreamT<void> AutoStream;
-
 template<class T> class FileT : public FileSystemObject
 {
 public:
@@ -739,27 +736,28 @@ private:
             *this);
     }
 public:
-    AutoStreamT<T> openPipe()
+    StreamT<T> openPipe()
     {
-        AutoStreamT<T> f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0,
+        StreamT<T> f = tryOpen(GENERIC_READ | GENERIC_WRITE, 0,
 			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL);
         if (!f.valid())
             throw Exception::systemError("Opening pipe " + path());
         return f;
     }
-    AutoStreamT<T> createPipe(bool overlapped = false)
+    StreamT<T> createPipe(bool overlapped = false)
     {
         NullTerminatedWideString data(path());
-        AutoStreamT<T> f(CreateNamedPipe(
+        StreamT<T> f(CreateNamedPipe(
             data,                // lpName
             PIPE_ACCESS_DUPLEX |
                 (overlapped ? FILE_FLAG_OVERLAPPED : 0),  // dwOpenMode
             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,  // dwPipeMode
             PIPE_UNLIMITED_INSTANCES,  // nMaxInstances
-            512,  // nOutBufferSize
-            512,  // nInBufferSize
-            0,    // nDefaultTimeOut
-            NULL));  // lpSecurityAttributes
+            512,   // nOutBufferSize
+            512,   // nInBufferSize
+            0,     // nDefaultTimeOut
+            NULL), // lpSecurityAttributes
+            *this);  
         if (!f.valid())
             throw Exception::systemError("Creating pipe " + path());
         return f;

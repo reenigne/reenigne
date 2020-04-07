@@ -45,7 +45,8 @@ public:
         try {
             try {
                 bool eof;
-                Stream in(GetStdHandle(STD_INPUT_HANDLE));
+                Stream in(GetStdHandle(STD_INPUT_HANDLE),
+                    String("Standard input"), false);
 
                 // Open a log file
                 SYSTEMTIME time;
@@ -273,7 +274,7 @@ public:
                     }
                 }
 
-                AutoStream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
+                Stream s = File("\\\\.\\pipe\\xtserver", true).openPipe();
                 s.write<int>(email.length());           // emailLength
                 s.write(email);                         // email
                 s.write<int>(fileName.length());        // fileNameLength

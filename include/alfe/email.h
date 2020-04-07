@@ -17,8 +17,8 @@ void sendMail(String from, String to, String subject, String body)
         throw Exception::systemError("Could not create pipe");
     }
 
-    AutoStream pipeRead(pipeReadHandle);
-    AutoStream pipeWrite(pipeWriteHandle);
+    Stream pipeRead(pipeReadHandle, File(), true);
+    Stream pipeWrite(pipeWriteHandle, File(), true);
 
     if (SetHandleInformation(pipeWriteHandle, HANDLE_FLAG_INHERIT, 0) == 0)
         throw Exception::systemError("Could not set write handle of input "

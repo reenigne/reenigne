@@ -118,7 +118,7 @@ public:
         //Array<Byte> data(1024);
         //for (int i = 0; i < 1024; ++i)
         //    data[i] = static_cast<Byte>(_tSamples[i]*256);
-        AutoStream h = File("output.dat").openWrite();
+        Stream h = File("output.dat").openWrite();
         h.write(reinterpret_cast<Byte*>(&_tSamples[0]), 1024*sizeof(double));
     }
 
@@ -132,8 +132,8 @@ public:
 
         _top = Bitmap<SRGB>(Vector(760, 240));
         _bottom = Bitmap<SRGB>(Vector(760, 240));
-        AutoStream topStream = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
-        AutoStream bottomStream = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
+        Stream topStream = File("q:\\pictures\\reenigne\\top_decoded.raw", true).openRead();
+        Stream bottomStream = File("q:\\pictures\\reenigne\\bottom_decoded.raw", true).openRead();
         topStream.read(_top.data(), 760*240*3);
         bottomStream.read(_bottom.data(), 760*240*3);
 

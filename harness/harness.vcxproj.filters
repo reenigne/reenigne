@@ -23,5 +23,20 @@
     <ClInclude Include="..\include\alfe\expression.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\alfe\file.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\file_stream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\stream.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\windows_handle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\named_pipe.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
