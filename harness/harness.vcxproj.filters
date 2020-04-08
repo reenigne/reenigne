@@ -38,5 +38,11 @@
     <ClInclude Include="..\include\alfe\named_pipe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\alfe\handle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\alfe\io_dispatch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

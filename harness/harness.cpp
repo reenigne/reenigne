@@ -3,95 +3,136 @@
 #include "alfe/windows_handle.h"
 #include "alfe/named_pipe.h"
 #include "alfe/thread.h"
+#include "alfe/io_dispatch.h"
 
 class Execute
 {
 public:
     Execute(File program, File argument, int timeout)
     {
-        String commandLine = "\"" + program.path() +
-            "\" \"" + argument.path() + "\"";
-        NullTerminatedWideString data(commandLine);
-
-        HANDLE hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
-        IF_NULL_THROW(hTimer);
-        WindowsHandle hT(hTimer);
-
-        NamedPipe pipe;
-        pipe.read().setHandleInformation(HANDLE_FLAG_INHERIT, 0);
-
-        PROCESS_INFORMATION pi;
-        ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
-
-        STARTUPINFO si;
-        ZeroMemory(&si, sizeof(STARTUPINFO));
-        si.cb = sizeof(STARTUPINFO);
-        si.hStdError = pipe.write();
-        si.hStdOutput = pipe.write();
-        si.hStdInput = NULL;
-        si.dwFlags |= STARTF_USESTDHANDLES;
-
-        IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0, NULL,
-            NULL, &si, &pi) != 0);
-        CloseHandle(pi.hThread);
-        WindowsHandle hProcess = pi.hProcess;
-
-        LARGE_INTEGER dueTime;
-        dueTime.QuadPart = -timeout * 10000000;
-        IF_ZERO_THROW(SetWaitableTimer(hT, &dueTime, 0, NULL, NULL, FALSE));
-
-        OVERLAPPED overlapped = { 0 };
-        Event event(true);
-        overlapped.hEvent = event;
-        int bufferLength = 0x10000;
-        DWORD bytesRead = 0;
-        Array<char> buffer(bufferLength);
-        BOOL rr = ReadFile(pipe.read(), &buffer[0], bufferLength,
-            &bytesRead, &overlapped);
-        if (rr == 0)
-            IF_FALSE_THROW(GetLastError() == ERROR_IO_PENDING);
-
-        HANDLE handles[3] = {
-            hTimer,
-            hProcess,
-            event
-        };
-        int events = 3;
-
-        do {
-            int r = WaitForMultipleObjects(events, &handles[0], FALSE,
-                INFINITE);
-            switch (r) {
-                case 0:
-                    _timedOut = true;
-                    IF_FALSE_THROW(TerminateProcess(hProcess, 0) != 0);
-                    break;
-                case 1:
-                    IF_FALSE_THROW(
-                        GetExitCodeProcess(pi.hProcess, &_result) != 0);
-                    break;
-                case 2:
-                    DWORD bytes;
-                    IF_ZERO_THROW(GetOverlappedResult(pipe.read(),
-                        &overlapped, &bytes, TRUE));
-                    _output += String(&buffer[0], bytes, true);
-                    if (GetLastError() != ERROR_HANDLE_EOF) {
-                        BOOL rr = ReadFile(pipe.read(), &buffer[0],
-                            bufferLength, &bytesRead, &overlapped);
-                        if (rr == 0)
-                            IF_FALSE_THROW(GetLastError() == ERROR_IO_PENDING);
-                    }
-                    break;
+        IODispatch dispatch;
+        class PipeTask : public IODispatch::Task
+        {
+            const int _bufferLength = 0x10000;
+        public:
+            PipeTask(Execute* execute)
+              : _execute(execute), _pipe("", 4096, 0, true), _overlapped{0},
+                _event(true), _buffer(_bufferLength)
+            {
+                _pipe.read().setHandleInformation(HANDLE_FLAG_INHERIT, 0);
+                _overlapped.hEvent = _event;
+                startRead();
+                _execute->setPipeWrite(_pipe.write());
             }
-        } while (true);
+            void signalled()
+            {
+                DWORD bytes;
+                IF_ZERO_THROW(GetOverlappedResult(_pipe.read(),
+                    &_overlapped, &bytes, TRUE));
+                _execute->appendOutput(String(&_buffer[0], bytes, true));
+                if (GetLastError() != ERROR_HANDLE_EOF)
+                    startRead();
+                else
+                    remove();
+            }
+        private:
+            void startRead()
+            {
+                DWORD bytesRead = 0;
+                BOOL r = ReadFile(_pipe.read(), &_buffer[0], _bufferLength,
+                    &bytesRead, &_overlapped);
+                if (r == 0)
+                    IF_FALSE_THROW(GetLastError() == ERROR_IO_PENDING);
+            }
+
+            Execute* _execute;
+            NamedPipe _pipe;
+            OVERLAPPED _overlapped;
+            Event _event;
+            Array<char> _buffer;
+        };
+        class ProcessTask : public IODispatch::Task
+        {
+        public:
+            ProcessTask(Execute* execute, File program, File argument)
+              : _execute(execute)
+            {
+                String commandLine = "\"" + program.path() +
+                    "\" \"" + argument.path() + "\"";
+                NullTerminatedWideString data(commandLine);
+
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+
+                STARTUPINFO si;
+                ZeroMemory(&si, sizeof(STARTUPINFO));
+                si.cb = sizeof(STARTUPINFO);
+                si.hStdError = _execute->pipeWrite();
+                si.hStdOutput = _execute->pipeWrite();
+                si.hStdInput = NULL;
+                si.dwFlags |= STARTF_USESTDHANDLES;
+
+                IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE, 0,
+                    NULL, NULL, &si, &pi) != 0);
+                CloseHandle(pi.hThread);
+                _handle = pi.hProcess;
+            }
+            void signalled()
+            {
+                DWORD result;
+                IF_FALSE_THROW(GetExitCodeProcess(_handle, &result) != 0);
+                _execute->setResult(result);
+                remove();
+            }
+            WindowsHandle handle() { return _handle; }
+        private:
+            Execute* _execute;
+            WindowsHandle _handle;
+        };
+        ProcessTask processTask(this, program, argument);
+        dispatch.add(&processTask);
+        class TimeoutTask : public IODispatch::Task
+        {
+        public:
+            TimeoutTask(Execute* execute, int timeout) : _execute(execute)
+            {
+                HANDLE hTimer = CreateWaitableTimer(NULL, TRUE, NULL);
+                IF_NULL_THROW(hTimer);
+                _handle = hTimer;
+
+                LARGE_INTEGER dueTime;
+                dueTime.QuadPart = -timeout * 10000000ll;
+                IF_ZERO_THROW(
+                    SetWaitableTimer(_handle, &dueTime, 0, NULL, NULL, FALSE));
+            }
+            void signalled() { _execute->timeOut(); remove(); }
+            WindowsHandle handle() { return _handle; }
+        private:
+            Execute* _execute;
+            WindowsHandle _handle;
+        };
+        TimeoutTask timeOutTask(this, timeout);
+        dispatch.add(&timeOutTask);
+        dispatch.run();
     }
+    void timeOut()
+    {
+        _timedOut = true;
+        IF_FALSE_THROW(TerminateProcess(_process, 0) != 0);
+    }
+    void setResult(int result) { _result = result; }
     bool timedOut() { return _timedOut; }
     int result() { return _result; }
     String output() { return _output; }
+    void appendOutput(String output) { _output += output; }
+    void setPipeWrite(WindowsHandle pipeWrite) { _pipeWrite = pipeWrite; }
+    WindowsHandle pipeWrite() { return _pipeWrite; }
 private:
     bool _timedOut;
-    DWORD _result;
+    int _result;
     String _output;
+    WindowsHandle _process;
+    WindowsHandle _pipeWrite;
 };
 
 class Program : public ProgramBase
@@ -111,7 +152,7 @@ public:
         configFile.addOption("tests", ArrayType(StringType()));
         configFile.addOption("tool", StringType());
         configFile.addDefaultOption("baseTimeout", 5);
-        configFile.addDefaultOption("expectedOutput", "PASS");
+        configFile.addDefaultOption("expectedOutput", String("PASS"));
         configFile.load(file);
 
         auto tests = configFile.get<List<String>>("tests");

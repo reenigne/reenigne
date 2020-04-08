@@ -25,6 +25,7 @@ protected:
       : ConstHandle(other), _handle(handle) { }
     class Body : public ConstHandle::Body
     {
+    public:
         Body(HANDLE handle) : _handle(handle) { }
         ~Body()
         {

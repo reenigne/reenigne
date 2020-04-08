@@ -547,6 +547,9 @@ public:
 };
 
 template<class T> Type typeFromCompileTimeType() { return T::type(); }
+// TODO: For this to work with string literals, need to use class template
+// specialization, not function template specialization.
+//template<size_t N> Type typeFromCompileTimeType<const char (&)[N]>() { return StringType(); }
 template<class T, std::enable_if_t<HasType<T>::value>* = nullptr>
     Type typeFromValue(const T& value)
 {

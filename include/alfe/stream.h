@@ -3,26 +3,62 @@
 #ifndef INCLUDED_STREAM_H
 #define INCLUDED_STREAM_H
 
+#ifndef _WIN32
+class FileDescriptor : public ConstHandle
+{
+public:
+    FileDescriptor() : _fileDescriptor(-1) { }
+    WindowsHandle(int fileDescriptor, bool own = true)
+      : _handle(handle),
+        ConstHandle((own && fileDescriptor != -1)
+            ? create<Body>(fileDescriptor) : ConstHandle())
+    { }
+    bool valid() const { return _fileDescriptor != -1; }
+    operator int() const { return _fileDescriptor; }
+protected:
+    FileDescriptor(const ConstHandle& other, int fileDescriptor)
+      : ConstHandle(other), _fileDescriptor(fileDescriptor) { }
+    class Body : public ConstHandle::Body
+    {
+        Body(int fileDescriptor) : _fileDescriptor(fileDescriptor) { }
+        ~Body()
+        {
+            if (_fileDescriptor != -1)
+                close(_fileDescriptor);
+        }
+    private:
+        int _fileDescriptor;
+    };
+private:
+    int _fileDescriptor;
+};
+#endif
+
 template<class T> class StreamT
 #ifdef _WIN32
   : public WindowsHandle
 #else
-  : public Handle
+  : public FileDescriptor
 #endif
 {
 public:
 #ifdef _WIN32
-    StreamT() : WindowsHandle() { }
+    StreamT() { }
     StreamT(HANDLE handle, const File& file = File(), bool own = true)
-      : WindowsHandle(create<Body>(*this, handle, own)), _file(file) { }
+      : WindowsHandle(create<Body>(own &&
+          handle != INVALID_HANDLE_VALUE ? handle : INVALID_HANDLE_VALUE),
+          handle),
+        _file(file)
+    { }
     HANDLE handle() const { return operator HANDLE(); }
 #else
-    StreamT() : Handle(create<Body>()), _fileDescriptor(-1) { }
-    StreamT(int fileDescriptor, const File& file = File())
-      : Handle(create<Body>()), _fileDescriptor(fileDescriptor), _file(file)
+    StreamT() { }
+    StreamT(int fileDescriptor, const File& file = File(), bool own = true)
+      : FileDescriptor(create<Body>(own &&
+          fileDesciptor != -1 ? fileDescriptor : -1), fileDescriptor),
+        _file(file)
     { }
-    operator int() const { return _fileDescriptor; }
-    bool valid() const { return _fileDescriptor != -1; }
+    operator int() const { return operator int(); }
 #endif
     File file() const { return _file; }
     // Be careful using the template read() and write() functions with types
@@ -180,13 +216,7 @@ public:
     }
     void close()
     {
-#ifdef _WIN32
         *this = Stream();
-#else
-        if (_fileDescriptor != -1)
-            ::close(_fileDescriptor);
-        _fileDescriptor = -1;
-#endif
     }
 private:
     int tryReadUnbuffered(Byte* destination, int bytes) const
@@ -214,34 +244,22 @@ private:
 #ifdef _WIN32
       : public WindowsHandle::Body
 #else
-      : public Handle::Body
+      : public FileDescriptor::Body
 #endif
     {
     public:
-        Body(const Stream& stream, HANDLE handle, bool own)
-          : _stream(stream),
 #ifdef _WIN32
-            WindowsHandle::Body(handle)
-
-        {
-        }
-        ~Body() { _stream.close(); }
-        StreamT<T> _stream;
+        Body(HANDLE handle)
+          : WindowsHandle::Body(handle)
+#else
+        Body(int fileDescriptor)
+          : FileDescriptor::Body(fileDescriptor)
+#endif
+        { }
         mutable CircularBuffer<Byte> _buffer;
     };
     const Body* body() const { return as<Body>(); }
 
-//#ifdef _WIN32
-//    StreamT(HANDLE handle, const File& file, const Handle& other)
-//      : Handle(other), _handle(handle), _file(file) { }
-//#else
-//    StreamT(int fileDescriptor, const File& file, const Handle& other)
-//      : Handle(other), _fileDescriptor(fileDescriptor), _file(file) { }
-//#endif
-
-#ifndef _WIN32
-    int _fileDescriptor;
-#endif
     File _file;
 
     friend class Body;
