@@ -182,6 +182,293 @@ lut: db 0x88,8
 testRoutine:
   mov ax,0xb800
   mov es,ax
+
+  lodsw
+  and [es:di],ah
+  or [es:di],al
+  inc di
+
+
+  mov ax,es
+  mov ds,ax
+  push ax
+
+  pop ax
+  and [si],ah
+  or [si],al
+  inc si
+
+
+  and byte[si],0x12
+  or byte[si],0x34
+  inc si
+
+
+  and word[si],0x1234
+  or word[si],0x5678
+
+
+  mov ax,cs
+  mov ds,ax
+
+  lodsw
+  and ax,[es:di]
+  xchg ax,bx
+  lodsw
+  or ax,bx
+  stosw
+
+mov ax,[es:di]
+and ax,1234h
+or ax,5678h
+stosw
+
+
+  ret
+
+
+
+
+
+
+
+
+  mov word[8*4],int8_isav0
+
+  pushf
+  push cs
+  mov ax,after_ints
+  push ax
+
+  mov al,0x34
+  out 0x43,al
+  mov al,76
+  out 0x40,al
+  mov al,0
+  out 0x40,al
+
+  sti
+  hlt
+
+int8_isav0:                                           ; Starts 792                            479
+  push ax
+  push dx
+  mov dx,0x3d4
+;
+;   mov al,11
+;   mov dx,0x3d9
+;   out dx,al
+;
+;  pop dx
+
+  mov al,0xfe
+  out 0x21,al
+
+  push ds
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],int8_isav1
+;  pop ds
+
+  mov al,0x20
+  out 0x20,al
+;  pop ax
+  sti
+  hlt                                                 ; ends 1042 - 250 cycles   ok           733  254 cycles
+
+int8_isav1:                                           ; starts 1401                           783
+;  push ax
+;  push dx
+;  mov dx,0x3d4
+  mov ax,0x2102  ; Horizontal sync position early
+  out dx,ax
+
+;   mov al,12
+;   mov dl,0xd9
+;   out dx,al
+
+;  pop dx
+
+;  push ds
+;  xor ax,ax
+;  mov ds,ax
+  mov word[0x20],int8_isav3
+;  pop ds
+
+  mov al,0x20
+  out 0x20,al
+;  pop ax
+;  add sp,6
+  sti
+  hlt                                                 ; ends 1710 - 309 cycles                965  182 cycles
+
+int8_isav2:                                           ; starts 783                           1087
+;  push ax
+;  push dx
+;  mov dx,0x3d4
+  mov ax,0x5a02  ; Horizontal sync position normal
+  out dx,ax
+
+;   mov al,13
+;   mov dl,0xd9
+;   out dx,al
+
+;  pop dx
+
+;  push ds
+;  xor ax,ax
+;  mov ds,ax
+  mov word[0x20],int8_isav3
+;  pop ds
+
+  mov al,0x20
+  out 0x20,al
+;  pop ax
+;  add sp,6
+  sti
+  hlt                                                 ; ends 1088 - 305 cycles               1268  181 cycles
+
+
+  ; Final 3 - scanline 227
+int8_isav3:                                           ; starts 1391                          1391
+;  push ax
+;  push dx
+
+;   mov al,14
+;   mov dl,0xd9
+;   out dx,al
+
+;  pop dx
+
+;  push ds
+;  xor ax,ax
+;  mov ds,ax
+  mov word[0x20],int8_isav4
+;  pop ds
+
+  mov al,0x20
+  out 0x20,al
+;  pop ax
+;  add sp,6
+  sti
+  hlt                                                 ; ends 1662 - 271 cycles   ok          1549  158 cycles
+
+
+  ; Final 4 - scanline 228
+int8_isav4:                                           ; starts 783                           1695
+;  push ax
+;  push dx
+;  mov dx,0x3d4
+  mov ax,0x2102  ; Horizontal sync position early
+  out dx,ax
+
+;   mov al,15
+;   mov dl,0xd9
+;   out dx,al
+
+;  pop dx
+
+; mov ax,[cs:delayPCycles]
+; add [cs:delayTotal],ax
+; mov word[cs:delayPCycles],0
+; mov ax,0 ;-1
+; add ax,520*76
+; out 0x40,al
+; mov al,ah
+; out 0x40,al
+
+  mov al,(520*76) & 0xff
+  out 0x40,al
+  mov al,(520*76) >> 8
+  out 0x40,al
+
+;  push ds
+;  xor ax,ax
+;  mov ds,ax
+  mov word[0x20],int8_isav5
+;  pop ds
+
+  mov al,0x20
+  out 0x20,al
+;  pop ax
+;  add sp,6
+  sti
+  hlt                                                 ; ends 1249 - 466 cycles               1930  235 cycles
+
+
+  ; Final 5 - scanline 229
+int8_isav5:                                           ; starts 1391                          1999                1704
+  add sp,4*6  ; 6 bytes for each of isav1-isav5. isav0 will be undone with iret
+;  push ax
+;  push dx
+;  mov dx,0x3d4
+  mov ax,0x5a02  ; Horizontal sync position normal
+  out dx,ax
+
+;   mov al,10
+;   mov dl,0xd9
+;   out dx,al
+
+;  pop dx
+
+  mov al,(76*2) & 0xff
+  out 0x40,al
+  mov al,(76*2) >> 8
+  out 0x40,al
+
+;  push ds
+;  xor ax,ax
+;  mov ds,ax
+  mov word[0x20],int8_isav0
+  pop ds
+  pop dx
+
+  mov al,0xfe ;[cs:originalIMR]
+  out 0x21,al
+
+;  add word[cs:timerCount],76*525
+;  jnc doneInterrupt8
+;  pop ax
+;  jmp far [cs:originalInterrupt8]
+
+doneInterrupt8:
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret                                                ; ends 1816 - 425 cycles   ok
+
+
+delayPCycles: dw 0
+delayTotal: dw 0
+
+
+after_ints:
+  ret
+
+
+
+
+
+
+
+  mov dx,0x3d9
+  in al,dx
+  test al,8
+  jnz foo1
+foo1:
+  in al,dx
+  test al,8
+  jz foo2
+foo2:
+  mov dl,0xd9
+  mov al,0x0f
+  out dx,al
+  ret
+
+
+
+  mov ax,0xb800
+  mov es,ax
   xor di,di
   mov cx,79
 
