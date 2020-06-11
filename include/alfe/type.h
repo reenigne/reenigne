@@ -341,7 +341,7 @@ private:
             //if (!has(i))
             //    s.throwError("Unknown identifier " + i.name());
             return Value(
-                LValueType::wrap(context->getValue(identifier).type()),
+                LValueTypeT<T>::wrap(context->getValue(identifier).type()),
                 LValue(context, identifier), s);
             //return context->getValue(identifier);
         }
@@ -534,6 +534,7 @@ private:
     };
 
     const Body* body() const { return as<Body>(); }
+    LValueTypeT(const Handle& type) : Type(to<Body>(type)) { }
 };
 
 template<typename T> class HasType
@@ -1571,6 +1572,7 @@ private:
     {
         return body()->toString2(needComma);
     }
+    FunctionTypeT(const Handle& t) : Tyco(t) { }
 };
 
 template<class T> class FunctionTemplateT

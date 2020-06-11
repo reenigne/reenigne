@@ -67,6 +67,8 @@ typedef FuncoTypeT<void> FuncoType;
 template<class T> class BooleanTypeT;
 typedef BooleanTypeT<void> BooleanType;
 
+class ArrayType;
+
 int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 {
     CharacterSource s = *source;
@@ -458,7 +460,7 @@ private:
                 r += e.stringify();
             }
             r += Expression(")", Span());
-            r.setSpan(span());
+            r.setSpan(this->span());
             return r;
         }
         String toString() const
@@ -509,7 +511,7 @@ private:
         BooleanBody(const Span& span) : Body(span) { }
         Expression stringify() const
         {
-            return Expression(toString(), this->span());
+            return Expression(this->toString(), this->span());
         }
         TypeT<T> type() const { return BooleanType(); }
         void resolve(Scope* scope) { }
@@ -614,7 +616,7 @@ private:
                 r += e.stringify();
             }
             r += Expression("}", Span());
-            r.setSpan(span());
+            r.setSpan(this->span());
             return r;
         }
         String toString() const

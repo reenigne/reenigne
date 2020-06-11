@@ -11,6 +11,47 @@ typedef StatementT<void> Statement;
 template<class T> class IdentifierT;
 typedef IdentifierT<void> Identifier;
 
+class ExpressionStatement;
+
+template<class T> class FunctionDefinitionStatementT;
+typedef FunctionDefinitionStatementT<void> FunctionDefinitionStatement;
+
+class CompoundStatement;
+
+class TycoDefinitionStatement;
+
+class NothingStatement;
+
+class IncrementDecrementStatement;
+
+class ConditionalStatement;
+
+class SwitchStatement;
+
+class ReturnStatement;
+
+class IncludeStatement;
+
+template<class T> class BreakOrContinueStatementT;
+typedef BreakOrContinueStatementT<void> BreakOrContinueStatement;
+
+class ForeverStatement;
+
+class WhileStatement;
+
+class ForStatement;
+
+template<class T> class LabelStatementT;
+typedef LabelStatementT<void> LabelStatement;
+
+class GotoStatement;
+
+class Context
+{
+public:
+    virtual ~Context() { }
+};
+
 template<class T> class StatementT : public ParseTreeObject
 {
 public:
@@ -183,9 +224,6 @@ private:
         Expression _expression;
     };
 };
-
-template<class T> class FunctionDefinitionStatementT;
-typedef FunctionDefinitionStatementT<void> FunctionDefinitionStatement;
 
 template<class T> class FunctionDefinitionStatementT : public Statement
 {
@@ -680,9 +718,6 @@ private:
     };
 };
 
-template<class T> class BreakOrContinueStatementT;
-typedef BreakOrContinueStatementT<void> BreakOrContinueStatement;
-
 template<class T> class BreakOrContinueStatementT : public Statement
 {
 public:
@@ -890,9 +925,6 @@ private:
         Statement _doneStatement;
     };
 };
-
-template<class T> class LabelStatementT;
-typedef LabelStatementT<void> LabelStatement;
 
 template<class T> class LabelStatementT : public Statement
 {
