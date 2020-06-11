@@ -2,7 +2,7 @@
 
   jmp codeStart
 
-  db '20171011-keyb',0
+  db '20200608-keyb',0
 
 codeStart:
   mov ax,cs
@@ -161,6 +161,7 @@ noRelocationNeeded:
   ; int 0x6c == start keyboard port output
   xor ax,ax
   mov ds,ax
+  mov es,ax
   setInterrupt 0x60, captureScreenRoutine
   setInterrupt 0x61, startAudioRoutine
   setInterrupt 0x62, stopAudioRoutine
@@ -174,6 +175,24 @@ noRelocationNeeded:
   setInterrupt 0x6a, resumeScreenRoutine
   setInterrupt 0x6b, stopKeyboardRoutine
   setInterrupt 0x6c, resumeKeyboardRoutine
+
+  mov byte[0x46b],0 ;intr_flag
+  mov si,0x1e
+  mov [0x41a],si    ;buffer_head
+  mov [0x41c],si    ;buffer_tail
+  mov [0x480],si    ;buffer_start
+  add si,32
+  mov [0x482],si    ;buffer_end
+  mov di,0x478      ;print_tim_out
+  push ds
+  pop es
+  mov ax,0x1414
+  stosw
+  stosw
+  mov ax,0x0101
+  stosw
+  stosw
+
 
   ; Reset video variables
   mov ax,cs
