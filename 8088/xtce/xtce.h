@@ -4367,7 +4367,7 @@ private:
     void aa()
     {
         setPZS();
-        al() &= 0x0f;
+        al() = _data & 0x0f;
         wait(6);
     }
     Word jump(Word delta)
@@ -4706,9 +4706,9 @@ private:
 
     Byte _opcode;
     Byte _modRM;
-    Word _data;
-    Word _source;
-    Word _destination;
+    DWord _data;
+    DWord _source;
+    DWord _destination;
     Word _address;
     bool _useMemory;
     bool _wordSize;
