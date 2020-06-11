@@ -653,7 +653,7 @@ keyPressed:
   or [keyboardFlags+bx],dl
 ;  jmp checkKey
 
-; keyboardFlags    1     2      4    8  0x10   0x20      0x40 0x08
+; keyboardFlags    1     2      4    8  0x10   0x20      0x40 0x80
 
 ;  0                   Esc      1    2     3      4         5    6
 ;  1               7     8      9    0     -      = Backspace  Tab
