@@ -2925,18 +2925,6 @@ private:
     friend class OutputWindow;
 };
 
-bool endsIn(String s, String suffix)
-{
-    int l = suffix.length();
-    int o = s.length() - l;
-    if (o < 0)
-        return false;
-    for (int i = 0; i < l; ++i)
-        if (tolower(s[i + o]) != tolower(suffix[i]))
-            return false;
-    return true;
-}
-
 class BitmapValue : public Structure
 {
 public:
@@ -2948,7 +2936,7 @@ public:
         // of relative to the config file path because the filename usually
         // comes from the command line.
         Vector size(0, 0);
-        _isPNG = endsIn(filename, ".png");
+        _isPNG = filename.endsInIgnoreCase(".png");
         if (_isPNG) {
             _bitmap = PNGFileFormat<SRGB>().load(_file);
             size = _bitmap.size();
@@ -3146,8 +3134,9 @@ public:
         }
         String configPath = _arguments[1];
         int n = configPath.length();
-        if (endsIn(configPath, ".png") || endsIn(configPath, ".dat") ||
-            endsIn(configPath, ".cgad")) {
+        if (configPath.endsInIgnoreCase(".png") ||
+            configPath.endsInIgnoreCase(".dat") ||
+            configPath.endsInIgnoreCase(".cgad")) {
             configPath = "default.config";
             arguments.add(_arguments[0] + " " + configPath);
             for (int i = 1; i < _arguments.count(); ++i)
@@ -3188,7 +3177,7 @@ public:
         _matchingPossible = isPNG;
         if (!isPNG) {
             File file(inputName, true);
-            if (endsIn(inputName, ".cgad"))
+            if (inputName.endsInIgnoreCase(".cgad"))
                 _data.load(file);
             else {
                 static const int regs = -CGAData::registerLogCharactersPerBank;

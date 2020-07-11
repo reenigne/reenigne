@@ -517,6 +517,17 @@ public:
         return *(reinterpret_cast<const int*>(reinterpret_cast<const char*>(
             this+1)) - 1);
     }
+    bool endsInIgnoreCase(String suffix) const
+    {
+        int l = suffix.length();
+        int o = length() - l;
+        if (o < 0)
+            return false;
+        for (int i = 0; i < l; ++i)
+            if (tolower((*this)[i + o]) != tolower(suffix[i]))
+                return false;
+        return true;
+    }
 private:
     explicit StringTemplate(int length) : StringTemplate(0, length, 0) { }
     void setLength(int l)
