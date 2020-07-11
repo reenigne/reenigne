@@ -1,7 +1,7 @@
 set PACKAGE=ntsc
 set ZIPDIR=%TMPDIR%\%PACKAGE%
 mkdir %ZIPDIR%\include\alfe
-copy include\alfe\*.h %ZIPDIR%\include\alfe
+copy ..\include\alfe\*.h %ZIPDIR%\include\alfe
 copy ntsc.txt %ZIPDIR%
 copy ..\UNLICENSE %ZIPDIR%
 copy avi2ntsc\Release\avi2ntsc.exe %ZIPDIR%
