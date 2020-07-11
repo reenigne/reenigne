@@ -178,7 +178,7 @@ public:
         Complex<float> burst = bursts[0];
         float rotorTable[8];
         for (int i = 0; i < 8; ++i)
-            rotorTable[i] = rotor(i/8.0).x;
+            rotorTable[i] = rotor(static_cast<float>(i)/8).x;
         Complex<float> expectedBurst = burst;
         int oldActualSamplesPerLine = nominalSamplesPerLine;
         float contrast1 = _contrast;
@@ -373,69 +373,71 @@ public:
         _iResponse.ensure(fLength);
         _qResponse.ensure(fLength);
     }
-    void calculateBurst(Byte* burst)
+    void init()
     {
-        Complex<float> iq;
-        iq.x = static_cast<float>(burst[0] - burst[2]);
-        iq.y = static_cast<float>(burst[1] - burst[3]);
-        _chromaScale = 2/static_cast<float>(_length);
-        Complex<float> iqAdjust =
-            -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
-            _contrast*_chromaScale/(iq.modulus()*2);
-        float contrast = _contrast/_length;
-        _brightness2 = _brightness*256.0f;
-        int fLength = _length/2 + 1;
+        _chromaScale = 2 / static_cast<float>(_length);
+        float contrast = _contrast / _length;
+        _brightness2 = _brightness * 256.0f;
+        int fLength = _length / 2 + 1;
         float lumaHigh = _lumaBandwidth / 2;
         float chromaLow = (4 - _chromaBandwidth) / 8;
         float chromaHigh = (4 + _chromaBandwidth) / 8;
         float rollOff = _rollOff / 4;
         float chromaCutoff = _chromaBandwidth / 8;
 
-        float pi = static_cast<float>(tau/2);
-        float width = _lobes*4;
-        float lumaScale = (pi*lumaHigh)/(2*sinint(pi*lumaHigh*width));
+        float pi = static_cast<float>(tau / 2);
+        float width = _lobes * 4;
+        float lumaScale = (pi * lumaHigh) / (2 * sinint(pi * lumaHigh * width));
         if (lumaHigh == 0)
             lumaScale = 0;
-        float chromaScale = (pi*chromaCutoff)/
-            (2*sinint(pi*chromaCutoff*width));
+        float chromaScale = (pi * chromaCutoff) /
+            (2 * sinint(pi * chromaCutoff * width));
         if (chromaCutoff == 0)
             chromaScale = 0;
 
         float lumaTotal = 0;
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
-            float r = sinc(d*rollOff)*lumaScale*sinc(d*lumaHigh);
+            float r = sinc(d * rollOff) * lumaScale * sinc(d * lumaHigh);
             if (t > width)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
                 _yTime[_length - t] = r;
-            lumaTotal += r*(t == 0 ? 1 : 2);
+            lumaTotal += r * (t == 0 ? 1 : 2);
         }
-        float scale = 1/lumaTotal;
+        float scale = 1 / lumaTotal;
         _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f)
-            _yResponse[f] = _frequency[f].x*contrast*scale;
+            _yResponse[f] = _frequency[f].x * contrast * scale;
 
         float chromaTotal = 0;
         for (int t = 0; t < fLength; ++t) {
             float d = static_cast<float>(t);
-            float r = sinc(d*rollOff)*chromaScale*sinc(d*chromaCutoff);
+            float r = sinc(d * rollOff) * chromaScale * sinc(d * chromaCutoff);
             if (t > width)
                 r = 0;
             _yTime[t] = r;
             if (t > 0)
                 _yTime[_length - t] = r;
-            chromaTotal += r*(t == 0 ? 1 : 2);
+            chromaTotal += r * (t == 0 ? 1 : 2);
         }
-        scale = 1/chromaTotal;
+        scale = 1 / chromaTotal;
         _lumaForward.execute(_yTime, _frequency);
         for (int f = 0; f < fLength; ++f) {
             float s = scale * _frequency[f].x;
-            _iResponse[f] = s * unit(-f/512.0f);
+            _iResponse[f] = s * unit(-f / 512.0f);
             _qResponse[f] = s;
         }
-
+    }
+    void calculateBurst(const Byte* burst)
+    {
+        Complex<float> iq;
+        iq.x = static_cast<float>(burst[0] - burst[2]);
+        iq.y = static_cast<float>(burst[1] - burst[3]);
+        Complex<float> iqAdjust =
+            -iq.conjugate()*unit((33 + 90 + _hue)/360.0f)*_saturation*
+            _contrast*_chromaScale/(iq.modulus()*2);
         _ri =  0.9563f*iqAdjust.x +0.6210f*iqAdjust.y;
         _rq =  0.6210f*iqAdjust.x -0.9563f*iqAdjust.y;
         _gi = -0.2721f*iqAdjust.x -0.6474f*iqAdjust.y;

@@ -1463,7 +1463,6 @@ public:
         Vector tl = _scaler.inputTL();
         Vector br = _scaler.inputBR();
         _unscaledSize = br - tl;
-        Vector activeTL = Vector(0, 0) - tl;
 
         if (connector == 0) {
             // Convert from RGBI to 9.7 fixed-point sRGB
@@ -1531,6 +1530,7 @@ public:
             Byte burst[4];
             for (int i = 0; i < 4; ++i)
                 burst[i] = _composite.simulateCGA(6, 6, (i + 3) & 3);
+            _decoder.init();
             _decoder.calculateBurst(burst);
             _composite.setBW(bw);
             _composite.initChroma();
