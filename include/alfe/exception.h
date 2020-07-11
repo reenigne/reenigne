@@ -110,7 +110,7 @@ private:
             0,
             NULL);
         if (formatted == 0)
-            return String("FormatMessage failed: ") + hex(GetLastError(), 8);
+            return String("Error code: ") + hex(error, 8);
         // It's safe to destruct the LocalString because it uses wide
         // characters and the String constructor will allocate its own buffer
         // for the UTF-8 conversion.
