@@ -656,6 +656,39 @@ TODO:
   Fix the problem on glitchy machines
     See what we need to change to put a VRAM access in the loop
 
+Get a better understanding of how 1spf works:
+  Use rgbi_capture to see size and position of hsync and active areas relative to where 0x3d9 write happens
+  Use trace to see where port writes occur
+    19 possibilities if CPU code is synchronised to PIT, 76 if we delay by 0-3 CPU cycles
+  Want to annotate the traces with how they look on screen
+    Integrate trace into 1spf?
+      How does trace work? Output character 6, 16*(trigger trace, capture, 425 CPU cycles/byte flush), output character 7  - can capture 2048 cycles about every 4 frames, so a full capture takes a bit over a second
+  LRES example:
+   640 hdots active - palette change on hdot 577
+    64 hdots primary right overscan
+     8 hdots secondary active
+    23 hdots secondary right overscan (blanking)
+    64 hdots hsync
+    73 hdots left blanking
+    40 hdots left overscan
+  HRES example:
+   640 hdots active - palette change on hdot 562  (phase 0, offset 142a)
+    64 hdots primary right overscan
+     8 hdots secondary active
+    31 hdots secondary right overscan
+    64 hdots hsync
+    25 hdots left blanking
+    80 hdots left overscan
+
+   640 hdots active - palette change on hdot 557  (phase 1, offset 142c)
+    64 hdots primary right overscan
+     8 hdots secondary active
+    23 hdots secondary right overscan
+    64 hdots hsync
+    33 hdots left blanking
+    80 hdots left overscan
+
+
 
 Done:
 

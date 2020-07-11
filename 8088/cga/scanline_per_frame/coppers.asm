@@ -19,7 +19,7 @@ noMotorShutoff:
 %endif
 
   mov dx,0x3b8
-  mov al,29
+  mov al,0x29
   out dx,al
 
   mov dl,0xb4
