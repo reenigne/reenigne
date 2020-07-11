@@ -353,7 +353,7 @@ private:
 class SnifferThread : public Thread
 {
 public:
-    SnifferThread() : _online(false) { }
+    SnifferThread() : _online(false), _active(false) { }
     void setPort(String port, int baudRate)
     {
         _port = port;
@@ -441,31 +441,34 @@ public:
             } while (true);
             item &= 0x7f;
 
-            Byte lengthBytes[2];
-            tryRead(lengthBytes, 2);
+            if (_active) {
+                Byte lengthBytes[2];
+                tryRead(lengthBytes, 2);
 
-            int length = 1 + (lengthBytes[0] | (lengthBytes[1] << 7));
-            if (((lengthBytes[0] | lengthBytes[1]) & 0x80) != 0)
-                console.write(String("Warning: sniffer length corrupted.\n"));
-            console.write(String("Item: ") + decimal(item) + " length: " + decimal(length) + "\n");
-            if (length > 2048) {
-                console.write(String("Warning: invalid sniffer run length ") + decimal(length) + ".\n");
-                length = 2048;
+                int length = 1 + (lengthBytes[0] | (lengthBytes[1] << 7));
+                if (((lengthBytes[0] | lengthBytes[1]) & 0x80) != 0)
+                    console.write(String("Warning: sniffer length corrupted.\n"));
+                console.write(String("Item: ") + decimal(item) + " length: " + decimal(length) + "\n");
+                if (length > 2048) {
+                    console.write(String("Warning: invalid sniffer run length ") + decimal(length) + ".\n");
+                    length = 2048;
+                }
+                if (item > 47) {
+                    console.write(String("Warning: invalid sniffer item ") + decimal(item) + ".\n");
+                    item = 47;
+                }
+                if (_lengths[item] != -1)
+                    console.write(String("Warning: repeated sniffer item ") + decimal(item) + ".\n");
+                _lengths[item] = length;
+                tryRead(&_data[item*2048], length);
             }
-            if (item > 47) {
-                console.write(String("Warning: invalid sniffer item ") + decimal(item) + ".\n");
-                item = 47;
-            }
-            if (_lengths[item] != -1)
-                console.write(String("Warning: repeated sniffer item ") + decimal(item) + ".\n");
-            _lengths[item] = length;
-            tryRead(&_data[item*2048], length);
         } while (true);
     }
     void beginCapture(QueueItem* item)
     {
         if (!_online)
             return;
+        _active = true;
         _item = item;
 
         for (int i = 0; i < 48; ++i)
@@ -476,6 +479,7 @@ public:
     }
     void saveCapture(Stream s)
     {
+        _active = false;
         s.write(reinterpret_cast<const void*>(_lengths), 4*48);
         s.write(reinterpret_cast<const void*>(&_data[0]), 2048*48);
     }
@@ -487,6 +491,7 @@ private:
     int _lengths[48];
     QueueItem* _item;
     bool _online;
+    bool _active;
 
     Event _overlappedEvent;
     OVERLAPPED _overlapped;
