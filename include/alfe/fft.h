@@ -75,10 +75,12 @@ template<class T> class FFTWRealArray : public FFTWArray<T>
 public:
     FFTWRealArray() { }
     FFTWRealArray(int n)
-      : FFTWArray<T>(create<Body>(FFTW<T>::alloc_real(n), n)) { }
+      : FFTWArray<T>(FFTWArray<T>::create<FFTWArray<T>::Body>(
+          FFTW<T>::alloc_real(n), n))
+    { }
     T& operator[](int i) { return data()[i]; }
     const T& operator[](int i) const { return data()[i]; }
-    void ensure(int n) { if (count() < n) *this = FFTWRealArray(n); }
+    void ensure(int n) { if (this->count() < n) *this = FFTWRealArray(n); }
 private:
     T* data() const { return reinterpret_cast<T*>(FFTWArray<T>::data()); }
 };
@@ -88,7 +90,8 @@ template<class T> class FFTWComplexArray : public FFTWArray<T>
 public:
     FFTWComplexArray() { }
     FFTWComplexArray(int n)
-      : FFTWArray<T>(create<Body>(FFTW<T>::alloc_complex(n), n)) { }
+      : FFTWArray<T>(FFTWArray<T>::create<FFTWArray<T>::Body>(
+          FFTW<T>::alloc_complex(n), n)) { }
     typename Complex<T>& operator[](int i)
     {
         return reinterpret_cast<Complex<T>*>(data())[i];
@@ -97,10 +100,11 @@ public:
     {
         return reinterpret_cast<Complex<T>*>(data())[i];
     }
-    void ensure(int n) { if (count() < n) *this = FFTWComplexArray(n); }
+    void ensure(int n) { if (this->count() < n) *this = FFTWComplexArray(n); }
     typename FFTW<T>::Complex* data() const
     {
-        return reinterpret_cast<FFTW<T>::Complex*>(FFTWArray<T>::data());
+        return reinterpret_cast<typename FFTW<T>::Complex*>(
+            FFTWArray<T>::data());
     }
 };
 
@@ -133,15 +137,16 @@ template<class T> class FFTWPlanDFTR2C1D : public FFTWPlan<T>
 public:
     FFTWPlanDFTR2C1D() { }
     FFTWPlanDFTR2C1D(int n, int rigor)
-      : FFTWPlanDFTR2C1D(n, FFTWRealArray(n), FFTWComplexArray(n/2 + 1), rigor)
+      : FFTWPlanDFTR2C1D(n, FFTWRealArray<T>(n), FFTWComplexArray<T>(n/2 + 1),
+          rigor)
     { }
     FFTWPlanDFTR2C1D(int n, FFTWRealArray<T> in, FFTWComplexArray<T> out,
         int rigor)
-      : FFTWPlan(FFTW<T>::plan_dft_r2c_1d(n, &in[0], out.data(), rigor)) { }
+      : FFTWPlan<T>(FFTW<T>::plan_dft_r2c_1d(n, &in[0], out.data(), rigor)) { }
     void execute() { FFTWPlan<T>::execute(); }
     void execute(FFTWRealArray<T> in, FFTWComplexArray<T> out)
     {
-        FFTW<T>::execute_dft_r2c(plan(), &in[0], out.data());
+        FFTW<T>::execute_dft_r2c(this->plan(), &in[0], out.data());
     }
 };
 
@@ -150,15 +155,16 @@ template<class T> class FFTWPlanDFTC2R1D : public FFTWPlan<T>
 public:
     FFTWPlanDFTC2R1D() { }
     FFTWPlanDFTC2R1D(int n, int rigor)
-      : FFTWPlanDFTC2R1D(n, FFTWComplexArray(n/2 + 1), FFTWRealArray(n), rigor)
+      : FFTWPlanDFTC2R1D(n, FFTWComplexArray<T>(n/2 + 1), FFTWRealArray<T>(n),
+          rigor)
     { }
     FFTWPlanDFTC2R1D(int n, FFTWComplexArray<T> in, FFTWRealArray<T> out,
         int rigor)
-      : FFTWPlan(FFTW<T>::plan_dft_c2r_1d(n, in.data(), &out[0], rigor)) { }
+      : FFTWPlan<T>(FFTW<T>::plan_dft_c2r_1d(n, in.data(), &out[0], rigor)) { }
     void execute() { FFTWPlan<T>::execute(); }
     void execute(FFTWComplexArray<T> in, FFTWRealArray<T> out)
     {
-        FFTW<T>::execute_dft_c2r(plan(), in.data(), &out[0]);
+        FFTW<T>::execute_dft_c2r(this->plan(), in.data(), &out[0]);
     }
 };
 
