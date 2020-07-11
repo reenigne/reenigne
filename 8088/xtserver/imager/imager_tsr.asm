@@ -550,8 +550,16 @@ int10Routine:
   jmp far [cs:oldInterrupt10]
 
 
+useRealDrive:
+  dec dx
+  jmp far 0xf000:0xec59
+
+
 int13Routine:
   sti
+
+  cmp dl,0
+  jne useRealDrive
 
   push bx
   push cx
@@ -735,9 +743,10 @@ loader:
   mov [cs:oldInterrupt10],ax
   mov [cs:oldInterrupt10+2],cx
 
-  mov word[0x413],640
-
   pop ds
+
+  mov word[0x413],640   ; Memory size back to 640kB
+  add byte[0x410],0x40  ; increase number of floppy drives by 1
 
   setResidentInterrupt 0x10, int10Routine
   setResidentInterrupt 0x13, int13Routine
@@ -757,9 +766,11 @@ loader:
 
   sti
 
-  mov dx,loader + 15
-  mov cx,4
-  shr dx,cl
+  mov ah,0
+  mov dl,1
+  int 0x13  ; Init real floppy drive - we skipped this in the BIOS
+
+  mov dx,(loader + 15) >> 4
   mov ax,0x3100
   int 0x21
 
