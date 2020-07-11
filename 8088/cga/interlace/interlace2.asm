@@ -15,7 +15,7 @@ cpu 8086
     jnz %%waitForNoVerticalSync
 %endmacro
 
-
+slop equ 0
 
   mov ax,cs
   mov ds,ax
@@ -231,7 +231,7 @@ palette:
 delayPCycles:
   dw 0
 delayTotal:
-  dw 224*76 - 20
+  dw 224*76 + 27
 
 ; ISAV code starts here.
 
@@ -571,9 +571,9 @@ int8_oe9:
 
   pop dx
 
-  mov al,(223*76 - 20) & 0xff
+  mov al,(223*76 + 27 - slop) & 0xff
   out 0x40,al
-  mov al,(223*76 - 20) >> 8
+  mov al,(223*76 + 27 - slop) >> 8
   out 0x40,al
 
   mov al,[cs:originalIMR]
@@ -611,15 +611,15 @@ int8_oe10:
 
   pop dx
 
-  mov al,(76) & 0xff
+  mov al,(525*76) & 0xff
   out 0x40,al
-  mov al,(76) >> 8
+  mov al,(525*76) >> 8
   out 0x40,al
 
   push ds
   xor ax,ax
   mov ds,ax
-  mov word[0x20],int8_isav0
+  mov word[0x20],int8_isav
   pop ds
 
 
@@ -629,201 +629,76 @@ int8_oe10:
   iret
 
 
-  ; Final 0 - scanline 224
-int8_isav0:
+  ; Final - scanline 224
+int8_isav:
   push ax
   push dx
+  push bx
+
   mov dx,0x3d4
-;
-;   mov al,11
-;   mov dx,0x3d9
-;   out dx,al
-;
-;  pop dx
-
-  mov al,0xfe
-  out 0x21,al
-
-  mov al,(76) & 0xff
-  out 0x40,al
-  mov al,(76) >> 8
-  out 0x40,al
-
-  push ds
-  xor ax,ax
-  mov ds,ax
-  mov word[0x20],int8_isav1
-;  pop ds
-
-  mov al,0x20
-  out 0x20,al
-;  pop ax
-  sti
-  hlt
-
-
-  ; Final 1 - scanline 225
-int8_isav1:
-;  push ax
-;  push dx
-;  mov dx,0x3d4
   mov ax,0x2102  ; Horizontal sync position early
   out dx,ax
 
-;   mov al,12
-;   mov dl,0xd9
-;   out dx,al
+  mov dx,0x40
+  mov bx,524*76 + slop
+.loopTop1:
+  mov al,0x04
+  out 0x43,al
+  in al,dx
+  mov ah,al
+  in al,dx
+  xchg al,ah
+  cmp ax,bx
+  jae .loopTop1
 
-;  pop dx
-
-;  push ds
-;  xor ax,ax
-;  mov ds,ax
-  mov word[0x20],int8_isav2
-;  pop ds
-
-  mov al,0x20
-  out 0x20,al
-;  pop ax
-;  add sp,6
-  sti
-  hlt
-
-
-  ; Final 2 - scanline 226
-int8_isav2:
-;  push ax
-;  push dx
-;  mov dx,0x3d4
+  mov dx,0x3d4
   mov ax,0x5a02  ; Horizontal sync position normal
   out dx,ax
 
-;   mov al,13
-;   mov dl,0xd9
-;   out dx,al
+  mov dx,0x40
+  mov bx,522*76 + slop
+.loopTop2:
+  mov al,0x04
+  out 0x43,al
+  in al,dx
+  mov ah,al
+  in al,dx
+  xchg al,ah
+  cmp ax,bx
+  jae .loopTop2
 
-;  pop dx
-
-;  push ds
-;  xor ax,ax
-;  mov ds,ax
-  mov word[0x20],int8_isav3
-;  pop ds
-
-  mov al,0x20
-  out 0x20,al
-;  pop ax
-;  add sp,6
-  sti
-  hlt
-
-
-  ; Final 3 - scanline 227
-int8_isav3:
-;  push ax
-;  push dx
-
-;   mov al,14
-;   mov dl,0xd9
-;   out dx,al
-
-;  pop dx
-
-;  push ds
-;  xor ax,ax
-;  mov ds,ax
-  mov word[0x20],int8_isav4
-;  pop ds
-
-  mov al,0x20
-  out 0x20,al
-;  pop ax
-;  add sp,6
-  sti
-  hlt
-
-
-  ; Final 4 - scanline 228
-int8_isav4:
-;  push ax
-;  push dx
-;  mov dx,0x3d4
+  mov dx,0x3d4
   mov ax,0x2102  ; Horizontal sync position early
   out dx,ax
 
-;   mov al,15
-;   mov dl,0xd9
-;   out dx,al
+  mov dx,0x40
+  mov bx,521*76 + slop
+.loopTop3:
+  mov al,0x04
+  out 0x43,al
+  in al,dx
+  mov ah,al
+  in al,dx
+  xchg al,ah
+  cmp ax,bx
+  jae .loopTop3
 
-;  pop dx
-
-; mov ax,[cs:delayPCycles]
-; add [cs:delayTotal],ax
-; mov word[cs:delayPCycles],0
-; mov ax,0 ;-1
-; add ax,520*76
-; out 0x40,al
-; mov al,ah
-; out 0x40,al
-
-patchDriftLow:
-  mov al,(519*76) & 0xff
-  out 0x40,al
-patchDriftHigh:
-  mov al,(519*76) >> 8
-  out 0x40,al
-
-;  push ds
-;  xor ax,ax
-;  mov ds,ax
-  mov word[0x20],int8_isav5
-;  pop ds
-
-  mov al,0x20
-  out 0x20,al
-;  pop ax
-;  add sp,6
-  sti
-  hlt
-
-
-  ; Final 5 - scanline 229
-int8_isav5:
-  add sp,5*6  ; 6 bytes for each of isav1-isav5. isav0 will be undone with iret
-;  add sp,6
-;  push ax
-;  push dx
-;  mov dx,0x3d4
+  mov dx,0x3d4
   mov ax,0x5a02  ; Horizontal sync position normal
   out dx,ax
 
-;   mov al,10
-;   mov dl,0xd9
-;   out dx,al
-
-;  pop dx
-
-  mov al,(76*2) & 0xff
-  out 0x40,al
-  mov al,(76*2) >> 8
-  out 0x40,al
-
-;  push ds
-;  xor ax,ax
-;  mov ds,ax
-  mov word[0x20],int8_isav0
-  pop ds
+  pop bx
   pop dx
 
-  mov al,[cs:originalIMR]
-  out 0x21,al
 
- mov ax,[cs:delayPCycles]
- add [cs:delayTotal],ax
- mov word[cs:delayPCycles],0
- add ax,519*76
- mov [cs:patchDriftLow+1],al
- mov [cs:patchDriftHigh+1],ah
+  mov ax,[cs:delayPCycles]
+  add [cs:delayTotal],ax
+  mov word[cs:delayPCycles],0
+  add ax,525*76
+  out 0x40,al
+  mov al,ah
+  out 0x40,al
+
 
   add word[cs:timerCount],76*525
   jnc doneInterrupt8
