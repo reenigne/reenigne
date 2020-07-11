@@ -1,0 +1,23 @@
+Why put something in a class?
+  Convenience: can implicitly access class members (and context) without going through a pointer
+  Namespacing: name of class is implicitly part of member name
+  Access: use private members
+  Position: where in the source code the member is
+Can we decouple these?
+  Limitation: by looking at a class, you should be able to determine everything that can access private members
+    Therefore we have a coupling between access and position
+      We can partially decouple position from everything else by introducing a C++-style declaration, and putting the body of the method elsewhere
+        Also helps with C++ translation
+        Do something similar with member variables?
+          Doesn't seem like there's any advantage to doing so - all we'd move is the initializer, and it wouldn't be obvious that there was a definition elsewhere.
+        Lexical scope chain up from the declaration or the definition?
+          Declaration would be the obvious thing since that's how member variables get in scope. But that would be confusing
+        Where can we place definitions? They must be accessible from everywhere the class is and vice-versa, so really only in the same scope as the class
+        A better solution (which doesn't require introducing any new syntax) is to have a stub method which calls a function defined outside the class
+  Can decouple access with access modifiers - adding access to all needed methods and member variables to something else
+  Decoupling namespacing:
+    Declare a free function with a name like Foo.bar()?
+    Declare a member function with a name like .baz()?
+    Don't bother designing this without a use case for it
+  Decoupling convenience doesn't ake much sense and would probably be too confusing
+

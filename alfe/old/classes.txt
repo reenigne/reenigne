@@ -119,3 +119,14 @@ Can we use a type name as an expression, giving us a default-constructed value o
   Problem is then we have ambiguity between A() meaning a default-constructed A and a default constructed value of type A() (function returning A)
   Could forbid the shorthand for function types, since we never get a useful value by default-constructing a function type anyway
 
+
+
+It would be nice to have code in a class definition:
+  1) To generalise member initialisers.
+  2( To make it easier to write a constructor if you only want one
+    What if you don't want a constructor at all? Or if you want to restrict access to the constructor?
+      How about any code in the class definition runs before all member constructors (but after base class constructor), but otherwise contructors work like C++ ones
+        For translation, copy the code into each constructor
+          Though some of it can run before member constructors, in which case a more complicated translation may be necessary to be accurate - a base class?
+        Member variables left unconstructed can be constructed by class constructors instead, otherwise they can't.
+
