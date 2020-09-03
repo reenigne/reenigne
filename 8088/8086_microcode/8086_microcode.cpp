@@ -416,7 +416,7 @@ public:
                 case 0x0f: printf("MP   "); break; // BP
                 case 0x11: printf("M    "); break;
                 case 0x13: printf("DE   "); break; // DX
-                case 0x15: printf("S    "); break;  // source specified by modrm and direction
+                case 0x15: printf("R    "); break;  // source specified by modrm and direction
                 case 0x17: printf("HL   "); break; // BX
                 case 0x18: printf("OPR  "); break;
                 case 0x1a: printf("tmpc "); break;
