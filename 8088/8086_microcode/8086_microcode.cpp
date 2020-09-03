@@ -268,14 +268,47 @@ public:
                     String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
                     (half == 1 ? "l" : "r") + decimal(y) + ".txt", true).
                     contents();
+                String s2 = File(
+                    String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
+                    (half == 1 ? "l" : "r") + decimal(y) + "a.txt", true).
+                    contents();
                 for (int yy = 0; yy < h; ++yy) {
                     int ib = y * 24 + yy;
                     for (int xx = 0; xx < 64; ++xx) {
                         int b = (s[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
-                        if (b != 0) {
+                        int b2 = (s2[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
+                        if (b != 0) {   // 8088
+                        //if (b2 != 0) {  // 8086
                             instructions[xx * 8 + half * 4 + yy % 4] |=
                                 1 << (ib >> 2);
                         }
+                        //if (b != b2) {
+                        //    printf("Quad %i column %i row %i side %i  old %i new %i\n", y, xx, yy, half, b, b2);
+                        //}
+                    }
+                }
+            }
+        }
+
+        int stage1[128];
+        for (int x = 0; x < 128; ++x)
+            stage1[x] = 0;
+        for (int g = 0; g < 9; ++g) {
+            int n = 16;
+            if (g == 0 || g == 8)
+                n = 8;
+            int xx[9] = { 0, 8, 24, 40, 56, 72, 88, 104, 120 };
+            int xp = xx[g];
+            for (int h = 0; h < 2; ++h) {
+                String s = File(
+                    String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
+                    decimal(g) + (h == 0 ? "t" : "b") + ".txt", true).
+                    contents();
+                for (int y = 0; y < 11; ++y) {
+                    for (int x = 0; x < n; ++x) {
+                        int b = (s[y * (n + 2) + x] == '0' ? 1 : 0);
+                        if (b != 0)
+                            stage1[127 - (x + xp)] |= 1 << (y * 2 + (h ^ (y <= 2 ? 1 : 0)));
                     }
                 }
             }
@@ -352,19 +385,26 @@ public:
                 else
                     printf(" ");
             }
-            if (d == 0) {
-                printf("\n");
-                continue;
-            }
             printf("       ");
             int s = (d >> 5) & 0x1f;
             int dd = d & 0x1f;
+            int typ = (d >> 11) & 7;
+            int dest = ((d >> 14) & 8) + ((d >> 16) & 4) +
+                ((d >> 18) & 2) + ((d >> 20) & 1);
+            if (d == 0) {
+                printf("                                         ");
+                goto afterDisassembly;
+            }
             switch (s) {
-                case 0x01: printf("X    "); break;
-                case 0x02: printf("A    "); break;
-                case 0x03: printf("XA   "); break;
+                case 0x01: printf("X    "); break; // AH
+                case 0x02: printf("A    "); break; // AL
+                case 0x03: printf("XA   "); break; // AX
+                case 0x04: printf("RC   "); break; // CS 0x06d
+                case 0x07: printf("BC   "); break; // CX
                 case 0x08: printf("PC   "); break;
                 case 0x09: printf("SIGMA"); break;
+                case 0x0a: printf("tmpa "); break;  // 0x043 looks like IND saveed in tmpa around stack op
+                case 0x0b: printf("SP   "); break;  // actual SP register
                 case 0x0c: printf("IND  "); break;
                 case 0x0d:
                     if (dd == 0x07)
@@ -372,12 +412,19 @@ public:
                     else
                         printf("ONES ");
                     break;
+                case 0x0e: printf("tmpb "); break;
+                case 0x0f: printf("MP   "); break; // BP
                 case 0x11: printf("M    "); break;
-                case 0x17: printf("HL   "); break;
+                case 0x13: printf("DE   "); break; // DX
+                case 0x15: printf("S    "); break;  // source specified by modrm and direction
+                case 0x17: printf("HL   "); break; // BX
                 case 0x18: printf("OPR  "); break;
+                case 0x1a: printf("tmpc "); break;
+                case 0x19: printf("CR   "); break;  // low 3 bits of microcode address Counting Register + 1? Used as interrupt number at 0x198 (1), 0x199 (2), 0x1a7 (0), 0x1af (4), and 0x1b2 (3)
                 case 0x1b: printf("IJ   "); break;
                 case 0x1c: printf("Q    "); break;
                 case 0x1d: printf("ZERO "); break;
+                case 0x1e: printf("F    "); break;  // flags register
                 case 0x1f: printf("IK   "); break;
                 default: printf("[%3x]", s); break;
             }
@@ -386,6 +433,11 @@ public:
             else
                 printf("    ");
             switch (dd) {
+                case 0x00: printf("RA     "); break; // ES
+                case 0x01: printf("RC     "); break; // CS
+                case 0x02: printf("RS     "); break; // SS - presumably, to fit pattern. Only used in RESET
+                case 0x03: printf("RD     "); break; // DS
+                case 0x04: printf("PC     "); break;
                 case 0x05: printf("IND    "); break;
                 case 0x06: printf("OPR    "); break;
                 case 0x07:
@@ -398,17 +450,24 @@ public:
                 case 0x0c: printf("tmpa   "); break;
                 case 0x0d: printf("tmpb   "); break;
                 case 0x0e: printf("tmpc   "); break;
-                case 0x10: printf("X      "); break;
+                case 0x0f: printf("F      "); break; // flags register
+                case 0x10: printf("X      "); break; // AH?
                 case 0x12: printf("M      "); break;
+                case 0x13: printf("R      "); break; // register specified by r field of modrm
                 case 0x14: printf("tmpaL  "); break;
-                case 0x19: printf("M-19   "); break;
+                case 0x15: printf("tmpbL  "); break;
+                case 0x16: printf("tmpaH  "); break;
+                case 0x17: printf("tmpbH  "); break;
+                case 0x18: printf("XA     "); break; // AX?
+                case 0x19: printf("BC     "); break; // CX?
+                case 0x1a: printf("DE     "); break; // DX?
+                case 0x1c: printf("SP     "); break;  // actual SP register
                 case 0x1e: printf("IJ     "); break;
                 case 0x1f: printf("IK     "); break;
                 default: printf("[%2x]   ", dd); break;
             }
             printf("   ");
 
-            int typ = (d >> 11) & 7;
             switch (typ) {  // TYP bits
                 case 0:
                 case 4:
@@ -428,15 +487,53 @@ public:
                         case 0x01: printf("UNC "); break;
                         case 0x02: printf("NCZ "); break;
                         case 0x03: printf("NCY "); break;
-                        case 0x05: printf("F1-5"); break;
-                        case 0x09: printf("F1-9"); break;
-                        case 0x0b: printf("F1-B"); break;
-                        case 0x0d: printf("X0  "); break;
+                        case 0x04: printf("L8  "); break; // jump if short immediate (skip 2nd byte from Q)
+                        case 0x05: printf("NZ  "); break; // jump if not zero (used in JCXZ and LOOP)
+                        case 0x06: printf("OF  "); break; // jump if overflow flag is set
+                        case 0x07: printf("INT "); break; // jump if interrupt is pending
+                        case 0x08: printf("MOD1"); break; // jump if short offset in effective address
+                        case 0x09: printf("NF1 "); break;
+                        case 0x0a: printf("TEST"); break; // jump if -TEST pin not asserted
+                        case 0x0b: printf("F1  "); break;
+                        case 0x0c: printf("Z   "); break; // jump if zero (used in IMULCOF/MULCOF)
+                        case 0x0d: printf("X0  "); break; // jump if bit 3 of opcode is 1
                         case 0x0e: printf("CY  "); break;
+                        case 0x0f: printf("XC  "); break;  // jump if condition based on low 4 bits of opcode
                         default: printf("[%2x]", (d >> 13) & 0x0f); break;
                     }
                     printf("  ");
-                    printf("%4i    ", ((d >> 14) & 8) + ((d >> 16) & 4) + ((d >> 18) & 2) + ((d >> 20) & 1));
+                    if (typ == 5) {
+                        switch (dest) {
+                            case 0: printf("FARCALL "); break;
+                            case 1: printf("NEARCALL"); break;
+                            case 2: printf("RELJMP  "); break;
+                            case 3: printf("EAOFFSET"); break;
+                            case 4: printf("EAFINISH"); break;
+                            case 5: printf("FARCALL2"); break;
+                            case 6: printf("INTR    "); break;
+                            case 7: printf("INT0    "); break;
+                            case 8: printf("RPTI    "); break;
+                            case 9: printf("AAEND   "); break;
+                        }
+                    }
+                    else {
+                        if (typ == 7) {
+                            switch (dest) {
+                                case 0: printf("FARRET  "); break;
+                                case 1: printf("RPTS    "); break;
+                                case 2: printf("CORX    "); break; // unsigned multiply tmpc and tmpb, result in tmpa:tmpc
+                                case 3: printf("CORD    "); break; // unsigned divide tmpa:tmpc by tmpb, quotient in ~tmpc, remainder in tmpa
+                                case 4: printf("PREIMUL "); break; // abs tmpc and tmpb, invert F1 if product negative
+                                case 5: printf("NEGATE  "); break; // negate product tmpa:tmpc 
+                                case 6: printf("IMULCOF "); break; // clear carry and overflow flags if product of signed multiply fits in low part, otherwise set them
+                                case 7: printf("MULCOF  "); break; // clear carry and overflow flags if product of unsigned multiply fits in low part, otherwise set them
+                                case 8: printf("PREIDIV "); break; // abs tmpa:tmpc and tmpb, invert F1 if one or the other but not both were negative
+                                case 9: printf("POSTIDIV"); break; // negate ~tmpc if F1 set
+                            }
+                        }
+                        else
+                            printf("%4i    ", dest);
+                    }
                     break;
                 case 1:
                     if (((d >> 14) & 0x0f) == 0x0f && ((d >> 18) & 7) == 0x07) {
@@ -446,8 +543,12 @@ public:
                     printf("4   ");
                     switch ((d >> 14) & 0x0f) {
                         case 0x00: printf("MAXC "); break;
-                        case 0x02: printf("RCY  "); break;
+                        case 0x02: printf("RCY  "); break;  // reset carry
+                        case 0x04: printf("CF1  "); break;
+                        case 0x06: printf("CCOF "); break;  // clear carry and overflow
                         case 0x08: printf("FLUSH"); break;
+                        case 0x0c: printf("CITF "); break;  // clear interrupt and trap flags
+                        case 0x0e: printf("SCOF "); break;  // set carry and overflow
                         case 0x0f: printf("none "); break;
                         default: printf("[%2x] ", (d >> 14) & 0x0f); break;
                     }
@@ -455,6 +556,10 @@ public:
                     switch ((d >> 18) & 7) {
                         case 0x00: printf("RNI     "); break;
                         case 0x01: printf("RTN     "); break;
+                        case 0x02: printf("CORR    "); break;
+                        case 0x04: printf("WB,NX   "); break;  // possible write back to EA
+                        case 0x05: printf("NWB,NX  "); break;  // no write back to EA
+                        case 0x06: printf("SUSP    "); break;
                         case 0x07: printf("none    "); break;
                         default:  printf("[%2x]    ", (d >> 18) & 0x07); break;
                     }
@@ -466,6 +571,9 @@ public:
                         case 0x00: printf("ADD "); break;
                         case 0x01: printf("PASS"); break;
                         case 0x03: printf("INC "); break;
+                        case 0x04: printf("AND "); break; // 0x09e
+                        case 0x07: printf("INC2"); break;
+                        case 0x08: printf("XZC "); break;  // XOR zero flag computed from argument with incoming carry flag, used in IMULCOF
                         case 0x0a: printf("LRCY"); break;
                         case 0x0b: printf("COM1"); break;
                         case 0x11: printf("XI  "); break;
@@ -473,6 +581,7 @@ public:
                         case 0x14: printf("SUBT"); break;
                         case 0x17: printf("DEC2"); break;
                         case 0x1a: printf("RRCY"); break;
+                        case 0x1b: printf("NEG "); break;
                         default: printf("[%2x]", (d >> 13) & 0x1f); break;
                     }
                     printf("  ");
@@ -493,15 +602,24 @@ public:
                     switch ((d >> 14) & 0x07) {
                         case 0x00: printf("R   "); break;
                         case 0x01: printf("w   "); break;
+                        case 0x02: printf("IRQ "); break;
+                        case 0x05: printf("W   "); break;  // Not sure what the difference is between w and W
                         default: printf("[%2x]", (d >> 14) & 0x07); break;
                     }
                     printf("  ");
-                    switch ((d >> 17) & 0x0f) {
-                        case 0x07: printf("DD,P0   "); break;
-                        case 0x08: printf("DA,BL   "); break;
-                        case 0x0b: printf("DD,BL   "); break;
-                        default:  printf("[%2x]    ", (d >> 18) & 0x07); break;
+                    switch ((d >> 17) & 3) {  // Bits 0 and 1 are segment, bits 2 and 3 are IND update
+                        case 0x00: printf("DA,"); break;  // ES
+                        case 0x01: printf("DS,"); break;  // SS
+                        case 0x02: printf("D0,"); break;  // segment 0
+                        case 0x03: printf("DD,"); break;  // DS
                     }
+                    switch ((d >> 19) & 3) {  // Bits 0 and 1 are segment, bits 2 and 3 are IND update
+                        case 0x00: printf("P2"); break;  // Increment IND by 2
+                        case 0x01: printf("M2"); break;  // Decrement IND by 2
+                        case 0x02: printf("BL"); break;  // Adjust IND according to word size and DF
+                        case 0x03: printf("P0"); break;  // Don't adjust IND
+                    }
+                    printf("   ");
                     break;
             }
             printf(" ");
@@ -509,6 +627,24 @@ public:
                 printf("F");
             else
                 printf(" ");
+            printf("  ");
+            afterDisassembly:
+            if (i % 4 == 0 && stage1[i >> 2] != 0) {
+                int ba[] = {7, 2, 1, 0, 5, 6, 8, 9, 10, 3, 4};
+
+                int s1 = stage1[i >> 2];
+                for (int b = 0; b < 11; ++b) {
+                    int x = (s1 >> (ba[b] * 2)) & 3;
+                    printf("%c", "?10*"[x]);
+                    if (b == 8)
+                        printf(".");
+                }
+                //int group = '0' + ((s1 >> (3 * 2)) & 1)*2 + ((s1 >> (4 * 2)) & 1);
+                //printf(" %c%c", group, "?so*"[(s1 >> (7 * 2)) & 3]);
+            }
+            else
+                printf("            ");
+            printf("  ");
             //bool jump = false;
             //switch ((d >> 12) & 0x1f) {
             //    case 0x1c:
@@ -541,18 +677,178 @@ public:
             //    case 7: printf("   ");
             //    }
             //}
+            if (i % 4 == 0) {
+                const char* s[] = {
+                    "MOV rm<->r",
+                    "LEA",
+                    "alu rm<->r",
+                    "alu rm,i",
+                    "",
+                    "MOV rm,i",
+                    "alu A,i",
+                    "MOV r,i",
+                    " INC/DEC rm",
+                    " PUSH rm",
+                    "PUSH rw",
+                    "PUSH sr",
+                    "PUSHF",
+                    "POP rw",
+                    "POP sr",
+                    "POPF",
+                    "POP rmw",
+                    "",
+                    "",
+                    " NOT rm",
+                    " NEG rm",
+                    "CBW",
+                    "CWD",
+                    "",
+                    "MOV A,[i]",
+                    "MOV [i],A",
+                    " CALL FAR rm",
+                    "",
+                    "CALL cd",
+                    " CALL rm",
+                    "",
+                    "CALL cw",
+                    "",
+                    "XCHG AX,rw",
+                    "rot rm,1",
+                    "rot rm,CL",
+                    "",
+                    "TEST rm,r",
+                    " TEST rm,i",
+                    "TEST A,i",
+                    "SALC",
+                    "XCHG rm,r",
+                    "",
+                    "IN A,ib",
+                    "OUT ib,A",
+                    "IN A,DX",
+                    "OUT DX,A",
+                    "RET",
+                    "RETF",
+                    "",
+                    "IRET",
+                    "RET/RETF iw",
+                    "JMP cw/JMP cb",
+                    "",
+                    " JMP rm",
+                    " JMP FAR rm",
+                    "JMP cd",
+                    "",
+                    "Jcond cb",
+                    "MOV rmw<->sr",
+                    "LES",
+                    "LDS",
+                    "WAIT",
+                    "",
+                    "SAHF",
+                    "LAHF",
+                    "ESC",
+                    "XLAT",
+                    "",
+                    "",
+                    "",
+                    "STOS",
+                    "CMPS/SCAS",
+                    "",
+                    "",
+                    "MOVS/LODS",
+                    "",
+                    "JCXZ",
+                    "LOOPNE/LOOPE",
+                    "",
+                    "LOOP",
+                    "DAA/DAS",
+                    "AAA/AAS",
+                    "",
+                    " iMUL rmb",
+                    "",
+                    " iMUL rmw",
+                    "",
+                    " iDIV rmb",
+                    "",
+                    " iDIV rmw",
+                    "",
+                    "AAD",
+                    "AAM",
+                    "",
+                    "INC/DEC",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "INT ib",
+                    "INTO",
+                    "INT 3",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "WAIT continued",
+                    "STOS continued",
+                    "CMPS/SCAS continued",
+                    "MOVS/LODS continued",
+                    "JCXZ continued"};
+                printf("%s", s[i / 4]);
+            }
             switch (i) {
-                case 0x10c: printf("XLAT: (0xd7)"); break;
+                case 0x06b: printf("FARCALL"); break;
+                case 0x077: printf("NEARCALL"); break;
+                case 0x0c2: printf("FARRET"); break;
+                case 0x0d2: printf("RELJMP"); break;
+                case 0x1d4: printf("[BX+SI]"); break;
+                case 0x1da: printf("[BX+DI]"); break;
+
+                case 0x1db: printf("[BP+SI]"); break;
+                case 0x1d7: printf("[BP+DI]"); break;
+                case 0x003: printf("[SI]"); break;
+                case 0x01f: printf("[DI]"); break;
+                case 0x1dc: printf("[iw]"); break;
+                case 0x023: printf("[BP]"); break;
+                case 0x037: printf("[BX]"); break;
+
+                case 0x1de: printf("[i]"); break;
+                case 0x1e1: printf("EALOAD"); break;
+                case 0x1e3: printf("EADONE"); break;
+                case 0x06c: printf("FARCALL2"); break;
+
+                case 0x19d: printf("INTR"); break;
                 case 0x112: printf("RPTS"); break;
-                case 0x11c: printf("STS: (0xaa, 0xab)"); break;
-                case 0x120: printf("CMPS/SRCHS: (0xa6, 0xa7, 0xae, 0xaf)"); break;
-                case 0x12c: printf("MOVS/LDS: (0xa4, 0xa5, 0xac, 0xad)"); break;
-                case 0x148: printf("AAA/AAS: (0x37, 0x3f)"); break;
-                case 0x174: printf("AAM: (0xd4)"); break;
-                case 0x17c: printf("INCR/DECR (0x40-0x4f)"); break;
+                case 0x1a7: printf("INT0"); break;
                 case 0x17f: printf("CORX"); break;
                 case 0x188: printf("CORD"); break;
+                case 0x1c0: printf("PREIMUL"); break;
+                case 0x1b6: printf("NEGATE"); break;
+                case 0x1cd: printf("IMULCOF"); break;
 
+                case 0x1d2: printf("MULCOF"); break;
+                case 0x1b4: printf("PREIDIV"); break;
+                case 0x1c4: printf("POSTIDIV"); break;
+                case 0x118: printf("RPTI"); break;
+                case 0x179: printf("AAEND"); break;
+
+                case 0x198: printf("INT1"); break;
+                case 0x199: printf("INT2"); break;
+                case 0x19a: printf("IRQ "); break;
+                case 0x1e4: printf("RESET"); break;
 
             }
             printf("\n");
