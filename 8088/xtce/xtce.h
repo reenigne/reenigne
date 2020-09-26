@@ -2084,7 +2084,7 @@ public:
         _timeIP1 = timeIP1;
         _timeSeg1 = timeSeg1;
     }
-    void setIP(int ip) { _ip = ip; }
+    void setInitialIP(int ip) { _ip = ip; }
     int cycle() const { return _cycle; }
     String log() const { return _log; }
     void reset()
@@ -2346,7 +2346,6 @@ private:
             case 1:
             case 6:
                 _transferStarting = true;
-                printBusState();
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
                 }
                 else {
@@ -2578,7 +2577,7 @@ private:
             case 22:
             case 23:
                 _transferStarting = true;
-                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
                 }
                 else {
                     wait(1);
@@ -2685,7 +2684,6 @@ private:
             case 38:
                 wait(4);
                 _transferStarting = true;
-                printBusState();
                 if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == t4 || _busState == tIdleStatusSet) {
                     if (_busState == t4 && _ioLast._type == ioCodeAccess)
                         wait(1);
@@ -4148,10 +4146,8 @@ private:
         }
         return "unknown: " + decimal(static_cast<int>(type));
     }
-    void printBusState()
+    String stringForBusState()
     {
-        if (_cycle >= _logStartCycle && _cycle < _logEndCycle)
-            return;
         String s;
         switch (_busState) {
             case t1: s = "t1"; break;
@@ -4164,7 +4160,14 @@ private:
             case tIdle: s = "tIdle"; break;
             case tIdleStatusSet: s = "tIdleStatusSet"; break;
         }
-        console.write("Bus state: " + s + ", last = " + stringForAccessType(_ioLast._type) + ", current = " + stringForAccessType(_io._type) + "\n");
+        return s + ", last = " + stringForAccessType(_ioLast._type) + ", current = " + stringForAccessType(_io._type);
+
+    }
+    void printBusState()
+    {
+        if (_cycle >= _logStartCycle && _cycle < _logEndCycle)
+            return;
+        console.write("Bus state: " + stringForBusState() + "\n");
     }
     bool interruptPending()
     {
@@ -4592,10 +4595,8 @@ private:
     bool af() { return (_flags & 0x10) != 0; }
     void setAF(bool af) { _flags = (_flags & ~0x10) | (af ? 0x10 : 0); }
     bool zf() { return (_flags & 0x40) != 0; }
-    void setZF()
-    {
-        _flags = (_flags & ~0x40) | ((_data & sizeMask()) == 0 ? 0x40 : 0);
-    }
+    void setZF() { setZF((_data & sizeMask()) == 0); }
+    void setZF(bool zf) { _flags = (_flags & ~0x40) | (zf ? 0x40 : 0); }
     bool sf() { return (_flags & 0x80) != 0; }
     void setSF() { _flags = (_flags & ~0x80) | (topBit(_data) ? 0x80 : 0); }
     bool tf() { return (_flags & 0x100) != 0; }

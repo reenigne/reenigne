@@ -1,0 +1,74 @@
+
+        else {
+            if (_address < 0xa0000)
+                _ram[_address] = data;
+            static int highAddress = 0;
+            if (_address > highAddress && _address < 0x20a74 && _address != 0x20a40 && _address != 0x20980 && !(_address >= 0x16a80 && _address <= 0x16a84) && !(_address >= 0x14a80 && _address <= 0x14a83) && !(_address >= 0x1b379 && _address <= 0x1b37e)) {
+                printf("New high address: %05x\n", _address);
+                for (int i = 0; i < 50; ++i)
+                    printf("%02x ", _ram[0x10a80 + i]);
+                highAddress = _address;
+            }
+        }
+
+
+0000 10a80 add [bx+si],al
+0001 10a81 add [bx+si],ax
+0002 10a82 lds preamble
+0003 10a83 lds preamble
+
+4000 14a80 rep cmpsb preamble
+4001 14a81 rep cmpsb preamble
+4002 14a82 rep cmpsb preamble
+4003 14a83 rep cmpsb preamble
+
+6000 16a80 rep movsb destination
+6001 16a81 rep movsb destination
+6002 16a82 rep movsb destination
+6003 16a83 rep movsb destination
+6004 16a84 rep movsb destination
+
+a8f9 1b379 call al - preamble is wrong and screws up SP
+a8fa 1b37a call al - preamble is wrong and screws up SP
+a8fb 1b37b call al - preamble is wrong and screws up SP
+a8fc 1b37c call al - preamble is wrong and screws up SP
+a8fd 1b37d call al - preamble is wrong and screws up SP
+a8fe 1b37e call al - preamble is wrong and screws up SP
+
+ff00 20980 jmp al preamble puts RET at 0xff00
+
+ffc0 20a40 call [bx+si] preamble puts RET here
+
+fff4 20a74 wait (two interrupts)
+fff5 20a75 wait (two interrupts)
+fff6 20a76 call far [bx+si]  far call plus interrupt
+fff7 20a77 call far [bx+si]  far call plus interrupt
+fff8 20a78 call far al  call plus interrupt
+fff9 20a79 call far al  call plus interrupt
+fffa 20a7a wait (interrupt)
+fffb 20a7b wait (interrupt)
+fffc 20a7c far call
+fffd 20a7d far call
+fffe 20a7e push
+ffff 20a7f push
+
+dw 0,2,4,8,0xa,0xc,0xe,0x10,0x12,0x14,0x16,0x18,0x1a,0x1c,0x1e,0x20,0x22,0x24,0x26,0x28,0x2a,0x2c,0x2e,0x30,0x32,0x34,0x4000,0x4002,0x6000,0x6002,0x6004,0xa8f9,0xa8fb,0xa8fd,0xff00,0xffc0,0xfff4,0xfff6,0xfff8,0xfffa,0xfffc,0xfffe
+
+
+
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+Address 0xfff70 read
+
+14 tests use ROM - fed8 (CALL) and fee8 (JMP)?

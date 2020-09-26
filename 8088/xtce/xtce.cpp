@@ -53,7 +53,7 @@ public:
         emulator.setExtents(logStartCycle, logEndCycle, executeEndCycle, 0xff,
             segment - 0x10, -1, -1);
         emulator.setConsoleLogging();
-        emulator.setIP(0x100);
+        emulator.setInitialIP(0x100);
         emulator.run();
         console.write(emulator.log());
         console.write(String(decimal(emulator.cycle())) + "\n");

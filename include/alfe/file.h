@@ -126,7 +126,7 @@ private:
         // Process initial slashes
         if (c == '/' || c == '\\') {
             s = s2;
-            dir = RootDirectory();
+            dir = RootDirectoryT<T>();
             c = s2.get();
             if (c == -1)
                 return dir;
@@ -249,7 +249,7 @@ private:
 
         // Process initial slashes
         if (c == '/') {
-            dir = RootDirectory();
+            dir = RootDirectoryT<T>();
             while (c == '/') {
                 s = s2;
                 c = s2.get();
@@ -329,7 +329,7 @@ public:
         bool windowsParsing = false)
       : FileSystemObject(path, relativeTo, windowsParsing) { }
     DirectoryT(const String& path, bool windowsParsing)
-      : FileSystemObject(path, CurrentDirectory(), windowsParsing) { }
+      : FileSystemObject(path, CurrentDirectoryT<T>(), windowsParsing) { }
 
     FileSystemObject child(const String& name) const
     {
@@ -389,7 +389,7 @@ private:
         if (GetCurrentDirectory(n, &buf[0]) == 0)
             throw Exception::systemError("Obtaining current directory");
         String path(&buf[0]);
-        return FileSystemObject::parse(path, RootDirectory(), true);
+        return FileSystemObject::parse(path, RootDirectoryT<T>(), true);
 #else
         size_t size = 100;
         do {

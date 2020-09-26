@@ -1,0 +1,49 @@
+Acid88 - a testsuite for cycle-exact 8088 PC/XT emulators
+
+This program executes the testcases that found timing issues in the XTCE
+emulator, counts the number of cycles that each of these testcases takes to
+execute, and compares them to a stored expected value.
+
+While it is not guaranteed that getting full marks in this program will
+guarantee that your emulator is cycle-exact, it will least put you in the
+same league as the most accurate emulators I currently know about, and should
+allow your emulator to run 8088 MPH correctly if it also has good composite
+CGA and PC speaker support.
+
+Note that Acid88 is currently focussed on timing, and is not
+
+Requirements:
+* Genuine (or accurately emulated) Intel 8088 CPU running at 4.77MHz (4x PIT
+clock).
+* Standard PC/XT hardware (PIT/PIC/DMAC).
+* At least 128kB free conventional RAM.
+* Some tests will only pass with the 1501512 XT BIOS (the "JMP FAR rb" and
+"CALL FAR rb" undocumented instructions cause control flow to pass into the
+ROM area, and require byte 0xCC at address 0xFFF70 to resume correctly with
+the current implementation.
+* DOS 2.0 or later.
+
+On running acid88.com with no arguments, the program will iterate through all
+tests and display a count of the number of passing tests and the total number
+of tests. If any tests fail, it will also display the number of the first
+failing test, the number of cycles it took to execute, and the number of cycles
+it should have taken. If your emulator is running very fast, the count may
+become negative, wrap, and be displayed as a large integer (approaching 65535).
+
+The test number can be used as a command line argument (e.g. "acid88 123") to
+run just that single test, for the purposes of emulator debugging. The code
+under test will be placed at 10A8:0000 - you can place a breakpoint at this
+location and start logging when this breakpoint is hit.
+
+You can also obtain a cycle-by-cycle log of how the same code behaves on a real
+machine by running Acid88 on the XT Server - http://www.reenigne.org/xtserver .
+Create a bootable floppy disk image containing acid88.com and an autoexec.bat
+file to launch Acid88 with the test number in question. Upload this image file
+to the XT Server and acid88 will activate the ISA bus sniffer at the
+appropriate time to produce a log of this test.
+
+The latest version of acid88 can be found at:
+https://www.reenigne.org/software/acid88.zip
+
+The latest source code for acid88 can be found at:
+https://github.com/reenigne/reenigne/tree/master/8088/acid88

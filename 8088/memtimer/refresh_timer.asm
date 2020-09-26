@@ -11,16 +11,18 @@ ITERATIONS EQU 120
 
   cli
 
-  mov ax,0
+  xor ax,ax
   mov ds,ax
+  mov word[0x20],interrupt8null
   mov ax,cs
-  mov word[0x20],interrupt8
   mov [0x22],ax
 
   mov ds,ax
   mov es,ax
   mov ss,ax
-  mov sp,0
+  xor sp,sp
+
+  sti
 
   mov si,experimentData
 nextExperiment:
@@ -179,6 +181,10 @@ iterationLoop:
   mov cx,256
   cli
 
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8
+
   ; Increase refresh frequency to ensure all DRAM is refreshed before turning
   ; off refresh.
   mov al,TIMER1 | LSB | MODE2 | BINARY
@@ -234,6 +240,20 @@ outOfSpaceMessageEnd:
 
 
 experimentData:
+
+experimentRZ:
+  db "RZ$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+.endInit:
+  dw .endCode - ($+2)
+
+    movsb
+    add si,bx
+
+.endCode:
+
 
 experimentParticle:
   db "Particle$"
@@ -296,6 +316,10 @@ timerEndStart:
   mov al,0x20
   out 0x20,al
 
+  xor ax,ax
+  mov ds,ax
+  mov word[0x20],interrupt8null
+
   mov ax,cs
   mov ds,ax
   mov es,ax
@@ -307,6 +331,13 @@ timerEndStart:
   popf
   retf
 timerEndEnd:
+
+interrupt8null:
+  push ax
+  mov al,0x20
+  out 0x20,al
+  pop ax
+  iret
 
 
   ; This must come last in the program so that the experiment code can be

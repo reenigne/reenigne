@@ -42,7 +42,7 @@ public:
         // TODO: read asset data
 
     }
-    Word getAsset(Word asset)
+    Word getAsset(Word asset, bool lock = false)
     {
         AssetData far* data = getAssetData(asset);
         // See if it's already loaded

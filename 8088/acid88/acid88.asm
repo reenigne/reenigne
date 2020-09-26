@@ -1,6 +1,7 @@
-%include "../../defaults_bin.asm"
+%include "../defaults_com.asm"
 
 LENGTH EQU 2048
+moveListCount equ 42
 
 %macro outputByte 0
 %rep 8
@@ -13,29 +14,119 @@ LENGTH EQU 2048
 %endrep
 %endmacro
 
+; Check command line. If number specified, go single test routine with specified number.
 ; Loop over tests
-;   Do {1, 9} iterations
-;     Copy N instances of test code to CS + 64kB
-;     Safe refresh off
-;     Read timer
-;     Execute test
-;     Read timer
-;     Subtract timer
-;     Safe refresh on
-;   Subtract timer deltas
+;   Disable interrupts
+;   Backup contents of segment 0x10a8 to buffer
+;   Copy test code to segment 0x10a8
+;   Safe refresh off
+;   Read timer
+;   Execute test
+;   Read timer
+;   Subtract timer
+;   Safe refresh on
+;   Restore stuff from buffer to segment 0x10a8
 ;   Compare to expected
 ;   If not equal
 ;     Print failing test number
 ;     Copy an instance of test code
 ;     Execute under trace
 
-  outputCharacter 8
+main:
+  mov si,bannerMessage
+  mov cx,passedMessage - bannerMessage
+  outputString
+
+  xor bx,bx
+  xor di,di
+  mov si,0x81
+findInitialSpaces:
+  lodsb
+  cmp al,0x20
+  je findInitialSpaces
+  jmp startSearch
+
+searchLoop:
+  lodsb
+  cmp al,0x20
+  je foundEnd
+startSearch:
+  cmp al,'0'
+  jl notNumber
+  cmp al,'9'
+  jg notNumber
+  inc di
+  sub al,'0'
+  push ax
+  mov ax,10
+  mul bx
+  pop cx
+  add ax,cx
+  mov bx,ax
+notNumber:
+  cmp al,0x0d
+  jne searchLoop
+foundEnd:
+  test di,di
+  jz notSingleTest
+  mov [singleTest],bx
+notSingleTest:
+
+  mov ax,0x20a8
+  mov bx,cs
+  add bx,0x1000
+  cmp bx,ax
+  jae not20a8
+  mov bx,ax
+not20a8:
+  xor ax,ax
+  mov es,ax
+  mov ax,[es:0x413]
+  mov cl,6
+  shl ax,cl
+  sub ax,0x1000
+  cmp ax,bx
+  jae enoughRAM
+
+  mov si,memoryMessage
+  mov cx,memoryMessageEnd
+  outputString
+  outputCharacter 13
+  outputCharacter 10
+  mov ax,0x4c01
+  int 0x21
+
+enoughRAM:
+  mov es,bx
+  mov ax,cs
+  mov ds,ax
+  mov cx,0x8000
+  xor si,si
+  xor di,di
+  rep movsw
+
+  push es
+  mov ax,doneReloc
+  push ax
+  retf
+doneReloc:
+
+  mov ax,0xf000
+  mov es,ax
+  cmp byte[0xff70],0xcc
+  je biosOk
+  mov byte[badBIOS],1
+biosOk:
 
   ; Enable PIT channel 2. We'll use this for timing so that tests can do IRQ0s.
   in al,0x61
   and al,0xfc
   or al,1
   out 0x61,al
+
+  in al,0x21
+  mov [imr],al
+
 
   ; Enable auto-EOI
   mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
@@ -44,11 +135,28 @@ LENGTH EQU 2048
   out 0x21,al  ; Set ICW2
   mov al,0x0f  ; 8086/8088 mode, auto-EOI, buffered mode/master, not special fully nested mode
   out 0x21,al  ; Set ICW4
-  mov al,0xbc  ; Enable IRQs 0 (timer), 1 (keyboard) and 6 (floppy disk).
+  mov al,0xfe ;bc  ; Enable IRQs 0 (timer). Leave disabled 1 (keyboard) and 6 (floppy disk).
   out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
 
   xor ax,ax
   mov ds,ax
+  mov ax,[8*4]
+  mov [cs:oldInt8],ax
+  mov ax,[8*4+2]
+  mov [cs:oldInt8+2],ax
+  mov ax,[3*4]
+  mov [cs:oldInt3],ax
+  mov ax,[3*4+2]
+  mov [cs:oldInt3+2],ax
+  mov ax,[0xfe*4]
+  mov [cs:oldIntFE],ax
+  mov ax,[0xfe*4+2]
+  mov [cs:oldIntFE+2],ax
+  mov ax,[0xff*4]
+  mov [cs:oldIntFF],ax
+  mov ax,[0xff*4+2]
+  mov [cs:oldIntFF+2],ax
+
   mov word[8*4],irq0
   mov [8*4+2],cs
   mov word[0xff*4],interruptFF
@@ -68,38 +176,120 @@ LENGTH EQU 2048
   mov si,testCases+2
   mov [testCaseOffset],si
 testLoop:
+
+;   mov ax,[testCaseIndex]
+;   outputHex
+;   outputCharacter ' '
+
   mov ax,si
   sub ax,testCases+2
   cmp ax,[testCases]
-  jb notDone
+  jae cleanup
+  jmp notDone
 
-  mov si,passMessage
-  mov cx,5
+cleanup:
+  xor ax,ax
+  mov ds,ax
+  mov ax,[cs:oldInt8]
+  mov [8*4],ax
+  mov ax,[cs:oldInt8+2]
+  mov [8*4+2],ax
+  mov ax,[cs:oldInt3]
+  mov [3*4],ax
+  mov ax,[cs:oldInt3+2]
+  mov [3*4+2],ax
+  mov ax,[cs:oldIntFE]
+  mov [0xfe*4],ax
+  mov ax,[cs:oldIntFE+2]
+  mov [0xfe*4+2],ax
+  mov ax,[cs:oldIntFF]
+  mov [0xff*4],ax
+  mov ax,[cs:oldIntFF+2]
+  mov [0xff*4+2],ax
+  mov ax,cs
+  mov ds,ax
+
+  ; Disable auto-EOI
+  mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
+  out 0x20,al  ; Set ICW1
+  mov al,0x08  ; Interrupt vector address
+  out 0x21,al  ; Set ICW2
+  mov al,0x0d  ; 8086/8088 mode, normal EOI, buffered mode/master, not special fully nested mode
+  out 0x21,al  ; Set ICW4
+  mov al,[imr]
+  out 0x21,al
+
+  cmp word[singleTest],-1
+  jne noFails
+
+  mov si,passedMessage
+  mov cx,failureMessage1 - passedMessage
   outputString
+  mov ax,[passed]
+  call outputDecimal
+  outputCharacter '/'
   mov ax,[testCaseIndex]
   call outputDecimal
+  outputCharacter 13
   outputCharacter 10
-
-  complete
+  mov ax,[firstFail]
+  cmp ax,-1
+  je noFails
+  push ax
+  mov si,failureMessage1
+  mov cx,failureMessage2 - failureMessage1
+  outputString
+  pop ax
+  call outputDecimal
+  mov si,failureMessage2
+  mov cx,failureMessage3 - failureMessage2
+  outputString
+  mov ax,[firstFailObserved]
+  call outputDecimal
+  mov si,failureMessage3
+  mov cx,failureMessage4 - failureMessage3
+  outputString
+  mov ax,[firstFailExpected]
+  call outputDecimal
+  mov si,failureMessage4
+  mov cx,failureMessageEnd - failureMessage4
+  outputString
+noFails:
+  disconnect
+  mov ax,0x4c00
+  int 0x21
 notDone:
+  mov ax,[singleTest]
+  cmp ax,-1
+  je .notSingleTest
+  cmp ax,[testCaseIndex]
+  jne nextTestCase
+
 ;    mov ax,[testCaseIndex]
 ;    call outputDecimal
 ;    outputCharacter ' '
-
+.notSingleTest:
+;   outputCharacter 'm'
   call doMeasurement
+;   outputCharacter 'c'
   mov ax,bx
   neg ax
   mov si,[testCaseOffset]
   cmp byte[si+3],0
   je adjustNoStub
-  sub ax,4725-92 +12 - 30 + 2 - 8  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4725-92 +12 - 30 + 2 - 8 ;-25  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
   jmp doneAdjust
 adjustNoStub:
-  sub ax,4615 + 2095 ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
+  sub ax,4615 + 2095 ;-25 ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
 doneAdjust:
+  cmp word[singleTest],-1
+  jne doSniffer
   cmp ax,[si]
   jne testFailed
 
+  inc word[passed]
+
+nextTestCase:
   inc word[testCaseIndex]
   mov bl,[si+5]      ; Number of preamble bytes
   mov bh,0
@@ -115,43 +305,30 @@ doneAdjust:
   jmp testLoop
 
 testFailed:
+  cmp word[firstFail],-1
+  jne notFirstFail
+
   push ax
-
-;  cmp byte[si+3],0
-;  jne noStubAdjustCount
-;  add ax,212
-;noStubAdjustCount:
-  mov [countedCycles],ax
-
   mov ax,[testCaseIndex]
-  outputHex
-  outputCharacter ' '
-
-  outputCharacter 'o'
+  mov [firstFail],ax
   pop ax
-  call outputDecimal
-  outputCharacter ' '
-  outputCharacter 'e'
+  add ax,210
+  mov [firstFailObserved],ax
   mov si,[testCaseOffset]
   mov ax,[si]
-  call outputDecimal
-  outputCharacter 10
+  add ax,210
+  mov [firstFailExpected],ax
+notFirstFail:
+  ;cmp word[singleTest],-1
+  ;je nextTestCase
+  jmp nextTestCase
 
-  mov si,failMessage
-  mov cx,5
-  outputString
-  mov ax,[testCaseIndex]
-  call outputDecimal
-  outputCharacter ','
-  mov ax,[countedCycles]
-  call outputDecimal
-
-  outputCharacter 10
-  outputCharacter 'x'
+doSniffer:
+  outputCharacter 8  ; Sniffer to direct mode
 
   mov word[sniffer],0x8000
 
-  outputCharacter 6
+  outputCharacter 6  ; Start recording sniffer data
 
 ;  mov ax,[countedCycles]
 ;  add ax,210
@@ -193,14 +370,42 @@ flushLoop2:
 
   mov cx,[savedCX]
   loop loopTop2
-  outputCharacter 7
-  complete
+  outputCharacter 7    ; Stop recording sniffer data
+  jmp cleanup
 loopTop2:
   jmp loopTop
 
 doMeasurement:
+  xor ax,ax
+  mov ds,ax
+  mov word[3*4],int3handler
+  mov [3*4+2],cs
+  mov bx,[0xffdf]
+
+  mov ax,0x10a8
+  mov ds,ax
   mov ax,cs
-  add ax,0x1000 - 3
+  mov es,ax
+  mov cx,moveListCount
+  mov si,moveList
+  mov di,backup
+backupLoop:
+  cs lodsw
+  xchg ax,si
+  movsw
+  xchg ax,si
+  loop backupLoop
+  xchg ax,bx
+  stosw
+
+  ; Patch this because changing the code would require recalculating the timings
+  mov ax,cs
+  mov ds,ax
+  sub ax,0x10a8
+  neg ax
+  mov [cs:patchSegment+1],ax
+
+  mov ax,0x10a8
   mov es,ax
   xor di,di
   mov si,[testCaseOffset]
@@ -300,6 +505,15 @@ doneNops:
 
   mov cl,[si]                 ; instruction bytes
   inc si
+  cmp byte[badBIOS],0
+  je .biosOK
+  cmp word[si],0xd8fe
+  je .skipTest
+  cmp word[si],0xe8fe
+  jne .biosOK
+.skipTest:
+  mov word[si],0
+.biosOK:
   push bx
   mov bx,di
   rep movsb
@@ -358,6 +572,8 @@ doneNops:
 %endif
 
 %if 0
+  cmp word[testCaseIndex],365
+  jne .noDump
 ;  cmp word[sniffer],0x8000
 ;  jne .noDump
     push di
@@ -368,7 +584,7 @@ doneNops:
 
     mov si,0
     mov ax,es
-    mov ds,ax
+    mov ds,si ;ax
     mov cx,22
 .dump:
     lodsw
@@ -409,17 +625,17 @@ doneNops:
 ;  mov ax,0x10
 ;  push ax
 ;  popf
+;   outputCharacter 'a'
 
   cmp dl,0
   je snifferAdjustNoStub
   mov word[cs:patchSnifferInitialWait+1],6 + 774*3 ; 773*3
   jmp snifferDoneAdjust
 snifferAdjustNoStub:
-  mov word[cs:patchSnifferInitialWait+1],6 + 1634*3 ; + (773 + 858 + 1 + 1)*3
+  mov word[cs:patchSnifferInitialWait+1],6 + 1634*3 ; (773 + 858 + 1 + 1)*3
 snifferDoneAdjust:
 
   safeRefreshOff
-
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
   writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
   sti
@@ -469,7 +685,8 @@ patchSnifferInitialWait:
   mov [savedSP],sp
   mov [savedSS],ss
   mov ax,cs
-  add ax,0x1000 - 3
+patchSegment:
+  add ax,0x1000
   mov ss,ax
   mov word[testBuffer],0
   mov [testBuffer+2],ax
@@ -583,8 +800,27 @@ doneTimer:
 
   safeRefreshOn
 
+; Restore the saved bytes
+  mov ax,0x10a8
+  mov es,ax
   mov ax,cs
   mov ds,ax
+  mov cx,moveListCount
+  mov si,moveList
+  mov dx,backup
+restoreLoop:
+  lodsw
+  xchg di,ax    ; di = restore dest
+  xchg si,dx
+  movsw
+  xchg si,dx
+  loop restoreLoop
+  xchg si,dx
+  xor ax,ax
+  mov es,ax
+  mov di,0xffdf
+  movsw
+
   ret
 
 interruptFE:
@@ -639,9 +875,39 @@ outputDecimal:
   outputCharacter
   ret
 
+bannerMessage: db "Acid88 v1.0 - https://github.com/reenigne/reenigne/tree/master/8088/acid88",13,10
+passedMessage: db "Passed: "
+failureMessage1: db "First failing test: "
+failureMessage2: db ". Took "
+failureMessage3: db " cycles, expected "
+failureMessage4: db " cycles."
+failureMessageEnd:
+memoryMessage: db "Not enough memory"
+memoryMessageEnd:
 
-failMessage: db "FAIL "
-passMessage: db "PASS "
+; The tests were designed to be run from segment 0x10a8, which (in a DOS
+; program) we can't guarantee that we own. To avoid breaking TSRs etc.
+; save the values from addresses in this segment before running tests and
+; restore them afterwards. Interrupts (other than those we control) need
+; to be off while these values are modified. The list below is all the
+; addresses that the tests modify, as discovered by instrumenting XTCE.
+moveList:
+  dw 0,2,4,8,0xa,0xc,0xe,0x10,0x12,0x14,0x16,0x18,0x1a,0x1c,0x1e,0x20,0x22
+  dw 0x24,0x26,0x28,0x2a,0x2c,0x2e,0x30,0x32,0x34
+  dw 0x4000,0x4002,0x6000,0x6002,0x6004,0xa8f9,0xa8fb,0xa8fd
+  dw 0xff00,0xffc0,0xfff4,0xfff6,0xfff8,0xfffa,0xfffc,0xfffe
+
+imr: db 0
+oldInt3: dw 0,0
+oldInt8: dw 0,0
+oldIntFE: dw 0,0
+oldIntFF: dw 0,0
+passed: dw 0
+firstFail: dw -1
+firstFailExpected: dw 0
+firstFailObserved: dw 0
+singleTest: dw -1
+badBIOS: db 0
 
 testCaseIndex: dw 0
 testCaseOffset: dw 0
@@ -653,6 +919,8 @@ lut: db 0x88,8
 sniffer: dw 0x7000
 countedCycles: dw 1
 testSP: dw 0
+
+backup: times (moveListCount+1) dw 0
 
 delayData:
 %assign i 0

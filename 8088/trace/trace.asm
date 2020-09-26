@@ -180,4 +180,542 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov ax,cs
+  mov ds,ax
+
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+    movsb
+    add si,bx
+
+
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+   mov al, [si+0x1234]
+   stosb
+
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+   mov ah, [si+0x1234]
+   mov al, [si+0x1234]
+   and ax, bp
+   add al, ah
+   stosb
+   inc di
+
+
+
+
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+  add cx,si
+  add dx,bp
+  mov al,ch
+  mov bh,dh
+  xlatb
+  stosb
+
+
+
+
+
   ret

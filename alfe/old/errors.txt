@@ -1,0 +1,26 @@
+http://joeduffyblog.com/2016/02/07/the-error-model has a lot of good ideas.
+
+Programmers want to be able to allocate memory in destructors (even if exceptions can't propagate out of them).
+  Allocating heap memory is a pretty fundamental operation - trying to partition the language into uses-allocation (can't use in destructors) and no-allocation is a bad idea.
+    Especially in ALFE when activation frames can be heap allocated and reference counted if the compiler can't prove they can be stack allocated.
+Code paths involving OOM tend to be untested and therefore broken even if they are supposed to work.
+OSes tend to slow down a lot if programs allocate too much memory - increasingly important stuff gets evicted from caches.
+If OOM is a fast-fail, can still opt in to an OOM exception for specific (generally large) allocations.
+So let's make it fast-fail by default.
+  However, if a developer does want all OOM to raise an exception we should support that:
+    Tools for checking if programs work in this scenario
+    Making it easy to allocate emergency memory that can be allocated out of if there is an OOM exception in flight
+      But really destructors shouldn't do anything except releasing resources. Can we enforce that at compile time?
+        What about flushing write caches? That could potentially get quite involved...
+      Automatically detect how much heap memory is needed by destructors, and make it an error to have code for which the compiler can't figure that out. Then reserve that amount of memory for emergencies (and fail-fast if that can't be allocated)
+
+When an OS is suffering from RAM pressure, there are a number of things it can do:
+  * Notify user (and request guidance) if a desktop OS
+  * Is there a particular process that is leaking memory (linear increase over time) or otherwise use excessive RAM?
+    If so, start denying it additional allocations until situation is resolved.
+  * Pause offending process (and notify user - not suitable for server OS)
+    Or take increasingly long times to return more memory
+  * As a last resort (if we're running out of RAM but the process responsible has stopped allocating more) do an OOM kill
+
+
+Decouple mechanism (exceptions vs error codes) from syntax - the former is a compiler optimisation.

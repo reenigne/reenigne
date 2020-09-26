@@ -269,6 +269,10 @@ public:
                 return 3;
             case 16:
                 return 3;
+            case 17:
+                return 11;
+            case 18:
+                return 18;
             default:
                 return _nops;
         }
@@ -372,6 +376,10 @@ public:
                 p[0] = 0xf6;
                 p[1] = 0x00;
                 p[2] = 0x00;
+                break;
+            case 17:
+                for (int i = 0; i < 11; ++i)
+                    p[i] = 0x90;
                 break;
             default:
                 for (int i = 0; i < _nops; ++i)
@@ -546,16 +554,16 @@ private:
 #include "fails.h"
 #endif
 
-static const int nopCounts = 17;
+static int nopCounts = 17;
 
 struct Measurements
 {
     Measurements()
     {
-        for (int i = 0; i < nopCounts; ++i)
+        for (int i = 0; i < 17 /* nopCounts */; ++i)
             _cycles[i] = -1;
     }
-    SInt16 _cycles[nopCounts];
+    SInt16 _cycles[17 /* nopCounts */];
 };
 
 class Cache
@@ -650,6 +658,16 @@ static const Byte modrms[] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
     0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0xc0};
+
+static const Byte modrms2[] = {
+    0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,
+    0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf,
+    0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7,
+    0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde, 0xdf,
+    0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7,
+    0xe9, 0xea, 0xeb, 0xec, 0xed, 0xee, 0xef,
+    0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,
+    0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff};
 
 class TestGenerator
 {
@@ -1374,7 +1392,7 @@ private:
                         }
                         break;
                     case 6:  // Math instructions with all registers
-                        t.addInstruction(Instruction(_opcode, _m));
+                        t.addInstruction(Instruction(_opcode, modrms2[_m]));
                         if ((_m & 0x30) == 0x30) {
                             t.preamble(0x1e);  // PUSH DS
                             t.preamble(0x31);
@@ -1525,15 +1543,23 @@ private:
                 t.preamble(0x1f);  // POP DS
                 t.fixup(0x08);
                 {
-                    Word a = _d(_generator);
+                    Word a, b, c;
+                    if (_count == 1000) {
+                        a = 0x37FC;
+                        b = 0x0000;
+                        c = 0x008D;
+                    }
+                    else {
+                        a = _d(_generator);
+                        b = _d(_generator);
+                        c = _d(_generator);
+                    }
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
-                    Word b = _d(_generator);
                     t.preamble(0xba);
                     t.preamble(b & 0xff);
                     t.preamble(b >> 8);  // MOV DX,a
-                    Word c = _d(_generator);
                     t.preamble(0xbb);
                     t.preamble(c & 0xff);
                     t.preamble(c >> 8);  // MOV BX,a
@@ -1702,14 +1728,14 @@ private:
                 return true;
             _subsection = 6;
             _opcode = 0xf6;
-            _m = 0xc0;
+            _m = 0;
             return true;
         }
         if (_subsection == 6) {  // Math instructions with all registers
             ++_m;
-            if (_m < 0x100)
+            if (_m < 56)
                 return true;
-            _m = 0xc0;
+            _m = 0;
             ++_opcode;
             if (_opcode < 0xf8)
                 return true;
@@ -1805,7 +1831,7 @@ private:
         }
         if (_section == 4) {  // 1000 input pairs for each divide instruction
             ++_count;
-            if (_count < 1000)
+            if (_count < 1001)
                 return;
             _count = 0;
             _m += 8;
@@ -1907,9 +1933,13 @@ public:
         File("runtests.bin").readIntoArray(&testProgram);
         File("runstub.bin").readIntoArray(&_runStub);
 
-#if GENERATE_NEWFAILS
         CPUEmulator emulator;
         _emulator = &emulator;
+
+#if GENERATE_NEWFAILS
+        nopCounts = 19;
+        int bunchLength = 0;
+        int maxBytesUsed = 0;
         AppendableArray<Test> newFails;
         for (int i = 0; ; ++i) {
             Test t = _generator.getNextTest();
@@ -1917,7 +1947,7 @@ public:
                 break;
             if (!_generator.inFailsArray())
                 continue;
-            int cycles = emulator.expected(t);
+            int cycles = expected(t);
             t.setCycles(cycles);
             bool alreadyThere = false;
             for (int j = 0; j < newFails.count(); ++j) {
@@ -1932,10 +1962,38 @@ public:
             }
             else
                 newFails.append(t);
+            bunchLength += t.length();
+            maxBytesUsed = max(maxBytesUsed, _bytesUsed);
+            //if (newFails.count() - 1 == 511) {
+            //    console.write(log(t));
+            //    exit(1);
+            //}
         }
+        console.write("Max bytes used: " + decimal(maxBytesUsed) + "\n");
         console.write("Found tests: " + decimal(newFails.count()) + ":\n");
         for (int i = 0; i < newFails.count(); ++i)
             newFails[i].write();
+
+        {
+            Array<Byte> output(bunchLength + 2);
+            Byte* p = &output[0];
+            *p = bunchLength;
+            p[1] = bunchLength >> 8;
+            p += 2;
+            for (int i = 0; i < newFails.count(); ++i) {
+                Test t = newFails[i];
+                int cycles = t.cycles() - 210;
+                p[0] = cycles;
+                p[1] = cycles >> 8;
+                p += 2;
+                t.output(p);
+                p += t.length() - 2;
+            }
+            auto h = File("tests.bin").openWrite();
+            h.write(output);
+        }
+
+        nopCounts = 17;
         return;
 #endif
 
@@ -1997,7 +2055,7 @@ public:
                         break;
                     t = _generator.getNextTest();
                 }
-                int cycles = emulator.expected(t);
+                int cycles = expected(t);
                 Instruction instruction = t.instruction(0);
 
                 // Modify and uncomment to force a passing test to fail to see
@@ -2122,7 +2180,7 @@ public:
                     dumpCache(bunch, index);
                     _generator.dumpFailed(t);
 
-                    String expected = emulator.log(t);
+                    String expected = log(t);
                     String expected1;
 
                     String observed;
@@ -2412,6 +2470,7 @@ private:
 
             Byte* r = ram + (seg << 4);
             Byte* stopP = test.outputCode(r);
+            _bytesUsed = stopP - r;
             _stopIP = stopP - (r + 2);
             _logSkip = 1;
             for (int i = 0; i < 4; ++i)
@@ -2424,6 +2483,7 @@ private:
             _stopIP = 0xd1;
             Byte* r = ram + (seg << 4);
             Byte* stopP = test.outputCode(r);
+            _bytesUsed = stopP - r;
             _logSkip = 1041 + 92;// + 17;
             seg = testSegment;
         }
@@ -2467,6 +2527,7 @@ private:
     int _stopSeg;
     int _timeIP1;
     int _timeSeg1;
+    int _bytesUsed;
 
     TestGenerator _generator;
 };
