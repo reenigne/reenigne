@@ -16,7 +16,7 @@ testA:
   db .fixupsEnd - ($+1)
 .fixupsEnd:
 
-
+%if 0        ; Test is currently not working on hardware - SPK seems to be always 0 even as T/C2OUT is oscillating and SPKRDATA is 1. Hardware issue?
 test0:
   dw 0     ; cycle count ignored (computed by emulator)
   db 0x40  ; No queuefiller, no NOPs
@@ -144,3 +144,4 @@ test0:
   db .fixupsEnd - ($+1)
 .fixupsEnd:
 
+%endif

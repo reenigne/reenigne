@@ -64,6 +64,7 @@ LENGTH EQU 2048
   cli
   mov ss,ax
   xor sp,sp
+  sub sp,0x30
   sti
   mov si,testCases+2
   mov [testCaseOffset],si
@@ -199,7 +200,15 @@ loopTop2:
   jmp loopTop
 
 doMeasurement:
+  xor ax,ax
+  mov ds,ax
+  mov word[3*4],int3handler
+  mov [3*4+2],cs
+  mov bx,[0xffdf]
+  mov [cs:backup],bx
+
   mov ax,cs
+  mov ds,ax
   add ax,0x1000 - 3
   mov es,ax
   xor di,di
@@ -369,7 +378,9 @@ doneNops:
     mov si,0
     mov ax,es
     mov ds,ax
-    mov cx,22
+    mov cx,di
+    inc cx
+    shr cx,1
 .dump:
     lodsw
     outputHex
@@ -583,6 +594,11 @@ doneTimer:
 
   safeRefreshOn
 
+  xor ax,ax
+  mov ds,ax
+  mov ax,[cs:backup]
+  mov [0xffdf],ax
+
   mov ax,cs
   mov ds,ax
   ret
@@ -653,6 +669,7 @@ lut: db 0x88,8
 sniffer: dw 0x7000
 countedCycles: dw 1
 testSP: dw 0
+backup: dw 0
 
 delayData:
 %assign i 0
