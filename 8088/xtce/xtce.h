@@ -2552,7 +2552,7 @@ private:
                 break;
             case 18:
             case 19:
-                wait(2);
+                //wait(2);
                 _transferStarting = true;
                 if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
                 }
@@ -2562,9 +2562,9 @@ private:
                 }
                 wait(1);
                 break;
-            case 20:
-            case 21:
-            case 24:
+            case 20: // Can't replace with 25 directly
+            case 21: // Can't replace with 25 directly
+            case 24: // Can't replace with 25 directly
                 _transferStarting = true;
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
                 }
@@ -2825,46 +2825,6 @@ private:
                 wait(1);
                 _transferStarting = true;
                 wait(2);
-                break;
-            case 60:
-                wait(4);
-                break;
-            case 62:
-                wait(1);
-                break;
-            case 63:
-                break;
-            case 64:
-                break;
-            case 65:
-                wait(1);
-                _prefetching = false;
-                wait(2);
-                if (_useMemory)
-                    wait(1);
-                while ((_busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)
-                    wait(1);
-                break;
-            case 66:
-                wait(1);
-                break;
-            case 67:
-                break;
-            case 68:
-                while ((_busState != tIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)  // Weird
-                    wait(1);
-                wait(1);
-                break;
-            case 69:
-                break;
-            case 70:
-                wait(2);
-                waitForBusIdle();
-                wait(3);
-                break;
-            case 71:
-                break;
-            case 72:
                 break;
             default:
                 printf("Error: unknown access number\n");
@@ -3417,9 +3377,9 @@ private:
                     _accessNumber = 31;
                     push(cs());
 
-                    _accessNumber = 60;
                     Word oldIP = ip();
                     cs() = newCS;
+                    wait(4);
                     setIP(newIP);
 
                     _accessNumber = 32;
@@ -3618,7 +3578,6 @@ private:
                         wait(1);
                     }
                     cs() = newCS;
-                    _accessNumber = 72;
                     setIP(newIP);
                 }
                 break;
@@ -3672,7 +3631,7 @@ private:
                     _accessNumber = 44;
                     Word newCS = pop();
                     cs() = newCS;
-                    _accessNumber = 62;
+                    wait(1);
                     setIP(newIP);
                     _accessNumber = 45;
                     _flags = pop() | 2;
@@ -3874,8 +3833,10 @@ private:
                     wait(1);
                     Word newCS = fetchInstructionWord();
                     cs() = newCS;
-                    _accessNumber = 70;
                     _prefetching = false;
+                    wait(2);
+                    waitForBusIdle();
+                    wait(3);
                     setIP(newIP);
                 }
                 break;
@@ -3898,7 +3859,6 @@ private:
                 break;
             case 0xf4: // HLT
                 if (!_repeating) {
-                    _accessNumber = 69;
                     if (_busState == tIdle || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess))
                         _data = 1;
                     else
@@ -3947,6 +3907,8 @@ private:
                             sub();
                         }
                         _accessNumber = 18;
+                        if (_useMemory)
+                            wait(2);
                         writeEA(_data);
                         break;
                     case 4:  // MUL
@@ -4012,6 +3974,8 @@ private:
                         doAF();
                         setPZS();
                         wait(2);
+                        if (_useMemory)
+                            wait(2);
                         _accessNumber = 19;
                         writeEA(_data);
                         break;
@@ -4023,7 +3987,6 @@ private:
                                 else
                                     _data = _wordRegisters[modRMReg2()];
                             }
-                            _accessNumber = 63;
                             wait(1);
                             _prefetching = false;
                             wait(4);
@@ -4051,7 +4014,6 @@ private:
                             _accessNumber = 36;
                             push(cs());
 
-                            _accessNumber = 64;
                             wait(4);
                             Word oldIP = ip();
                             cs() = newCS;
@@ -4069,7 +4031,13 @@ private:
                                 else
                                     _data = _wordRegisters[modRMReg2()];
                             }
-                            _accessNumber = 65;
+                            wait(1);
+                            _prefetching = false;
+                            wait(2);
+                            if (_useMemory)
+                                wait(1);
+                            while ((_busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)
+                                wait(1);
                             setIP(_data);
                         }
                         break;
@@ -4082,7 +4050,7 @@ private:
                                 _data |= 0xff00;
                             Word newCS = _data;
                             cs() = newCS;
-                            _accessNumber = 66;
+                            wait(1);
                             setIP(newIP);
                         }
                         break;
@@ -4351,7 +4319,6 @@ private:
     }
     Word jump(Word delta)
     {
-        _accessNumber = 67;
         _prefetching = false;
         wait(3);
         while ((_busState != tIdle && _busState != tIdleStatusSet && _busState != tSecondIdle) || _ioNext._type != ioPassive)  // Weird
@@ -4391,7 +4358,9 @@ private:
         push(oldCS);
         Word oldIP = ip();
         cs() = newCS;
-        _accessNumber = 68;
+        while ((_busState != tIdle && _busState != tSecondIdle) || _ioNext._type != ioPassive)  // Weird
+            wait(1);
+        wait(1);
         setIP(newIP);
         _accessNumber = 41;
         push(oldIP);
@@ -4418,7 +4387,6 @@ private:
         wait(2);
         Word t = cx();
         if (interruptPending()) {
-            _accessNumber = 71;
             _prefetching = false;
             setIP(ip() - 2);
             t = 0;
@@ -4614,7 +4582,6 @@ private:
     }
     void setIP(Word value)
     {
-        busInit();
         _ip = value;
         _queueBytes = 0;
         _queueHasByte = false;
