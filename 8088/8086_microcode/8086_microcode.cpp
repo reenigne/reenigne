@@ -1,4 +1,11 @@
-#include "alfe/main.h"
+//#include "alfe/main.h"
+
+#include <iostream>
+#include <string>
+#include <array>
+#include <fstream>
+
+typedef std::string String;
 
 int instructions[512];
 
@@ -150,12 +157,12 @@ struct InstructionGroup
     InstructionGroup(std::initializer_list<Instruction> instructions)
     {
         _nInstructions = instructions.size();
-        _instructions.allocate(_nInstructions);
+        //_instructions.allocate(_nInstructions);
         for (int i = 0; i < _nInstructions; ++i)
             _instructions[i] = instructions.begin()[i];
     }
     int _nInstructions;
-    Array<Instruction> _instructions;
+    std::array<Instruction, 512> _instructions;
 };
 
 
@@ -254,9 +261,40 @@ InstructionGroup groups[]{
     {s_sigma, d_blank,   t_4,     a_flush, b_rni,     f_blank}}
 };
 
+String decimal(int i)
+{
+  return std::to_string(i);
+}
+
+struct File 
+{
+    std::string _filename;
+    File(const std::string filename, bool junk)
+    {
+      std::string unneeded = "..\\..\\..\\Projects\\Emulation\\PC\\8086\\";
+      std::string needed = "8086_microcode/";
+      _filename = needed + filename;
+    }
+    std::string contents(void)
+    {
+	std::ifstream ifs(_filename);
+	std::cerr << "opening\"" << _filename << "\"\n";
+	std::string content(
+			    (std::istreambuf_iterator<char>(ifs)),
+			    (std::istreambuf_iterator<char>()));
+	return content;
+    }
+};
+
+class ProgramBase {
+public:
+  void run(void);
+};
+
 class Program : public ProgramBase
 {
 public:
+
     void run()
     {
         for (int i = 0; i < 512; ++i)
@@ -265,11 +303,11 @@ public:
             int h = (y < 3 ? 24 : 12);
             for (int half = 0; half < 2; ++half) {
                 String s = File(
-                    String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
+                    //String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
                     (half == 1 ? "l" : "r") + decimal(y) + ".txt", true).
                     contents();
                 String s2 = File(
-                    String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
+                    //String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
                     (half == 1 ? "l" : "r") + decimal(y) + "a.txt", true).
                     contents();
                 for (int yy = 0; yy < h; ++yy) {
@@ -301,7 +339,7 @@ public:
             int xp = xx[g];
             for (int h = 0; h < 2; ++h) {
                 String s = File(
-                    String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
+		    //String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
                     decimal(g) + (h == 0 ? "t" : "b") + ".txt", true).
                     contents();
                 for (int y = 0; y < 11; ++y) {
@@ -856,3 +894,8 @@ public:
         }
     }
 };
+
+int main() {
+  Program p = Program();
+  p.run();
+}
