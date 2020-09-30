@@ -145,6 +145,9 @@
     <ClInclude Include="..\gentests.h" />
     <ClInclude Include="..\xtce_lkg.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\..\..\include\alfe.natvis" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

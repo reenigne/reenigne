@@ -2574,35 +2574,13 @@ private:
                 }
                 wait(1);
                 break;
-            case 22:
-            case 23:
-                _transferStarting = true;
-                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
-                }
-                else {
-                    wait(1);
-                    waitForBusIdle();
-                }
-                wait(2);
-                break;
             case 25:
                 _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
-                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)) {
+                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
                     _segmentOverride = -1;
                 }
                 else {
                     wait(1);
-                    waitForBusIdle();
-                }
-                wait(2);
-                break;
-            case 26:
-                _transferStarting = true;
-                if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
-                    wait(1);
-                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
-                }
-                else {
                     waitForBusIdle();
                 }
                 wait(2);
@@ -2850,8 +2828,6 @@ private:
                 break;
             case 60:
                 wait(4);
-                break;
-            case 61:
                 break;
             case 62:
                 wait(1);
@@ -3146,7 +3122,7 @@ private:
                 push(_segmentRegisters[_opcode >> 3]);
                 break;
             case 0x07: case 0x0f: case 0x17: case 0x1f: // POP segreg
-                _accessNumber = 22;
+                _accessNumber = 25;
                 _segmentRegisters[_opcode >> 3] = pop();
                 wait(1);
                 break;
@@ -3269,7 +3245,7 @@ private:
                 break;
             case 0x58: case 0x59: case 0x5a: case 0x5b:
             case 0x5c: case 0x5d: case 0x5e: case 0x5f: // POP rw
-                _accessNumber = 23;
+                _accessNumber = 25;
                 rw() = pop();
                 wait(1);
                 break;
@@ -3625,7 +3601,7 @@ private:
                         wait(1);
                     _prefetching = false;
                     _segmentOverride = -1;
-                    _accessNumber = 26;
+                    _accessNumber = 25;
                     Word newIP = pop();
                     wait(2);
                     Word newCS;

@@ -2579,7 +2579,7 @@ private:
             case 22:
             case 23:
                 _transferStarting = true;
-                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
+                if (_segmentOverride != -1 || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tIdle || _busState == t1 || _busState == t3tWaitLast || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
                 }
                 else {
                     wait(1);

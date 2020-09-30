@@ -32,8 +32,6 @@ public:
             AppendableArray<Test> bunch;
             AppendableArray<int> runningTests;
             do {
-                if (totalCount % 100 == 99)
-                    printf(".");
                 ++totalCount;
                 Test t;
                 if (haveRetained) {
@@ -84,6 +82,9 @@ public:
                 //    //    break;
                 //}
             } while (true);
+            console.write(decimal(totalCount) + "\n");
+            if (totalCount <= 15203631)
+                continue;
 
             if (bunch.count() == 0)
                 break;

@@ -1383,7 +1383,7 @@ private:
                         break;
                     case 6:  // Math instructions with all registers
                         t.addInstruction(Instruction(_opcode, modrms2[_m]));
-                        if ((_m & 0x30) == 0x30) {
+                        if ((modrms2[_m] & 0x30) == 0x30) {
                             t.preamble(0x1e);  // PUSH DS
                             t.preamble(0x31);
                             t.preamble(0xdb);  // XOR BX,BX
