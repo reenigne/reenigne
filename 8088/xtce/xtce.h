@@ -2343,17 +2343,7 @@ private:
             case 0:
                 printf("Error: no access number!\n");
                 break;
-            case 1:
-                _transferStarting = true;
-                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == t3tWaitLast) {
-                }
-                else {
-                    waitForBusIdle();
-                    wait(1);
-                }
-                wait(1);
-                break;
-            case 3:
+            case 3:  // Can't immediately combine with 46
                 _transferStarting = true;
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet || _busState == tFirstIdle) {
                     if (!(_busState == t1 || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess)))
@@ -2364,64 +2354,29 @@ private:
                 }
                 wait(2);
                 break;
-            case 5:
-                {
-                    if (_opcode == 0xcc) {
-                        bool codeLast = _io._type == ioCodeAccess;
-                        wait(5);
-                        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == t4 || _busState == tFirstIdle) {
-                            if (_busState == t4 && codeLast)
-                                wait(1);
-                            wait(1);
-                            _transferStarting = true;
-                        }
-                        else {
-                            _transferStarting = true;
-                            waitForBusIdle();
-                        }
-                        wait(2);
-                    }
-                    else {
-                        wait(2);
-                        _transferStarting = true;
-                        if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet  || _busState == t1 || _busState == t4) {
-                            if (_busState == t4 && _opcode == 0xcd)
-                                wait(1);
-                            wait(1);
-                        }
-                        else {
-                            wait(1);
-                            waitForBusIdle();
-                        }
-                        wait(1);
-                    }
-                }
-                break;
-            case 7:
-                // Be careful changing this one, it's used in the stub. If the
-                // stub gets desynchronized, set logStartCycle = 0 here and first
-                // patchSnifferInitialWait patch to 6 in runtests.asm.
-                _transferStarting = true;
-                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+            case 5:  // Can't immediately combine with 46
+                if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == t4 || _busState == tFirstIdle) {
+                    wait(1);
+                    _transferStarting = true;
                 }
                 else {
+                    _transferStarting = true;
                     waitForBusIdle();
-                    wait(2);
                 }
+                wait(2);
                 break;
-            case 8:
-                if (_busState == t4StatusSet || _busState == t3tWaitLast || _busState == tSecondIdle || _busState == tIdleStatusSet) {
-                    wait(1);
-                    _transferStarting = true;
+            case 6:  // Can't immediately combine with 46
+                _transferStarting = true;
+                if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == t1 || _busState == t4) {
                     wait(1);
                 }
                 else {
-                    _transferStarting = true;
+                    wait(1);
                     waitForBusIdle();
                 }
                 wait(1);
                 break;
-            case 9:
+            case 9:  // Can't immediately combine with 46 or 16 or 10
                 _transferStarting = true;
                 if (_busState == t1 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tFirstIdle || _busState == tSecondIdle) {
                     if (_busState == tFirstIdle)
@@ -2433,82 +2388,25 @@ private:
                 }
                 wait(1);
                 break;
-            case 10:
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet) {
-                    wait(1);
-                    _transferStarting = true;
-                }
-                else {
-                    _transferStarting = true;
-                    wait(1);
-                    waitForBusIdle();
-                }
-                wait(2);
-                break;
-            case 11:
-            case 12:
-                _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
-                }
-                else {
-                    wait(1);
-                    waitForBusIdle();
-                }
-                wait(1);
-                break;
-            case 14:
+            case 16:  // Can't immediately combine with 46 or 38 or 25
                 // Used by stub
                 _transferStarting = true;
-                {
-                    if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet) {
-                        if (_busState == t4) {
-                            if (_ioLast._type != ioCodeAccess)
-                                wait(1);
+                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet) {
+                    if (_busState == t4) {
+                        if (_ioLast._type != ioCodeAccess)
                             wait(1);
-                        }
-                    }
-                    else {
                         wait(1);
-                        waitForBusIdle();
                     }
-                    wait(1);
-                }
-                break;
-            case 15:
-                _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
                 }
                 else {
                     wait(1);
                     waitForBusIdle();
-                }
-                wait(1);
-                break;
-            case 16:
-                _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tSecondIdle) {
-                    wait(1);
-                }
-                else {
-                    wait(1);
-                    waitForBusIdle();
-                }
-                wait(1);
-                break;
-            case 20: // Can't replace with 25 directly
-                _transferStarting = true;
-                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
-                }
-                else {
-                    waitForBusIdle();
-                    wait(1);
                 }
                 wait(1);
                 break;
             case 25:
                 _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
-                if (_segmentOverride != -1 || _busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
-                    _segmentOverride = -1;
+                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || (_busState == tFirstIdle && _ioLast._type != ioCodeAccess) || _busState == tSecondIdle) {
                 }
                 else {
                     wait(1);
@@ -2516,21 +2414,7 @@ private:
                 }
                 wait(2);
                 break;
-            case 27:
-                _transferStarting = true;
-                wait(2);
-                break;
-            case 28:
-                _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
-                }
-                else {
-                    wait(1);
-                    waitForBusIdle();
-                }
-                wait(1);
-                break;
-            case 31:
+            case 31:  // Can't immediately combine with 46
                 _transferStarting = true;
                 if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
                 }
@@ -2540,9 +2424,10 @@ private:
                 }
                 wait(5);
                 break;
-            case 38:
+            case 38:  // Can't immediately combine with 46
                 _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == t4 || _busState == tIdleStatusSet) {
+                //if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == t4 || _busState == tIdleStatusSet) {
+                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || _busState == tFirstIdle) {
                     if (_busState == t4 && _ioLast._type == ioCodeAccess)
                         wait(1);
                     wait(1);
@@ -2553,71 +2438,14 @@ private:
                 }
                 wait(1);
                 break;
-            case 42:
-                _transferStarting = true;
-                if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)
-                    wait(1);
-                wait(2);
-                break;
-            case 43:
-                _transferStarting = true;
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet) {
-                }
-                else {
-                    wait(1);
-                    waitForBusIdle();
-                }
-                wait(1);
-                break;
-            //case 25:
             case 46:
-
-            case 47:
-            case 55:
-
                 _transferStarting = true;  // This version seems to be particularly refined - try replacing the others with this one
-                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || (_busState == tFirstIdle /*&& _ioLast._type != ioCodeAccess*/) /*|| _busState == tSecondIdle*/) {
+                if (_busState == t1 || _busState == t3tWaitLast || _busState == t4 || _busState == t4StatusSet || _busState == tIdle || _busState == tIdleStatusSet || _busState == tFirstIdle) {
                     if (_busState == t4)
                         wait(1);
                 }
                 else {
                     wait(1);
-                    waitForBusIdle();
-                }
-                wait(2);
-                break;
-            //case 47:
-            //    _transferStarting = true;
-            //    if (_busState == t1 || _busState == t3tWaitLast ||  _busState == t4 || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == tFirstIdle) {
-            //        if (_busState == t4)
-            //            wait(1);
-            //        wait(1);
-            //    }
-            //    else {
-            //        wait(2);
-            //        waitForBusIdle();
-            //    }
-            //    wait(1);
-            //    break;
-            //case 47:
-            //case 55:
-            //    _transferStarting = true;
-            //    if (_busState == t4StatusSet || _busState == t1 || _busState == t4 || _busState == tFirstIdle || _busState == tIdleStatusSet) {
-            //        if (_busState == t1 || (_busState == tFirstIdle && _ioLast._type == ioCodeAccess)) { }
-            //        else
-            //            wait(1);
-            //        wait(1);
-            //    }
-            //    else {
-            //        waitForBusIdle();
-            //    }
-            //    wait(1);
-            //    break;
-            case 57:
-                _transferStarting = true;
-                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
-                }
-                else {
                     waitForBusIdle();
                 }
                 wait(2);
@@ -2841,24 +2669,18 @@ private:
                 }
                 if (_useMemory)
                     wait(2);
-                wait(1);
                 doALUOperation();
+                wait(2);
                 if (_aluOperation != 7) {
                     if ((_opcode & 2) == 0) {
-                        _accessNumber = 10;
+                        _accessNumber = 25;
                         if (_useMemory)
                             wait(1);
                         writeEA(_data);
-                        if (!_useMemory)
-                            wait(1);
                     }
-                    else {
+                    else
                         setReg(_data);
-                        wait(1);
-                    }
                 }
-                else
-                    wait(1);
                 break;
             case 0x04: case 0x05: case 0x0c: case 0x0d:
             case 0x14: case 0x15: case 0x1c: case 0x1d:
@@ -2876,7 +2698,7 @@ private:
                 break;
             case 0x06: case 0x0e: case 0x16: case 0x1e: // PUSH segreg
                 _wordSize = true;
-                _accessNumber = 28;
+                _accessNumber = 16;
                 wait(3);
                 push(_segmentRegisters[_opcode >> 3]);
                 break;
@@ -2999,7 +2821,7 @@ private:
             case 0x50: case 0x51: case 0x52: case 0x53:
             case 0x54: case 0x55: case 0x56: case 0x57: // PUSH rw
                 _wordSize = true;
-                _accessNumber = 28;
+                _accessNumber = 16;
                 wait(3);
                 push(rw());
                 break;
@@ -3040,7 +2862,7 @@ private:
                 break;
             case 0x80: case 0x81: case 0x82: case 0x83: // alu rm, imm
                 doModRM();
-                _accessNumber = 47;
+                _accessNumber = 46;
                 readEA();
                 _destination = _data;
                 if (_useMemory)
@@ -3062,7 +2884,7 @@ private:
                 _aluOperation = modRMReg();
                 doALUOperation();
                 if (_aluOperation != 7) {
-                    _accessNumber = 11;
+                    _accessNumber = 16;
                     if (_useMemory)
                         wait(1);
                     writeEA(_data);
@@ -3074,7 +2896,7 @@ private:
                 break;
             case 0x84: case 0x85: // TEST rm, reg
                 doModRM();
-                _accessNumber = 47;
+                _accessNumber = 46;
                 readEA();
                 test(_data, getReg());
                 if (_useMemory)
@@ -3083,27 +2905,27 @@ private:
                 break;
             case 0x86: case 0x87: // XCHG rm, reg
                 doModRM();
-                _accessNumber = 47;
+                _accessNumber = 46;
                 readEA();
                 _source = getReg();
                 setReg(_data);
                 wait(3);
                 if (_useMemory)
                     wait(3);
-                _accessNumber = 11;
+                _accessNumber = 16;
                 writeEA(_source);
                 break;
             case 0x88: case 0x89: // MOV rm, reg
                 doModRM();
                 wait(1);
-                _accessNumber = 11;
+                _accessNumber = 16;
                 if (_useMemory)
                     wait(3);
                 writeEA(getReg());
                 break;
             case 0x8a: case 0x8b: // MOV reg, rm
                 doModRM();
-                _accessNumber = 47;
+                _accessNumber = 46;
                 readEA();
                 setReg(_data);
                 wait(1);
@@ -3115,7 +2937,7 @@ private:
                 _wordSize = true;
                 if (!_useMemory)
                     wait(1);
-                _accessNumber = 14;
+                _accessNumber = 16;
                 if (_useMemory)
                     wait(3);
                 writeEA(_segmentRegisters[modRMReg() & 3]);
@@ -3130,7 +2952,7 @@ private:
             case 0x8e: // MOV segreg, rmw
                 doModRM();
                 _wordSize = true;
-                _accessNumber = 47;
+                _accessNumber = 46;
                 readEA();
                 _segmentRegisters[modRMReg() & 3] = _data;
                 wait(1);
@@ -3141,15 +2963,15 @@ private:
                 doModRM();
                 wait(1);
                 _source = _address;
-                _accessNumber = 20;
+                _accessNumber = 16;
                 if (_useMemory)
                     wait(2);
                 _data = pop();
-                _address = _source;
+                _address = _source; 
                 wait(2);
                 if (_useMemory)
                     wait(1);
-                _accessNumber = 15;
+                _accessNumber = 16;
                 writeEA(_data);
                 break;
             case 0x90: case 0x91: case 0x92: case 0x93:
@@ -3192,7 +3014,7 @@ private:
                     wait(4);
                     setIP(newIP);
 
-                    _accessNumber = 27;
+                    _accessNumber = 25;
                     wait(1);
                     push(oldIP);
                 }
@@ -3213,7 +3035,7 @@ private:
                 break;
             case 0x9c: // PUSHF
                 _wordSize = true;
-                _accessNumber = 28;
+                _accessNumber = 16;
                 wait(3);
                 push((_flags & 0x0fd7) | 0xf000);
                 break;
@@ -3234,7 +3056,7 @@ private:
             case 0xa0: case 0xa1: // MOV A, [iw]
                 wait(1);
                 _address = fetchInstructionWord();
-                _accessNumber = 1;
+                _accessNumber = 6;
                 _segment = 3;
                 busRead();
                 setAccum();
@@ -3244,7 +3066,7 @@ private:
                 wait(1);
                 _address = fetchInstructionWord();
                 _data = getAccum();
-                _accessNumber = 7;
+                _accessNumber = 46;
                 _segment = 3;
                 wait(1);
                 busWrite();
@@ -3267,10 +3089,10 @@ private:
                 if (_rep != 0 && (_opcode & 8) != 0)
                     wait(1);
 
-                _accessNumber = 20;
+                _accessNumber = 16;
                 lods();
                 if ((_opcode & 8) == 0) {
-                    _accessNumber = 27;
+                    _accessNumber = 25;
                     wait(1);
                     stos();
                 }
@@ -3299,14 +3121,14 @@ private:
                 wait(1);
                 _destination = getAccum();
                 if ((_opcode & 8) == 0) {
-                    _accessNumber = 20;
+                    _accessNumber = 16;
                     lods();
                     wait(1);
                     _destination = _data;
                 }
                 _address = di();
                 _forcedSegment = 0;
-                _accessNumber = 1;
+                _accessNumber = 6;
                 wait(1);
                 busRead();
                 di() = stringIncrement();
@@ -3343,7 +3165,7 @@ private:
                     break;
                 }
                 _data = ax();
-                _accessNumber = 28;
+                _accessNumber = 16;
                 stos();
                 if (_rep == 0) {
                     wait(3);
@@ -3383,7 +3205,7 @@ private:
                     if ((_opcode & 8) == 0)
                         newCS = cs();
                     else {
-                        _accessNumber = 42;
+                        _accessNumber = 38;
                         wait(1);
                         newCS = pop();
                         if (_wordSize)
@@ -3403,7 +3225,7 @@ private:
                 _accessNumber = 46;
                 readEA(true);
                 setReg(_data);
-                _accessNumber = 57;
+                _accessNumber = 38;
                 if (_useMemory)
                     wait(2);
                 wait(2);
@@ -3447,17 +3269,17 @@ private:
             case 0xcf: // IRET
                 {
                     _segmentOverride = -1;
-                    _accessNumber = 43;
+                    _accessNumber = 38;
                     wait(2);
                     _prefetching = false;
                     Word newIP = pop();
                     wait(3);
-                    _accessNumber = 42;
+                    _accessNumber = 38;
                     Word newCS = pop();
                     cs() = newCS;
                     wait(1);
                     setIP(newIP);
-                    _accessNumber = 42;
+                    _accessNumber = 38;
                     _flags = pop() | 2;
                     wait(5);
                 }
@@ -3466,7 +3288,7 @@ private:
                 doModRM();
                 if (!_useMemory)
                     wait(1);
-                _accessNumber = 47;
+                _accessNumber = 46;
                 readEA();
                 if ((_opcode & 2) == 0) {
                     _source = 1;
@@ -3547,7 +3369,7 @@ private:
                         wait(4);
                     --_source;
                 }
-                _accessNumber = 15;
+                _accessNumber = 16;
                 writeEA(_data);
                 break;
             case 0xd4: // AAM
@@ -3625,14 +3447,17 @@ private:
                 _address = _data;
                 if ((_opcode & 2) == 0) {
                     _accessNumber = 3;
+                    //wait(1);
                     busRead(ioReadPort);
                     wait(1);
                     setAccum();
                 }
                 else {
                     _data = getAccum();
-                    if ((_opcode & 8) == 0)
-                        _accessNumber = 8;
+                    if ((_opcode & 8) == 0) {
+                        _accessNumber = 46;
+                        wait(1);
+                    }
                     else
                         _accessNumber = 9;
                     busWrite(ioWritePort);
@@ -3643,7 +3468,7 @@ private:
                     wait(1);
                     Word oldIP = jumpNear();
                     _wordSize = true;
-                    _accessNumber = 27;
+                    _accessNumber = 25;
                     wait(2);
                     push(oldIP);
                 }
@@ -3708,7 +3533,7 @@ private:
                 break;
             case 0xf6: case 0xf7: // math
                 doModRM();
-                _accessNumber = 55;
+                _accessNumber = 46;
                 readEA();
                 switch (modRMReg()) {
                     case 0:
@@ -3732,7 +3557,7 @@ private:
                             _destination = 0;
                             sub();
                         }
-                        _accessNumber = 15;
+                        _accessNumber = 16;
                         if (_useMemory)
                             wait(2);
                         writeEA(_data);
@@ -3782,7 +3607,7 @@ private:
                 break;
             case 0xfe: case 0xff: // misc
                 doModRM();
-                _accessNumber = 55;
+                _accessNumber = 46;
                 readEA(modRMReg() == 3 || modRMReg() == 5);
                 switch (modRMReg()) {
                     case 0:  // INC rm
@@ -3802,7 +3627,7 @@ private:
                         wait(2);
                         if (_useMemory)
                             wait(2);
-                        _accessNumber = 15;
+                        _accessNumber = 16;
                         writeEA(_data);
                         break;
                     case 2:  // CALL rm
@@ -3825,14 +3650,14 @@ private:
                             Word oldIP = ip();
                             setIP(_data);
                             wait(2);
-                            _accessNumber = 27;
+                            _accessNumber = 25;
                             push(oldIP);
                         }
                         break;
                     case 3:  // CALL rmd
                         {
                             Word newIP = _data;
-                            _accessNumber = 57;
+                            _accessNumber = 38;
                             if (_useMemory)
                                 wait(1);
                             wait(2);
@@ -3840,7 +3665,7 @@ private:
                             if (!_wordSize)
                                 _data |= 0xff00;
                             Word newCS = _data;
-                            _accessNumber = 27;
+                            _accessNumber = 25;
                             wait(1);
                             _prefetching = false;
                             wait(1);
@@ -3856,7 +3681,7 @@ private:
                             cs() = newCS;
                             setIP(newIP);
 
-                            _accessNumber = 27;
+                            _accessNumber = 25;
                             wait(1);
                             push(oldIP);
                         }
@@ -3882,7 +3707,7 @@ private:
                     case 5:  // JMP rmd
                         {
                             Word newIP = _data;
-                            _accessNumber = 27;
+                            _accessNumber = 25;
                             wait(2);
                             _prefetching = false;
                             if (_useMemory)
@@ -4186,21 +4011,34 @@ private:
         Word oldCS = cs();
         cs() = 0;
         _segmentOverride = -1;
-        _accessNumber = 5;
+        if (_opcode == 0xcc) {
+            _accessNumber = 5;
+            wait(5);
+        }
+        else {
+            if (_opcode == 0xcd)
+                _accessNumber = 38;
+            else
+                _accessNumber = 6;
+            wait(2);
+        }
         Word newIP = busReadWord(ioReadMemory);
         wait(1);
         _address += 2;
-        _accessNumber = 1;
+        if (_opcode == 0xcd)
+            _accessNumber = 38;
+        else
+            _accessNumber = 6;
         Word newCS = busReadWord(ioReadMemory);
         _prefetching = false;
         _wordSize = true;
         _segmentOverride = -1;
-        _accessNumber = 27;
+        _accessNumber = 25;
         wait(2);
         push(_flags & 0x0fd7);
         setIF(false);
         setTF(false);
-        _accessNumber = 27;
+        _accessNumber = 25;
         wait(4);
         push(oldCS);
         Word oldIP = ip();
@@ -4209,7 +4047,7 @@ private:
             wait(1);
         wait(1);
         setIP(newIP);
-        _accessNumber = 27;
+        _accessNumber = 25;
         wait(2);
         push(oldIP);
     }
