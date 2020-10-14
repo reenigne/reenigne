@@ -24,6 +24,15 @@ public:
         int maxTests = 1000;
         int availableLength = 0xf300 - testProgram.count();
 
+        int firstTest = -1;
+
+        if (_arguments.count() >= 2) {
+            CharacterSource s(_arguments[1]);
+            Rational r;
+            if (Space::parseNumber(&s, &r))
+                firstTest = r.floor();
+        }
+
         Test retained;
         bool haveRetained = false;
         int totalCount = 0;
@@ -43,7 +52,9 @@ public:
                         break;
                     t = _generator.getNextTest();
                 }
-                int cycles = expected(t);
+                int cycles = 0;
+                if (totalCount > firstTest)
+                    cycles = expected(t);
                 Instruction instruction = t.instruction(0);
 
                 // Modify and uncomment to force a passing test to fail to see
@@ -83,8 +94,8 @@ public:
                 //}
             } while (true);
             console.write(decimal(totalCount) + "\n");
-            if (totalCount <= 15203631)
-                continue;
+            if (totalCount <= firstTest)
+                continue;     
 
             if (bunch.count() == 0)
                 break;

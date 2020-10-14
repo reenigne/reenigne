@@ -590,6 +590,7 @@ public:
     void setIRQs(UInt8 irq) { _bus_irq = irq; }
     void setINT(bool intrq) { _int = intrq; }
     void setCGA(UInt8 cga) { _cga = cga; }
+    void setTC(bool tc) { _bus_tc = tc; }
 private:
     Disassembler _disassembler;
 
@@ -1296,23 +1297,44 @@ private:
 class DMACEmulator
 {
 public:
+    DMACEmulator()
+    {
+        _holdAcknowledge = false;
+        _externalEOP = false;
+        _hardwareDReq = 0;
+        _ready = true;
+    }
     void reset()
     {
         for (int i = 0; i < 4; ++i)
             _channels[i].reset();
         _temporaryAddress = 0;
         _temporaryWordCount = 0;
-        _status = 0;
         _command = 0;
         _temporary = 0;
         _mask = 0xf;
-        _request = 0;
         _high = false;
+        _dack = 0;
         _channel = -1;
         _needHighAddress = true;
+        _holdRequest = false;
+        _dmaState = sIdle;
+        _readMemory = false;
+        _readIO = false;
+        _writeMemory = false;
+        _writeIO = false;
+        _softwareDReq = 0;
+        _eop = 0;
+
+        // TODO: these are supposed to be initialised by the XT BIOS
+        _channels[0]._mode = 0x58;
+        _channels[1]._mode = 0x40;
+        _channels[2]._mode = 0x40;
+        _channels[3]._mode = 0x40;
     }
     void write(int address, Byte data)
     {
+        Byte b = 1 << (data & 3);
         switch (address) {
             case 0x00: case 0x02: case 0x04: case 0x06:
                 _channels[(address & 6) >> 1].setAddress(_high, data);
@@ -1326,16 +1348,16 @@ public:
                 _command = data;
                 break;
             case 0x09:  // Write Request Register
-                setRequest(data & 3, (data & 4) != 0);
+                if ((data & 4) != 0)
+                    _softwareDReq |= b;
+                else
+                    _softwareDReq &= ~b;
                 break;
             case 0x0a:  // Write Single Mask Register Bit
-                {
-                    Byte b = 1 << (data & 3);
-                    if ((data & 4) != 0)
-                        _mask |= b;
-                    else
-                        _mask &= ~b;
-                }
+                if ((data & 4) != 0)
+                    _mask |= b;
+                else
+                    _mask &= ~b;
                 break;
             case 0x0b:  // Write Mode Register
                 _channels[data & 3]._mode = data;
@@ -1364,7 +1386,8 @@ public:
                 _high = !_high;
                 return _channels[(address & 6) >> 1].getCount(!_high);
             case 0x08:  // Read Status Register
-                return _status;
+                return _tc | (_softwareDReq << 4) |
+                    ((_hardwareDReq << 4) ^ (dreqSenseActiveLow() ? 0xf0 : 0));
                 break;
             case 0x0d:  // Read Temporary Register
                 return _temporary;
@@ -1375,46 +1398,192 @@ public:
     }
     void setDMARequestLine(int line, bool state)
     {
-        setRequest(line, state != dreqSenseActiveLow());
+        Byte b = 1 << line;
+        if (state)
+            _hardwareDReq |= b;
+        else
+            _hardwareDReq &= ~b;
     }
-    bool getHoldRequestLine()
+    bool getEOP() { return (_eop & (1 << _channel)) == 0; }
+    void setEOP(bool state) { _externalEOP = state; }  // Not used on XT - no easy way to test behaviour
+    bool getHoldRequestLine() { return _holdRequest; }
+    Byte getDACK() { return _dack ^ (dackSenseActiveHigh() ? 0 : 0xf); }
+    void wait()
     {
-        if (_channel != -1)
-            return true;
         if (disabled())
-            return false;
-        for (int i = 0; i < 4; ++i) {
-            int channel = i;
-            if (rotatingPriority())
-                channel = (channel + _priorityChannel) & 3;
-            if ((_request & (1 << channel)) != 0) {
-                _channel = channel;
-                _priorityChannel = (channel + 1) & 3;
-                return true;
+            return;
+        _eop = false;
+        int rm = hardwareDReq() & _mask;
+        if (_channel != -1) {
+            switch (_dmaState) {
+                case sIdle:
+                    _dack = 1 << _channel;
+                    _dmaState = s0;
+                    break;
+                case s0:
+                    _address = _channels[_channel]._currentAddress;
+                    if (_dack == 0 && memoryToMemory()) {
+                        if (!channel0AddressHold())
+                            _channels[_channel].incrementAddress();
+                        _dmaState = s11;
+                    }
+                    else {
+                        _channels[_channel].incrementAddress();
+                        _dmaState = s1;
+                    }
+                    break;
+                case s1:
+                    if (_channels[_channel].read())
+                        _readMemory = true;
+                    if (_channels[_channel].write())
+                        _readIO = true;
+                    _dmaState = s2;
+                    break;
+                case s2:
+                    if (_channels[_channel].read())
+                        _writeIO = true;
+                    if (_channels[_channel].write())
+                        _writeMemory = true;
+                    _dmaState = s3;
+                    _dack = 0;
+                    _holdRequest = false;
+                    break;
+                case s3:
+                case sWait:
+                    if (!_ready && !_channels[_channel].verify()) {
+                        _dmaState = sWait;
+                        break;
+                    }
+                    _readMemory = false;
+                    _readIO = false;
+                    _writeMemory = false;
+                    _writeIO = false;
+                    _dmaState = s4;
+                    break;
+                case s4:
+                    _dmaState = sIdle;
+                    switch (_channels[_channel]._mode) {
+                        case 0: // demand mode
+                            if ((rm & (1 << _channel)) != 0)
+                                _dmaState = s1;
+                            break;
+                        case 0x40: // single mode
+                            break;
+                        case 0x80: // block mode
+                            if ((_tc & (1 << _channel)) == 0)
+                                _dmaState = s1;
+                            break;
+                        case 0xc0: // cascade mode
+                            // TODO
+                            break;
+                    }
+                    if (_dmaState == sIdle)
+                        _channel = -1;
+                    break;
+                case s11:
+                    _readMemory = true;
+                    _dmaState = s2;
+                    break;
+                case s12:
+                    _dmaState = s3;
+                    break;
+                case s13:
+                case s1Wait:
+                    if (!_ready) {
+                        _dmaState = sWait;
+                        break;
+                    }
+                    _readMemory = false;
+                    _dmaState = s4;
+                    break;
+                case s14:
+                    _channels[1].incrementAddress();
+                    _dmaState = s21;
+                    break;
+                case s21:
+                    _dmaState = s2;
+                    break;
+                case s22:
+                    _writeMemory = true;
+                    _dmaState = s3;
+                    break;
+                case s23:
+                case s2Wait:
+                    if (!_ready) {
+                        _dmaState = sWait;
+                        break;
+                    }
+                    _writeMemory = false;
+                    _dmaState = s4;
+                    break;
+                case s24:
+                    _dmaState = sIdle;
+                    _channel = -1;
+                    break;
+            }
+            if (_channels[_channel]._currentWordCount == 0) {
+                _eop = true;
+                _tc |= 1 << _channel;
+            }
+            if (_channels[_channel].autoinitialization() && _eop)
+                _channels[_channel].reinitialize();
+        }
+        if (!_holdRequest)
+            _holdRequest = rm != 0;
+        if (_holdAcknowledge && _dack == 0) {
+            for (int i = 0; i < 4; ++i) {
+                int channel = i;
+                if (rotatingPriority())
+                    channel = (channel + _priorityChannel) & 3;
+                if ((rm & (1 << channel)) != 0 ||
+                    ((_softwareDReq & (1 << channel)) !=0 &&
+                        _channels[channel].block())) {
+                    _channel = channel;
+                    _priorityChannel = (channel + 1) & 3;
+                }
             }
         }
-        return false;
     }
-    void dmaCompleted() { _channel = -1; }
     Byte dmaRead()
     {
-        if (memoryToMemory() && _channel == 1)
+        if (memoryToMemory() && _dack == 2)
             return _temporary;
         return 0xff;
     }
     void dmaWrite(Byte data)
     {
-        if (memoryToMemory() && _channel == 0)
+        if (memoryToMemory() && _dack == 1)
             _temporary = data;
     }
-    Word address()
-    {
-        Word address = _channels[_channel]._currentAddress;
-        _channels[_channel].incrementAddress();
-        return address;
-    }
-    int channel() { return _channel; }
+    bool readMemory() { return _readMemory; }
+    bool readIO() { return _readIO; }
+    bool writeMemory() { return _writeMemory; }
+    bool writeIO() { return _writeIO; }
+    Word address() { return _address; }
+    void setHoldAcknowledge(bool state) { _holdAcknowledge = state; }
+    void setReady(bool state) { _ready = state; }
 private:
+    enum DMAState
+    {
+        sIdle,
+        s0,
+        s1,
+        s2,
+        s3,
+        sWait,
+        s4,
+        s11,
+        s12,
+        s13,
+        s1Wait,
+        s14,
+        s21,
+        s22,
+        s23,
+        s2Wait,
+        s24
+    };
+
     struct Channel
     {
         void setAddress(bool high, Byte data)
@@ -1461,6 +1630,7 @@ private:
             _currentWordCount = 0;
             _mode = 0;
         }
+
         void incrementAddress()
         {
             if (!addressDecrement())
@@ -1468,6 +1638,11 @@ private:
             else
                 --_currentAddress;
             --_currentWordCount;
+        }
+        void reinitialize()
+        {
+            _currentWordCount = _baseWordCount;
+            _currentAddress = _baseAddress;
         }
         bool write() { return (_mode & 0x0c) == 4; }
         bool read() { return (_mode & 0x0c) == 8; }
@@ -1486,6 +1661,10 @@ private:
         Byte _mode;  // Only 6 bits used
     };
 
+    Byte hardwareDReq()
+    {
+        return _hardwareDReq ^ (dreqSenseActiveLow() ? 0xf : 0);
+    }
     bool memoryToMemory() { return (_command & 1) != 0; }
     bool channel0AddressHold() { return (_command & 2) != 0; }
     bool disabled() { return (_command & 4) != 0; }
@@ -1494,32 +1673,34 @@ private:
     bool extendedWriteSelection() { return (_command & 0x20) != 0; }
     bool dreqSenseActiveLow() { return (_command & 0x40) != 0; }
     bool dackSenseActiveHigh() { return (_command & 0x80) != 0; }
-    void setRequest(int line, bool active)
-    {
-        Byte b = 1 << line;
-        Byte s = 0x10 << line;
-        if (active) {
-            _request |= b;
-            _status |= s;
-        }
-        else {
-            _request &= ~b;
-            _status &= ~s;
-        }
-    }
 
     Channel _channels[4];
     Word _temporaryAddress;
     Word _temporaryWordCount;
-    Byte _status;
     Byte _command;
     Byte _temporary;
-    Byte _mask;  // Only 4 bits used
-    Byte _request;  // Only 4 bits used
     bool _high;
     int _channel;
     int _priorityChannel;
     bool _needHighAddress;
+    bool _holdRequest;
+    bool _holdAcknowledge;
+    DMAState _dmaState;
+    Word _address;
+    bool _readMemory;
+    bool _readIO;
+    bool _writeMemory;
+    bool _writeIO;
+    bool _ready;
+    bool _externalEOP;
+
+    // Only the low 4 bits of these are used:
+    Byte _hardwareDReq;  // Physical state of DREQ lines
+    Byte _softwareDReq;  // 1 means DMA requested
+    Byte _tc;
+    Byte _mask;
+    Byte _dack;
+    Byte _eop;
 };
 
 // Most of the complexity of the PPI is in the strobed and bidirectional bus
@@ -1755,6 +1936,11 @@ public:
         _previousPassiveOrHalt = true;
         _lastNonDMAReady = true;
         _cgaPhase = 0;
+        _holdRequest = false;
+        _holdAcknowledge = false;
+        _aen = false;
+        _delayedBusState = sIdle;
+        _dack = 0xf;
     }
     void stubInit()
     {
@@ -1771,6 +1957,8 @@ public:
     }
     void wait()
     {
+        _dmac.wait();
+
         _cgaPhase = (_cgaPhase + 3) & 0x0f;
         ++_pitPhase;
         if (_pitPhase == 4) {
@@ -1781,11 +1969,12 @@ public:
                 _pic.setIRQLine(0, counter0Output);
             _lastCounter0Output = counter0Output;
             bool counter1Output = _pit.getOutput(1);
-            if (counter1Output && !_lastCounter1Output && !dack0()) {
+            if (counter1Output && !_lastCounter1Output && (_dack & 1) != 0) {
                 _dmaRequests |= 1;
                 _dmac.setDMARequestLine(0, true);
             }
-            _lastCounter1Output = counter1Output;
+            //else
+                _lastCounter1Output = counter1Output;
             bool counter2Output = _pit.getOutput(2);
             if (_counter2Output != counter2Output) {
                 _counter2Output = counter2Output;
@@ -1813,18 +2002,48 @@ public:
         //if (_previousLock && !_lock)
         //    _previousLock = false;
         //_previousLock = _lock;
+        switch (_delayedBusState) {
+            case s1: _delayedBusState = s2; break;
+            case s2: _delayedBusState = s3; break;
+            case s3: _delayedBusState = s4; break;
+            case s4: _delayedBusState = sIdle; break;
+        }
+        //if (_holdAcknowledge && _dmaState == s0) {
+        //    Byte dack = _dmac.getDACK();
+        //    if ((dack & 1) == 0) {
+        //        _dmaRequests &= ~1;
+        //        _dmaState = s1;
+        //    }
+        //}
+
+        //if (_holdAcknowledge && _dmaState == sIdle)
+        //    _dmaState = s0;
+        //if (_holdRequest && (_passiveOrHalt || _previousPassiveOrHalt) && !_previousLock && _lastNonDMAReady && _dmaState == sIdle) {
+        //    _holdAcknowledge = true;
+        //    _dmac.setHoldAcknowledge(true);
+        //    _aen = true;
+        //}
+
+        if (!_holdAcknowledge)
+            _aen = false;
+
         switch (_dmaState) {
             case sIdle:
+                //_dmac.dmaCompleted();
                 if (_dmac.getHoldRequestLine())
-                    _dmaState = sDREQ;
+                    _dmaState = sHRQ; // DREQ;
                 break;
-            case sDREQ:
-                _dmaState = sHRQ; //(_passiveOrHalt && !_previousLock) ? sHRQ : sHoldWait;
-                break;
+            //case sDREQ:
+            //    _dmaState = sHRQ; //(_passiveOrHalt && !_previousLock) ? sHRQ : sHoldWait;
+            //    break;
             case sHRQ:
                 //_dmaState = _lastNonDMAReady ? sAEN : sPreAEN;
-                if ((_passiveOrHalt || _previousPassiveOrHalt) && !_previousLock && _lastNonDMAReady)
+                if ((_passiveOrHalt || _previousPassiveOrHalt) && !_previousLock && _lastNonDMAReady) {
                     _dmaState = sAEN;
+                    _holdAcknowledge = true;
+                    _dmac.setHoldAcknowledge(true);
+                    _aen = true;
+                }
                 break;
             //case sHoldWait:
             //    if (_passiveOrHalt && !_previousLock)
@@ -1837,18 +2056,32 @@ public:
             case sAEN: _dmaState = s0; break;
             case s0:
                 if ((_dmaRequests & 1) != 0) {
-                    _dmaRequests &= 0xfe;
+                    _dmaRequests &= ~1;
                     _dmac.setDMARequestLine(0, false);
                 }
-                _dmaState = s1; break;
+                _dmaState = s1;
+                break;
             case s1: _dmaState = s2; break;
             case s2: _dmaState = s3; break;
-            case s3: _dmaState = s4; break;
-            case s4: _dmaState = sDelayedT1; _dmac.dmaCompleted(); break;
-            case sDelayedT1: _dmaState = sDelayedT2; break;
-            case sDelayedT2: _dmaState = sDelayedT3; break;
-            case sDelayedT3: _dmaState = sIdle; break;
+            case s3:
+                _dmaState = s4;
+                _holdAcknowledge = false;
+                _dmac.setHoldAcknowledge(false);
+                break;
+            case s4:
+                _dmaState = sIdle;
+                if (_type != 7)
+                    _delayedBusState = s1;
+                else
+                    _delayedBusState = sIdle;
+                //_aen = false;
+                break; // sDelayedT1; _dmac.dmaCompleted(); break;
+            //case sDelayedT1: _dmaState = sDelayedT2; break;
+            //case sDelayedT2: _dmaState = sDelayedT3; break;
+            //case sDelayedT3: _dmaState = sIdle; break;
         }
+        _dack = _dmac.getDACK();
+        _holdRequest = _dmac.getHoldRequestLine();
         _previousLock = _lock;
         _previousPassiveOrHalt = _passiveOrHalt;
 
@@ -1856,9 +2089,9 @@ public:
     }
     bool ready()
     {
-        if (_dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
-            _dmaState == sWait || _dmaState == s4 || _dmaState == sDelayedT1 ||
-            _dmaState == sDelayedT2 /*|| _dmaState == sDelayedT3*/)
+        if (_dmaState == sAEN || _dmaState == s0 || _dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
+            _dmaState == sWait || _dmaState == s4 || _delayedBusState == s1 ||
+            _delayedBusState == s2 /*|| _delayedBusState == s3 || _delayedBusState == s4*/)
             return false;
         ++_cycle;
         return nonDMAReady();
@@ -1926,17 +2159,19 @@ public:
     void setPassiveOrHalt(bool v) { _passiveOrHalt = v; }
     bool getAEN()
     {
-        return _dmaState == sAEN || _dmaState == s0 || _dmaState == s1 ||
-            _dmaState == s2 || _dmaState == s3 || _dmaState == sWait ||
-            _dmaState == s4;
+        return _aen;
+        //return _dmaState == sAEN || _dmaState == s0 || _dmaState == s1 ||
+        //    _dmaState == s2 || _dmaState == s3 || _dmaState == sWait ||
+        //    _dmaState == s4;
     }
     UInt8 getDMA()
     {
-        return _dmaRequests | (dack0() ? 0x10 : 0);
+        return _dmaRequests | ((_dmac.getDACK() ^ 0xf) << 4);
     }
     String snifferExtra()
     {
-        return ""; //hex(_pit.getMode(1), 4, false) + " ";
+        return hex(_pit.getOutput(1) ? 1 : 0, 1, false) + " ";
+        //return ""; //hex(_pit.getMode(1), 4, false) + " ";
     }
     int getBusOperation()
     {
@@ -1949,24 +2184,26 @@ public:
     bool getDMAS3() { return _dmaState == s3; }
     DWord getDMAAddress()
     {
-        return dmaAddressHigh(_dmac.channel()) + _dmac.address();
+        return dmaAddressHigh() + _dmac.address();
     }
     void setLock(bool lock) { _lock = lock; }
     UInt8 getIRQLines() { return _pic.getIRQLines(); }
     UInt8 getDMAS()
     {
-        if (_dmaState == sAEN || _dmaState == s0 || _dmaState == s1 ||
-            _dmaState == s2 || _dmaState == s3 || _dmaState == sWait)
-            return 3;
-        if (_dmaState == sHRQ || _dmaState == sHoldWait ||
-            _dmaState == sPreAEN)
-            return 1;
-        return 0;
+        return (_holdRequest ? 1 : 0) + (_holdAcknowledge ? 2 : 0);
+        //if (_dmaState == sAEN || _dmaState == s0 || _dmaState == s1 ||
+        //    _dmaState == s2 || _dmaState == s3 || _dmaState == sWait)
+        //    return 3;
+        //if (_dmaState == sHRQ || _dmaState == sHoldWait ||
+        //    _dmaState == sPreAEN)
+        //    return 1;
+        //return 0;
     }
     UInt8 getCGA()
     {
         return _cgaPhase >> 2;
     }
+    bool getTC() { return !_dmac.getEOP(); }
 private:
     bool nonDMAReady()
     {
@@ -1974,11 +2211,11 @@ private:
             return _cycle > 1;  // System board adds a wait state for onboard IO devices
         return true;
     }
-    bool dack0()
-    {
-        return _dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
-            _dmaState == sWait;
-    }
+    //bool dack0()
+    //{
+    //    return _dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
+    //        _dmaState == sWait;
+    //}
     void setSpeakerOutput()
     {
         bool o = !(_counter2Output && _speakerMask);
@@ -2000,10 +2237,15 @@ private:
         _counter2Gate = _ppi.getB(0);
         _pit.setGate(2, _counter2Gate);
     }
-    DWord dmaAddressHigh(int channel)
+    DWord dmaAddressHigh()
     {
-        static const int pageRegister[4] = {0x83, 0x83, 0x81, 0x82};
-        return _dmaPages[pageRegister[channel]] << 16;
+        // DMA channel  -DACK bits  page register address bits  port address
+        //  0            1110               11                       0x83
+        //  1            1101               11                       0x83
+        //  2            1011               01                       0x81
+        //  3            0111               10                       0x82
+        return _dmaPages[
+            ((_dmac.getDACK() & 8) >> 3) | ((_dmac.getDACK() & 4) >> 1)] << 16;
     }
 
     enum DMAState
@@ -2011,8 +2253,8 @@ private:
         sIdle,
         sDREQ,
         sHRQ,
-        sHoldWait,
-        sPreAEN,
+        //sHoldWait,
+        //sPreAEN,
         sAEN,
         s0,
         s1,
@@ -2020,9 +2262,9 @@ private:
         s3,
         sWait,
         s4,
-        sDelayedT1,
-        sDelayedT2,
-        sDelayedT3
+        //sDelayedT1,
+        //sDelayedT2,
+        //sDelayedT3
     };
 
     Array<Byte> _ram;
@@ -2056,6 +2298,11 @@ private:
     bool _previousPassiveOrHalt;
     bool _lastNonDMAReady;
     Byte _cgaPhase;
+    bool _holdRequest;
+    bool _holdAcknowledge;
+    bool _aen;
+    DMAState _delayedBusState;
+    Byte _dack;
 };
 
 class CPUEmulator
@@ -2285,6 +2532,7 @@ private:
                 _snifferDecoder.setIRQs(_bus.getIRQLines());
                 _snifferDecoder.setINT(_bus.interruptPending());
                 _snifferDecoder.setCGA(_bus.getCGA());
+                _snifferDecoder.setTC(_bus.getTC());
                 String l = _bus.snifferExtra() + _snifferDecoder.getLine();
                 if (_cycle >= _logStartCycle) {
                     if (_consoleLogging)
@@ -2566,8 +2814,20 @@ private:
                 break;
             case 20:
             case 21:
+                _transferStarting = true;
+                if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
+                }
+                else {
+                    waitForBusIdle();
+                    wait(1);
+                }
+                wait(1);
+                break;
             case 24:
                 _transferStarting = true;
+                if (_busState == t4)
+                    wait(1);
+
                 if (_busState == t4StatusSet || _busState == t1 || _busState == tIdleStatusSet) {
                 }
                 else {

@@ -142,6 +142,8 @@
     <ClCompile Include="compare_hardware_lkg.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\include\alfe\space.h" />
+    <ClInclude Include="..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\gentests.h" />
     <ClInclude Include="..\xtce_lkg.h" />
   </ItemGroup>

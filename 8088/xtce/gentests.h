@@ -1419,7 +1419,7 @@ private:
                 }
                 t.setNops(_nopCount);
                 switch (_suffix) {
-                    case 0:
+                    case 3:
                         t.addInstruction(Instruction(4, 0));
                         break;
                     case 1:
@@ -1430,7 +1430,7 @@ private:
                         for (int i = 0; i < 4; ++i)
                             t.addInstruction(Instruction(4, 0));
                         break;
-                    case 3:
+                    case 0:
                         break;
                     case 4:
                         t.addInstruction(Instruction(0, 0));
