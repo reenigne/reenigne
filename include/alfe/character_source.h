@@ -70,7 +70,7 @@ public:
     }
     void throwError(const String& message) const
     {
-        if (_startLine == -1)
+        if (!valid())
             throw Exception(message);
         throw Exception(toString() + ": " + message);
     }
@@ -81,9 +81,9 @@ public:
     Location end() const { return Location(_file, _endLine, _endColumn); }
     Span operator+(const Span& other) const
     {
-        if (_startLine == -1)
+        if (!valid())
             return other;
-        if (other._startLine == -1)
+        if (!other.valid())
             return *this;
         return Span(start(), other.end());
     }
@@ -92,6 +92,7 @@ public:
         *this = *this + other;
         return *this;
     }
+    bool valid() const { return _startLine != -1; }
 private:
     File _file;
     int _startLine;

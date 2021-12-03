@@ -98,6 +98,8 @@ Four cases to consider:
         This also works for the object inside object case
 When resolving names, the compiler does a depth-first seach of the (environment, parent) tree
   To disambiguate, can use this->, environment-> or parent-> (here-> is also possible but the default)
+    If this-> is used, do we only search the class and its parents, or do we search the environments of the class?
+      a-> doesn't search environments, so this-> shouldn't either
 Prioritise ALFE to C++ translator so that I can play with this. But in the meantime (and for implementing the translator) it would be a good idea to:
   Have ALFE objects (e.g. Type) derive from something that has a context object
 

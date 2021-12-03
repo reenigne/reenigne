@@ -83,8 +83,8 @@ TycoSpecifier =
     TycoParameter
   | TycoSpecifier "*"
   | TycoSpecifier "(" [(TycoSpecifier [Identifier]) / ","] ")"
-  | "Class" "{" ClassDefinition "}"
-  | "TypeOf" "(" Expression ")"
+  | `Class` "{" Statement* "}"
+  | `TypeOf` "(" Expression ")"
   | TycoSpecifier "." TycoParameter
   | DecimalNumber
   | TycoSpecifier "->" TycoSpecifier
@@ -93,6 +93,8 @@ TycoSpecifier =
   | "(" [TycoSpecifier / ","] ")"
   | TycoSpecifier "[" TycoSpecifier "]"
   | TycoSpecifier "-" TycoSpecifier
+  | `This`
+  | `Parent`
   ;
 
 TemplateParameters = ("<" [TycoSpecifier | TemplateParameters] \ "," ["..."] ">")*;
@@ -118,7 +120,21 @@ Statement =
   | [`do` Statement] (`while" | `until`) ConditionedStatement [`done` Statement]
   | `for` "(" [Statement] ";" [Expression] ";" [Statement] ")" Statement [`done` Statement]
   | [Expression ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | ">>=" | "<<=" | "&=" | "|=" | "~=" | "^=")] Expression ";"
+  | `access` "(" [AccessSpecifier \ ","] ")" ":";
   ;
+
+AccessSpecifier :=
+    AccessTycoSpecifier
+  | [AccessTycoSpecifier "."] Identifier "(" Expression \ "," ")"
+  ;
+
+AccessTycoSpecifier =
+  ( TycoIdentifier ["<" (AccessTycoSpecifier | TycoSpecifier) \ "," ">"]
+  | ":" AccessTycoSpecifier
+  )
+  ("." AccessTycoSpecifier)*
+  ;
+
 
 = Statement*;
 

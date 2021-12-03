@@ -167,7 +167,7 @@ U10: Blue/Intense multiplexer (0 = text foreground, 1 = text background, 2 = 2bp
     2C0 = AT3
     2C1 = +AT7 AND -ENABLE BLICK
     1C2 = +SEL BLUE
-    2C2 = +BACKGROUD I
+    2C2 = +BACKGROUND I
     1C3 = +OVERSCAN B
     2C3 = +OVERSCAN I
     A   = MUX A
@@ -429,7 +429,6 @@ U2:
     Q2   = -XACK'
     -Q2  = +XACK
 
-
 U40: mode register
   Inputs:
     CLK = -SEL 1
@@ -463,6 +462,7 @@ U40: mode register
 -BLANK           = +VSYNC DLY NOR +HSYNC DLY
 +STR             = NOT (-BLANK AND (-DISPEN DLY NAND +1BPP) AND ((NOT +1BPP) OR +1BPP DOTS))          [final OR is incorrect on diagram, shown as NOR]
 +MUX A           = ((-GRPH AND +ALPHA DOTS) NOR (+GRPH AND (NOT +1BPP) AND (+C0 OR +C1))) OR -DISPEN DLY
++MUX B           = +GRPH OR -DISPEN DLY
 +DOT CLOCK       = (+HRES AND -14 MHZ) NOR (-HRES AND -7MHZ)
 -BW 1            = NOT +BW
 -ENABLE BLINK    = NOT +ENABLE BLINK

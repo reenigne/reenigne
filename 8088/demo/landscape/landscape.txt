@@ -1,0 +1,264 @@
+Plan:
+  Make Windows mockup to see how it looks
+    Find older mockups
+  Write asm code to generate unrolled code
+  Write startup and main loop
+  Make xtserver version - append landscape.dat to binary
+
+Problem: ConfigFile is broken until we write the interpreter, but we'd like to be able to use ConfigFiles in little programs like this
+  Solution 1: Finish interpreter - needs doing anyway, but will bog me down and dishearten
+  Solution 2: Don't use ConfigFile for this. Leads to code I'm less proud of (even if it is just a quick hack)
+  Solution 3: Branch
+    Check github history to see if any new ALFE changes are already committed/pushed
+    Commit changes
+    Make a "NewALFE" branch
+    Check out master branch without these changes
+
+
+int buffer[100];
+int vTable[32][256];
+int uTable[32][256];
+int landscapeHeight[64][64];
+int landscapeColour[64][64];
+int perspective[32][100];
+
+for (int x = 0; x < 40; ++x) {
+  int angle = x + initialAngle;
+  // Clear buffer
+  for (int y = 0; y < 100; ++y)
+    buffer[y] = 0;
+  // Cast rays
+  int yMin = 100;
+  int lastColour = 0;
+  for (int r = 0; r < 32; ++r) {
+    int v = vTable[r][angle];
+    int u = uTable[r][angle];
+    int height = landscapeHeight[u + initialU][v];
+    int y = perspective[r][height];
+    if (y <= yMin) {
+      yMin = y;
+      int colour = landscapeColour[u + initialU][v];
+      buffer[y] = lastColour ^ colour;
+      lastColour = colour;
+    }
+  }
+  // Blit
+  lastColour = 0;
+  for (int y = 0; y < 77; ++y) {
+    lastColour ^= buffer[y];
+    vram[y][x] = lastColour;
+  }
+}
+
+
+
+int buffer[100];
+int vTable[32][256];
+int uTable[32][256];
+int landscapeHeight[64][64];
+int landscapeColour[64][64];
+int perspective[32][100];
+
+for (int x = 0; x < 40; ++x) {
+  int angle = x + initialAngle;
+  int yMin = 100;
+  for (int r = 0; r < 32; ++r) {
+    int v = vTable[r][angle];
+    int u = uTable[r][angle];
+    int height = landscapeHeight[u + initialU][v];
+    int y = perspective[r][height];
+    int colour = landscapeColour[u + initialU][v];
+    while (yMin > y) {
+      vram[yMin][x] = colour;
+      --yMin;
+    }
+  }
+}
+
+
+
+rr = 1..32
+r = 100/rr = 100, 50, 33, ... 3.22, 3.1
+1 2
+
+r = a*rr*rr + b*rr + c
+
+rr = 1  =>  r = 1
+rr = 2  =>  r = 2
+rr = 32 =>  r = 100
+
+1 = a + b + c
+2 = 4*a + 2*b + c
+100 = 1024*a + 32*b + c
+
+1 = 3*a + b
+100 = 1023*a + 31*b
+31 = 93*a + 31*b
+
+69 = 930*a
+
+a = 69/930 = 0.074           23/310
+b = 723/930 = 0.777         241/310
+c = 138/930 = 0.148          46/310
+
+
+
+most recent routine from http://lists.oldskool.org/private/pcdemo/2016-March/004265.html
+
+lds ax,[0x1234 + bp]    ; 4 4
+mov cl,[si + 0x1b]      ; 3 1
+xchg dl,cl              ; 2 0
+sub cl,dl               ; 2 0
+jbe .occluded           ; 2
+rep stosb
+.occluded:
+
+
+Filling code:
+
+  ...
+  stosb       ; yMin - y = -6
+  add di,bx
+  stosb       ; yMin - y = -3
+  add di,bx
+fillingD:     ; yMin - y = 0    new yMin = y             this needs to be at CS:0
+  mov dx,cx
+  ret
+  add dx,cx   ; yMin - y = 3    new yMin = yMin
+  ret
+  add dx,cx   ; yMin - y = 6    new yMin = yMin
+  ret
+  ...
+                        ; initially, dx = yMin
+
+                        ; bp encodes initialU and initialV
+  lds cx,[0x1234 + bp]  ; 0x1234 encodes u and v, unrolled on angle and r                               4 4
+                        ; cx (cl) encodes colour, ds encodes height (pointer to perspective table)
+  lodsw                 ; si encodes r, ax encodes y                                                    1 2
+  sub dx,ax             ; dx = yMin - y                                                                 2 0
+  xchg ax,cx            ; ax = colour  cx = y                                                           1 0
+  call dx               ; do colour fill                                                                2 2  18
+                        ; dx = y (if we plotted) or y + yMin - y = yMin (if we didn't)
+
+
+Notes:
+  Stack is in same segment as landscape. We need to limit how much stack we use, and take care to choose our path so as to read stack data as landscape
+  If FOV is 90 degrees horizontally we need to unroll for 160 angles * 32 r * 10 = 51200 bytes plus 201*3 = 603 bytes for the filling code
+
+
+
+
+Plan:
+  Generate and dump tables from e256
+  Use 40x100x256 mode initally (later try 80x50x369)
+    This is standard composite or 2BPP graphics mode with 4 scanlines per row, treated as 80x50 "pixels" of 2 bytes each with a dither pattern in each pixel of
+      abcdefgh
+      ijklmnop
+      abcdefgh
+      ijklmnop
+    In composite mode, there are 5 possibilities for each of the 4 phases, giving 5x5x5x5 = 625 colours, however there are some duplicates because of HF
+    Can use roughly same code, however will need 320 angles (so 102400 bytes of unrolled code)
+  Possibility 1: Use latest "rep stosb" routine and have a second pass to reorient
+  Possibility 2: Write from scratch to go directly to VRAM - no buffer clear, no second pass   - try this first
+    Draw from bottom to top
+    fillLoop should be unrolled - jump into routine at a different place depending on yMin-y
+      Only need 200 entries, of which half point to ret
+    Record highest pixel reached in each column and use this to minimise sky drawing
+    Can we use di as yMin?
+      We need to subtract y from yMin to determine the address to call, but we don't want a separate perspective table for each x-position (that would be 128kB instead of 3.2kB)
+      So no, keep a separate register for the call locations obtained from the perspective table
+        Can the called loop adjust this?
+          Maybe the ret part sets something to 0
+
+1 arcsecond => 1/3600 of a degree
+
+radius of earth = 6371000m
+circumference of earth = 40030174m
+1 degree of latitude = 111194m
+1 arcsecond = 30.89m
+cos 50 = 0.64278760968653932632264340990726  circumference of latitude 50 = 25730900
+1 degree of longitude = 71474.721835545151918161655107059m
+1 arcsecond = 19.85m
+resolution = 39.71m
+
+should rescale horizontally by 39.71/30.89 = 1.2854703398357100808992779955228 i.e. to 2315
+Or vertically to 2801.180810878871820700075547721
+
+Each increment in elevation data corresponds to about 2m
+
+
+Filling code for 369 colour mode:
+  ...
+  stosb
+  es: mov [di+bx],ah
+  add di,sp
+  stosb
+  es: mov [di+bx],ah
+  add di,sp
+  mov dx,cx
+  ret
+  db 0,0,0
+  add dx,cx
+  ret
+  db 0,0,0
+  add dx,cx
+  ret
+  ...
+
+
+Map:
+  startup
+  main loop
+
+
+  landscape (64kB):
+    generate with gendata
+    append to image
+    for demo, load as asset
+    adjust segments at runtime
+    part overwritten with stack
+  unrolled code:
+    10*160*32 = 51200 bytes
+    199*3+3 = 600 bytes
+    create at runtime
+    use sin/cos table
+  perspective table: 32 entries (64) bytes per possible height
+    each height is 4 paragraphs
+    create at runtime
+  filling code
+
+
+
+
+
+Rejected:
+
+Suppose height and height differences all fit in 1 byte (-42 <= yMin - y <= 42?)
+
+  mov cx,[0x1234 + bp]  ; load height (ch) and colour (cl)                             4 2
+  mov bh,ch             ; bl = 0  - this gives height offset into perspective table    2 0
+  mov ax,[bx+0x1b]      ; load y from perspective table                                3 2
+  sub dx,ax                                                                            2 0
+  xchg ax,cx                                                                           1 0
+  call dx                                                                              2 2  20
+
+Need to use lodsw
+
+
+
+mov bx,[0x1234 + bp]   4 2
+xchg al,bl             2 0
+mov si,[bx + 0x1b]     3 2
+xchg dx,si             2 0
+sub si,dx              2 0
+call si                2 2
+xchg ax,bx             1 0  22  19.6fps   243506 cycles/frame
+
+40*32 = 1280 iterations of the core code per frame  = 190 cycles
+saving 16 cycles (4 IOs) gives 21.4fps
+
+
+
+Done:
+  Find some real world data?
+

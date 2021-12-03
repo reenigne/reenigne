@@ -162,7 +162,10 @@ messageEnd:
     <p>There is a TV capture card connected to the CGA's composite output.
     Sending byte <code>0x01</code> over the serial link or executing <code>int
     0x60</code> will cause the current screen image to be captured, saved as a
-    .png file and embedded into the HTTP output.</p>
+    .png file and embedded into the HTTP output. Note that there may be a
+    delay between when this command is issued and when the screenshot is
+    actually taken, so be sure to delay for a few seconds before ending the
+    program or displaying a different image.</p>
 
     <h1>How can I hear what's coming out of the PC speaker?</h1>
     <p>The PC speaker is currently disconnected so that you can't drive me
@@ -195,6 +198,22 @@ messageEnd:
     <p>Here is a <a href="submit.txt">perl script</a> (thanks to Egan Ford)
     which you can use to automate calls to the API. It may need to be renamed
     to submit.pl before use.</p>
+
+    <p>William Jones
+    (<a href="https://www.vcfed.org/forum/member/22300-cr1901">cr1901</a>) has
+    created a <a href="https://www.rust-lang.org">Rust</a> binary called
+    <a href="https://github.com/cr1901/xtpost">`xtpost`</a> to talk to the
+    server. `xtpost` will scrape any serial output, a captured image, a
+    written file, and captured audio from the server and download it locally
+    (See `xtpost cfg -d` for details). You can set an email to use using
+    `xtpost cfg -e`.</p>
+
+    <p>Binaries for Linux, OS X, and Windows are provided
+    <a href="https://github.com/cr1901/xtpost/releases">here</a>. If you
+    want/need to compile it yourself, you can download a toolchain
+    <a href="https://rustup.rs">here</a>. Clone the source,and run
+    `cargo build --release` at the root of the tree to compile your binary
+    (available under `target/release`).</p>
 
     <h1>Will you claim any kind of ownership of programs I upload here?</h1>
     <p>No, you keep the copyright on your programs. I will not redistribute

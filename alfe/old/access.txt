@@ -1,3 +1,56 @@
+    Should FunctionAccessSpecifiers look like function declarations or function calls?
+      Function calls, and more generally expressions
+
+  Think some more about access specifiers. They need to be able to specify subsets of the entities that contain code - i.e. functions and classes
+    Functions are specified by function calls
+      Some functions are named with operators instead, so it'd be good to allow arbitrary expressions
+    Classes are special cases of Tycos. Two ways of specifying these:
+      Known Tyco specified by TycoSpecifier (which should resolve to a Class)
+      Unkown Tyco specified by concept
+      These are the same things that can appear as a template parameter in a TycoSignifier on the left-hand side of a TycoDefinitionStatement, so re-use that parser
+    There isn't really a good reason to allow a TycoParameter to appear anywhere we accept a TycoSpecifier
+      Actually there is - Tyco pattern matching (e.g. "Foo<@T*> = ..." should work the same as value pattern matching
+        Would this be better expressed as Foo<IsPointer @T>? That has some merits, but then how do we get to the type that T points to?
+    Currently, TycoSignifiers can have TemplateParameters to indicate Kind. Is that better expressed as a concept?
+      Instead of "Foo<@T<>> = Class { ... };" have "Foo<SingleArgumentTemplate @T> = Class { ... };" and "SingleArgumentTemplate<@T> = Class { T<Integer> t; };"
+        Some single argument templates may not be instantiable with Integer.
+
+  Create a parser for access specifiers
+    AccessTycoSpecifier
+      Can use arbitrary TycoSpecifier as template parameter
+      Should derived AccessTycoSpecifier be written as "access(:T):" or "access(InheritsFrom<T> @X):"
+        Latter allows other concepts too
+        Can we leave off the "X" when we don't need the name?
+        Can we make AccessTycoSpecifier just a template parameter?
+          TycoSpecifier | ([TycoSpecifier] "@" [TycoSignifier])
+
+  Class Tyco contents: Just Code, same as a function
+    Special create() and destroy() methods - same as C++ constructors and destructors but with names that don't need to be changed if the class is renamed
+    Contents of a Class is executed before the constructor, so it's a pre-constructor
+      This means that member objects all get constructed using a constructor determined by the class, not per-constructor like C++. This is more regular and easier to reason about, but potentially slowed
+        Compiler should eliminate constructor/destructor pairs
+          Always or only when they have no side-effects as per the "as if" rule?
+    Do these access specifiers make sense in functions too?
+      no, because objects/functions/types declared in a function aren't then available from outside it - no object is created unless an inner function extends the lifetime, but evem then the names never leak out
+        access(private) might make sense to prevent inner functions using variables. But really that would mean your function is too complicated
+
+
+Old:
+    Access specifiers: - these apply to types/functions/members until another access specifier is hit:
+      access(scope):         - allows access by any code in the class's lexical scope (default)
+      access(private):       - allows access from the class and its methods (like C++ "private:")
+      access(public):        - allows access from anywhere (like C++ "public:")
+      access(protected):     - allows access from class, methods, derived classes and derived class methods (like C++ "protected:")
+      access(T):             - allows access from tyco T (names are resolved in current context) and its methods
+      access(foo):           - allows access from funco foo
+      access(T1, T2):        - multiple accesses are allowed, separated by commas
+      access(:T):            - allows access from tyco T and anything derived from it
+      access(T<Int>):        - instantiations are allowed
+      access(T<:X>):         - only allow access from Ts instantiated with classes inheriting from X (use of multiple operators)
+
+
+Even older:
+
 Foo = Class : access<X> {
 
 access<Foo> { ... }   // equivalent to private: only Foo can access
@@ -14,3 +67,4 @@ access<@U> where U : Bar { ... }  // similar to "friend class Bar" - classes der
 
 
 };
+

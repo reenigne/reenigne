@@ -785,3 +785,70 @@ later times further down:
    0      1    1   1   1   1   1   1    0     0       0
    0      1    1   1   1   1   1   1    1     1       0
 
+
+
+
+
+
+(+COLOR_SEL AND +C0) OR (+C1 AND +BW)
+ +BW +COLOR_SEL
+   0      0                                      green/red/yellow          cyan/magenta/white
+   1      0                                 +C1  green/magenta/white       cyan/red/yellow
+   0      1                        +C0           cyan/red/white            green/magenta/yellow
+   1      1                        +C0  OR  +C1  cyan/magenta/white        green/red/yellow
+
+(+COLOR_SEL AND -C0) OR (+C1 AND +BW)
+ +BW +COLOR_SEL
+   0      0                                      green/red/yellow          cyan/magenta/white
+   1      0                                 +C1  green/magenta/white       cyan/red/yellow
+   0      1                        -C0           green/magenta/yellow      cyan/red/white
+   1      1                        -C0  OR  +C1  green/magenta/white       cyan/red/yellow
+
+(+COLOR_SEL AND +C0) OR (-C1 AND +BW)
+ +BW +COLOR_SEL
+   0      0                                      green/red/yellow          cyan/magneta/white
+   1      0                                 -C1  cyan/red/yellow           green/magenta/white
+   0      1                        +C0           cyan/red/white            green/magenta/yellow
+   1      1                        +C0  OR  -C1  cyan/red/white            green/magenta/yellow
+
+(+COLOR_SEL AND -C0) OR (-C1 AND +BW)
+ +BW +COLOR_SEL
+   0      0                                      green/red/yellow          cyan/magenta/white
+   1      0                                 -C1  cyan/red/yellow           green/magenta/white
+   0      1                        -C0           green/magenta/yellow      cyan/red/white
+   1      1                        -C0  OR  -C1  cyan/magenta/yellow       green/red/white
+
++C0 is green bit    green/yellow
++C1 is red bit      red/yellow
+NOT +C0             red
+NOT +C1             green
+
+
+0           green/red/yellow
++C0 OR +C1  cyan/magenta/white
++C0         cyan/red/white
++C1         green/magenta/white
+-C0         green/magenta/yellow
+-C1         cyan/red/yellow
++C0 OR -C1  cyan/red/white
+-C0 OR +C1  green/magenta/white
+-C0 OR -C1  cyan/magenta/yellow
+
+
+Inputs: (13)
+  +C0
+  +C1
+  +COLOR_SEL
+  +BACKGROUND_I
+  +
+
+Outputs:
+  +SEL RED
+  +SEL GREEN
+  +SEL BLUE
+  +SEL INTENSITY
+
+2^13 = 8192
+16*15*14 = 3360 - need 12 bits
+16*15*14*13 = 43680 - need 16 bits
+

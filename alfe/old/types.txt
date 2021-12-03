@@ -29,6 +29,9 @@ Special syntax for types. Given types Foo, Bar:
     If so, is it more like C++ std::vector<Foo> (value type) or more like C Foo[] (confusion with pointer)?
     I suspect we don't actually need this - we can pass Foo* instead, and we can't create values of type Foo[]
       We can write "Int[] x = {1,2,3};" but this is really just an Int[3] - the length is elided.
+    Perhaps the type of a sequence of Foo should written Foo[] instead of [Foo]
+      this is more logical as inside the square brackets is the indexing type in A[B]
+      this also allows using [Foo] to mean annotations, similar to C# attributes
 
   What does "Foo[2]" mean? Is this a type? Is Array a special template that can accept integers as well as types?
     (Or does "Foo[2]" mean "Array<Foo, Struct { value = 2; }>"?
@@ -214,7 +217,7 @@ Possible Unit types:
   Null     null
   Void     void
   ()       ()
-  [Bottom] []
+  Bottom[] []
 I think we can make these all aliases for each other (i.e. equivalent to C null pointer)
 
 A unit type is any type that doesn't have any data members - i.e. doesn't carry any information other than its own type
@@ -289,11 +292,16 @@ How do we call a constructor?
     but "Foo()" is a type as well (function returning Foo)
     Does "Foo(Bar)" mean "default construct a Bar then use it to construct a Foo" or does it mean "default construct a type taking Bar and returning Foo"?
       The latter doesn't make sense - we can't actually construct a function type
+        Well, we can make a lambda: Auto f = Foo(Bar) { return Foo(3); };
       This doesn't work so well for "Foo[2]" since that could well be a default constructed array of length 2 or a call of operator[] on a default-constructed Foo
         So maybe we always need parentheses for a constructor call
-          No, but since we can't construct function types we can always use the parentheses for disambiguation
+          No, but since we can't default-construct function types we can always use the parentheses for disambiguation
           This means that we can use a type specifier whereever we need a value
             The integral types (e.g. "2") are weird because the value constructed doesn't inhabit the type
+        Foo()[2] is call of operator[] on a default-constructed Foo
+        Foo[2]() is default-constructed array of length 2
+        Type specifier parsing is greeedy so Foo[2] means the same as Foo[2]()
+        Foo() { return foo; } is a lambda function
 
 
 0-valued types:

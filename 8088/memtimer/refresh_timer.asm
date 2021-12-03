@@ -241,6 +241,146 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
+experimentNop:
+  db "Nop$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+  xor bx,bx
+.endInit:
+  dw .endCode - ($+2)
+
+  nop
+.endCode:
+
+
+experimentChess:
+  db "Chess$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+  xor bx,bx
+.endInit:
+  dw .endCode - ($+2)
+
+  movsb
+  add di,bx
+.endCode:
+
+
+experimentChess1:
+  db "Chess1$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+  xor bx,bx
+.endInit:
+  dw .endCode - ($+2)
+
+  stosb
+  add di,27
+.endCode:
+
+
+experimentChess2:
+  db "Chess2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+  xor bx,bx
+.endInit:
+  dw .endCode - ($+2)
+
+  stosb
+  inc di
+.endCode:
+
+
+experimentXOR1:
+  db "XOR1$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+.endInit:
+  dw .endCode - ($+2)
+
+  xor ax,[si-80]
+  stosw
+  add di,dx
+
+  xor ax,[si]
+  stosw
+  add di,dx
+
+  xor ax,[si+80]
+  stosw
+  add di,dx
+  add si,cx
+.endCode:
+
+
+experimentXOR2:
+  db "XOR2$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+.endInit:
+  dw .endCode - ($+2)
+
+  xor ax,9999
+  stosw
+  add di,dx
+
+.endCode:
+
+
+experimentXOR3:
+  db "XOR3$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+.endInit:
+  dw .endCode - ($+2)
+
+  xor al,99
+  stosb
+  add di,dx
+
+.endCode:
+
+
+experimentXOR4:
+  db "XOR4$"
+  dw .endInit - ($+2)
+  mov ax,0xb800
+  mov es,ax
+  xor di,di
+  mov dx,-1
+.endInit:
+  dw .endCode - ($+2)
+
+  xor al,99
+  stosb
+  inc di
+
+.endCode:
+
+
+
 experimentRZ:
   db "RZ$"
   dw .endInit - ($+2)

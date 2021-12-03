@@ -1,0 +1,24 @@
+Concepts:
+  A concept is a single-argument template C that is used as a predicate.
+  If C<T> exhibits substitution failure then the predicate is false, otherwise it is true.
+  Concepts can operate on Tycos of any Kind
+  A template parameter can be specified to require a concept: "Foo<C @T> = Class { ... }" is only added to the overload set for Foo<Bar> if C<Bar> does not exhibit substitution failure.
+    We can then otherwise make substitution failure an error, de-duck-typing the template metalanguage
+  Can we express "inherits from BaseClass" as a concept?
+  C<@T> = Class { BaseClass* x = reinterpret_cast<T*>(0); }  // conversion error if T* cannot be cast to BaseClass*
+    Is there a way that T could fake being a BaseClass without inheriting from it?
+      Does it matter if it does? Surely the important this is logical inheritance rather than physical inheritance.
+      InheritsFrom<Foo | Bar, Foo> should probably be a true predicate
+  Can use partial specialization to make an operator:
+    InheritsFrom<@BaseClass, @T> = Class { BaseClass* x = reinterpret_cast<T*>(0); }
+    Foo<InheritsFrom<BarBase> T> = Class { ... }
+  Then we can use arbitrary concepts in access specifiers
+  If we want a C++-style SFINAE template, we can make it its own constraint:
+    "Foo<Foo @T> = Class { ... }"
+  If we want a single concept on multiple arguments, we can explicitly instantiate:
+    "Foo<C<T1, T2, T3> @T1, @T2, @T3> = Class { ... }"
+    In this case, C must have a 4th parameter which is then used for the implicit constraint argument:
+      "C<@T1, @T2, @T3, @Tignored> = Class { ... }"
+  If a class is designed to satisfy a particular concept, this can be documented by invoking the concept explicitly:
+    "Foo = Class { C<Foo> unused; ... }"
+
