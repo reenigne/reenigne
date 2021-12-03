@@ -32,6 +32,9 @@
     <ClInclude Include="..\..\..\include\alfe\string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\gentests2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\include\alfe.natvis" />

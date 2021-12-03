@@ -2985,17 +2985,17 @@ public:
             vectorMembers.add(StructuredType::member<Vector>("size"));
             return vectorMembers;
         }
-        bool canConvertFrom(const Type& from, String* reason) const
+        bool canConvertFrom(const Type& from, String* reason)
         {
             return from == StringType();
         }
-        Value convert(const Value& value) const
+        Value convert(const Value& value)
         {
             _bitmapValue->load(value.value<String>());
             return Value(type(), static_cast<Structure*>(_bitmapValue),
                 value.span());
         }
-        Value defaultValue() const
+        Value defaultValue()
         {
             return Value(type(), static_cast<Structure*>(_bitmapValue),
                 Span());
@@ -3014,7 +3014,7 @@ public:
     {
     public:
         Body(BitmapType bitmapType) : _bitmapType(bitmapType) { }
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto bitmap = static_cast<BitmapValue*>(
                 arguments.begin()->value<Structure*>())->bitmap();
@@ -3047,8 +3047,8 @@ public:
 
             return Value(maxDistance < 15*15*3);
         }
-        Identifier identifier() const { return "bitmapIsRGBI"; }
-        FunctionType type() const
+        Identifier identifier() { return "bitmapIsRGBI"; }
+        FunctionType type()
         {
             return FunctionType(BooleanType(), _bitmapType);
         }
@@ -3121,7 +3121,7 @@ public:
         configFile.addDefaultOption("interactive", true);
         configFile.addDefaultOption("combFilter", 0);
         configFile.addDefaultOption("fftWisdom", String("wisdom"));
-        configFile.addDefaultOption("activeSize", Vector(640, 200));
+        configFile.addDefaultOption("activeSize", Vector2<double>(640, 200));
 
         configFile.addFunco(BitmapIsRGBIFunction(bitmapType));
 
@@ -3430,7 +3430,8 @@ public:
         _overscan = _config->get<double>("overscan");
         _output->setOverscan(_overscan);
         _output->setCombFilter(_config->get<int>("combFilter"));
-        _activeSize = _config->get<Vector>("activeSize");
+        _activeSize =
+            Vector2Cast<int>(_config->get<Vector2<double>>("activeSize"));
     }
 private:
     BitmapValue _bitmapValue;

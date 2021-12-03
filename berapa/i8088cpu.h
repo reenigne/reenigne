@@ -1917,7 +1917,7 @@ private:
         {
         public:
             String serialize(void* p, int width, int used, int indent,
-                int delta) const
+                int delta)
             {
                 auto cpu = static_cast<Intel8088CPU*>(p);
 
@@ -1932,7 +1932,7 @@ private:
                 }
                 return s + " }";
             }
-            void deserialize(const Value& value, void* p) const
+            void deserialize(const Value& value, void* p)
             {
                 auto cpu = static_cast<Intel8088CPU*>(p);
                 auto prefetch = value.value<List<Value>>();
@@ -1944,11 +1944,8 @@ private:
                 cpu->_prefetched = prefetched;
                 cpu->_prefetchOffset = 0;
             }
-            Value defaultValue() const
-            {
-                return Value(this->type(), List<Value>());
-            }
-            Value value(void* p) const
+            Value defaultValue() { return Value(this->type(), List<Value>()); }
+            Value value(void* p)
             {
                 auto cpu = static_cast<Intel8088CPU*>(p);
                 List<Value> v;

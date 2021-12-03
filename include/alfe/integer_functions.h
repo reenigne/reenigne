@@ -11,15 +11,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l + i->value<int>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
@@ -32,15 +32,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l - i->value<int>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
@@ -53,15 +53,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l * i->value<int>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
@@ -75,7 +75,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
@@ -85,8 +85,8 @@ public:
                 return Rational(l, 1 << -r);
             return l << r;
         }
-        Identifier identifier() const { return OperatorShiftLeft(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorShiftLeft(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -100,7 +100,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
@@ -110,8 +110,8 @@ public:
                 return l << -r;
             return Rational(l, 1 << r);
         }
-        Identifier identifier() const { return OperatorShiftRight(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorShiftRight(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -124,15 +124,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l < i->value<int>());
         }
-        Identifier identifier() const { return OperatorLessThan(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorLessThan(); }
+        FunctionType type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -146,15 +146,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l > i->value<int>());
         }
-        Identifier identifier() const { return OperatorGreaterThan(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorGreaterThan(); }
+        FunctionType type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -168,15 +168,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l <= i->value<int>());
         }
-        Identifier identifier() const { return OperatorLessThanOrEqualTo(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorLessThanOrEqualTo(); }
+        FunctionType type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -190,18 +190,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l >= i->value<int>());
         }
-        Identifier identifier() const
-        {
-            return OperatorGreaterThanOrEqualTo();
-        }
-        FunctionType type() const
+        Identifier identifier() { return OperatorGreaterThanOrEqualTo(); }
+        FunctionType type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -214,12 +211,12 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             return Value( - arguments.begin()->value<int>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(IntegerType(), IntegerType());
         }

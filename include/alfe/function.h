@@ -1,11 +1,7 @@
-#include "alfe/main.h"
+#include "alfe/code.h"
 
 #ifndef INCLUDED_FUNCTION_H
 #define INCLUDED_FUNCTION_H
-
-#include "alfe/type.h"
-#include "alfe/identifier.h"
-#include "alfe/concrete.h"
 
 // This is not a real type - we can't do anything with it. A funco does not
 // in general have a type (or even a tyco, because we can't do kind checking).
@@ -26,11 +22,11 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual FunctionType type() const { return FuncoType(); };
-        virtual Value evaluate(List<Value> arguments, Span span) const = 0;
-        virtual Identifier identifier() const = 0;
-        virtual bool argumentsMatch(List<Type> argumentTypes) const = 0;
-        virtual int compareTo(Funco other) const
+        virtual FunctionType type() { return FuncoType(); };
+        virtual Value evaluate(List<Value> arguments, Span span) = 0;
+        virtual Identifier identifier() = 0;
+        virtual bool argumentsMatch(List<Type> argumentTypes) = 0;
+        virtual int compareTo(Funco other)
         {
             List<Tyco> fTycos = parameterTycos();
             List<Tyco> bTycos = other.parameterTycos();
@@ -61,26 +57,26 @@ protected:
             }
             return r;
         }
-        virtual List<Tyco> parameterTycos() const = 0;
-        virtual String toString() const { return type().toString(); }
+        virtual List<Tyco> parameterTycos() = 0;
+        virtual String toString() { return type().toString(); }
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 public:
     FuncoT() { }
     FuncoT(const Handle& other) : Handle(other) { }
-    Value evaluate(List<Value> arguments, Span span) const
+    Value evaluate(List<Value> arguments, Span span)
     {
         return body()->evaluate(arguments, span);
     }
-    Identifier identifier() const { return body()->identifier(); }
-    bool argumentsMatch(List<Type> argumentTypes) const
+    Identifier identifier() { return body()->identifier(); }
+    bool argumentsMatch(List<Type> argumentTypes)
     {
         return body()->argumentsMatch(argumentTypes);
     }
-    int compareTo(Funco other) const { return body()->compareTo(other); }
-    String toString() const { return body()->toString(); }
-    FunctionType type() const { return body()->type(); }
-    List<Tyco> parameterTycos() const { return body()->parameterTycos(); }
+    int compareTo(Funco other) { return body()->compareTo(other); }
+    String toString() { return body()->toString(); }
+    FunctionType type() { return body()->type(); }
+    List<Tyco> parameterTycos() { return body()->parameterTycos(); }
 };
 
 class Function : public Funco
@@ -92,11 +88,11 @@ protected:
     class Body : public Funco::Body
     {
     public:
-        bool argumentsMatch(List<Type> argumentTypes) const
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             return type().argumentsMatch(argumentTypes.begin());
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> tycos;
             type().addParameterTycos(&tycos);
@@ -112,7 +108,7 @@ template<class T> class OverloadedFunctionSetT : public Handle
     public:
         Body(Identifier identifier) : _identifier(identifier) { }
         void add(Funco funco) { _funcos.add(funco); }
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             List<::Type> argumentTypes;
             for (auto i : arguments)
@@ -183,7 +179,7 @@ template<class T> class OverloadedFunctionSetT : public Handle
             return i.evaluate(convertedArguments, span);
         }
     private:
-        String argumentTypesString(List<::Type> argumentTypes) const
+        String argumentTypesString(List<::Type> argumentTypes)
         {
             String s;
             bool needComma = false;
@@ -206,7 +202,7 @@ public:
       : Handle(create<Body>(identifier)) { }
     void add(Funco funco) { body()->add(funco); }
     static Type type() { return FuncoType(); }
-    Value evaluate(List<Value> arguments, Span span) const
+    Value evaluate(List<Value> arguments, Span span)
     {
         return body()->evaluate(arguments, span);
     }

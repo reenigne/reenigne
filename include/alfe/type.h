@@ -67,19 +67,27 @@ template<class T> class TycoT : public Handle
 {
 public:
     TycoT() { }
-    TycoT(const Handle& other) : Handle(other) { }
-    String toString() const { return body()->toString(); }
-    Kind kind() const { return body()->kind(); }
+    TycoT(const Handle& other) : Handle(to<Body>(other)) { }
+    String toString() { return body()->toString(); }
+    Kind kind() { return body()->kind(); }
+    CodeWalker::Result walk(CodeWalker* walker)
+    {
+        return body()->walk(walker);
+    }
 protected:
     class Body : public Handle::Body
     {
     public:
-        virtual String toString() const = 0;
-        virtual Kind kind() const = 0;
-        Tyco tyco() const { return handle<Handle>(); }
+        virtual String toString() = 0;
+        virtual Kind kind() = 0;
+        Tyco tyco() { return handle<Tyco>(); }
+        virtual CodeWalker::Result walk(CodeWalker* walker)
+        {
+            return walker->visit(tyco());
+        }
     };
 private:
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 
     friend class TemplateT<void>;
     template<class U> friend class EnumerationType;
@@ -132,223 +140,6 @@ private:
     HashTable<Identifier, Value> _values;
 };
 
-template<class T> class ScopeT;
-typedef ScopeT<void> Scope;
-
-template<class T> class ScopeT
-{
-public:
-    ScopeT() : _parent(0), _functionScope(this) { }
-    void addType(TypeT<T> type, TycoIdentifier identifier = TycoIdentifier())
-    {
-        if (!identifier.valid())
-            identifier = TycoIdentifier(type.toString());
-        _tycos.add(identifier, type);
-    }
-    void addObject(Identifier i, VariableDefinition s)
-    {
-        _objects[i] = s;
-    }
-    void addFunction(Identifier i, FuncoT<T> f)
-    {
-        if (_functionScope == this) {
-            if (_functions.hasKey(i))
-                _functions[i].add(f);
-            else {
-                List<Funco> l;
-                l.add(f);
-                _functions.add(i, l);
-            }
-        }
-        else
-            _functionScope->addFunction(i, f);
-    }
-    //ValueT<T> valueOfIdentifier(Identifier i)
-    //{
-    //    Span s = i.span();
-    //    if (!_objects.has(i))
-    //        s.throwError("Unknown identifier " + i.toString());
-    //    return Value(LValueType::wrap(getValue(i).type()), LValue(this, i), s);
-    //}
-    Tyco resolveTycoIdentifier(TycoIdentifier i) const
-    {
-        String s = i.name();
-        if (!_tycos.hasKey(s))
-            return Tyco();
-        return _tycos[s];
-    }
-    Tyco resolveTycoSpecifier(TycoSpecifier s) const
-    {
-        return s.resolve(this);
-    }
-    TypeT<T> resolveType(TycoSpecifier s) const
-    {
-        Tyco tyco = resolveTycoSpecifier(s);
-        TypeT<T> t = resolveTycoSpecifier(s);
-        if (!t.valid()) {
-            s.span().throwError("Type constructor specifier " + s.toString() +
-                " does not specify a type but a type constructor of kind " +
-                tyco.kind().toString() + ".");
-        }
-        return t;
-    }
-    VariableDefinition resolveVariable(Identifier identifier,
-        ResolutionPath* path)
-    {
-        if (_objects.hasKey(identifier)) {
-            VariableDefinition s = _objects[identifier];
-            *path = ResolutionPath::local();
-            return s;
-        }
-        if (_parent == 0) {
-            identifier.span().throwError("Unknown identifier " +
-                identifier.toString());
-        }
-        return _parent->resolveVariable(identifier, path);
-    }
-    FuncoT<T> resolveFunction(Identifier identifier, List<Type> argumentTypes)
-    {
-        List<List<FuncoT<T>>> funcos = getFuncosForIdentifier(identifier);
-
-        List<FuncoT<T>> bestCandidates;
-        for (auto ff : funcos) {
-            for (auto f : ff) {
-                if (!f.argumentsMatch(argumentTypes))
-                    continue;
-                List<FuncoT<T>> newBestCandidates;
-                bool newBest = true;
-                for (auto b : bestCandidates) {
-                    int r = f.compareTo(b);
-                    if (r == 2) {
-                        // b better than f
-                        newBest = false;
-                        break;
-                    }
-                    if (r != 1)
-                        newBestCandidates.add(b);
-                }
-                if (newBest) {
-                    bestCandidates = newBestCandidates;
-                    bestCandidates.add(f);
-                }
-            }
-        }
-        for (auto f : bestCandidates) {
-            for (auto b : bestCandidates) {
-                int r = f.compareTo(b);
-                if (r == 3) {
-                    identifier.span().throwError(
-                        "Ambiguous function call of " + identifier.toString() +
-                        " with argument types " +
-                        argumentTypesString(argumentTypes) + ". Could be " +
-                        b.toString() + " or " + f.toString() + ".");
-                }
-            }
-        }
-        if (bestCandidates.count() == 0) {
-            identifier.span().throwError("No matches for function " +
-                identifier.toString() + " with argument types " +
-                argumentTypesString(argumentTypes) + ".");
-        }
-        // We have a choice of possible funcos here. Logically they should
-        // be equivalent, but some may be more optimal. For now we'll just
-        // choose the first one, but later we may want to try to figure out
-        // which one is most optimal.
-        return *bestCandidates.begin();
-    }
-    void setParentScope(Scope* parent) { _parent = parent; }
-    void setFunctionScope(Scope* scope) { _functionScope = scope; }
-    Scope* functionScope() { return _functionScope; }
-private:
-    String argumentTypesString(List<Type> argumentTypes) const
-    {
-        String s;
-        bool needComma = false;
-        for (auto t : argumentTypes) {
-            if (needComma)
-                s += ", ";
-            needComma = true;
-            s += t.toString();
-        }
-        return s;
-    }
-
-    List<List<Funco>> getFuncosForIdentifier(Identifier i)
-    {
-        if (_functionScope != this)
-            return _functionScope->getFuncosForIdentifier(i);
-        List<List<Funco>> r;
-        if (_parent != 0)
-            r = _parent->getFuncosForIdentifier(i);
-        if (_functions.hasKey(i))
-            r.add(_functions[i]);
-        return r;
-    }
-
-    HashTable<TycoIdentifier, Tyco> _tycos;
-    HashTable<Identifier, VariableDefinition> _objects;
-    HashTable<Identifier, List<Funco>> _functions;
-    Scope* _parent;
-    Scope* _functionScope;
-};
-
-template<class T> class ResolutionPathT;
-typedef ResolutionPathT<void> ResolutionPath;
-
-template<class T> class ResolutionPathT : public ConstHandle
-{
-public:
-    ResolutionPathT() { }
-    static ResolutionPathT local() { return create<HereBody>(); }
-    ValueT<T> evaluate(Structure* context, Identifier identifier) const
-    {
-        return body()->evaluate(context, identifier);
-    }
-private:
-    ResolutionPathT(ConstHandle other) : ConstHandle(other) { }
-    class Body : public ConstHandle::Body
-    {
-    public:
-        virtual Value evaluate(Structure* context, Identifier identifier) const
-            = 0;
-    };
-    class ParentBody : public Body
-    {
-    public:
-        ValueT<T> evaluate(Structure* context, Identifier identifier) const
-        {
-            throw NotYetImplementedException();
-        }
-    private:
-        ResolutionPath _rest;
-    };
-    class OuterBody : public Body
-    {
-    public:
-        ValueT<T> evaluate(Structure* context, Identifier identifier) const
-        {
-            throw NotYetImplementedException();
-        }
-    private:
-        ResolutionPath _rest;
-    };
-    class HereBody : public Body
-    {
-    public:
-        ValueT<T> evaluate(Structure* context, Identifier identifier) const
-        {
-            Span s = identifier.span();
-            //if (!has(i))
-            //    s.throwError("Unknown identifier " + i.name());
-            return Value(
-                LValueTypeT<T>::wrap(context->getValue(identifier).type()),
-                LValue(context, identifier), s);
-            //return context->getValue(identifier);
-        }
-    };
-    const Body* body() const { return as<Body>(); }
-};
-
 template<class T> class LValueT;
 typedef LValueT<void> LValue;
 
@@ -387,7 +178,7 @@ public:
     TypeT(const Handle& other) : Tyco(other) { }
     TypeT(const Tyco& other) : Tyco(to<Body>(other)) { }
 
-    Type member(IdentifierT<T> i) const { return body()->member(i); }
+    Type member(IdentifierT<T> i) { return body()->member(i); }
     Type rValue() const
     {
         if (LValueTypeT<T>(*this).valid())
@@ -404,21 +195,21 @@ public:
     // "delta" is the number of spaces by which the indent should be increased
     // when going in a level.
     // We will leave enough space at the end for a trailing comma.
-    String serialize(void* p, int width, int used, int indent, int delta) const
+    String serialize(void* p, int width, int used, int indent, int delta)
     {
         return body()->serialize(p, width, used, indent, delta);
     }
-    void deserialize(const Value& value, void* p) const
+    void deserialize(const Value& value, void* p)
     {
         body()->deserialize(value, p);
     }
-    int size() const { return body()->size(); }
-    ValueT<T> value(void* p) const { return body()->value(p); }
-    ValueT<T> simplify(const Value& value) const
+    int size() { return body()->size(); }
+    ValueT<T> value(void* p) { return body()->value(p); }
+    ValueT<T> simplify(const Value& value)
     {
         return body()->simplify(value);
     }
-    bool canConvertFrom(const Type& other, String* reason = 0) const
+    bool canConvertFrom(Type other, String* reason = 0)
     {
         if (*this == other)
             return true;
@@ -439,11 +230,11 @@ public:
         }
         return false;
     }
-    bool canConvertTo(const Type& other, String* reason = 0) const
+    bool canConvertTo(Type other, String* reason = 0)
     {
         return other.canConvertFrom(*this, reason);
     }
-    ValueT<T> convert(const ValueT<T>& value) const
+    ValueT<T> convert(const ValueT<T>& value)
     {
         if (*this == value.type())
             return value;
@@ -457,56 +248,55 @@ public:
             return body()->convert(value);
         return value.type().body()->convertTo(*this, value);
     }
-    ValueT<T> convertTo(const Type& to, const ValueT<T>& value) const
+    ValueT<T> convertTo(Type to, const ValueT<T>& value) const
     {
         assert(*this == value.type());
         return to.convert(value);
     }
-    ValueT<T> defaultValue() const { return body()->defaultValue(); }
+    ValueT<T> defaultValue() { return body()->defaultValue(); }
 protected:
     class Body : public Tyco::Body
     {
     public:
-        Kind kind() const { return TypeKind(); }
-        virtual Type member(IdentifierT<T> i) const { return Type(); }
+        Kind kind() { return TypeKind(); }
+        virtual Type member(IdentifierT<T> i) { return Type(); }
         virtual String serialize(void* p, int width, int used, int indent,
-            int delta) const
+            int delta)
         {
             return "";
         }
-        virtual void deserialize(const Value& value, void* p) const { }
-        virtual int size() const { return 0; }
-        virtual ValueT<T> defaultValue() const { return Value(); }
-        virtual ValueT<T> value(void* p) const { return Value(); }
-        Type type() const { return tyco(); }
-        virtual ValueT<T> simplify(const Value& value) const
+        virtual void deserialize(const Value& value, void* p) { }
+        virtual int size() { return 0; }
+        virtual ValueT<T> defaultValue() { return Value(); }
+        virtual ValueT<T> value(void* p) { return Value(); }
+        Type type() { return tyco(); }
+        virtual ValueT<T> simplify(const Value& value)
         {
             return value;
         }
-        virtual bool canConvertFrom(const Type& other, String* reason) const
+        virtual bool canConvertFrom(const Type& other, String* reason)
         {
             return false;
         }
-        virtual bool canConvertTo(const Type& other, String* reason) const
+        virtual bool canConvertTo(const Type& other, String* reason)
         {
             return false;
         }
-        virtual ValueT<T> convert(const ValueT<T>& value) const
+        virtual ValueT<T> convert(const ValueT<T>& value)
         {
             return ValueT<T>();
         }
         virtual ValueT<T> convertTo(const Type& to, const Value& value)
-            const
         {
             return ValueT<T>();
         }
-        virtual ValueT<T> valueFromAny(Any a, Structure* owner) const
+        virtual ValueT<T> valueFromAny(Any a, Structure* owner)
         {
             return ValueT<T>(type(), a);
         }
-        virtual Any anyFromValue(ValueT<T> v) const { return v.value(); }
+        virtual Any anyFromValue(ValueT<T> v) { return v.value(); }
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 
     friend class TemplateT<void>;
 };
@@ -521,19 +311,28 @@ public:
             return inner;
         return create<Body>(inner);
     }
-    Type inner() const { return body()->inner(); }
+    Type inner() { return body()->inner(); }
 private:
     class Body : public Type::Body
     {
     public:
         Body(Type inner) : _inner(inner) { }
-        Type inner() const { return _inner; }
-        String toString() const { return "LValue<" + _inner.toString() + ">"; }
+        Type inner() { return _inner; }
+        String toString() { return "LValue<" + _inner.toString() + ">"; }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_inner.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     private:
         Type _inner;
     };
 
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
     LValueTypeT(const Handle& type) : Type(to<Body>(type)) { }
 };
 
@@ -591,7 +390,7 @@ public:
     template<class U> U value() const { return _any.value<U>(); }
     Span span() const { return _span; }
     bool valid() const { return _type.valid(); }
-    Value convertTo(const Type& to) const
+    Value convertTo(const Type& to)
     {
         String reason;
         Value v = tryConvertTo(to, &reason);
@@ -599,7 +398,7 @@ public:
             span().throwError(reason);
         return v;
     }
-    Value tryConvertTo(const Type& to, String* why) const
+    Value tryConvertTo(Type to, String* why)
     {
         String reason;
         if (to.canConvertFrom(_type, &reason))
@@ -625,7 +424,7 @@ public:
         }
         return *this;
     }
-    Value simplify() const { return _type.simplify(*this); }
+    Value simplify() { return _type.simplify(*this); }
 private:
     Type _type;
     Any _any;
@@ -636,7 +435,7 @@ template<class T> class TemplateT : public Tyco
 {
 public:
     TemplateT(const Handle& other) : Tyco(other) { }
-    Tyco instantiate(const Tyco& argument) const
+    Tyco instantiate(const Tyco& argument)
     {
         return body()->instantiate(argument);
     }
@@ -645,7 +444,7 @@ protected:
     class Body : public Tyco::Body
     {
     public:
-        virtual Tyco instantiate(const Tyco& argument) const
+        virtual Tyco instantiate(Tyco argument)
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
@@ -664,14 +463,13 @@ protected:
             _instantiations.add(argument, t);
             return t;
         }
-        virtual Tyco partialInstantiate(bool final, Tyco argument) const
+        virtual Tyco partialInstantiate(bool final, Tyco argument)
         {
             if (final)
                 return finalInstantiate(tyco(), argument);
             return create<PartialBody>(tyco(), tyco(), argument);
         }
-        virtual Type finalInstantiate(Template parent, Tyco argument) const
-            = 0;
+        virtual Type finalInstantiate(Template parent, Tyco argument) = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -681,11 +479,11 @@ protected:
         PartialBody(Template root, Template parent, Tyco argument)
           : _root(root), _parent(parent), _argument(argument) { }
 
-        String toString() const
+        String toString()
         {
             return _argument.toString() + "<" + toString2() + ">";
         }
-        String toString2() const
+        String toString2()
         {
             auto p = _parent.to<PartialBody>();
             String s;
@@ -693,37 +491,37 @@ protected:
                 s = p->toString2() + ", ";
             return s + _argument.toString();
         }
-        Kind kind() const
+        Kind kind()
         {
             return _parent.kind().instantiate(_argument.kind());
         }
-        Type finalInstantiate(Template parent, Tyco argument) const
+        Type finalInstantiate(Template parent, Tyco argument)
         {
             assert(false);
             return Type();
         }
 
-        Tyco partialInstantiate(bool final, Tyco argument) const
+        Tyco partialInstantiate(bool final, Tyco argument)
         {
             if (final)
                 return _root.body()->finalInstantiate(this->tyco(), argument);
             return create<PartialBody>(_root, this->tyco(), argument);
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<PartialBody>();
             return o != 0 && Template(_parent) == Template(o->_parent) &&
                 _argument == o->_argument;
         }
-        Hash hash() const { return Body::hash().mixin(_argument.hash()); }
-        const Body* parent() const { return _parent; }
-        Tyco argument() const { return _argument; }
+        Hash hash() { return Body::hash().mixin(_argument.hash()); }
+        const Body* parent() { return _parent; }
+        Tyco argument() { return _argument; }
     private:
         TemplateT<T> _root;
         TemplateT<T> _parent;
         Tyco _argument;
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() const { return as<Body>(); }
 };
 
 class LessThanType : public Type
@@ -737,14 +535,14 @@ private:
     {
     public:
         Body(int n) : _n(n) { }
-        String toString() const { return decimal(_n); }
+        String toString() { return decimal(_n); }
 
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
-            auto o = other->to<Body>();
+            auto o = other->toConst<Body>();
             return o != 0 && _n == o->_n;
         }
-        Hash hash() const { return Type::Body::hash().mixin(_n); }
+        Hash hash() { return Type::Body::hash().mixin(_n); }
         int _n;
     };
     const Body* body() const { return as<Body>(); }
@@ -758,7 +556,6 @@ public:
     {
     public:
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             String r = "\"";
             String s = *static_cast<String*>(p);
@@ -770,13 +567,13 @@ public:
             }
             return r + "\"";
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<String*>(p) = value.value<String>();
         }
-        int size() const { return sizeof(String); }
-        Value defaultValue() const { return String(); }
-        Value value(void* p) const { return *static_cast<String*>(p); }
+        int size() { return sizeof(String); }
+        Value defaultValue() { return String(); }
+        Value value(void* p) { return *static_cast<String*>(p); }
     };
 };
 
@@ -790,17 +587,16 @@ public:
     {
     public:
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return decimal(*static_cast<int*>(p));
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<int*>(p) = value.value<int>();
         }
-        int size() const { return sizeof(int); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const { return *static_cast<int*>(p); }
+        int size() { return sizeof(int); }
+        Value defaultValue() { return 0; }
+        Value value(void* p) { return *static_cast<int*>(p); }
     };
 };
 
@@ -813,17 +609,16 @@ public:
     {
     public:
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return String::Boolean(*static_cast<bool*>(p));
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<bool*>(p) = value.value<bool>();
         }
-        int size() const { return sizeof(bool); }
-        Value defaultValue() const { return false; }
-        Value value(void* p) const { return *static_cast<bool*>(p); }
+        int size() { return sizeof(bool); }
+        Value defaultValue() { return false; }
+        Value value(void* p) { return *static_cast<bool*>(p); }
     };
 };
 
@@ -835,8 +630,31 @@ public:
 
 class LabelType : public NamedNullary<Type, LabelType>
 {
+protected:
+    LabelType(const Handle& other) : NamedNullary(other) { }
 public:
     static String name() { return "Label"; }
+};
+
+class SpecificLabelType : public LabelType
+{
+public:
+    SpecificLabelType() : LabelType(create<Body>()) { }
+private:
+    class Body : public Type::Body
+    {
+    public:
+        Body() { }
+        bool equals(HandleBase::Body* other)
+        {
+            return other->to<Body>() == this;
+        }
+        Hash hash()
+        {
+            return Type::Body::hash().mixin(
+                (UInt32)reinterpret_cast<uintptr_t>(this));
+        }
+    };
 };
 
 template<class T> class VoidTypeT : public NamedNullary<Type, VoidType>
@@ -852,11 +670,11 @@ public:
     class Body : public NamedNullary<Type, DoubleType>::Body
     {
     public:
-        bool canConvertFrom(const Type& from, String* reason) const
+        bool canConvertFrom(const Type& from, String* reason)
         {
             return from == IntegerType();
         }
-        Value convert(const Value& value) const
+        Value convert(const Value& value)
         {
             return Value(DoubleType(), static_cast<double>(value.value<int>()),
                 value.span());
@@ -872,17 +690,16 @@ public:
     {
     public:
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return hex(*static_cast<Byte*>(p), 2);
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<Byte*>(p) = value.value<int>();
         }
-        int size() const { return sizeof(Byte); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const
+        int size() { return sizeof(Byte); }
+        Value defaultValue() { return 0; }
+        Value value(void* p)
         {
             return Value(ByteType(), static_cast<int>(*static_cast<Byte*>(p)));
         }
@@ -897,17 +714,16 @@ public:
     {
     public:
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return hex(*static_cast<Word*>(p), 4);
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<Word*>(p) = value.value<int>();
         }
-        int size() const { return sizeof(Word); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const
+        int size() { return sizeof(Word); }
+        Value defaultValue() { return 0; }
+        Value value(void* p)
         {
             return Value(WordType(), static_cast<int>(*static_cast<Word*>(p)));
         }
@@ -922,17 +738,16 @@ public:
     {
     public:
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return hex(*static_cast<DWord*>(p), 4);
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<DWord*>(p) = value.value<int>();
         }
-        int size() const { return sizeof(DWord); }
-        Value defaultValue() const { return 0; }
-        Value value(void* p) const
+        int size() { return sizeof(DWord); }
+        Value defaultValue() { return 0; }
+        Value value(void* p)
         {
             return Value(DWordType(),
                 static_cast<int>(*static_cast<DWord*>(p)));
@@ -947,28 +762,28 @@ public:
     class Body : public NamedNullary<Type, RationalType>::Body
     {
     public:
-        bool canConvertFrom(const Type& from, String* reason) const
+        bool canConvertFrom(const Type& from, String* reason)
         {
             return from == IntegerType();
         }
-        bool canConvertTo(const Type& to, String* reason) const
+        bool canConvertTo(const Type& to, String* reason)
         {
             // Eventually we may want something more sophisticated here, since
             // in general the conversion from Rational to Double would be
             // lossy.
             return to == DoubleType();
         }
-        Value convert(const Value& value) const
+        Value convert(const Value& value)
         {
             return Value(RationalType(), Rational(value.value<int>()),
                 value.span());
         }
-        Value convertTo(const Type& to, const Value& value) const
+        Value convertTo(const Type& to, const Value& value)
         {
             return Value(DoubleType(), value.value<Rational>().value<double>(),
                 value.span());
         }
-        Value simplify(const Value& value) const
+        Value simplify(const Value& value)
         {
             Rational r = value.value<Rational>();
             if (r.denominator == 1)
@@ -976,22 +791,21 @@ public:
             return value;
         }
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             auto r = static_cast<Rational*>(p);
             return String(decimal(r->numerator)) + "/" +
                 decimal(r->denominator);
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<Rational*>(p) = value.value<Rational>();
         }
-        int size() const { return sizeof(Rational); }
-        Value defaultValue() const
+        int size() { return sizeof(Rational); }
+        Value defaultValue()
         {
             return Value(RationalType(), Rational(0));
         }
-        Value value(void* p) const
+        Value value(void* p)
         {
             return Value(RationalType(), *static_cast<Rational*>(p));
         }
@@ -1006,33 +820,32 @@ public:
       : Type(create<Body>(contained, indexer)) { }
     ArrayType(const Type& contained, int size)
       : Type(create<Body>(contained, LessThanType(size))) { }
-    Type contained() const { return body()->contained(); }
-    Type indexer() const { return body()->indexer(); }
+    Type contained() { return body()->contained(); }
+    Type indexer() { return body()->indexer(); }
 protected:
     class Body : public Type::Body
     {
     public:
         Body(const Type &contained, const Type& indexer)
           : _contained(contained), _indexer(indexer) { }
-        String toString() const
+        String toString()
         {
             return _contained.toString() + "[" + _indexer.toString() + "]";
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
-            auto o = other->to<Body>();
+            auto o = other->toConst<Body>();
             return o != 0 && _contained == o->_contained &&
                 _indexer == o->_indexer;
         }
-        Hash hash() const
+        Hash hash()
         {
             return Type::Body::hash().mixin(_contained.hash()).
                 mixin(_indexer.hash());
         }
-        Type contained() const { return _contained; }
-        Type indexer() const { return _indexer; }
+        Type contained() { return _contained; }
+        Type indexer() { return _indexer; }
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             int n;
             char* pc0 = pointerAndCount(p, &n);
@@ -1100,7 +913,7 @@ protected:
             }
             return s + " }";
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             LessThanType l(_indexer);
             if (!l.valid()) {
@@ -1125,7 +938,7 @@ protected:
                 p = static_cast<void*>(pc);
             }
         }
-        Value value(void* p) const
+        Value value(void* p)
         {
             int n;
             char* pc = pointerAndCount(p, &n);
@@ -1137,11 +950,22 @@ protected:
             }
             return Value(type(), v);
         }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_contained.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_indexer.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     protected:
-        virtual int elementCount(void* p) const { unknownCount(); return 0; }
-        virtual void* elementData(void* p) const { return 0; }
+        virtual int elementCount(void* p) { unknownCount(); return 0; }
+        virtual void* elementData(void* p) { return 0; }
     private:
-        char* pointerAndCount(void* p, int *n) const
+        char* pointerAndCount(void* p, int *n)
         {
             LessThanType l(_indexer);
             if (l.valid()) {
@@ -1155,7 +979,7 @@ protected:
             unknownCount();
             return 0;
         }
-        void unknownCount() const
+        void unknownCount()
         {
             throw Exception("Don't know how many elements to serialize.");
         }
@@ -1163,7 +987,7 @@ protected:
         Type _indexer;
     };
 private:
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 };
 
 template<class T> class ArrayPersistType : public ArrayType
@@ -1178,11 +1002,11 @@ protected:
     class Body : public ArrayType::Body
     {
     protected:
-        virtual int elementCount(void* p) const
+        virtual int elementCount(void* p)
         {
             return static_cast<Array<T>*>(p)->count();
         }
-        virtual void* elementData(void* p) const
+        virtual void* elementData(void* p)
         {
             return static_cast<void*>(&(*static_cast<Array<T>*>(p))[0]);
         }
@@ -1197,12 +1021,12 @@ public:
     class Body : public NamedNullary::Body
     {
     public:
-        Kind kind() const
+        Kind kind()
         {
             return TemplateKind(TypeKind(),
                 TemplateKind(TypeKind(), TypeKind()));
         }
-        Type finalInstantiate(Template parent, Tyco argument) const
+        Type finalInstantiate(Template parent, Tyco argument)
         {
             return ArrayType(parent.argument(), argument);
         }
@@ -1213,30 +1037,39 @@ class SequenceType : public Type
 {
 public:
     SequenceType(const Type& contained) : Type(create<Body>(contained)) { }
-    Type contained() const { return body()->contained(); }
+    Type contained() { return body()->contained(); }
 private:
     class Body : public Type::Body
     {
     public:
         Body(const Type &contained) : _contained(contained) { }
-        String toString() const
+        String toString()
         {
             return _contained.toString() + "[]";
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
-            auto o = other->to<Body>();
+            auto o = other->toConst<Body>();
             return o != 0 && _contained == o->_contained;
         }
-        Hash hash() const
+        Hash hash()
         {
             return Type::Body::hash().mixin(_contained.hash());
         }
-        Type contained() const { return _contained; }
+        Type contained() { return _contained; }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_contained.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     private:
         Type _contained;
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 };
 
 class SequenceTemplate : public NamedNullary<Template, SequenceTemplate>
@@ -1247,8 +1080,8 @@ public:
     class Body : public NamedNullary::Body
     {
     public:
-        Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
-        Type finalInstantiate(Template parent, Tyco argument) const
+        Kind kind() { return TemplateKind(TypeKind(), TypeKind()); }
+        Type finalInstantiate(Template parent, Tyco argument)
         {
             return SequenceType(argument);
         }
@@ -1261,7 +1094,7 @@ public:
     TupleTycoT() : NamedNullary(instance()) { }
     static String name() { return "Tuple"; }
     bool isUnit() { return *this == TupleTyco(); }
-    Tyco instantiate(const Tyco& argument) const
+    Tyco instantiate(const Tyco& argument)
     {
         return body()->instantiate(argument);
     }
@@ -1283,16 +1116,16 @@ public:
     {
     public:
         // Tyco
-        String toString() const
+        String toString()
         {
             bool needComma = false;
             return "(" + toString2(&needComma) + ")";
         }
-        virtual String toString2(bool* needComma) const { return ""; }
-        Kind kind() const { return VariadicTemplateKind(); }
+        virtual String toString2(bool* needComma) { return ""; }
+        Kind kind() { return VariadicTemplateKind(); }
 
         // Template
-        Tyco instantiate(const Tyco& argument) const
+        Tyco instantiate(Tyco argument)
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
@@ -1318,7 +1151,7 @@ private:
     public:
         NonUnitBody(TupleTyco parent, Type contained)
           : _parent(parent), _contained(contained) { }
-        String toString2(bool* needComma) const
+        String toString2(bool* needComma)
         {
             String s = _parent.toString2(needComma);
             if (*needComma)
@@ -1326,39 +1159,39 @@ private:
             *needComma = true;
             return s + _contained.toString();
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<NonUnitBody>();
             return o != 0 && _parent == o->_parent &&
                 _contained == o->_contained;
         }
-        Hash hash() const
+        Hash hash()
         {
             return Body::hash().mixin(_parent.hash()).mixin(_contained.hash());
         }
 
         // Type
-        bool canConvertFrom(const Type& from, String* reason) const
+        bool canConvertFrom(const Type& from, String* reason)
         {
             if (_parent == TupleTyco())
                 return _contained.canConvertFrom(from, reason);
             return false;
         }
-        bool canConvertTo(const Type& to, String* reason) const
+        bool canConvertTo(const Type& to, String* reason)
         {
             if (_parent == TupleTyco())
                 return _contained.canConvertTo(to, reason);
             return false;
         }
-        Value convert(const Value& value) const
+        Value convert(const Value& value)
         {
             return _contained.convert(value);
         }
-        Value convertTo(const Type& to, const Value& value) const
+        Value convertTo(const Type& to, const Value& value)
         {
             return _contained.convertTo(to, value);
         }
-        Type member(IdentifierT<T> i) const
+        Type member(IdentifierT<T> i)
         {
             CharacterSource s(i.name());
             Rational r;
@@ -1379,18 +1212,26 @@ private:
                 p = p.parent();
             } while (true);
         }
-        Type contained() const { return _contained; }
-        TupleTyco parent() const { return _parent; }
+        Type contained() { return _contained; }
+        TupleTyco parent() { return _parent; }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_parent.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_contained.walker(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     private:
         TupleTycoT<T> _parent;
         Type _contained;
     };
 private:
-    String toString2(bool* needComma) const
-    {
-        return body()->toString2(needComma);
-    }
-    const Body* body() const { return as<Body>(); }
+    String toString2(bool* needComma) { return body()->toString2(needComma); }
+    Body* body() { return as<Body>(); }
     TupleTyco parent() const { return as<NonUnitBody>()->parent(); }
     friend class Body;
     friend class NonUnitBody;
@@ -1405,15 +1246,24 @@ private:
     {
     public:
         Body(const Type &referent) : _referent(referent) { }
-        String toString() const { return _referent.toString() + "*"; }
-        bool equals(const Handle::Body* other) const
+        String toString() { return _referent.toString() + "*"; }
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _referent == o->_referent;
         }
-        Hash hash() const
+        Hash hash()
         {
             return Type::Body::hash().mixin(_referent.hash());
+        }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_referent.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
     private:
         Type _referent;
@@ -1428,8 +1278,8 @@ public:
     class Body : public NamedNullary::Body
     {
     public:
-        Kind kind() const { return TemplateKind(TypeKind(), TypeKind()); }
-        Type finalInstantiate(Template parent, Tyco argument) const
+        Kind kind() { return TemplateKind(TypeKind(), TypeKind()); }
+        Type finalInstantiate(Template parent, Tyco argument)
         {
             return PointerType(argument);
         }
@@ -1458,7 +1308,7 @@ public:
     {
         return body()->argumentsMatch(&argumentTypes) && argumentTypes.end();
     }
-    Tyco instantiate(const Tyco& argument) const
+    Tyco instantiate(const Tyco& argument)
     {
         return body()->instantiate(argument);
     }
@@ -1473,15 +1323,15 @@ private:
     class Body : public Tyco::Body
     {
     public:
-        String toString() const
+        String toString()
         {
             bool needComma = false;
             return toString2(&needComma) + ")";
         }
-        virtual String toString2(bool* needComma) const = 0;
-        Kind kind() const { return VariadicTemplateKind(); }
+        virtual String toString2(bool* needComma) = 0;
+        Kind kind() { return VariadicTemplateKind(); }
         // Template
-        Tyco instantiate(const Tyco& argument) const
+        Tyco instantiate(Tyco argument)
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
@@ -1496,9 +1346,9 @@ private:
             _instantiations.add(argument, t);
             return t;
         }
-        virtual bool argumentsMatch(List<Type>::Iterator* i) const = 0;
-        virtual void addParameterTycos(List<Tyco>* list) const = 0;
-        virtual Type returnType() const = 0;
+        virtual bool argumentsMatch(List<Type>::Iterator* i) = 0;
+        virtual void addParameterTycos(List<Tyco>* list) = 0;
+        virtual Type returnType() = 0;
     private:
         mutable HashTable<Tyco, Tyco> _instantiations;
     };
@@ -1506,19 +1356,28 @@ private:
     {
     public:
         NullaryBody(const Type& returnType) : _returnType(returnType) { }
-        String toString2(bool* needComma) const
+        String toString2(bool* needComma)
         {
             return _returnType.toString() + "(";
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<NullaryBody>();
             return o != 0 && _returnType != o->_returnType;
         }
-        Hash hash() const { return Body::hash().mixin(_returnType.hash()); }
-        bool argumentsMatch(List<Type>::Iterator* i) const { return true; }
-        virtual void addParameterTycos(List<Tyco>* list) const { }
-        Type returnType() const { return _returnType; }
+        Hash hash() { return Body::hash().mixin(_returnType.hash()); }
+        bool argumentsMatch(List<Type>::Iterator* i) { return true; }
+        virtual void addParameterTycos(List<Tyco>* list) { }
+        Type returnType() { return _returnType; }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_returnType.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     private:
         Type _returnType;
     };
@@ -1527,7 +1386,7 @@ private:
     public:
         ArgumentBody(FunctionType parent, const Type& argumentType)
           : _parent(parent), _argumentType(argumentType) { }
-        String toString2(bool* needComma) const
+        String toString2(bool* needComma)
         {
             String s = _parent.toString2(needComma);
             if (*needComma)
@@ -1535,18 +1394,18 @@ private:
             *needComma = true;
             return s + _argumentType.toString();
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<ArgumentBody>();
             return o != 0 && _parent == o->_parent &&
                 _argumentType == o->_argumentType;
         }
-        Hash hash() const
+        Hash hash()
         {
             return Body::hash().mixin(_parent.hash()).
                 mixin(_argumentType.hash());
         }
-        bool argumentsMatch(List<Type>::Iterator* i) const
+        bool argumentsMatch(List<Type>::Iterator* i)
         {
             if (!_parent.body()->argumentsMatch(i))
                 return false;
@@ -1557,17 +1416,28 @@ private:
             ++*i;
             return true;
         }
-        virtual void addParameterTycos(List<Tyco>* list) const
+        virtual void addParameterTycos(List<Tyco>* list)
         {
             _parent.addParameterTycos(list);
             list->add(_argumentType);
         }
-        Type returnType() const { return _parent.returnType(); }
+        Type returnType() { return _parent.returnType(); }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(tyco());
+            if (r == CodeWalker::Result::recurse) {
+                if (_parent.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_argumentType.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     private:
         FunctionTypeT<T> _parent;
         Type _argumentType;
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() const { return as<Body>(); }
     String toString2(bool* needComma) const
     {
         return body()->toString2(needComma);
@@ -1584,15 +1454,15 @@ public:
     class Body : public NamedNullary::Body
     {
     public:
-        virtual Tyco partialInstantiate(bool final, Tyco argument) const
+        virtual Tyco partialInstantiate(bool final, Tyco argument)
         {
             return FunctionType::nullary(argument);
         }
-        Kind kind() const
+        Kind kind()
         {
             return TemplateKind(TypeKind(), VariadicTemplateKind());
         }
-        Type finalInstantiate(Template parent, Tyco argument) const
+        Type finalInstantiate(Template parent, Tyco argument)
         {
             assert(false);
             return Type();
@@ -1612,24 +1482,23 @@ protected:
     public:
         Body(String name, const Helper& helper, String context)
           : _name(name), _helper(helper), _context(context) { }
-        String toString() const { return _name; }
+        String toString() { return _name; }
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return _context + _name + "." +
                 _helper._tToString[*static_cast<T*>(p) + 1];
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<T*>(p) = value.value<T>();
         }
-        int size() const { return sizeof(T); }
-        Value defaultValue() const { return Value(type(), static_cast<T>(0)); }
-        Value value(void* p) const
+        int size() { return sizeof(T); }
+        Value defaultValue() { return Value(type(), static_cast<T>(0)); }
+        Value value(void* p)
         {
             return Value(type(), *static_cast<T*>(p));
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _context == o->_context && _name == o->_name &&
@@ -1706,8 +1575,8 @@ public:
     StructuredTypeT(const Handle& other) : Type(other) { }
     StructuredTypeT(String name, List<Member> members)
       : Type(create<Body>(name, members)) { }
-    const HashTable<Identifier, int> names() const { return body()->names(); }
-    const Array<Member> members() const { return body()->members(); }
+    const HashTable<Identifier, int> names() { return body()->names(); }
+    const Array<Member> members() { return body()->members(); }
     static Value empty()
     {
         static Value e = Value(StructuredType(String(),
@@ -1719,24 +1588,24 @@ public:
     // a Structure, and that Structure needs to be owned by something. Hence
     // the ConfigFile needs to have a StructureOwner to own those Structure
     // objects.
-    Value lValueFromRValue(Any rValue, StructureOwner* owner) const
+    Value lValueFromRValue(Any rValue, StructureOwner* owner)
     {
         return body()->lValueFromRValue(rValue, owner);
     }
-    Any rValueFromLValue(Value lValue) const
+    Any rValueFromLValue(Value lValue)
     {
         return body()->rValueFromLValue(lValue);
     }
-    Value constructValue(Value value) const
+    Value constructValue(Value value)
     {
         return body()->constructValue(value);
     }
-    void setLValue(LValue l, Value rValue) const
+    void setLValue(LValue l, Value rValue)
     {
         return body()->setLValue(l, rValue);
     }
-    Type member(Identifier i) const { return body()->member(i); }
-    Scope* scope() { return body()->scope(); }
+    Type member(Identifier i) { return body()->member(i); }
+    //Scope* scope() { return body()->scope(); }
 protected:
     class Body : public Type::Body
     {
@@ -1746,7 +1615,7 @@ protected:
         {
             int n = 0;
             for (auto i : members) {
-                String name = i.name();
+                String name = i.name();B
                 _names.add(name, n);
                 Identifier identifier(name);
                 _scope.addObject(identifier,
@@ -1754,11 +1623,11 @@ protected:
                 ++n;
             }
         }
-        String toString() const { return _name; }
-        const HashTable<Identifier, int> names() const { return _names; }
-        const Array<Member> members() const { return _members; }
+        String toString() { return _name; }
+        const HashTable<Identifier, int> names() { return _names; }
+        const Array<Member> members() { return _members; }
 
-        bool canConvertTo(const Type& to, String* why) const
+        bool canConvertTo(const Type& to, String* why)
         {
             StructuredType s(to);
             if (s.valid()) {
@@ -1876,7 +1745,7 @@ protected:
             }
             return false;
         }
-        Value convertTo(const Type& to, const Value& value) const
+        Value convertTo(const Type& to, const Value& value)
         {
             StructuredType s(to);
             if (s.valid()) {
@@ -1959,7 +1828,7 @@ protected:
             assert(false);
             return Value();
         }
-        Value defaultValue() const
+        Value defaultValue()
         {
             HashTable<Identifier, Value> values;
             for (auto i : _members)
@@ -1967,13 +1836,13 @@ protected:
             return Value(type(), values);
         }
 
-        Type member(IdentifierT<T> i) const
+        Type member(IdentifierT<T> i)
         {
             if (!_names.hasKey(i))
                 return Type();
             return _members[_names[i]].type();
         }
-        bool equals(const Handle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             if (o == 0)
@@ -1981,22 +1850,19 @@ protected:
             return _name == o->_name && _names == o->_names &&
                 _members == o->_members;
         }
-        virtual Value lValueFromRValue(Any rValue, StructureOwner* owner) const
+        virtual Value lValueFromRValue(Any rValue, StructureOwner* owner)
         {
             return Value(type(), rValue);
         }
-        virtual Any rValueFromLValue(Value lValue) const
+        virtual Any rValueFromLValue(Value lValue)
         {
             return lValue.value();
         }
-        virtual Value constructValue(Value value) const { return value; }
-        void setLValue(LValue l, Value rValue) const
-        {
-        }
-        Scope* scope() { return &_scope; }
+        virtual Value constructValue(Value value) { return value; }
+        void setLValue(LValue l, Value rValue) { }
+        //Scope* scope() { return &_scope; }
     private:
-        bool canConvertHelper(const Type& type, const Member* to, String* why)
-            const
+        bool canConvertHelper(Type type, const Member* to, String* why)
         {
             String reason;
             if (!type.canConvertTo(to->type(), &reason)) {
@@ -2011,7 +1877,7 @@ protected:
         String _name;
         HashTable<Identifier, int> _names;
         Array<Member> _members;
-        Scope _scope;
+        //Scope _scope;
     };
     Body* body() { return as<Body>(); }
     const Body* body() const { return as<Body>(); }
@@ -2019,59 +1885,74 @@ protected:
     friend class Body;
 };
 
-class VectorType : public NamedNullary<StructuredType, VectorType>
+template<class T> class Vector2Type
+  : public NamedNullary<StructuredType, Vector2Type<T>>
 {
 public:
     class Body : public StructuredType::Body
     {
     public:
-        Body() : StructuredType::Body("Vector", members()) { }
-        Value lValueFromRValue(Any rValue, StructureOwner* owner) const
+        Body() : StructuredType::Body("Vector2<" +
+            typeFromCompileTimeType<T>().toString() + ">", members()) { }
+        Value lValueFromRValue(Any rValue, StructureOwner* owner)
         {
             auto r = Reference<Structure>::create<Structure>();
             owner->addOwned(r);
-            auto v = rValue.value<Vector>();
+            auto v = rValue.value<Vector2<T>>();
             r->set("x", v.x, Span());
             r->set("y", v.y, Span());
             return Value(LValueType::wrap(type()), &*r);
         }
-        void setLValue(LValue l, Value rValue) const
+        void setLValue(LValue l, Value rValue)
         {
-            auto v = rValue.value<Vector>();
+            auto v = rValue.value<Vector2<T>>();
             l.member("x").set(v.x, Span());
             l.member("y").set(v.y, Span());
         }
-        Any rValueFromLValue(Value lValue) const
+        Any rValueFromLValue(Value lValue)
         {
             auto s = lValue.value<Structure*>();
-            return Vector(s->get<int>("x"), s->get<int>("y"));
+            return Vector2<T>(s->get<T>("x"), s->get<T>("y"));
         }
-        virtual Value constructValue(Value value) const
+        virtual Value constructValue(Value value)
         {
             auto s = value.value<List<Any>>();
             auto i = s.begin();
-            Vector v;
-            v.x = i->value<int>();
+            Vector2<T> v;
+            v.x = i->value<T>();
             ++i;
-            v.y = i->value<int>();
+            v.y = i->value<T>();
             return Value(v, value.span());
         }
     private:
         List<StructuredType::Member> members()
         {
             List<StructuredType::Member> vectorMembers;
-            vectorMembers.add(StructuredType::member<int>("x"));
-            vectorMembers.add(StructuredType::member<int>("y"));
+            vectorMembers.add(StructuredType::member<T>("x"));
+            vectorMembers.add(StructuredType::member<T>("y"));
             return vectorMembers;
         }
     };
-    friend class NamedNullary<StructuredType, VectorType>;
+    friend class NamedNullary<StructuredType, Vector2Type<T>>;
 };
+
+typedef Vector2Type<int> VectorType;
 
 template<> Type typeFromCompileTimeType<int>() { return IntegerType(); }
 template<> Type typeFromCompileTimeType<String>() { return StringType(); }
 template<> Type typeFromCompileTimeType<bool>() { return BooleanType(); }
+// If C++ allowed partial specialization of function templates, we could do
+// this:
+//template<class T> Type typeFromCompileTimeType<Vector2<T>>()
+//{
+//    return Vector2Type<T>();
+//}
+// But it doesn't, so we have to enumerate each type of Vector2 we want here:
 template<> Type typeFromCompileTimeType<Vector>() { return VectorType(); }
+template<> Type typeFromCompileTimeType<Vector2<double>>()
+{
+    return Vector2Type<double>();
+}
 template<> Type typeFromCompileTimeType<Rational>() { return RationalType(); }
 template<> Type typeFromCompileTimeType<double>() { return DoubleType(); }
 template<> Type typeFromCompileTimeType<Byte>() { return ByteType(); }

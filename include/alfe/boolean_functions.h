@@ -11,12 +11,12 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             return Value(!arguments.begin()->value<bool>());
         }
-        Identifier identifier() const { return OperatorNot(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorNot(); }
+        FunctionType type()
         {
             return FunctionType(BooleanType(), BooleanType());
         }
@@ -24,3 +24,4 @@ public:
 };
 
 #endif // INCLUDED_BOOLEAN_FUNCTIONS_H
+

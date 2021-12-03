@@ -20,9 +20,9 @@ public:
     class Body : public Handle::Body
     {
     public:
-        virtual double operator()(double x) const = 0;
-        virtual double leftExtent() const { return -DBL_MAX; }
-        virtual double rightExtent() const { return DBL_MAX; }
+        virtual double operator()(double x) = 0;
+        virtual double leftExtent() { return -DBL_MAX; }
+        virtual double rightExtent() { return DBL_MAX; }
     };
 
     ConvolutionKernel(Body* body) : Handle(body) { }
@@ -67,7 +67,7 @@ public:
     SincFilter() : ConvolutionKernel(new Body) { }
     class Body : public ConvolutionKernel::Body
     {
-        virtual double operator()(double x) const
+        virtual double operator()(double x)
         {
             return sin(M_PI*x)/(M_PI*x);
         }
@@ -83,9 +83,9 @@ public:
     {
     public:
         Body(double semiWidth) : _semiWidth(semiWidth) { }
-        virtual double operator()(double x) const { return 1; }
-        virtual double leftExtent() const { return -_semiWidth; }
-        virtual double rightExtent() const { return _semiWidth; }
+        virtual double operator()(double x) { return 1; }
+        virtual double leftExtent() { return -_semiWidth; }
+        virtual double rightExtent() { return _semiWidth; }
     private:
         double _semiWidth;
     };
@@ -101,18 +101,9 @@ public:
     public:
         Body(ConvolutionKernel kernel, double scale)
           : _kernel(kernel), _scale(scale) { }
-        virtual double operator()(double x) const
-        {
-            return _kernel(x / _scale);
-        }
-        virtual double leftExtent() const
-        {
-            return _kernel.leftExtent() * _scale;
-        }
-        virtual double rightExtent() const
-        {
-            return _kernel.rightExtent() * _scale;
-        }
+        virtual double operator()(double x) { return _kernel(x / _scale); }
+        virtual double leftExtent() { return _kernel.leftExtent() * _scale; }
+        virtual double rightExtent() { return _kernel.rightExtent() * _scale; }
     private:
         ConvolutionKernel _kernel;
         double _scale;
@@ -129,12 +120,12 @@ public:
     public:
         Body(ConvolutionKernel a, ConvolutionKernel b)
           : _a(a), _b(b) { }
-        virtual double operator()(double x) const { return _a(x)*_b(x); }
-        virtual double leftExtent() const
+        virtual double operator()(double x) { return _a(x)*_b(x); }
+        virtual double leftExtent()
         {
             return max(_a.leftExtent(), _b.leftExtent());
         }
-        virtual double rightExtent() const
+        virtual double rightExtent()
         {
             return min(_a.rightExtent(), _b.rightExtent());
         }
@@ -154,12 +145,12 @@ public:
     public:
         Body(ConvolutionKernel a, ConvolutionKernel b)
           : _a(a), _b(b) { }
-        virtual double operator()(double x) const { return _a(x)+_b(x); }
-        virtual double leftExtent() const
+        virtual double operator()(double x) { return _a(x)+_b(x); }
+        virtual double leftExtent()
         {
             return min(_a.leftExtent(), _b.leftExtent());
         }
-        virtual double rightExtent() const
+        virtual double rightExtent()
         {
             return max(_a.rightExtent(), _b.rightExtent());
         }
@@ -177,7 +168,7 @@ public:
     {
     public:
         Body(double c) : _c(c) { }
-        virtual double operator()(double) const { return c; }
+        virtual double operator()(double) { return c; }
     private:
         double _c;
     };

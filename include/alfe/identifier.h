@@ -1,12 +1,7 @@
-#include "alfe/main.h"
+#include "alfe/code.h"
 
 #ifndef INCLUDED_IDENTIFIER_H
 #define INCLUDED_IDENTIFIER_H
-
-#include "alfe/operator.h"
-#include "alfe/expression.h"
-#include "alfe/type_specifier.h"
-#include "alfe/statement.h"
 
 template<class T> class ResolutionPathT;
 typedef ResolutionPathT<void> ResolutionPath;
@@ -17,18 +12,14 @@ template<class T> class IdentifierT : public ExpressionT<T>
     {
     public:
         Body(const Span& span) : Expression::Body(span) { }
-        Identifier identifier() const { return this->handle<Handle>(); }
-        ValueT<T> evaluate(Structure* context) const
+        Identifier identifier() { return this->handle<Handle>(); }
+        ValueT<T> evaluate(Structure* context)
         {
             return _path.evaluate(context, identifier());
         }
-        virtual bool isOperator() const = 0;
-        void resolve(ScopeT<T>* scope)
-        {
-            _definition = scope->resolveVariable(identifier(), &_path);
-        }
-        TypeT<T> type() const { return _definition.type(); }
-        bool mightHaveSideEffect() const { return false; }
+        virtual bool isOperator() = 0;
+        TypeT<T> type() { return _definition.type(); }
+        bool mightHaveSideEffect() { return false; }
     private:
         VariableDefinition _definition;
         ResolutionPath _path;
@@ -37,11 +28,11 @@ template<class T> class IdentifierT : public ExpressionT<T>
     {
     public:
         NameBody(const String& name, const Span& span)
-            : Body(span), _name(name) { }
-        String toString() const { return _name; }
-        bool isOperator() const { return false; }
-        Hash hash() const { return Body::hash().mixin(_name.hash()); }
-        bool equals(const ConstHandle::Body* other) const
+          : Body(span), _name(name) { }
+        String toString() { return _name; }
+        bool isOperator() { return false; }
+        Hash hash() { return Body::hash().mixin(_name.hash()); }
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<NameBody>();
             return o != 0 && _name == o->_name;
@@ -53,17 +44,38 @@ template<class T> class IdentifierT : public ExpressionT<T>
     {
     public:
         OperatorBody(const Operator& op, const Span& span)
-            : Body(span), _op(op) { }
-        String toString() const { return "operator" + _op.toString(); }
-        bool isOperator() const { return true; }
-        Hash hash() const { return Body::hash().mixin(_op.hash()); }
-        bool equals(const ConstHandle::Body* other) const
+          : Body(span), _op(op) { }
+        String toString() { return "operator" + _op.toString(); }
+        bool isOperator() { return true; }
+        Hash hash() { return Body::hash().mixin(_op.hash()); }
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<OperatorBody>();
             return o != 0 && _op == o->_op;
         }
     private:
         Operator _op;
+    };
+    class InternalBody : public Body
+    {
+    public:
+        InternalBody(const Span& span)
+          : Body(span)
+        {
+            static int n = 0;
+            _n = n;
+            ++n;
+        }
+        String toString() { return "\\" + decimal(_n); }
+        bool isOperator() { return false; }
+        Hash hash() { return Body::hash().mixin(_n); }
+        bool equals(HandleBase::Body* other)
+        {
+            auto o = other->to<InternalBody>();
+            return o != 0 && _n == o->_n;
+        }
+    private:
+        int _n;
     };
 
 public:
@@ -75,6 +87,10 @@ public:
     IdentifierT(const char* name)
       : ExpressionT<T>(IdentifierT::template create<NameBody>(name, Span()))
     { }
+    IdentifierT(int)
+      : ExpressionT<T>(IdentifierT::template create<InternalBody>()) { }
+    void setDefinition(VariableDefinition d) { body()->_definition = d; }
+    void setResolutionPath(ResolutionPath p) { body()->_path = p; }
 
     static Identifier parse(CharacterSource* source)
     {
@@ -153,7 +169,7 @@ public:
                 s2.location().throwError("Expected ]");
         }
 
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorEqualTo(), OperatorAssignment(), OperatorAddAssignment(),
             OperatorSubtractAssignment(), OperatorMultiplyAssignment(),
             OperatorDivideAssignment(), OperatorModuloAssignment(),
@@ -164,7 +180,7 @@ public:
             OperatorAmpersand(), OperatorNotEqualTo(),
             OperatorLessThanOrEqualTo(), OperatorShiftRight(), Operator()};
 
-        for (const Operator* op = ops; op->valid(); ++op) {
+        for (Operator* op = ops; op->valid(); ++op) {
             if (o.valid())
                 break;
             o = op->parse(&s2, &endSpan);
@@ -190,12 +206,12 @@ public:
             }
         }
 
-        static const Operator ops2[] = {
+        static Operator ops2[] = {
             OperatorGreaterThanOrEqualTo(), OperatorGreaterThan(),
             OperatorPlus(), OperatorMinus(), OperatorDivide(), OperatorStar(),
             OperatorModulo(), OperatorPower(), Operator()};
 
-        for (const Operator* op = ops2; op->valid(); ++op) {
+        for (Operator* op = ops2; op->valid(); ++op) {
             if (o.valid())
                 break;
             o = op->parse(&s2, &endSpan);
@@ -210,10 +226,10 @@ public:
       : Expression(IdentifierT::template create<OperatorBody>(op, span))
     { }
 
-    bool isOperator() const { return body()->isOperator(); }
+    bool isOperator() { return body()->isOperator(); }
 
 private:
-    const Body* body() const { return this->template as<Body>(); }
+    Body* body() { return this->template as<Body>(); }
 };
 
 #endif // INCLUDED_IDENTIFIER_H

@@ -2396,14 +2396,62 @@ private:
     }
     void busInit()
     {
-        _transferStarting = true;
+        //if (_opcode == 0xcd) {
+        //    wait(3);
+        //    _transferStarting = true;
+        //    if (_busState == t3tWaitLast || _busState == t4StatusSet || _busState == tIdleStatusSet || _busState == t1 || _busState == t4) {
+        //        if (_busState == t4)
+        //            wait(1);
+        //        wait(1);
+        //    }
+        //    else {
+        //        wait(1);
+        //        waitForBusIdle();
+        //    }
+        //    wait(1);
+        //    _opcode = 0;
+        //    return;
+        //}
 
-        // This is probably not needed for any modrm opcodes, and probably needs to happen on the first cycle of the instruction for other opcodes
-        if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess && _opcode != 0x8f && /*_opcode != 0xc6 &&*/ _opcode != 0xc7 && _opcode != 0xcc && _opcode != 0xcd && _opcode != 0xce && (_opcode & 0xf0) != 0xa0)
-            wait(1);
-        wait(2);
-        while (_busState == t2t3tWaitNotLast)
-            wait(1);
+        wait(1);
+        _transferStarting = true;
+        switch (_busState) {
+            case tFirstIdle:
+                break;
+            case tSecondIdle:
+                break;
+            case tIdle:
+                break;
+            case tIdleStatusSet:
+                break;
+            case t1:
+                break;
+            case t2t3tWaitNotLast:
+                //while (_busState == t2t3tWaitNotLast)
+                //    wait(1);
+                break;
+            case t3tWaitLast:
+                wait(1);
+                break;
+            case t4:
+                break;
+            case t4StatusSet:
+                // Abandon current fetch
+                _bus.setPassiveOrHalt(true);
+                _snifferDecoder.setStatus(ioPassive);
+                _ioNext._type = ioPassive;
+                --_ip;
+                _busState = t4;
+                break;
+        }
+
+        //// This is probably not needed for any modrm opcodes, and probably needs to happen on the first cycle of the instruction for other opcodes
+        //if (_busState == tFirstIdle && _ioLast._type == ioCodeAccess && _opcode != 0x8f && /*_opcode != 0xc6 &&*/ _opcode != 0xc7 && _opcode != 0xcc && _opcode != 0xcd && _opcode != 0xce && (_opcode & 0xf0) != 0xa0)
+        //    wait(1);
+        //wait(2);
+        //while (_busState == t2t3tWaitNotLast)
+        //    wait(1);
+
 
         //switch (_accessNumber) {
         //    case 0:
@@ -3407,7 +3455,7 @@ private:
                 setReg(_data);
                 if (_useMemory)
                     wait(2);
-                wait(2);
+                wait(3); // 2);
                 _accessNumber = 6;
                 readEA2();
                 _segmentRegisters[!_wordSize ? 3 : 0] = _data;
@@ -3442,12 +3490,17 @@ private:
             case 0xcd: // INT
                 wait(1);
                 _tmpb = fetchInstructionByte();
-                wait(1); // 3); // 4);
+
+                //wait(3); // 2);
+                //_transferStarting = true;
+                ////while (_busState == t1 || _busState == t2t3tWaitNotLast || _busState == tIdleStatusSet || _busState == t4StatusSet)
+                ////    wait(1);
+                //if (_busState == t4)
+                //    wait(1);
                 //wait(2);
-                _transferStarting = true;
-                while (_busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle && _busState != t4 /*&& _busState != t3tWaitLast*/)
-                    wait(1);
-                wait(1);
+                //while (_busState != tIdle && _busState != tFirstIdle && _busState != tSecondIdle && _busState != t4 && _busState != t3tWaitLast)
+                //    wait(1);
+                //wait(1);
 
                 interrupt(static_cast<Byte>(_tmpb));
                 break;

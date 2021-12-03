@@ -1,42 +1,7 @@
-#include "alfe/main.h"
+#include "alfe/code.h"
 
 #ifndef INCLUDED_TYPE_SPECIFIER_H
 #define INCLUDED_TYPE_SPECIFIER_H
-
-#include "alfe/parse_tree_object.h"
-
-template<class T> class ExpressionT;
-typedef ExpressionT<void> Expression;
-
-template<class T> class IdentifierT;
-typedef IdentifierT<void> Identifier;
-
-template<class T> class TycoSpecifierT;
-typedef TycoSpecifierT<void> TycoSpecifier;
-
-template<class T> class TypeSpecifierT;
-typedef TypeSpecifierT<void> TypeSpecifier;
-
-template<class T> class TycoIdentifierT;
-typedef TycoIdentifierT<void> TycoIdentifier;
-
-template<class T> class TemplateArgumentsT;
-typedef TemplateArgumentsT<void> TemplateArguments;
-
-template<class T> class ClassTycoSpecifierT;
-typedef ClassTycoSpecifierT<void> ClassTycoSpecifier;
-
-template<class T> class TypeOfTypeSpecifierT;
-typedef TypeOfTypeSpecifierT<void> TypeOfTypeSpecifier;
-
-template<class T> class TypeParameterT;
-typedef TypeParameterT<void> TypeParameter;
-
-template<class T> class TycoT;
-typedef TycoT<void> Tyco;
-
-template<class T> class ScopeT;
-typedef ScopeT<void> Scope;
 
 //TycoSpecifier :=
 //    TycoIdentifier ("<" TycoSpecifier \ "," ">")*
@@ -77,51 +42,27 @@ public:
         } while (true);
         return tycoSpecifier;
     }
-    TycoT<T> resolve(const Scope* scope) const
-    {
-        return body()->resolve(scope);
-    }
-    String toString() const { return body()->toString(); }
+    String toString() { return body()->toString(); }
     TycoSpecifierT() { }
+    TycoSpecifierT(const Tyco& tyco) : ParseTreeObject(create<Body>(tyco)) { }
+    TycoT<T> tyco() { return body()->tyco(); }
+    void setTyco(Tyco tyco) { body()->setTyco(tyco); }
 protected:
     TycoSpecifierT(Handle other) : ParseTreeObject(other) { }
 
     class Body : public ParseTreeObject::Body
     {
     public:
+        Body(const Tyco& tyco) : _tyco(tyco) { }
         Body(const Span& span) : ParseTreeObject::Body(span) { }
-        virtual Tyco resolve(const Scope* scope) const = 0;
-        virtual String toString() const = 0;
-    };
-    class InstantiationBody : public Body
-    {
-    public:
-        InstantiationBody(const TycoIdentifier& tycoIdentifier,
-            const TemplateArguments& arguments, const Span& span)
-          : Body(span), _tycoIdentifier(tycoIdentifier), _arguments(arguments)
-        { }
-        TycoT<T> resolve(const ScopeT<T>* scope) const
-        {
-            TycoT<T> t = scope->resolveTycoIdentifier(_tycoIdentifier);
-            List<TycoT<T>> a = _arguments.resolve(scope);
-            for (auto argument : a) {
-                TemplateT<T> te = t;
-                assert(te.valid());
-                t = te.instantiate(argument);
-            }
-            return t;
-        }
-        String toString() const
-        {
-            return _tycoIdentifier.toString() + "<" + _arguments.toString() +
-                ">";
-        }
+        virtual String toString() { return _tyco.toString(); }
+        TycoT<T> tyco() { return _tyco; }
+        void setTyco(Tyco tyco) { _tyco = tyco; }
     private:
-        TycoIdentifierT<T> _tycoIdentifier;
-        TemplateArgumentsT<T> _arguments;
+        TycoT<T> _tyco;
     };
 
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 private:
     static TycoSpecifier parseFundamental(CharacterSource* source)
     {
@@ -133,8 +74,8 @@ private:
             TemplateArgumentsT<T> arguments =
                 TemplateArgumentsT<T>::parse(source);
             if (arguments.valid()) {
-                return create<InstantiationBody>(tycoIdentifier, arguments,
-                    span + arguments.span());
+                return create<InstantiationTycoSpecifier::Body>(tycoIdentifier,
+                    arguments, span + arguments.span());
             }
             return tycoIdentifier;
         }
@@ -165,6 +106,51 @@ private:
     }
 };
 
+template<class T> class InstantiationTycoSpecifierT : public TycoSpecifier
+{
+public:
+    InstantiationTycoSpecifierT(ParseTreeObject o)
+      : TycoSpecifier(to<Body>(o)) { }
+    TycoIdentifierT<T> tycoIdentifier() { return body()->_tycoIdentifier; }
+    TemplateArgumentsT<T> templateArguments()
+    {
+        return body()->_templateArguments;
+    }
+private:
+    class Body : public TycoSpecifierT<T>::Body
+    {
+    public:
+        Body(const TycoIdentifier& tycoIdentifier,
+            const TemplateArguments& arguments, const Span& span)
+          : TycoSpecifier::Body(span), _tycoIdentifier(tycoIdentifier),
+            _arguments(arguments)
+        { }
+        String toString()
+        {
+            return _tycoIdentifier.toString() + "<" + _arguments.toString() +
+                ">";
+        }
+        bool walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_tycoIdentifier.walk(walker))
+                    return false;
+                if (!_arguments.walk(walker))
+                    return false;
+            }
+            return r != CodeWalker::Result::abort;
+        }
+    private:
+        TycoIdentifierT<T> _tycoIdentifier;
+        TemplateArgumentsT<T> _arguments;
+
+        friend class InstantiationTycoSpecifier;
+    };
+
+    Body* body() { return as<Body>(); }
+};
+
 template<class T> class TemplateArgumentsT : public ParseTreeObject
 {
 public:
@@ -190,33 +176,22 @@ public:
             return TemplateArguments();
         return create<Body>(arguments, span + span2);
     }
-    int count() const
+    int count()
     {
-        const Body* body = to<Body>();
-        if (body != 0)
-            return body->count();
+        if (valid())
+            return body()->count();
         return 0;
     }
-    List<Tyco> resolve(const Scope* scope) const
-    {
-        return body()->resolve(scope);
-    }
-    String toString() const { return body()->toString(); }
+    String toString() { return body()->toString(); }
+    List<TycoSpecifier> arguments() { return body()->_arguments; }
 
     class Body : public ParseTreeObject::Body
     {
     public:
         Body(const List<TycoSpecifier>& arguments, const Span& span)
           : ParseTreeObject::Body(span), _arguments(arguments) { }
-        int count() const { return _arguments.count(); }
-        List<Tyco> resolve(const ScopeT<T>* scope) const
-        {
-            List<Tyco> l;
-            for (auto s : _arguments)
-                l.add(scope->resolveTycoSpecifier(s));
-            return l;
-        }
-        String toString() const
+        int count() { return _arguments.count(); }
+        String toString()
         {
             bool first = true;
             String r;
@@ -228,11 +203,24 @@ public:
             }
             return r;
         }
+        bool walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                for (auto t : _arguments) {
+                    if (!t.walk(walker))
+                        return false;
+                }
+            }
+            return r != CodeWalker::Result::abort;
+        }
     private:
         List<TycoSpecifier> _arguments;
+
+        template<class U> friend class TemplateArgumentsT;
     };
 private:
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 
     TemplateArgumentsT() { }
     TemplateArgumentsT(Handle other) : ParseTreeObject(other) { }
@@ -242,42 +230,60 @@ template<class T> class TypeSpecifierT : public TycoSpecifier
 {
 public:
     TypeSpecifierT() { }
-    TypeSpecifierT(Handle other) : TycoSpecifier(other) { }
-
-private:
-    class PointerBody : public TycoSpecifier::Body
+    TypeSpecifierT(Handle other) : TycoSpecifier(to<Body>(other)) { }
+protected:
+    class Body : public TycoSpecifierT<T>::Body
     {
     public:
-        PointerBody(const TycoSpecifier& referent, const Span& span)
-          : Body(span), _referent(referent) { }
-        TycoT<T> resolve(const ScopeT<T>* scope) const
+        Body(const Span& span) : TycoSpecifier::Body(span) { }
+    };
+
+    template<class U> friend class TycoSpecifierT;
+};
+
+class PointerTypeSpecifier : public TypeSpecifier
+{
+public:
+    PointerTypeSpecifier(TycoSpecifier referent, Span span)
+      : TypeSpecifier(Handle::create<Body>(referent, span)) { }
+    PointerTypeSpecifier(TypeSpecifier ts) : TypeSpecifier(to<Body>(ts)) { }
+
+private:
+    class Body : public TypeSpecifier::Body
+    {
+    public:
+        Body(const TycoSpecifier& referent, const Span& span)
+          : TypeSpecifier::Body(span), _referent(referent) { }
+        CodeWalker::Result walk(CodeWalker* walker)
         {
-            Type referent = scope->resolveTycoSpecifier(_referent);
-            return PointerType(referent);
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_referent.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
-        String toString() const { return _referent.toString() + "*"; }
+        String toString() { return _referent.toString() + "*"; }
     private:
         TycoSpecifier _referent;
     };
+    Body* body() { return as<Body>(); }
+};
+
+class FunctionTypeSpecifier : public TypeSpecifier
+{
+public:
+    FunctionTypeSpecifier(TypeSpecifier ts) : TypeSpecifier(to<Body>(ts)) { }
+private:
     class FunctionBody : public TycoSpecifier::Body
     {
     public:
         FunctionBody(const TycoSpecifier& returnType,
             const List<TycoSpecifier>& argumentTypes, const Span& span)
-          : Body(span), _returnType(returnType),
+            : Body(span), _returnType(returnType),
             _argumentTypes(argumentTypes)
         { }
-        TycoT<T> resolve(const ScopeT<T>* scope) const
-        {
-            Type ret = scope->resolveType(_returnType);
-            FunctionType f = FunctionTemplate().instantiate(ret);
-            for (auto a : _argumentTypes) {
-                Type t = scope->resolveType(a);
-                f = f.instantiate(t);
-            }
-            return f;
-        }
-        String toString() const
+        String toString()
         {
             String r = _returnType.toString() + "(";
             bool first = true;
@@ -289,12 +295,24 @@ private:
             }
             return r + ")";
         }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_returnType.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                for (auto t : _argumentTypes) {
+                    if (t.walk(walker) == CodeWalker::Result::abort)
+                        return CodeWalker::Result::abort;
+                }
+            }
+            return r;
+        }
     private:
         TycoSpecifier _returnType;
         List<TycoSpecifier> _argumentTypes;
     };
 
-    template<class U> friend class TycoSpecifierT;
 };
 
 template<class T> class TycoIdentifierT : public TycoSpecifier
@@ -360,21 +378,17 @@ protected:
     public:
         Body(const String& name, const Span& span)
           : TycoSpecifier::Body(span), _name(name) { }
-        String name() const { return _name; }
-        Hash hash() const
+        String name() { return _name; }
+        Hash hash()
         {
             return TycoSpecifier::Body::hash().mixin(_name.hash());
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _name == o->_name;
         }
-        TycoT<T> resolve(const ScopeT<T>* scope) const
-        {
-            return scope->resolveTycoIdentifier(handle<TycoIdentifier>());
-        }
-        String toString() const { return _name; }
+        String toString() { return _name; }
     private:
         String _name;
     };
@@ -391,27 +405,31 @@ public:
         Span span;
         if (!Space::parseKeyword(source, "Class", &span))
             return ClassTycoSpecifier();
-        Span span2;
-        Space::assertCharacter(source, '{', &span2);
-        // TODO: Parse class contents
-        Space::assertCharacter(source, '}', &span2);
-        return create<Body>(span + span2);
+
+        Code body;
+        // TODO: This function needs to be in Parser to have access to parseStatementOrFail and _lastSpan
+        parseStatementOrFail(body, source);
+        return create<Body>(span + _lastSpan, body);
     }
 private:
     class Body : public TycoSpecifier::Body
     {
     public:
-        Body(const Span& span) : TycoSpecifier::Body(span) { }
-        TycoT<T> resolve(const Scope* scope) const
+        Body(const Span& span, Code contents)
+          : TycoSpecifier::Body(span), _contents(contents) { }
+        String toString() { return _identifier.toString(); }
+        bool walk(CodeWalker* walker)
         {
-            // TODO
-            return TycoT<T>();
+            auto r = walker->visit(tycoSpecifier());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_contents.walk(walker))
+                    return false;
+            }
+            return r != CodeWalker::Result::abort;
         }
-        String toString() const
-        {
-            // TODO
-            return String();
-        }
+    private:
+        Code _contents;
+        Identifier _identifier;
     };
 };
 
@@ -438,11 +456,16 @@ private:
     public:
         Body(const Expression& expression, const Span& span)
           : TypeSpecifier::Body(span), _expression(expression) { }
-        TycoT<T> resolve(const Scope* scope) const
+        String toString() { return _expression.toString(); }
+        bool walk(CodeWalker* walker)
         {
-            return _expression.type();
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_expression.walk(walker))
+                    return false;
+            }
+            return r != CodeWalker::Result::abort;
         }
-        String toString() const { return _expression.toString(); }
     private:
         ExpressionT<T> _expression;
     };
@@ -540,6 +563,15 @@ private:
         TycoSpecifierBody(const TycoSpecifier& tycoSpecifier)
             : Body(tycoSpecifier.span()),
             _tycoSpecifier(tycoSpecifier) { }
+        bool walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_tycoSpecifier.walk(walker))
+                    return false;
+            }
+            return r != CodeWalker::Result::abort;
+        }
     private:
         TycoSpecifier _tycoSpecifier;
     };
@@ -550,6 +582,17 @@ private:
             const TemplateParameters& parameters, const Span& span)
           : Body(span), _tycoIdentifier(tycoIdentifier),
             _parameters(parameters) { }
+        bool walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_tycoIdentifier.walk(walker))
+                    return false;
+                if (!_parameters.walk(walker))
+                    return false;
+            }
+            return r != CodeWalker::Result::abort;
+        }
     private:
         TycoIdentifier _tycoIdentifier;
         TemplateParametersT<T> _parameters;
@@ -565,6 +608,15 @@ public:
         PointerBody(const TemplateParameter& parameter,
             const Span& span)
           : Body(span), _parameter(parameter) { }
+        bool walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_parameter.walk(walker))
+                    return false;
+            }
+            return r != CodeWalker::Result::abort;
+        }
     private:
         TemplateParameter _parameter;
     };
@@ -575,6 +627,19 @@ public:
             const List<TemplateParameter>& parameters, const Span& span)
           : Body(span), _parameter(parameter),
             _parameters(parameters) { }
+        bool walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (!_parameter.walk(walker))
+                    return false;
+                for (auto p : _parameters) {
+                    if (!p.walk(walker))
+                        return false;
+                }
+            }
+            return r != CodeWalker::Result::abort;
+        }
     private:
         TemplateParameter _parameter;
         List<TemplateParameter> _parameters;
@@ -612,12 +677,26 @@ private:
         Body(const List<TemplateParameter>& parameters,
             const Span& span)
           : ParseTreeObject::Body(span), _parameters(parameters) { }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                for (auto p : _parameters) {
+                    if (p.walk(walker) == CodeWalker::Result::abort)
+                        return CodeWalker::Result::abort;
+                }
+            }
+            return r != CodeWalker::Result::abort;
+        }
     private:
         List<TemplateParameter> _parameters;
     };
 };
 
 //TycoSignifier := TycoIdentifier TemplateParameters
+// A TycoSignifier is something that can appear on the left of a
+// TycoDefinitionStatement, a TycoSpecifier is something that can appear on the
+// right.
 class TycoSignifier : public ParseTreeObject
 {
 public:
@@ -634,6 +713,7 @@ public:
         return create<Body>(identifier, parameters,
             identifier.span() + parameters.span());
     }
+    TycoIdentifier tycoIdentifier() { return body()->tycoIdentifier(); }
 private:
     TycoSignifier() { }
     TycoSignifier(Handle other) : ParseTreeObject(other) { }
@@ -645,10 +725,23 @@ private:
             const TemplateParameters& parameters, const Span& span)
           : ParseTreeObject::Body(span), _identifier(identifier),
             _parameters(parameters) { }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_identifier.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_parameters.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
+        TycoIdentifier tycoIdentifier() { return _identifier; }
     private:
         TycoIdentifier _identifier;
         TemplateParameters _parameters;
     };
+    Body* body() { return as<Body>(); }
 };
 
 #endif // INCLUDED_TYPE_SPECIFIER_H

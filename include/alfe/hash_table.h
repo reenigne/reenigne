@@ -30,8 +30,8 @@ template<class Key, class Value> class HashTableBody
   : public Array<HashTableEntry<Key, Value>>::AppendableBaseBody
 {
 public:
-    virtual void justSetSize(int size) const = 0;
-    void preDestroy() const { justSetSize(this->_allocated); }
+    virtual void justSetSize(int size) = 0;
+    void preDestroy() { justSetSize(this->_allocated); }
 
     //HashTableBody() : _misses(0) { }
 

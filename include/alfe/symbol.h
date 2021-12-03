@@ -112,33 +112,33 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual int length(int max) const = 0;
+        virtual int length(int max) = 0;
         virtual String toString(int width, int spacesPerIndent, int indent,
-            int& x, bool& more) const = 0;
-        virtual bool isSymbol() const = 0;
-        virtual bool isArray() const = 0;
+            int& x, bool& more) = 0;
+        virtual bool isSymbol() = 0;
+        virtual bool isArray() = 0;
     };
     class IntegerBody : public Body
     {
     public:
         IntegerBody(int value) : _value(value) { }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<IntegerBody>();
             return o != 0 && _value == o->_value;
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
-            bool& more) const
+            bool& more)
         {
             x += decimalLength(_value);
             more = true;
             return decimal(_value);
         }
-        int length(int max) const { return decimalLength(_value); }
-        int value() const { return _value; }
-        Hash hash() const { return Body::hash().mixin(_value); }
-        bool isSymbol() const { return false; }
-        bool isArray() const { return false; }
+        int length(int max) { return decimalLength(_value); }
+        int value() { return _value; }
+        Hash hash() { return Body::hash().mixin(_value); }
+        bool isSymbol() { return false; }
+        bool isArray() { return false; }
     private:
         int _value;
     };
@@ -146,23 +146,23 @@ protected:
     {
     public:
         StringBody(String value) : _value(value) { }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<StringBody>();
             return o != 0 && _value == o->_value;
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
-            bool& more) const
+            bool& more)
         {
             x += quotedLength(_value);
             more = true;
             return quote(_value);
         }
-        int length(int max) const { return quotedLength(_value); }
-        String value() const { return _value; }
-        Hash hash() const { return Body::hash().mixin(_value.hash()); }
-        bool isSymbol() const { return false; }
-        bool isArray() const { return false; }
+        int length(int max) { return quotedLength(_value); }
+        String value() { return _value; }
+        Hash hash() { return Body::hash().mixin(_value.hash()); }
+        bool isSymbol() { return false; }
+        bool isArray() { return false; }
     private:
         String _value;
     };
@@ -180,16 +180,14 @@ public:
     SymbolTail(SymbolEntry head) : _head(head) { }
     SymbolTail(SymbolEntry head, SymbolTail* tail) : _head(head), _tail(tail)
     { }
-    SymbolEntry head() const { return _head; }
     SymbolEntry& head() { return _head; }
-    const SymbolTail* tail() const { return _tail; }
     SymbolTail* tail() { return _tail; }
-    bool equals(const ConstHandle::Body* other) const
+    bool equals(HandleBase::Body* other)
     {
         auto o = other->to<SymbolTail>();
         return o != 0 && _head == o->_head && _tail == o->_tail;
     }
-    int length(int max) const
+    int length(int max)
     {
         int r = _head.length(max);
         if (r < max && _tail.valid())
@@ -280,12 +278,12 @@ private:
           : _atom(atom), _cache(cache), _tail(tail), _labelReferences(0),
           _labelNumber(-1)
         { }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _atom == o->_atom && _tail == o->_tail;
         }
-        int length(int max) const
+        int length(int max)
         {
             int r = 2 + atomToString(_atom).length();
             if (_labelReferences > 0)
@@ -298,7 +296,7 @@ private:
         }
 
         String toString(int width, int spacesPerIndent, int indent, int& x,
-            bool& more) const
+            bool& more)
         {
             ++x;
             more = true;
@@ -336,15 +334,15 @@ private:
             return s + ")";
         }
 
-        Atom atom() const { return _atom; }
+        Atom atom() { return _atom; }
 
         SymbolCache* cache() { return _cache; }
-        const SymbolTail* tail() const { return _tail; }
+        const SymbolTail* tail() { return _tail; }
         SymbolTail* tail() { return _tail; }
 
         void setCache(Reference<ReferenceCounted> cache) { _cache = cache; }
 
-        Hash hash() const
+        Hash hash()
         {
             Hash h = SymbolEntry::Body::hash().mixin(atom());
             const SymbolTail* t = _tail;
@@ -354,10 +352,10 @@ private:
             }
             return h;
         }
-        bool isSymbol() const { return true; }
-        bool isArray() const { return false; }
+        bool isSymbol() { return true; }
+        bool isArray() { return false; }
 
-        int label() const
+        int label()
         {
             if (_labelNumber == -1) {
                 _labelNumber = _labels;
@@ -410,8 +408,8 @@ private:
     public:
         Body(Symbol symbol, Reference<Body> next)
           : _symbol(symbol), _next(next) { }
-        Symbol symbol() const { return _symbol; }
-        Reference<Body> next() const { return _next; }
+        Symbol symbol() { return _symbol; }
+        Reference<Body> next() { return _next; }
     private:
         Symbol _symbol;
         Reference<Body> _next;
@@ -473,19 +471,19 @@ private:
             _symbols[0] = s0;
             _symbols[1] = s1;
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _symbols == o->_symbols;
         }
-        Hash hash() const
+        Hash hash()
         {
             Hash h = SymbolEntry::Body::hash();
             for (int i = 0; i < _symbols.count(); ++i)
                 h.mixin(_symbols[i].hash());
             return h;
         }
-        int length(int max) const
+        int length(int max)
         {
             int r = 2;
             for (int i = 0; i < _symbols.count(); ++i) {
@@ -497,11 +495,10 @@ private:
             }
             return r;
         }
-        int count() const { return _symbols.count(); }
-        Symbol operator[](int i) const { return _symbols[i]; }
+        int count() { return _symbols.count(); }
         Symbol& operator[](int i) { return _symbols[i]; }
         String toString(int width, int spacesPerIndent, int indent, int& x,
-            bool& more) const
+            bool& more)
         {
             ++x;
             int n = _symbols.count();
@@ -535,8 +532,8 @@ private:
             ++x;
             return s + "]";
         }
-        bool isSymbol() const { return false; }
-        bool isArray() const { return true; }
+        bool isSymbol() { return false; }
+        bool isArray() { return true; }
     private:
         Array<Symbol> _symbols;
     };
@@ -574,29 +571,29 @@ private:
             _target = target;
             _target->addLabel();
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _target == o->_target;
         }
-        int length(int max) const
+        int length(int max)
         {
             return 2 + decimalLength(_target->label());
         }
         String toString(int width, int spacesPerIndent, int indent, int& x,
-            bool& more) const
+            bool& more)
         {
             x += length();
             more = true;
             return "<" + decimal(_target->label()) + ">";
         }
-        Hash hash() const
+        Hash hash()
         {
             return SymbolEntry::Body::hash().
                 mixin(reinterpret_cast<int>(_target));
         }
-        bool isSymbol() const { return false; }
-        bool isArray() const { return false; }
+        bool isSymbol() { return false; }
+        bool isArray() { return false; }
     private:
         Symbol::Body* _target;
     };

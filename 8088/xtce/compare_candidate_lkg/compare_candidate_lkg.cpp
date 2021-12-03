@@ -6,7 +6,8 @@
 
 #include "../xtce.h"
 #include "../xtce_lkg.h"
-#include "../gentests.h"
+//#include "../gentests.h"
+#include "../gentests2.h"
 
 class Program : public ProgramBase
 {
@@ -23,8 +24,8 @@ public:
         console.write("Running tests\n");
 
         int totalCount = 0;
-        int lkgCycles;
-        int candidateCycles;
+        int lkgCycles = 0;
+        int candidateCycles = 0;
         Test t;
         bool done = false;
         do {
@@ -35,10 +36,11 @@ public:
                 break;
             }
             t = _generator.getNextTest();
-            lkgCycles = expected(_lkgEmulator, t);
-            candidateCycles = expected(_candidateEmulator, t);
+            if (totalCount >= 0 /* 98800000*/) {
+                lkgCycles = expected(_lkgEmulator, t);
+                candidateCycles = expected(_candidateEmulator, t) + (t.refreshPeriod() != 0 ? 1 : 0);
+            }
             ++totalCount;
-
         } while (lkgCycles == candidateCycles);
 
         console.write("Tests passing: " + decimal(totalCount - 1) + "\n");
@@ -50,8 +52,8 @@ public:
         String lkgLog = log(_lkgEmulator, t);
         String candidateLog = log(_candidateEmulator, t);
 
-        String expected1 = lkgLog;
-        String observed = candidateLog;
+        //String expected1 = lkgLog;
+        //String observed = candidateLog;
         //    
         //String expected1;
 
@@ -103,8 +105,8 @@ public:
         //    }
         //} while (true);
 
-        File("expected.txt").openWrite().write(expected1);
-        File("observed.txt").openWrite().write(observed);
+        File("lkg_c.txt").openWrite().write(lkgLog);
+        File("candidate.txt").openWrite().write(candidateLog);
 
         PROCESS_INFORMATION pi;
         ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
@@ -114,7 +116,7 @@ public:
         si.cb = sizeof(STARTUPINFO);
 
         NullTerminatedWideString data(
-            String("q observed.txt expected.txt"));
+            String("q candidate.txt lkg_c.txt"));
 
         IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
             0, NULL, NULL, &si, &pi) != 0);
@@ -181,7 +183,7 @@ private:
             Byte* r = ram + (seg << 4);
             Byte* stopP = test.outputCode(r);
             _bytesUsed = stopP - r;
-            _logSkip = 1041 + 92;// + 17;
+            _logSkip = 1; // 1041 + 92;// + 17;
             seg = testSegment;
         }
 

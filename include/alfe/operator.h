@@ -5,31 +5,31 @@
 
 #include "alfe/nullary.h"
 
-class Operator : public ConstHandle
+class Operator : public Handle
 {
 public:
     Operator() { }
-    Operator(const ConstHandle& other) : ConstHandle(other) { }
+    Operator(const Handle& other) : Handle(to<Body>(other)) { }
 
-    String toString() const { return body()->toString(); }
-    Operator parse(CharacterSource* source, Span* span) const
+    String toString() { return body()->toString(); }
+    Operator parse(CharacterSource* source, Span* span)
     {
         if (Space::parseOperator(source, toString(), span))
             return *this;
         return Operator();
     }
-    bool operator==(const Operator& other) const
+    bool operator==(Operator other)
     {
         // All the bodies are nullary
         return body() == other.body();
     }
 protected:
-    class Body : public ConstHandle::Body
+    class Body : public Handle::Body
     {
     public:
-        virtual String toString() const = 0;
+        virtual String toString() = 0;
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 };
 
 class OperatorEqualTo : public NamedNullary<Operator, OperatorEqualTo>

@@ -1,17 +1,14 @@
-#include "alfe/main.h"
+#include "alfe/code.h"
 
 #ifndef INCLUDED_PARSER_H
 #define INCLUDED_PARSER_H
 
-#include "alfe/code.h"
-#include "alfe/space.h"
-
 class Parser : Uncopyable
 {
 public:
-    CodeList parseFromFile(File file)
+    Code parseFromFile(File file)
     {
-        CodeList c;
+        Code c;
         parseFromFile(c, file);
         return c;
     }
@@ -66,6 +63,10 @@ private:
             return true;
         if (parseGotoStatement(code, source))
             return true;
+        if (parseVariableDefinitionStatement(code, source))
+            return true;
+        if (parseAccessSpecifierStatement(code, source))
+            return true;
         return false;
     }
     void parseStatementOrFail(Code code, CharacterSource* source)
@@ -98,7 +99,7 @@ private:
             return false;
         Span span;
 
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorAssignment(), OperatorAddAssignment(),
             OperatorSubtractAssignment(), OperatorMultiplyAssignment(),
             OperatorDivideAssignment(), OperatorModuloAssignment(),
@@ -107,7 +108,7 @@ private:
             OperatorBitwiseXorAssignment(), OperatorPowerAssignment(),
             Operator() };
 
-        const Operator* op;
+        Operator* op;
         for (op = ops; op->valid(); ++op)
             if (Space::parseOperator(&s, op->toString(), &span))
                 break;
@@ -150,7 +151,6 @@ private:
         Identifier name = Identifier::parse(&s);
         if (!name.valid())
             return false;
-        Span span;
         if (!Space::parseCharacter(&s, '('))
             return false;
         *source = s;
@@ -165,7 +165,7 @@ private:
                 name, parameterList, dll, returnTypeSpecifier.span() + span);
             return true;
         }
-        CodeList body;
+        Code body;
         parseStatementOrFail(body, source);
         code.insert<FunctionDefinitionCodeStatement>(returnTypeSpecifier,
             name, parameterList, body, returnTypeSpecifier.span() + _lastSpan);
@@ -189,6 +189,8 @@ private:
         return true;
     }
     // TycoDefinitionStatement := TycoSignifier "=" TycoSpecifier ";"
+    // TODO: would the syntax of TycoDefinitionStatement be improved by the
+    // addition of a leading "@"?
     bool parseTycoDefinitionStatement(Code code, CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -240,10 +242,10 @@ private:
         Space::assertCharacter(source, '(');
         Expression condition = Expression::parseOrFail(source);
         Space::assertCharacter(source, ')');
-        CodeList conditionalCode;
+        Code conditionalCode;
         parseStatementOrFail(conditionalCode, source);
         span += _lastSpan;
-        CodeList elseCode;
+        Code elseCode;
         if (Space::parseKeyword(source, "else"))
             parseStatementOrFail(elseCode, source);
         else {
@@ -295,7 +297,7 @@ private:
                 source->location().throwError("Expected case or default");
         }
         Space::assertCharacter(source, ':');
-        CodeList code;
+        Code code;
         parseStatementOrFail(code, source);
         span += _lastSpan;
         if (defaultType)
@@ -349,7 +351,8 @@ private:
         Span span;
         if (!Space::parseKeyword(source, "include", &span))
             return false;
-        Expression expression = parseExpression(source);
+        Expression expression = Expression::parseOrFail(source);
+        Space::assertCharacter(source, ';', &span);
 
         StringLiteralExpression s(expression);
         if (!s.valid()) {
@@ -394,7 +397,7 @@ private:
         Span span;
         if (!Space::parseKeyword(source, "forever", &span))
             return false;
-        CodeList body;
+        Code body;
         parseStatementOrFail(body, source);
         code.insert<ForeverStatement>(body, span);
         return true;
@@ -402,7 +405,7 @@ private:
     bool parseWhileStatement(Code code, CharacterSource* source)
     {
         Span span;
-        CodeList doCode;
+        Code doCode;
         bool foundDo = false;
         if (Space::parseKeyword(source, "do", &span)) {
             foundDo = true;
@@ -423,9 +426,9 @@ private:
         Space::assertCharacter(source, '(');
         Expression condition = Expression::parse(source);
         Space::assertCharacter(source, ')');
-        CodeList body;
+        Code body;
         parseStatementOrFail(body, source);
-        CodeList doneCode;
+        Code doneCode;
         if (Space::parseKeyword(source, "done"))
             parseStatementOrFail(doneCode, source);
         span += _lastSpan;
@@ -440,18 +443,18 @@ private:
         if (!Space::parseKeyword(source, "for", &span))
             return false;
         Space::assertCharacter(source, '(');
-        CodeList preCode;
+        Code preCode;
         if (!parseStatement(preCode, source))
             Space::assertCharacter(source, ';');
         Expression expression = Expression::parse(source);
         Space::assertCharacter(source, ';');
-        CodeList postCode;
+        Code postCode;
         parseStatement(postCode, source);
         Space::parseCharacter(source, ')');
-        CodeList body;
+        Code body;
         parseStatement(body, source);
         span += _lastSpan;
-        CodeList doneCode;
+        Code doneCode;
         if (Space::parseKeyword(source, "done")) {
             parseStatementOrFail(doneCode, source);
             span += _lastSpan;
@@ -470,6 +473,7 @@ private:
         if (!Space::parseCharacter(&s2, ':', &span))
             return false;
         _lastSpan = span;
+        //code.annotate<LabelAnnotation>(identifier, identifier.span() + span);
         code.insert<LabelStatement>(identifier, identifier.span() + span);
         return true;
     }
@@ -483,6 +487,35 @@ private:
         Space::parseCharacter(source, ';', &span);
         code.insert<GotoStatement>(expression, span);
         return true;
+    }
+    bool parseVariableDefinitionStatement(Code code, CharacterSource* source)
+    {
+        VariableDefinition v = VariableDefinition::parse(source);
+        if (!v.valid())
+            return false;
+        Span span;
+        Space::parseCharacter(source, ';', &span);
+        code.insert<VariableDefinitionStatement>(v, v.span() + span);
+        return true;
+    }
+    bool parseAccessSpecifierStatement(Code code, CharacterSource* source)
+    {
+        Span span;
+        if (!Space::parseKeyword(source, "access", &span))
+            return false;
+        Space::assertCharacter(source, '(');
+        List<AccessSpecifier> accessSpecifiers;
+        bool isFirst = true;
+        do {
+            if (!isFirst)
+                Space::assertCharacter(source, ',');
+            accessSpecifiers.add(AccessSpecifier::parseOrFail(source));
+            if (Space::parseCharacter(source, ')'))
+                break;
+        } while (true);
+        Span span2;
+        Space::assertCharacter(source, ':', &span2);
+        code.insert<AccessSpecifierStatement>(accessSpecifiers, span + span2);
     }
 
     Span _lastSpan;

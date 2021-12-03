@@ -11,7 +11,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<List<Value>>();
@@ -33,8 +33,8 @@ public:
             }
             return *x;
         }
-        Identifier identifier() const { return OperatorIndex(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorIndex(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -46,7 +46,7 @@ public:
             Type indexType(*i);
             return indexType.canConvertTo(l.indexer());
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ArrayTemplate());

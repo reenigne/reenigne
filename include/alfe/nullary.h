@@ -33,7 +33,7 @@ protected:
     class Body : public Base::Body
     {
     public:
-        String toString() const { return My::name(); }
+        String toString() { return My::name(); }
     };
 
     friend class Nullary<Base, My>;

@@ -60,12 +60,12 @@ public:
                     Value(IntegerType(), 0)));
                 _structuredType = StructuredType(toString(), members);
             }
-            String toString() const { return "ROM"; }
-            bool canConvertFrom(const ::Type& other, String* why) const
+            String toString() { return "ROM"; }
+            bool canConvertFrom(const ::Type& other, String* why)
             {
                 return _structuredType.canConvertFrom(other, why);
             }
-            Value convert(const Value& value) const
+            Value convert(const Value& value)
             {
                 auto m = _structuredType.convert(value).
                     value<HashTable<Identifier, Value>>();

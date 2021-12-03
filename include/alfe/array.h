@@ -18,7 +18,7 @@ template<class T> class List : private Handle
               : _value(std::forward<Args>(args)...), _next(0) { }
             Node* next() const { return _next; }
             void setNext(Node* next) { _next = next; }
-            const T& value() const { return _value; }
+            T& value() { return _value; }
         private:
             T _value;
             Node* _next;
@@ -44,8 +44,8 @@ template<class T> class List : private Handle
             ++_count;
             return &_last->_value;
         }
-        int count() const { return _count; }
-        const Node* start() const { return &_first; }
+        int count() { return _count; }
+        Node* start() { return &_first; }
     private:
         Node _first;
         Node* _last;
@@ -70,7 +70,7 @@ public:
             return body()->count();
         return 0;
     }
-    bool operator==(List other) const
+    bool operator==(List other)
     {
         Iterator l = begin();
         Iterator r = other.begin();
@@ -90,26 +90,26 @@ public:
     class Iterator
     {
     public:
-        const T& operator*() const { return _node->value(); }
-        const T* operator->() const { return &_node->value(); }
+        T& operator*() { return _node->value(); }
+        T* operator->() { return &_node->value(); }
         const Iterator& operator++() { _node = _node->next(); return *this; }
         bool operator==(const Iterator& other) { return _node == other._node; }
         bool operator!=(const Iterator& other) { return !operator==(other); }
         bool end() const { return _node == 0; }
     private:
-        const typename Body::Node* _node;
+        typename Body::Node* _node;
 
-        Iterator(const typename Body::Node* node) : _node(node) { }
+        Iterator(typename Body::Node* node) : _node(node) { }
 
         friend class List;
     };
-    Iterator begin() const
+    Iterator begin()
     {
         if (valid())
             return Iterator(body()->start());
         return end();
     }
-    Iterator end() const { return Iterator(0); }
+    Iterator end() { return Iterator(0); }
 };
 
 template<class T> class Array;
@@ -170,11 +170,11 @@ public:
         T& operator[](int i) { return pointer()[i]; }
         const T& operator[](int i) const { return pointer()[i]; }
 
-        void destroy() const
+        void destroy()
         {
             this->preDestroy();
             destruct();
-            operator delete(const_cast<void*>(static_cast<const void*>(this)));
+            operator delete(static_cast<void*>(this));
         }
 
         int size() const { return _size; }
@@ -363,7 +363,7 @@ public:
         Iterator begin() { return Iterator(&((*this)[0])); }
         Iterator end() { return Iterator(&((*this)[size()])); }
 
-        void justSetSize(int size) const { _size = size; }
+        void justSetSize(int size) { _size = size; }
 
     private:
         void constructTail(int size)
@@ -378,18 +378,18 @@ public:
                 throw;
             }
         }
-        void destructTail(int size) const
+        void destructTail(int size)
         {
             for (; _size > size; --_size)
                 (&(*this)[_size - 1])->~T();
         }
-        void destruct() const
+        void destruct()
         {
             destructTail(0);
             this->~Body();
         }
 
-        mutable int _size;  // Needs to be mutable so destroy() can be const.
+        int _size;
 
         // Only constructor is private to prevent inheritance, composition and
         // stack allocation. All instances are constructed via the placement
@@ -412,7 +412,7 @@ public:
         int _allocated;
     };
     Array() { }
-    Array(const List<T>& list)
+    Array(List<T> list)
     {
         int n = list.count();
         if (n != 0) {

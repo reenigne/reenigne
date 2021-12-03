@@ -1,37 +1,33 @@
-#include "alfe/main.h"
+#include "alfe/code.h"
 
 #ifndef INCLUDED_KIND_H
 #define INCLUDED_KIND_H
-
-#include "alfe/nullary.h"
-#include "alfe/string.h"
-#include "alfe/handle.h"
 
 // Kind constructors. See:
 //   http://www.reenigne.org/blog/templates-and-kinds-in-alfe
 //   http://www.reenigne.org/blog/variadic-templates-in-alfe
 // for more information.
 
-class Kind : public ConstHandle
+class Kind : public Handle
 {
 public:
     Kind() { }
-    Kind(const ConstHandle other) : ConstHandle(other) { }
-    String toString() const { return body()->toString(); }
+    Kind(const Handle& other) : Handle(other) { }
+    String toString() { return body()->toString(); }
     bool operator!=(const Kind& other) const { return !operator==(other); }
-    Kind instantiate(Kind argument) const
+    Kind instantiate(Kind argument)
     {
         return body()->instantiate(argument);
     }
 protected:
-    class Body : public ConstHandle::Body
+    class Body : public Handle::Body
     {
     public:
-        virtual String toString() const = 0;
-        virtual Kind instantiate(Kind argument) const = 0;
-        Kind kind() const { return handle<Kind>(); }
+        virtual String toString() = 0;
+        virtual Kind instantiate(Kind argument) = 0;
+        Kind kind() { return handle<Kind>(); }
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 private:
     friend class TemplateKind;
 };
@@ -46,7 +42,7 @@ public:
     class Body : public NamedNullary::Body
     {
     public:
-        Kind instantiate(Kind argument) const { return Kind(); }
+        Kind instantiate(Kind argument) { return Kind(); }
     };
 };
 
@@ -60,10 +56,7 @@ public:
     class Body : public NamedNullary::Body
     {
     public:
-        Kind instantiate(Kind argument) const
-        {
-            return VariadicTemplateKind();
-        }
+        Kind instantiate(Kind argument) { return VariadicTemplateKind(); }
     };
 };
 
@@ -75,8 +68,8 @@ public:
     TemplateKind(const Kind& firstParameterKind, const Kind& restParameterKind)
       : Kind(create<Body>(firstParameterKind, restParameterKind)) { }
     TemplateKind(const Kind& kind) : Kind(kind) { }
-    Kind first() const { return body()->first(); }
-    Kind rest() const { return body()->rest(); }
+    Kind first() { return body()->first(); }
+    Kind rest() { return body()->rest(); }
 protected:
     class Body : public Kind::Body
     {
@@ -85,8 +78,8 @@ protected:
             const Kind& restParameterKind)
           : _firstParameterKind(firstParameterKind),
             _restParameterKind(restParameterKind) { }
-        String toString() const { return "<" + toString2(); }
-        String toString2() const
+        String toString() { return "<" + toString2(); }
+        String toString2()
         {
             Kind k = kind();
             bool needComma = false;
@@ -104,20 +97,20 @@ protected:
                 needComma = true;
             } while (true);
         }
-        bool equals(const ConstHandle::Body* other) const
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             return o != 0 && _firstParameterKind == o->_firstParameterKind &&
                 _restParameterKind == o->_restParameterKind;
         }
-        Hash hash() const
+        Hash hash()
         {
             return Kind::Body::hash().mixin(_firstParameterKind.hash()).
                 mixin((_restParameterKind.hash()));
         }
-        Kind first() const { return _firstParameterKind; }
-        Kind rest() const { return _restParameterKind; }
-        Kind instantiate(Kind argument) const
+        Kind first() { return _firstParameterKind; }
+        Kind rest() { return _restParameterKind; }
+        Kind instantiate(Kind argument)
         {
             // A tyco of kind VariadicTemplateKind can act as a type or a
             // template of any kind so (for the purposes of initial kind
@@ -135,7 +128,8 @@ protected:
         Kind _firstParameterKind;
         Kind _restParameterKind;
     };
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 };
 
 #endif // INCLUDED_KIND_H
+

@@ -145,6 +145,7 @@
     <ClInclude Include="..\..\..\include\alfe\space.h" />
     <ClInclude Include="..\..\..\include\alfe\string.h" />
     <ClInclude Include="..\gentests.h" />
+    <ClInclude Include="..\gentests2.h" />
     <ClInclude Include="..\xtce_lkg.h" />
   </ItemGroup>
   <ItemGroup>

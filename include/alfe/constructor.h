@@ -4,7 +4,7 @@
 #define INCLUDED_CONSTRUCTOR_H
 
 // Constructor is a base class of both Tyco (type constructor) and Funco
-// (function constructor). It handles instantiations.
+// (function constructor). It handles instantiations. Not currently used.
 class Constructor : public Handle
 {
 public:
@@ -17,16 +17,16 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual String toString() const = 0;
-        virtual bool canInstantiate(const Tyco& argument) const = 0;
-        virtual Constructor instantiate(const Tyco& argument) const
+        virtual String toString() = 0;
+        virtual bool canInstantiate(const Tyco& argument) = 0;
+        virtual Constructor instantiate(const Tyco& argument)
         {
             if (_instantiations.hasKey(argument))
                 return _instantiations[argument];
 
         }
     private:
-        mutable HashTable<Tyco, Constructor> _instantiations;
+        HashTable<Tyco, Constructor> _instantiations;
     };
 private:
     const Body* body() const { return as<Body>(); }

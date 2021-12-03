@@ -1,0 +1,41 @@
+60AFF Ip....  10A88 FF 00  FD  71 .......                          I                                 13
+60AF1 SC....  10A88 FF 00  FD  62 .......                          S 8F01         POP W[BX+DI] 8     12
+10A89 .C....  10A89 FF 00  FD  62 .......  T1                                                        11  1
+60A89 .C....  10A89 FF 00  FD  73 ..r....  T2                                                        10  2
+60ACD .p....  10A89 CD 00  FD  70 ..r....  T3    CD <-f [   10A89]                                    9  3
+60ACD .C....  10A89 CD 00  FD  61 .......  T4                                                         8  4
+10A8A .C....  10A8A CD 00  FD  61 .......  T1                                                         7  5
+60A8A .C....  10A8A FD 00  FD  72 ..r....  T2                                                         6  6
+60AFF .p....  10A8A FF 00  FD  73 ..r....  T3    FF <-f [   10A8A]                                    5  7
+60AFF .p....  10A8A FF 00  FD  60 .......  T4                                                         4  8           _queueBytes == 3
+60AFF .p....  10A8A FF 00  FD  60 .......                                                             3     1        _queueBytes == 4
+60AFF .p....  10A8A FF 00  FD  71 .......                                                             2     2
+60AFF .r....  10A8A FF 00  FD  72 .......                                                             1     3
+20A7E .r....  20A7E FF 00  FD  63 .......  T1
+50A7E .r....  20A7E FF 00  FD  63 ..r....  T2
+50A00 .p....  20A7E 00 00  FD  70 ..r....  T3    00 <-- [SS 20A7E]
+50A00 .r....  20A7E 00 00  FD  71 .......  T4
+
+
+60A8B IC.z..  0C0AC 50 10H FD  71 ..r..D.  Tw S3                   I                                 11
+60A8B SC.z..  0C0AC 50 10H FD  70 .Wr..D.  Tw S4 50 <-d [   0C0AC] S 8F04         POP W[SI]    5     10
+60A8B .C.z..  0C0AC 50 00  FD  60 .....D.  Tw                                                         9  1
+60A50 .C.z..  10A8B 50 00  FD  63 ..r....  Tw                                                         8  2
+60A00 .C.z..  10A8B 00 00  FD  72 ..r....  Tw                                                         7  3
+60A00 .p....  10A8B 00 00  FD  71 ..r....  Tw    00 <-f [   10A8B]                                    6  4
+60A00 .p....  10A8B 00 00  FD  61 .......  T4                                                         5  5           _queueBytes == 1
+60A00 .p....  10A8B 00 00  FD  60 .......                                                             4     1        _queueBytes == 2
+60A00 .p....  10A8B 00 00  FD  73 .......                                                             3     2
+50A8C .p....  10A8B 00 00  FD  72 .......                                                             2     3
+50A8C .r....  10A8B 00 00  FD  62 .......                                                             1     4
+20A7E .r....  20A7E 00 00  FD  61 .......  T1
+50A7E .r....  20A7E FF 00  FD  70 ..r....  T2
+50A00 .p....  20A7E 00 00  FD  73 ..r....  T3    00 <-- [SS 20A7E]
+50A00 .r....  20A7E 00 00  FD  63 .......  T4
+
+
+_busState is t4 of fetch at the _transferStarting cycle of both of these cases. How can we determine when to delay 3 and when to delay 4?
+  Could it matter that the last fetch was delayed in the latter case?
+    Maybe, but why would it?
+  Does it depend on whether there are more bytes to fetch? Could the extra wait be the first cycle of an aborted fetch?
+    Que is full after fetch of FF in first case

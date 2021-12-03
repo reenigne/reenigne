@@ -12,15 +12,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l + i->value<double>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -33,15 +33,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l + i->value<Rational>().value<double>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -54,15 +54,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l.value<double>() + i->value<double>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -75,15 +75,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l - i->value<double>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -96,15 +96,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l - i->value<Rational>().value<double>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -117,15 +117,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l.value<double>() - i->value<double>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -138,15 +138,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l * i->value<double>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -159,15 +159,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l * i->value<Rational>().value<double>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -180,15 +180,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l.value<double>() * i->value<double>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -201,15 +201,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l / i->value<double>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -222,15 +222,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return Value(l / i->value<Rational>().value<double>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -243,15 +243,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l.value<double>() / i->value<double>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -264,15 +264,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<double>();
             ++i;
             return l*pow(2.0, i->value<int>());
         }
-        Identifier identifier() const { return OperatorShiftLeft(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorShiftLeft(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), IntegerType());
         }
@@ -286,15 +286,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<double>();
             ++i;
             return l/pow(2.0, i->value<int>());
         }
-        Identifier identifier() const { return OperatorShiftRight(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorShiftRight(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), IntegerType());
         }
@@ -307,15 +307,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return pow(l, i->value<double>());
         }
-        Identifier identifier() const { return OperatorPower(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPower(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -328,15 +328,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             double l = i->value<double>();
             ++i;
             return pow(l, i->value<Rational>().value<double>());
         }
-        Identifier identifier() const { return OperatorPower(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPower(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -349,15 +349,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return pow(l.value<double>(), i->value<double>());
         }
-        Identifier identifier() const { return OperatorPower(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPower(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -370,12 +370,12 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             return Value( - arguments.begin()->value<double>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(DoubleType(), DoubleType());
         }

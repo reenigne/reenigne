@@ -11,15 +11,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             String l = i->value<String>();
             ++i;
             return Value(l + i->value<String>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(StringType(), StringType(), StringType());
         }
@@ -32,15 +32,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l*i->value<String>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(StringType(), IntegerType(), StringType());
         }
@@ -53,15 +53,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             String l = i->value<String>();
             ++i;
             return Value(l*i->value<int>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(StringType(), StringType(), IntegerType());
         }
@@ -69,3 +69,4 @@ public:
 };
 
 #endif // INCLUDED_STRING_FUNCTIONS_H
+

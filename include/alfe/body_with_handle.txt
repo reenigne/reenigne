@@ -167,10 +167,10 @@ Given number of items allocated (_allocated):
     //    class Body : public Handle::Body
     //    {
     //    public:
-    //        virtual int end() const = 0;
+    //        virtual int end() = 0;
     //        virtual void expand(const ::Byte* data, int length) = 0;
     //        virtual void expand(int length) = 0;
-    //        const ::Byte* constData() const { return _data; }
+    //        const ::Byte* constData() { return _data; }
     //        ::Byte* data() { return const_cast< ::Byte*>(_data); }
     //    protected:
     //        const ::Byte* _data;

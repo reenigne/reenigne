@@ -339,14 +339,14 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual int size() const = 0;
-        virtual int length() const { return 2; }
-        virtual void assemble(int opcode, int reg, Byte* p) const = 0;
-        virtual bool isRegister() const { return true; }
-        virtual Register* reg() const { return 0; }
-        virtual int segment() const { return -1; }
-        virtual bool isConstant() const { return false; }
-        virtual int value() const { return 0; }
+        virtual int size() = 0;
+        virtual int length() { return 2; }
+        virtual void assemble(int opcode, int reg, Byte* p) = 0;
+        virtual bool isRegister() { return true; }
+        virtual Register* reg() { return 0; }
+        virtual int segment() { return -1; }
+        virtual bool isConstant() { return false; }
+        virtual int value() { return 0; }
     };
     class RegisterBody : public Body
     {

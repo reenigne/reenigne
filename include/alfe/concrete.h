@@ -88,7 +88,7 @@ public:
     {
         return ConcreteTemplate(_type, _value / other);
     }
-    Rational value() const
+    Rational value()
     {
         if (!isAbstract())
             throw UnitMismatchException();
@@ -125,7 +125,7 @@ public:
     {
         return _value == 0 || other._value == 0 || _type == other._type;
     }
-    bool isAbstract() const { return _type.isAbstract() || _value == 0; }
+    bool isAbstract() { return _type.isAbstract() || _value == 0; }
     ConcreteTemplate reciprocal() const
     {
         return ConcreteTemplate(-_type, 1 / _value);
@@ -170,7 +170,7 @@ protected:
     class Body : public NamedNullary<Tyco, ConcreteTyco>::Body
     {
     public:
-        Kind kind() const { assert(false); return Kind(); }
+        Kind kind() { assert(false); return Kind(); }
     };
     friend class Nullary<Tyco, ConcreteTyco>;
 };
@@ -186,8 +186,8 @@ template<class T> class ConcreteTypeTemplate : public Type
     {
         typedef Array<int>::Body<BaseBody> Body;
     public:
-        String toString() const { return "Concrete"; }
-        bool equals(const ConstHandle::Body* other) const
+        String toString() { return "Concrete"; }
+        bool equals(HandleBase::Body* other)
         {
             auto b = other->to<Body>();
             if (b == 0)
@@ -197,7 +197,7 @@ template<class T> class ConcreteTypeTemplate : public Type
                     return false;
             return true;
         }
-        Hash hash() const
+        Hash hash()
         {
             Hash h = Type::Body::hash();
             int i;
@@ -208,14 +208,14 @@ template<class T> class ConcreteTypeTemplate : public Type
                 h.mixin((*body())[i]);
             return h;
         }
-        bool isAbstract() const
+        bool isAbstract()
         {
             for (int i = 0; i < elements(); ++i)
                 if ((*body())[i] != 0)
                     return false;
             return true;
         }
-        bool canConvertTo(const Type& to, String* reason) const
+        bool canConvertTo(const Type& to, String* reason)
         {
             ConcreteTypeTemplate<T> c(to);
             if (c.valid()) {
@@ -228,27 +228,27 @@ template<class T> class ConcreteTypeTemplate : public Type
             }
             return RationalType().canConvertTo(to);
         }
-        Value convertTo(const Type& to, const Value& value) const
+        Value convertTo(const Type& to, const Value& value)
         {
             return RationalType().convertTo(to, Value(RationalType(),
                 value.value<ConcreteTemplate<T>>().value(), value.span()));
         }
-        int elements() const { return body()->size(); }
-        Value defaultValue() const { return Concrete::zero(); }
-        Value simplify(const Value& value) const
+        int elements() { return body()->size(); }
+        Value defaultValue() { return Concrete::zero(); }
+        Value simplify(const Value& value)
         {
             auto v = value.value<ConcreteTemplate<T>>();
             if (v.isAbstract())
                 return Value(RationalType(), v.value(), value.span());
             return value;
         }
-        void deserialize(const Value& value, void* p) const
+        void deserialize(const Value& value, void* p)
         {
             *static_cast<Rational*>(p) = value.value<Concrete>()._value;
         }
     private:
         Body* body() { return as<Body>(); }
-        const Body* body() const { return as<Body>(); }
+        const Body* body() const { return asConst<Body>(); }
     };
     typedef Array<int>::Body<BaseBody> Body;
 
@@ -267,7 +267,7 @@ public:
     {
         return ConcreteTypeTemplate(0);
     }
-    bool isAbstract() const { return body()->isAbstract(); }
+    bool isAbstract() { return body()->isAbstract(); }
     const ConcreteTypeTemplate& operator+=(const ConcreteTypeTemplate& other)
     {
         *this = *this + other;
@@ -285,14 +285,14 @@ public:
             t.element(i) = -element(i);
         return t;
     }
-    ConcreteTypeTemplate operator+(const ConcreteTypeTemplate& other) const
+    ConcreteTypeTemplate operator+(ConcreteTypeTemplate other) const
     {
         ConcreteTypeTemplate t(max(elements(), other.elements()));
         for (int i = 0; i < t.elements(); ++i)
             t.element(i) = element(i) + other.element(i);
         return t;
     }
-    ConcreteTypeTemplate operator-(const ConcreteTypeTemplate& other) const
+    ConcreteTypeTemplate operator-(ConcreteTypeTemplate other) const
     {
         ConcreteTypeTemplate t(max(elements(), other.elements()));
         for (int i = 0; i < t.elements(); ++i)
@@ -301,7 +301,7 @@ public:
     }
 private:
     const Body* body() const { return as<Body>(); }
-    Body* body() { return const_cast<Body*>(as<Body>()); }
+    Body* body() { return as<Body>(); }
     ConcreteTypeTemplate(int bases)
       : Type(Array<int>::create<Handle, BaseBody>(bases, bases)) { }
     int elements() const { return body()->elements(); }
@@ -314,3 +314,4 @@ template<> int ConcreteTypeTemplate<Rational>::_bases = 0;
 template<> Type typeFromValue<Concrete>(const Concrete& c) { return c.type(); }
 
 #endif // INCLUDED_CONCRETE_H
+

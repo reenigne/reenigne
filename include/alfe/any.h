@@ -25,8 +25,8 @@ public:
     {
     public:
         Body(const T& t) : _t(t) { }
-        T value() const { return _t; }
-        bool equals(const Handle::Body* other) const
+        T value() { return _t; }
+        bool equals(HandleBase::Body* other)
         {
             auto o = other->to<Body>();
             if (o == 0)

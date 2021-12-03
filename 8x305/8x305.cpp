@@ -466,7 +466,7 @@ private:
                 Value(Type::integer, 0)));
             _structuredType = StructuredType(toString(), members);
         }
-        Value tryConvert(const Value& value, String* why) const
+        Value tryConvert(const Value& value, String* why)
         {
             Value stv = value.type().tryConvertTo(_structuredType, value, why);
             if (!stv.valid())

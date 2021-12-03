@@ -1,73 +1,7 @@
-#include "alfe/main.h"
+#include "alfe/code.h"
 
 #ifndef INCLUDED_EXPRESSION_H
 #define INCLUDED_EXPRESSION_H
-
-#include "alfe/parse_tree_object.h"
-#include "alfe/operator.h"
-#include "alfe/identifier.h"
-#include "alfe/type_specifier.h"
-
-template<class T> class ExpressionT;
-typedef ExpressionT<void> Expression;
-
-template<class T> class IdentifierT;
-typedef IdentifierT<void> Identifier;
-
-template<class T> class FunctionCallExpressionT;
-typedef FunctionCallExpressionT<void> FunctionCallExpression;
-
-template<class T> class TypeT;
-typedef TypeT<void> Type;
-
-template<class T> class ValueT;
-typedef ValueT<void> Value;
-
-template<class T> class TycoT;
-typedef TycoT<void> Tyco;
-
-template<class T> class ValueT;
-typedef ValueT<void> Value;
-
-template<class T> class TycoIdentifierT;
-typedef TycoIdentifierT<void> TycoIdentifier;
-
-template<class T> class LogicalOrExpressionT;
-typedef LogicalOrExpressionT<void> LogicalOrExpression;
-
-template<class T> class ConditionalExpressionT;
-typedef ConditionalExpressionT<void> ConditionalExpression;
-
-template<class T> class NumericLiteralT;
-typedef NumericLiteralT<void> NumericLiteral;
-
-template<class T> class StructuredTypeT;
-typedef StructuredTypeT<void> StructuredType;
-
-template<class T> class LValueTypeT;
-typedef LValueTypeT<void> LValueType;
-
-template<class T> class LValueT;
-typedef LValueT<void> LValue;
-
-template<class T> class StructureT;
-typedef StructureT<void> Structure;
-
-template<class T> class OverloadedFunctionSetT;
-typedef OverloadedFunctionSetT<void> OverloadedFunctionSet;
-
-template<class T> class VariableDefinitionT;
-typedef VariableDefinitionT<void> VariableDefinition;
-
-class Function;
-
-template<class T> class FuncoTypeT;
-typedef FuncoTypeT<void> FuncoType;
-
-template<class T> class BooleanTypeT;
-typedef BooleanTypeT<void> BooleanType;
-
-class ArrayType;
 
 int parseHexadecimalCharacter(CharacterSource* source, Span* span)
 {
@@ -88,33 +22,56 @@ int parseHexadecimalCharacter(CharacterSource* source, Span* span)
     return -1;
 }
 
+// Expression::parse()
+// ConditionalExpression::parse()
+// LogicalOrExpression::parse()
+// LogicalAndExpression::parse()
+// FunctionCallExpression::parseBitwiseOr() - should be CallExpression::parseBitwiseOr()
+// CallExpression::parseXor()
+// CallExpression::parseBitwiseAnd()
+// CallExpression::parseEquality()
+// CallExpression::parseComparison()
+// CallExpression::parseShift()
+// CallExpression::parseAdditive()
+// CallExpression::parseMultiplicative()
+// CallExpression::parseUnary()
+// CallExpression::parsePower()
+// Expression::parseDot()
+// FunctionCallExpression::parse() - should be CallExpression::parse()
+// Expression::parseElement() and CallExpression::parseRemainder()
+//   Expression::parseDoubleQuotedString()
+//   Expression::parseEmbeddedLiteral()
+//   Expression::parseNumber()
+//   Identifier::parse()
+//   FunctionCallExpression::parseConstructorCall()
+//   VariableDefinition::parse()
+
 template<class T> class ExpressionT : public ParseTreeObject
 {
 public:
     ExpressionT() { }
-    ExpressionT(Handle other) : ParseTreeObject(other) { }
+    ExpressionT(Handle other) : ParseTreeObject(to<Body>(other)) { }
 
     class Body : public ParseTreeObject::Body
     {
     public:
         Body(const Span& span) : ParseTreeObject::Body(span) { }
-        virtual Expression stringify() const
+        virtual Expression stringify()
         {
             return create<
                 typename FunctionCallExpressionT<T>::FunctionCallBody>(
                 Expression(expression()).dot(Identifier("toString")),
                 List<Expression>(), span());
         }
-        virtual String toString() const = 0;
-        virtual Value evaluate(Structure* context) const = 0;
-        Expression expression() const { return handle<Handle>(); }
-        virtual TypeT<T> type() const = 0;
-        virtual void resolve(Scope* scope) = 0;
-        virtual bool mightHaveSideEffect() const = 0;
+        virtual String toString() = 0;
+        virtual Value evaluate(Structure* context) = 0;
+        Expression expression() { return handle<Expression>(); }
+        virtual TypeT<T> type() = 0;
+        virtual bool mightHaveSideEffect() = 0;
     };
 
     ExpressionT(const String& string, const Span& span)
-      : ParseTreeObject(create<StringLiteralBody>(string, span)) { }
+      : ExpressionT(StringLiteralExpression(string, span)) { }
 
     static Expression parse(CharacterSource* source)
     {
@@ -158,15 +115,15 @@ public:
     }
     Expression dot(const Identifier& identifier)
     {
-        return create<DotBody>(*this, identifier);
+        return DotExpression(*this, identifier);
     }
 
     // toString() creates a compile-time String which is a pretty-printed
     // representation of the Expression.
     // stringify() create a run-time Expression which converts the value of
     // the expression into a String.
-    Expression stringify() const { return body()->stringify(); }
-    String toString() const { return body()->toString(); }
+    Expression stringify() { return body()->stringify(); }
+    String toString() { return body()->toString(); }
 
     static Expression parseDot(CharacterSource* source)
     {
@@ -186,13 +143,12 @@ public:
         } while (true);
     }
 
-    void resolve(Scope* scope) { body()->resolve(scope); }
-    ValueT<T> evaluate(Structure* context) const
+    ValueT<T> evaluate(Structure* context)
     {
-        return body()->evaluate(context).simplify();
+        return body()->evaluate(context);
     }
-    TypeT<T> type() const { return body()->type(); }
-    bool mightHaveSideEffect() const { return body()->mightHaveSideEffect(); }
+    TypeT<T> type() { return body()->type(); }
+    bool mightHaveSideEffect() { return body()->mightHaveSideEffect(); }
 
 protected:
     const Body* body() const { return as<Body>(); }
@@ -438,18 +394,17 @@ private:
     public:
         UnitBody(const Span& span) : Body(span) { }
         Expression stringify() const { return Expression("()", this->span()); }
-        String toString() const { return "()"; }
-        ValueT<T> evaluate(Structure* context) const { return ValueT<T>(); }
-        TypeT<T> type() const { return VoidTypeT<T>(); }
-        void resolve(Scope* scope) { }
-        bool mightHaveSideEffect() const { return false; }
+        String toString() { return "()"; }
+        ValueT<T> evaluate(Structure* context) { return ValueT<T>(); }
+        TypeT<T> type() { return VoidTypeT<T>(); }
+        bool mightHaveSideEffect() { return false; }
     };
     class TupleBody : public Body
     {
     public:
         TupleBody(List<Expression> expressions, const Span& span)
           : Body(span), _expressions(expressions) { }
-        Expression stringify() const
+        Expression stringify()
         {
             Expression r("(", Span());
             bool first = true;
@@ -463,7 +418,7 @@ private:
             r.setSpan(this->span());
             return r;
         }
-        String toString() const
+        String toString()
         {
             String r = "(";
             bool first = true;
@@ -475,32 +430,38 @@ private:
             }
             return r + ")";
         }
-        ValueT<T> evaluate(Structure* context) const
+        ValueT<T> evaluate(Structure* context)
         {
             List<ValueT<T>> v;
             for (auto e : _expressions)
                 v.add(e.evaluate(context));
             return ValueT<T>(type(), v);
         }
-        TypeT<T> type() const
+        TypeT<T> type()
         {
             TupleTycoT<T> t;
             for (auto e : _expressions)
                 t = t.instantiate(e.type());
             return t;
         }
-        void resolve(Scope* scope)
-        {
-            for (auto e : _expressions)
-                e.resolve(scope);
-        }
-        bool mightHaveSideEffect() const
+        bool mightHaveSideEffect()
         {
             for (auto e : _expressions) {
                 if (e.mightHaveSideEffect())
                     return true;
             }
             return false;
+        }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                for (auto e : _expressions) {
+                    if (e.walk(walker) == CodeWalker::Result::abort)
+                        return CodeWalker::Result::abort;
+                }
+            }
+            return r;
         }
     private:
         List<Expression> _expressions;
@@ -509,69 +470,33 @@ private:
     {
     public:
         BooleanBody(const Span& span) : Body(span) { }
-        Expression stringify() const
+        Expression stringify()
         {
             return Expression(this->toString(), this->span());
         }
-        TypeT<T> type() const { return BooleanType(); }
-        void resolve(Scope* scope) { }
-        bool mightHaveSideEffect() const { return false; }
+        TypeT<T> type() { return BooleanType(); }
+        bool mightHaveSideEffect() { return false; }
     };
     class TrueBody : public BooleanBody
     {
     public:
         TrueBody(const Span& span) : BooleanBody(span) { }
-        String toString() const { return "true"; }
-        ValueT<T> evaluate(Structure* context) const { return true; }
+        String toString() { return "true"; }
+        ValueT<T> evaluate(Structure* context) { return true; }
     };
     class FalseBody : public BooleanBody
     {
     public:
         FalseBody(const Span& span) : BooleanBody(span) { }
-        String toString() const { return "false"; }
-        ValueT<T> evaluate(Structure* context) const { return false; }
-    };
-    class StringLiteralBody : public Body
-    {
-    public:
-        StringLiteralBody(const String& string, const Span& span)
-          : Body(span), _string(string) { }
-        Expression stringify() const { return this->expression(); }
-        String toString() const
-        {
-            CharacterSource s(_string);
-            String r = "\"";
-            do {
-                int c = s.get();
-                if (c == -1)
-                    break;
-                switch (c) {
-                    case '\"':
-                        r += "\\\"";
-                        break;
-                    case '$':
-                        r += "\\$";
-                        break;
-                    default:
-                        r += codePoint(c);
-                        break;
-                }
-            } while (true);
-            return r + "\"";
-        }
-        ValueT<T> evaluate(Structure* context) const { return _string; }
-        TypeT<T> type() const { return StringTypeT<T>(); }
-        void resolve(Scope* scope) { }
-        bool mightHaveSideEffect() const { return false; }
-    private:
-        String _string;
+        String toString() { return "false"; }
+        ValueT<T> evaluate(Structure* context) { return false; }
     };
     class ArrayLiteralBody : public Body
     {
     public:
         ArrayLiteralBody(const List<Expression>& expressions, const Span& span)
           : Body(span), _expressions(expressions) { }
-        ValueT<T> evaluate(Structure* context) const
+        ValueT<T> evaluate(Structure* context)
         {
             HashTable<Identifier, Value> values;
             List<typename StructuredTypeT<T>::Member> members;
@@ -586,7 +511,7 @@ private:
             }
             return Value(StructuredType("", members), values, this->span());
         }
-        TypeT<T> type() const
+        TypeT<T> type()
         {
             TypeT<T> type = VoidType();
             int i = 0;
@@ -605,7 +530,7 @@ private:
             }
             return ArrayType(type);
         }
-        Expression stringify() const
+        Expression stringify()
         {
             Expression r("{", Span());
             bool first = true;
@@ -619,7 +544,7 @@ private:
             r.setSpan(this->span());
             return r;
         }
-        String toString() const
+        String toString()
         {
             String r = "{";
             bool first = true;
@@ -631,12 +556,7 @@ private:
             }
             return r + "}";
         }
-        void resolve(Scope* scope)
-        {
-            for (auto e : _expressions)
-                e.resolve(scope);
-        }
-        bool mightHaveSideEffect() const
+        bool mightHaveSideEffect()
         {
             for (auto e : _expressions) {
                 if (e.mightHaveSideEffect())
@@ -644,42 +564,38 @@ private:
             }
             return false;
         }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                for (auto e : _expressions) {
+                    if (e.walk(walker) == CodeWalker::Result::abort)
+                        return CodeWalker::Result::abort;
+                }
+            }
+            return r;
+        }
     private:
         List<Expression> _expressions;
     };
-    class DotBody : public Body
+};
+
+template<class T> class DotExpressionT : public Expression
+{
+public:
+    DotExpressionT(ExpressionT<T> left, IdentifierT<T> right)
+      : Expression(create<Body>(left, right)) { }
+    DotExpressionT(const Handle& other) : Expression(to<Body>(other)) { }
+    ExpressionT<T> left() { return body()->_left; }
+    IdentifierT<T> right() { return body()->_right; }
+
+private:
+    class Body : public Expression::Body
     {
     public:
-        DotBody(const Expression& left, const IdentifierT<T>& right)
+        Body(const Expression& left, const IdentifierT<T>& right)
           : Body(left.span() + right.span()), _left(left), _right(right) { }
-        ValueT<T> evaluate(Structure* context) const
-        {
-            ValueT<T> e = _left.evaluate(context);
-
-            LValueTypeT<T> lValueType(e.type());
-            if (!lValueType.valid()) {
-                if (!e.type().member(_right).valid()) {
-                    this->span().throwError("Expression has no member named " +
-                        _right.toString());
-                }
-                auto m = e.template value<HashTable<IdentifierT<T>,
-                    ValueT<T>>>();
-                e = m[_right];
-                e = Value(e.type(), e.value(), this->span());
-            }
-            else {
-                TypeT<T> t = lValueType.inner().member(_right);
-                if (!t.valid()) {
-                    this->span().throwError("Expression has no member named " +
-                        _right.toString());
-                }
-                e = Value(LValueTypeT<T>::wrap(t),
-                    e.template value<LValueT<T>>().member(_right),
-                    this->span());
-            }
-            return e;
-        }
-        TypeT<T> type() const
+        TypeT<T> type()
         {
             TypeT<T> lType = _left.type();
             StructuredType s = lType;
@@ -687,26 +603,30 @@ private:
                 _left.span().throwError("Expression has no members");
             return s.member(_right);
         }
-        String toString() const
+        String toString()
         {
             return _left.toString() + "." + _right.toString();
         }
-        void resolve(Scope* scope)
-        {
-            _left.resolve(scope);
-            StructuredType t = _left.type().rValue();
-            if (!t.valid())
-                _left.span().throwError("Expression has no members");
-            _right.resolve(t.scope());
-        }
-        bool mightHaveSideEffect() const
+        bool mightHaveSideEffect()
         {
             return _left.mightHaveSideEffect();
+        }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_left.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_right.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
     private:
         ExpressionT<T> _left;
         IdentifierT<T> _right;
     };
+    Body* body() { return as<Body>(); }
 };
 
 template<class T> class NumericLiteralT : public Expression
@@ -715,26 +635,24 @@ public:
     NumericLiteralT(Rational n, Span span = Span())
       : Expression(create<Body>(n, span)) { }
     NumericLiteralT(const Expression& e) : Expression(e) { }
-    int value() const { return as<Body>()->value(); }
+    Rational value() const { return as<Body>()->value(); }
 
     class Body : public Expression::Body
     {
     public:
         Body(Rational n, const Span& span) : Expression::Body(span), _n(n) { }
-        String toString() const
+        String toString()
         {
             return decimal(_n.numerator) + "/" + decimal(_n.denominator);
         }
-        ValueT<T> evaluate(Structure* context) const { return _n; }
-        Rational value() const { return _n; }
-        TypeT<T> type() const
+        Rational value() { return _n; }
+        TypeT<T> type()
         {
             if (_n.denominator == 1)
                 return IntegerTypeT<T>();
             return RationalType();
         }
-        void resolve(Scope* scope) { }
-        bool mightHaveSideEffect() const { return false; }
+        bool mightHaveSideEffect() { return false; }
     private:
         Rational _n;
     };
@@ -743,10 +661,10 @@ public:
 template<class T> class FuncoT;
 typedef FuncoT<void> Funco;
 
-template<class T> class FunctionCallExpressionT : public Expression
+template<class T> class CallExpressionT : public Expression
 {
 public:
-    FunctionCallExpressionT(Handle other) : Expression(other) { }
+    CallExpressionT(Handle other) : Expression(other) { }
 
     static List<Expression> parseList(CharacterSource* source)
     {
@@ -802,11 +720,10 @@ public:
 
     static Expression parseUnary(CharacterSource* source)
     {
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorTwiddle(), OperatorNot(), OperatorPlus(), OperatorMinus(),
             OperatorStar(), OperatorAmpersand(), Operator()};
-        const Operator* op = ops;
-        for (const Operator* op = ops; op->valid(); ++op) {
+        for (Operator* op = ops; op->valid(); ++op) {
             Span span;
             Operator o = op->parse(source, &span);
             if (o.valid()) {
@@ -819,13 +736,13 @@ public:
         return parsePower(source);
     }
 
-    static Expression parseHelper(CharacterSource* source, const Operator* ops,
+    static Expression parseHelper(CharacterSource* source, Operator* ops,
         Expression (*parser)(CharacterSource* source))
     {
         Expression expression = parser(source);
         if (!expression.valid())
             return expression;
-        const Operator* op = ops;
+        Operator* op = ops;
         do {
             Span span;
             Operator o;
@@ -849,28 +766,28 @@ public:
 
     static Expression parseMultiplicative(CharacterSource* source)
     {
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorStar(), OperatorDivide(), OperatorModulo(), Operator()};
         return parseHelper(source, ops, parseUnary);
     }
 
     static Expression parseAdditive(CharacterSource* source)
     {
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorPlus(), OperatorMinus(), Operator()};
         return parseHelper(source, ops, parseMultiplicative);
     }
 
     static Expression parseShift(CharacterSource* source)
     {
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorShiftLeft(), OperatorShiftRight(), Operator()};
         return parseHelper(source, ops, parseAdditive);
     }
 
     static Expression parseComparison(CharacterSource* source)
     {
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorLessThanOrEqualTo(), OperatorGreaterThanOrEqualTo(),
             OperatorLessThan(), OperatorGreaterThan(), Operator()};
         return parseHelper(source, ops, parseShift);
@@ -878,31 +795,31 @@ public:
 
     static Expression parseEquality(CharacterSource* source)
     {
-        static const Operator ops[] = {
+        static Operator ops[] = {
             OperatorEqualTo(), OperatorNotEqualTo(), Operator()};
         return parseHelper(source, ops, parseComparison);
     }
 
     static Expression parseBitwiseAnd(CharacterSource* source)
     {
-        static const Operator ops[] = { OperatorAmpersand(), Operator()};
+        static Operator ops[] = { OperatorAmpersand(), Operator()};
         return parseHelper(source, ops, parseEquality);
     }
 
     static Expression parseXor(CharacterSource* source)
     {
-        static const Operator ops[] = { OperatorTwiddle(), Operator()};
+        static Operator ops[] = { OperatorTwiddle(), Operator()};
         return parseHelper(source, ops, parseBitwiseAnd);
     }
 
     static Expression parseBitwiseOr(CharacterSource* source)
     {
-        static const Operator ops[] = { OperatorBitwiseOr(), Operator()};
+        static Operator ops[] = { OperatorBitwiseOr(), Operator()};
         return parseHelper(source, ops, parseXor);
     }
 
-    static FunctionCallExpression unary(const Operator& op, const Span& span,
-        const Expression& expression)
+    static FunctionCallExpressionT<T> unary(const Operator& op,
+        const Span& span, const Expression& expression)
     {
         Identifier identifier(op, span);
         List<Expression> arguments;
@@ -911,8 +828,8 @@ public:
             span + expression.span());
     }
 
-    static FunctionCallExpression binary(const Operator& op, const Span& span,
-        const Expression& left, const Expression& right)
+    static FunctionCallExpressionT<T> binary(const Operator& op,
+        const Span& span, const Expression& left, const Expression& right)
     {
         Identifier identifier(op, span);
         List<Expression> arguments;
@@ -924,17 +841,10 @@ public:
 
     class Body : public Expression::Body
     {
-    protected:
+    public:
         Body(const Span& span, const List<Expression>& arguments)
           : Expression::Body(span), _arguments(arguments) { }
-        void resolve(Scope* scope)
-        {
-            for (auto e : _arguments) {
-                e.resolve(scope);
-                _argumentTypes.add(e.type());
-            }
-        }
-        String toString() const
+        String toString()
         {
             String r = "(";
             bool first = true;
@@ -946,18 +856,66 @@ public:
             }
             return r + ")";
         }
-
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            for (auto a : _arguments) {
+                if (a.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return CodeWalker::Result::advance;
+        }
+        List<Expression> arguments() { return _arguments; }
+    private:
         List<Expression> _arguments;
-        List<Type> _argumentTypes;
     };
+    List<Expression> arguments() { return body()->arguments(); }
+private:
+    static Expression parseRemainder(Expression e, CharacterSource* source)
+    {
+        do {
+            Span span;
+            if (Space::parseCharacter(source, '(', &span)) {
+                List<Expression> arguments = parseList(source);
+                Space::assertCharacter(source, ')', &span);
+                e = FunctionCallExpression(
+                    create<FunctionCallBody>(e, arguments, e.span() + span));
+            }
+            else
+                if (Space::parseCharacter(source, '[', &span)) {
+                    Span span2;
+                    Expression index = Expression::parse(source);
+                    Space::assertCharacter(source, ']', &span2);
+                    e = binary(OperatorIndex(), span + span2, e, index);
+                }
+                else
+                    break;
 
-    class FunctionCallBody : public Body
+        } while (true);
+        return e;
+    }
+
+    template<class U> friend class ExpressionT;
+};
+
+template<class T> class FunctionCallExpressionT : public CallExpression
+{
+public:
+    FunctionCallExpressionT(const Expression& function,
+        const List<Expression>& arguments, const Span& span)
+      : CallExpression(create<Body>(function, arguents, span)) { }
+    FunctionCallExpressionT(const Handle& handle)
+      : CallExpression(to<Body>(handle)) { }
+    Expression function() { return body()->_function; }
+    void setResolvedFunco(Funco f) { body()->_resolvedFunco = f; }
+    FuncoT<T> resolvedFunco() { return body()->_resolvedFunco; }
+protected:
+    class Body : public CallExpressionT<T>::Body
     {
     public:
-        FunctionCallBody(const Expression& function,
-            const List<Expression>& arguments, const Span& span)
-          : Body(span, arguments), _function(function) { }
-        ValueT<T> evaluate(Structure* context) const
+        Body(const Expression& function, const List<Expression>& arguments,
+            const Span& span)
+          : Expression::Body(span, arguments), _function(function) { }
+        ValueT<T> evaluate(Structure* context)
         {
             ValueT<T> l;
             if (!_resolvedFunco.valid())
@@ -965,8 +923,34 @@ public:
             List<Value> arguments;
             for (auto p : this->_arguments)
                 arguments.add(p.evaluate(context).rValue());
-            if (_resolvedFunco.valid())
-                return _resolvedFunco.evaluate(arguments, this->span());
+            if (_resolvedFunco.valid()) {
+                // Convert arguments. TODO: share this logic with
+                // OverloadedFunctionSet::Body::evaluate()?
+
+                List<Value> convertedArguments;
+                if (Function(_resolvedFunco).valid()) {
+                    List<Tyco> parameterTycos =
+                        _resolvedFunco.parameterTycos();
+                    auto ii = parameterTycos.begin();
+                    for (auto a : arguments) {
+                        Type type = *ii;
+                        if (!type.valid()) {
+                            a.span().throwError("Function parameter's type "
+                                "constructor is not a type.");
+                        }
+                        convertedArguments.add(a.convertTo(type));
+                        ++ii;
+                    }
+                }
+                else {
+                    // Funcos that are not functions don't get their arguments
+                    // converted.
+                    convertedArguments = arguments;
+                }
+
+                return _resolvedFunco.evaluate(convertedArguments,
+                    this->span());
+            }
             TypeT<T> lType = l.type();
             if (lType == FuncoTypeT<T>()) {
                 return l.template value<OverloadedFunctionSet>().evaluate(
@@ -1003,35 +987,46 @@ public:
             }
             return f.evaluate(convertedArguments, this->span());
         }
-        TypeT<T> type() const { return _resolvedFunco.type().returnType(); }
-        String toString() const
+        TypeT<T> type() { return _resolvedFunco.type().returnType(); }
+        String toString()
         {
             return _function.toString() + Body::toString();
         }
-        void resolve(ScopeT<T>* scope)
-        {
-            Body::resolve(scope);
-            Identifier i = _function;
-            if (!i.valid()) {
-                _function.resolve(scope);
-                return;
-            }
-            _resolvedFunco = scope->resolveFunction(i, this->_argumentTypes);
-        }
         // TODO: check if it's a pure function
-        bool mightHaveSideEffect() const { return true; }
+        bool mightHaveSideEffect() { return true; }
+        CodeWalker::Result walk(CodeWalker* walker)
+        {
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_function.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (Body::walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_resolvedFunco.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
+        }
     private:
         Expression _function;
         Funco _resolvedFunco;
     };
+};
 
-    class ConstructorCallBody : public Body
+template<class T> class ConstructorCallExpressionT : public CallExpression
+{
+public:
+    ConstructorCallExpressionT() { }
+    TycoSpecifierT<T> tycoSpecifier() { return body()->_tycoSpecifier; }
+protected:
+    class Body : public CallExpression::Body
     {
     public:
-        ConstructorCallBody(const TycoSpecifier& tycoSpecifier,
+        Body(const TycoSpecifier& tycoSpecifier,
             const List<Expression>& arguments, const Span& span)
-          : Body(span, arguments), _tycoSpecifier(tycoSpecifier) { }
-        ValueT<T> evaluate(Structure* context) const
+          : CallExpression::Body(span, arguments),
+            _tycoSpecifier(tycoSpecifier) { }
+        ValueT<T> evaluate(Structure* context)
         {
             List<ValueT<T>> arguments;
             for (auto p : this->_arguments)
@@ -1054,49 +1049,35 @@ public:
             }
             return type.constructValue(Value(type, values, span));
         }
-        TypeT<T> type() const { return _type;  }
-        String toString() const { return _type.toString() + Body::toString(); }
-        void resolve(ScopeT<T>* scope)
+        TypeT<T> type() { return _tycoSpecifier.tyco(); }
+        String toString() { return _type.toString() + Body::toString(); }
+        bool mightHaveSideEffect() { return true; }
+        CodeWalker::Result walk(CodeWalker* walker)
         {
-            Body::resolve(scope);
-            _type = scope->resolveType(_tycoSpecifier);
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_tycoSpecifier.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (Body::walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_type.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
-        bool mightHaveSideEffect() const { return true; }
     private:
         TycoSpecifier _tycoSpecifier;
-        Type _type;
     };
-private:
-    static Expression parseRemainder(Expression e, CharacterSource* source)
-    {
-        do {
-            Span span;
-            if (Space::parseCharacter(source, '(', &span)) {
-                List<Expression> arguments = parseList(source);
-                Space::assertCharacter(source, ')', &span);
-                e = FunctionCallExpression(
-                    create<FunctionCallBody>(e, arguments, e.span() + span));
-            }
-            else
-                if (Space::parseCharacter(source, '[', &span)) {
-                    Span span2;
-                    Expression index = Expression::parse(source);
-                    Space::assertCharacter(source, ']', &span2);
-                    e = binary(OperatorIndex(), span + span2, e, index);
-                }
-                else
-                    break;
 
-        } while (true);
-        return e;
-    }
-
-    template<class U> friend class ExpressionT;
 };
 
 template<class T> class VariableDefinitionT : public Expression
 {
 public:
+    VariableDefinitionT(const Handle& other) : Expression(to<Body>(other)) { }
+    VariableDefinitionT(const Identifier& identifier)
+      : Expression(create<Body>(LabelType(), identifier, Expression(), Span()))
+    { }
     static VariableDefinitionT parse(CharacterSource* source)
     {
         CharacterSource s = *source;
@@ -1126,9 +1107,14 @@ public:
     VariableDefinitionT(TypeT<T> type, Identifier identifier)
       : Expression(create<Body>(type, identifier, Expression(), Span()))
     { }
+    VariableDefinitionT(TypeT<T> type, Identifier identifier,
+        Expression expression)
+      : Expression(create<Body>(type, identifier, expression, Span()))
+    { }
+    TycoSpecifierT<T> tycoSpecifier() { return body()->tycoSpecifier(); }
     IdentifierT<T> identifier() const { return body()->identifier(); }
+    Expression initializer() { return body()->initializer(); }
 private:
-    VariableDefinitionT(Handle other) : Expression(other) { }
 
     class Body : public Expression::Body
     {
@@ -1140,10 +1126,10 @@ private:
         { }
         Body(TypeT<T> type, Identifier identifier, Expression initializer,
             Span span)
-          : Expression::Body(span), _type(type), _identifier(identifier),
-            _initializer(initializer)
+          : Expression::Body(span), _tycoSpecifier(type),
+            _identifier(identifier), _initializer(initializer)
         { }
-        String toString() const
+        String toString()
         {
             String r = _tycoSpecifier.toString() + " " +
                 _identifier.toString();
@@ -1151,35 +1137,43 @@ private:
                 r += " = " + _initializer.toString();
             return r;
         }
-        ValueT<T> evaluate(Structure* context) const
+        ValueT<T> evaluate(Structure* context)
         {
             ValueT<T> e = _initializer.evaluate(context);
-            return e.convertTo(_type);
+            return e.convertTo(type());
         }
-        TypeT<T> type() const { return _type; }
-        void resolve(ScopeT<T>* scope)
+        TycoSpecifierT<T> tycoSpecifier() { return _tycoSpecifier; }
+        TypeT<T> type() { return _tycoSpecifier.tyco(); }
+        bool mightHaveSideEffect() { return true; }
+        IdentifierT<T> identifier() { return _identifier; }
+        CodeWalker::Result walk(CodeWalker* walker)
         {
-            if (!_type.valid())
-                _type = _tycoSpecifier.resolve(scope);
-            _initializer.resolve(scope);
-            _scope.setParentScope(scope);
-            _scope.setFunctionScope(scope->functionScope());
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_tycoSpecifier.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_identifier.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_initializer.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
-        bool mightHaveSideEffect() const { return true; }
-        IdentifierT<T> identifier() const { return _identifier; }
-    private:
+   private:
         TycoSpecifier _tycoSpecifier;
-        TypeT<T> _type;
         Identifier _identifier;
         Expression _initializer;
-        Scope _scope;
     };
 
-    const Body* body() const { return as<Body>(); }
+    Body* body() { return as<Body>(); }
 };
 
 template<class T> class BinaryExpressionT : public Expression
 {
+public:
+    BinaryExpressionT(ParseTreeObject o) : Expression(to<Body>(o)) { }
+    Expression left() { return body()->_left; }
+    Expression right() { return body()->_right; }
 protected:
     class Body : public Expression::Body
     {
@@ -1188,28 +1182,32 @@ protected:
             const Expression& right)
           : Expression::Body(left.span() + right.span()),
             _left(left), _right(right), _operatorSpan(operatorSpan) { }
-        Expression left() const { return _left; }
-        Expression right() const { return _right; }
-        void resolve(const Scope* scope)
-        {
-            _left.resolve(scope);
-            _right.resolve(scope);
-        }
-        TypeT<T> type() const { return BooleanType(); }
-        bool mightHaveSideEffect() const
+        Expression left() { return _left; }
+        Expression right() { return _right; }
+        TypeT<T> type() { return BooleanType(); }
+        bool mightHaveSideEffect()
         {
             return _left.mightHaveSideEffect() || _right.mightHaveSideEffect();
         }
-        void resolve(Scope* scope)
+        CodeWalker::Result walk(CodeWalker* walker)
         {
-            _left.resolve(scope);
-            _right.resolve(scope);
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_left.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_right.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
     private:
         Expression _left;
         Expression _right;
         Span _operatorSpan;
+
+        template<class U> friend class BinaryExpressionT;
     };
+    Body* body() { return as<Body>(); }
 };
 
 typedef BinaryExpressionT<void> BinaryExpression;
@@ -1244,7 +1242,7 @@ private:
         Body(const Expression& left, const Span& operatorSpan,
             const Expression& right)
           : BinaryExpression::Body(left, operatorSpan, right) { }
-        ValueT<T> evaluate(Structure* context) const
+        ValueT<T> evaluate(Structure* context)
         {
             ValueT<T> v = left().evaluate(context);
             if (v.type() != BooleanTypeT<T>()) {
@@ -1260,11 +1258,11 @@ private:
             }
             return v.template value<bool>();
         }
-        String toString() const
+        String toString()
         {
             return "(" + left().toString() + " && " + right().toString() + ")";
         }
-        Expression stringify() const
+        Expression stringify()
         {
             return ConditionalExpression(left(), right().stringify(),
                 Expression("false", Span()));
@@ -1299,7 +1297,7 @@ private:
         Body(const Expression& left, const Span& operatorSpan,
             const Expression& right)
           : BinaryExpression::Body(left, operatorSpan, right) { }
-        ValueT<T> evaluate(Structure* context) const
+        ValueT<T> evaluate(Structure* context)
         {
             ValueT<T> v = left().evaluate(context);
             if (v.type() != BooleanType()) {
@@ -1315,11 +1313,11 @@ private:
             }
             return v.template value<bool>();
         }
-        String toString() const
+        String toString()
         {
             return "(" + left().toString() + " && " + right().toString() + ")";
         }
-        Expression stringify() const
+        Expression stringify()
         {
             return ConditionalExpression(left(), Expression("true", Span()),
                 right().stringify());
@@ -1355,6 +1353,9 @@ public:
       : Expression(create<Body>(condition, Span(), trueExpression, Span(),
           falseExpression))
     { }
+    Expression condition() { return body()->_condition; }
+    Expression trueExpression() { return body()->_trueExpression; }
+    Expression falseExpression() { return body()->_falseExpression; }
 private:
     class Body : public Expression::Body
     {
@@ -1366,7 +1367,7 @@ private:
             _condition(condition), _s1(s1), _trueExpression(trueExpression),
             _s2(s2), _falseExpression(falseExpression)
         { }
-        ValueT<T> evaluate(Structure* context) const
+        ValueT<T> evaluate(Structure* context)
         {
             ValueT<T> v = _condition.evaluate(context).rValue();
             if (v.type() != BooleanType()) {
@@ -1377,7 +1378,7 @@ private:
                 return _trueExpression.evaluate(context);
             return _falseExpression.evaluate(context);
         }
-        TypeT<T> type() const
+        TypeT<T> type()
         {
             TypeT<T> tt = _trueExpression.type();
             TypeT<T> ft = _falseExpression.type();
@@ -1387,23 +1388,30 @@ private:
             }
             return _trueExpression.type();
         }
-        bool mightHaveSideEffect() const
+        bool mightHaveSideEffect()
         {
             return _condition.mightHaveSideEffect() ||
                 _trueExpression.mightHaveSideEffect() ||
                 _falseExpression.mightHaveSideEffect();
         }
-        String toString() const
+        String toString()
         {
             return "(" + _condition.toString() + " ? " +
                 _trueExpression.toString() + " : " +
                 _falseExpression.toString() + ")";
         }
-        void resolve(Scope* scope)
+        CodeWalker::Result walk(CodeWalker* walker)
         {
-            _condition.resolve(scope);
-            _trueExpression.resolve(scope);
-            _falseExpression.resolve(scope);
+            auto r = walker->visit(parseTreeObject());
+            if (r == CodeWalker::Result::recurse) {
+                if (_condition.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_trueExpression.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+                if (_falseExpression.walk(walker) == CodeWalker::Result::abort)
+                    return CodeWalker::Result::abort;
+            }
+            return r;
         }
     private:
         Expression _condition;
@@ -1411,7 +1419,58 @@ private:
         Expression _trueExpression;
         Span _s2;
         Expression _falseExpression;
+
+        template<class U> friend class ConditionalExpressionT;
     };
+
+    Body* bodu() { return to<Body>(); }
+};
+
+template <class T> class StringLiteralExpressionT : public Expression
+{
+public:
+    StringLiteralExpressionT(const String& string, const Span& span)
+      : Expression(create<Body>(string, span)) { }
+    StringLiteralExpressionT(const Expression& other)
+      : Expression(to<Body>(other)) { }
+    String string() const { return body()->string(); }
+private:
+    class Body : public Expression::Body
+    {
+    public:
+        Body(const String& string, const Span& span)
+          : Expression::Body(span), _string(string) { }
+        Expression stringify() { return this->expression(); }
+        String toString()
+        {
+            CharacterSource s(_string);
+            String r = "\"";
+            do {
+                int c = s.get();
+                if (c == -1)
+                    break;
+                switch (c) {
+                    case '\"':
+                        r += "\\\"";
+                        break;
+                    case '$':
+                        r += "\\$";
+                        break;
+                    default:
+                        r += codePoint(c);
+                        break;
+                }
+            } while (true);
+            return r + "\"";
+        }
+        ValueT<T> evaluate(Structure* context) { return _string; }
+        TypeT<T> type() { return StringType(); }
+        bool mightHaveSideEffect() { return false; }
+        String string() { return _string; }
+    private:
+        String _string;
+    };
+    Body* body() const { return to<Body>(); }
 };
 
 #endif // INCLUDED_EXPRESSION_H

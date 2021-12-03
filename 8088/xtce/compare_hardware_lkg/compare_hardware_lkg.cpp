@@ -6,6 +6,7 @@
 
 #include "../xtce_lkg.h"
 #include "../gentests.h"
+//#include "../gentests2.h"
 
 class Program : public ProgramBase
 {
@@ -53,8 +54,10 @@ public:
                     t = _generator.getNextTest();
                 }
                 int cycles = 0;
-                if (totalCount > firstTest)
-                    cycles = expected(t);
+                if (totalCount < firstTest)
+                    continue;
+
+                cycles = expected(t);
                 Instruction instruction = t.instruction(0);
 
                 // Modify and uncomment to force a passing test to fail to see
@@ -94,8 +97,6 @@ public:
                 //}
             } while (true);
             console.write(decimal(totalCount) + "\n");
-            if (totalCount <= firstTest)
-                continue;     
 
             if (bunch.count() == 0)
                 break;
@@ -224,8 +225,8 @@ public:
                         }
                     } while (true);
 
-                    File("expected.txt").openWrite().write(expected1);
-                    File("observed.txt").openWrite().write(observed);
+                    File("lkg_h.txt").openWrite().write(expected1);
+                    File("hardware.txt").openWrite().write(observed);
 
                     PROCESS_INFORMATION pi;
                     ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
@@ -235,7 +236,7 @@ public:
                     si.cb = sizeof(STARTUPINFO);
 
                     NullTerminatedWideString data(
-                        String("q observed.txt expected.txt"));
+                        String("q hardware.txt lkg_h.txt"));
 
                     IF_FALSE_THROW(CreateProcess(NULL, data, NULL, NULL, FALSE,
                         0, NULL, NULL, &si, &pi) != 0);
@@ -278,7 +279,10 @@ private:
             _emulator->run();
         }
         catch (...) {}
-        return _emulator->cycle();
+        int c = _emulator->cycle();
+        if (test.refreshPeriod() != 0)
+            c -= 30;
+        return c;
     }
 
 
@@ -318,7 +322,7 @@ private:
             Byte* ram1 = ram + (testSegment << 4);
             for (int i = 0; i < _runStub.count(); ++i)
                 ram1[i] = _runStub[i];
-            _stopIP = 0xd1;
+            _stopIP = 0xd5;
             Byte* r = ram + (seg << 4);
             Byte* stopP = test.outputCode(r);
             _bytesUsed = stopP - r;

@@ -1,0 +1,213 @@
+                                                                                                   queue initially full       opcode removed from queue
+20A00 Ip....  10A87 00 00  00  52 .......                          I                                                          null modrm wait(1)
+20A00 .C....  10A87 00 00  00  42 .......                                                           0b0 A C E  HIJ L  OPQRSTU       Q     -> tmpbL                           01110011?.00  OUT ib,A
+10A88 SC....  10A88 00 00  00  43 .......  T1                      S E6E0         OUT E0, AL        0b1 ABC EF HIJ  MN     T        ZERO  -> tmpbH     1   PASS  tmpb
+20A?? .C....  10A88 ?? 00  00  50 ..r....  T2                                                       0b2 A C  F  I  L  OPQRSTU       SIGMA -> IND                                                       <- busInit on t2t3tWaitNotLast
+20ACD .p....  10A88 CD 00  00  51 ..r....  T3    CD <-f [   10A88]                                  0b3  BC  FG    LM O Q STU       XA    -> OPR       6   W     D0,P0
+20ACD .p....  10A88 CD 00  00  41 .......  T4
+20ACD .p....  10A88 CD 00  00  42 .......
+20ACD .W....  10A88 CD 00  00  53 .......
+000E0 .W....  000E0 CD 00  00  50 .......  T1
+00000 .W....  000E0 00 00  00  40 .W.....  T2
+00000 .W.z..  000E0 00 00  00  41 .W.....  T3
+00000 .p....  000E0 00 00  00  52 .W.....  Tw    00 --> port[00E0]
+00000 IC....  000E0 00 00  00  53 .......  T4                      I
+
+
+
+
+
+20AEB Ip....  10A87 EB 00  00  52 .......                          I 90           NOP              queue initially full
+20AEB .C....  10A87 EB 00  00  42 .......
+10A88 .C....  10A88 EB 00  00  43 .......  T1
+20A?? IC....  10A88 ?? 00  00  50 ..r....  T2                      I
+20A00 Sp....  10A88 00 00  00  51 ..r....  T3    00 <-f [   10A88] S 0000         ADD B[BX+SI], AL
+20A00 .C....  10A88 00 00  00  41 .......  T4
+10A89 .C....  10A89 00 00  00  42 .......  T1
+20A?? .C....  10A89 ?? 00  00  53 ..r....  T2
+20ACD .p....  10A89 CD 00  00  50 ..r....  T3    CD <-f [   10A89]
+20ACD .p....  10A89 CD 00  00  40 .......  T4
+20ACD .p....  10A89 CD 00  00  41 .......
+20ACD .r....  10A89 CD 00  00  52 .......
+10A80 .r....  10A80 CD 00  00  53 .......  T1
+30A?? .r....  10A80 ?? 00  00  43 ..r....  T2
+30AB0 .p....  10A80 B0 00  00  40 ..r....  T3    B0 <-- [DS 10A80]
+30AB0 .C....  10A80 B0 00  00  51 .......  T4
+
+008   CD F   J  MN   R          M     -> tmpa      1   XI    tmpa        000???0??.00  alu rm<->r
+009 A CD F H J L  OPQR  U       R     -> tmpb      4   none  WB,NX
+00a  B  EF  I KL  OPQR          SIGMA -> M         4   none  RNI      F
+00b ABC  F HI  LM O QRSTU                          6   W     DD,P0
+
+
+
+
+
+??000?1? 101000000 0000 0      0    101000000.0000  0x1d4  [BX+SI]
+??001?1? 101000000 0110 0      1    101000000.0110  0x1da  [BX+DI]
+
+??010?1? 101000000 0111 1      2    101000000.0111  0x1db  [BP+SI]
+??011?1? 101000000 0011 1      3    101000000.0011  0x1d7  [BP+DI]
+??100?1? 010001011 0011 0      4    0100010??.0011  0x003  [SI]
+??101?1? 010111111 0011 0      5    01011????.0011  0x01f  [DI]
+00110?1? 101000000 1000 0      6    101000000.1000  0x1dc  [iw]
+01110?1? 111111001 0011 1      6    ?1111100?.0011  0x023  [BP]
+10110?1? 111111001 0011 1      6    ?1111100?.0011  0x023  [BP]
+??111?1? 001011111 0011 0      7    001011???.0011  0x037  [BX]
+
+00011?00 101000000 1010 1    5 3    101000000.1010  0x1de  [i]           EAOFFSET
+00011001 101000000 1101 1    5 3    101000000.1101  0x1e1  EALOAD        EAOFFSET
+00011101 101000000 1111 1    5 3    101000000.1111  0x1e3  EADONE        EAOFFSET
+0010000? 101000000 1101 1    5 4    101000000.1101  0x1e1  EALOAD        EAFINISH
+0010010? 101000000 1111 1    5 4    101000000.1111  0x1e3  EADONE        EAFINISH
+
+
+003   CD FG IJ L N     TU       IJ    -> tmpa      5   UNC   EAOFFSET                  [SI]
+
+01f   CD FGHIJ L N     TU       IK    -> tmpa      5   UNC   EAOFFSET                  [DI]
+
+023   CD FGHI  L N     TU       MP    -> tmpa      5   UNC   EAOFFSET                  [BP]
+
+037   CD FGH J L N     TU       HL    -> tmpa      5   UNC   EAOFFSET                  [BX]
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET
+1d7   CD FGHI  L  OPQRSTU       MP    -> tmpa                                          [BP+DI]
+1d8 A CD FGHIJ L  OPQRSTU       IK    -> tmpb                            101000000.01
+1d9   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET
+1da   CD FGH J   N    S         HL    -> tmpa      0   UNC      4                      [BX+DI]
+1db   CD FGHI    N      U       MP    -> tmpa      0   UNC      1                      [BP+SI]
+1dc   C E  HIJ L  OPQRSTU       Q     -> tmpaL                           101000000.10  [iw]
+1dd  BC E  HIJ L N    S         Q     -> tmpaH     5   UNC   EAFINISH
+1de A C E  HIJ      QRS         Q     -> tmpbL     0   MOD1    12                      [i]
+1df ABC E  HIJ L  OPQRSTU       Q     -> tmpbH
+1e0   CD F  I  L N    S         SIGMA -> tmpa      5   UNC   EAFINISH    101000000.11
+1e1 A C   G I  LM    RSTU       tmpa  -> IND       6   R     DD,P0                     EALOAD
+1e2 A CD    IJ L  OPQRS         OPR   -> tmpb      4   none  RTN
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+                            case 3: printf("EAOFFSET"); break;
+                            case 4: printf("EAFINISH"); break;
+
+
+[BX+SI]:              5     also [BP+DI]
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011101 101000000 1111 1    5 3    101000000.1111  0x1e3  EADONE        EAOFFSET
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+
+[BX+SI+ib]:           9
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011?00 101000000 1010 1    5 3    101000000.1010  0x1de  [i]           EAOFFSET
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1de A C E  HIJ      QRS         Q     -> tmpbL     0   MOD1    12                      [i]
+                                                                                                                                                                                      1 cycle penalty for "0 MOD1"  so ib and iw take the same EU time
+1e0   CD F  I  L N    S         SIGMA -> tmpa      5   UNC   EAFINISH    101000000.11             0010010? 101000000 1111 1    5 4    101000000.1111  0x1e3  EADONE        EAFINISH
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+
+[BX+SI+iw]:           9
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011?00 101000000 1010 1    5 3    101000000.1010  0x1de  [i]           EAOFFSET
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1de A C E  HIJ      QRS         Q     -> tmpbL     0   MOD1    12                      [i]
+1df ABC E  HIJ L  OPQRSTU       Q     -> tmpbH
+1e0   CD F  I  L N    S         SIGMA -> tmpa      5   UNC   EAFINISH    101000000.11             0010010? 101000000 1111 1    5 4    101000000.1111  0x1e3  EADONE        EAFINISH
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+
+[BX+DI]:              6     also [BP+SI]
+
+1da   CD FGH J   N    S         HL    -> tmpa      0   UNC      4                      [BX+DI]
+                                                                                                                                                                                      1 cycle penalty for "0 UNC"
+1d8 A CD FGHIJ L  OPQRSTU       IK    -> tmpb                            101000000.01
+1d9   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011101 101000000 1111 1    5 3    101000000.1111  0x1e3  EADONE        EAOFFSET
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+
+[SI]:                 3     also [DI], [BP], [BX]
+
+003   CD FG IJ L N     TU       IJ    -> tmpa      5   UNC   EAOFFSET                  [SI]       00011101 101000000 1111 1    5 3    101000000.1111  0x1e3  EADONE        EAOFFSET
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+
+[iw]:                 4
+
+1dc   C E  HIJ L  OPQRSTU       Q     -> tmpaL                           101000000.10  [iw]
+1dd  BC E  HIJ L N    S         Q     -> tmpaH     5   UNC   EAFINISH                             0010010? 101000000 1111 1    5 4    101000000.1111  0x1e3  EADONE        EAFINISH
+                                                                                                                                                                                      1 cycle penalty for "5 UNC"
+1e3 A C   G I  L  OPQRS         tmpa  -> IND       4   none  RTN                       EADONE
+
+
+
+
+      00            [BX+SI]                7   16 for MOV rb,mb  9 for LEA       0          3 idle                                                       5
+      01            [BX+DI]                8   16 for MOV rb,mb 10 for LEA       0          3 idle     1 idle                                            6
+      02            [BP+SI]                8   16 for MOV rb,mb 10 for LEA       0          3 idle     1 idle                                            6
+      03            [BP+DI]                7   16 for MOV rb,mb  9 for LEA       0          3 idle                                                       5
+      04            [SI]                   5   14 for MOV rb,mb  7 for LEA       0          2 idle          Still 14 with SS: override - no EA penalty   3
+      05            [DI]                   5   14 for MOV rb,mb  7 for LEA       0          2 idle                                                       3
+      06 iw         [iw]                   6   14 for MOV rb,mb  8 for LEA       8          2 idle                                                       4
+      07            [BX]                   5   14 for MOV rb,mb  7 for LEA       0          2 idle                                                       3
+      40 ib         [BX+SI+sb]            11   20 for MOV rb,mb 13 for LEA       4          3 idle                                                       9
+      41 ib         [BX+DI+sb]            12   20 for MOV rb,mb 14 for LEA       4          3 idle                                                      10
+      42 ib         [BP+SI+sb]            12   20 for MOV rb,mb 14 for LEA       4          3 idle                                                      10
+      43 ib         [BP+DI+sb]            11   20 for MOV rb,mb 13 for LEA       4          3 idle                                                       9
+      44 ib         [SI+sb]                9   18 for MOV rb,mb 11 for LEA       4          2 idle                                                       7
+      45 ib         [DI+sb]                9   18 for MOV rb,mb 11 for LEA       4          2 idle                                                       7
+      46 ib         [BP+sb]                9   18 for MOV rb,mb 11 for LEA       4          2 idle                                                       7
+      47 ib         [BX+sb]                9   18 for MOV rb,mb 11 for LEA       4          2 idle                                                       7
+      80 iw         [BX+SI+iw]            11   20 for MOV rb,mb 13 for LEA       8                                                                       9
+      81 iw         [BX+DI+iw]            12   20 for MOV rb,mb 14 for LEA       8                                                                      10
+      82 iw         [BP+SI+iw]            12   20 for MOV rb,mb 14 for LEA       8                                                                      10
+      83 iw         [BP+DI+iw]            11   20 for MOV rb,mb 13 for LEA       8                                                                       9
+      84 iw         [SI+iw]                9   18 for MOV rb,mb 11 for LEA       8          2 idle                                                       7
+      85 iw         [DI+iw]                9   18 for MOV rb,mb 11 for LEA       8          2 idle                                                       7
+      86 iw         [BP+iw]                9   18 for MOV rb,mb 11 for LEA       8          2 idle                                                       7
+      87 iw         [BX+iw]                9   18 for MOV rb,mb 11 for LEA       8          2 idle                                                       7
+
+
+1 cycle extra (plus bus delay) if we need to load
+
+[BX+SI] load:         5
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011001 101000000 1101 1    5 3    101000000.1101  0x1e1  EALOAD        EAOFFSET
+1e1 A C   G I  LM    RSTU       tmpa  -> IND       6   R     DD,P0                     EALOAD
+1e2 A CD    IJ L  OPQRS         OPR   -> tmpb      4   none  RTN
+
+[BX+SI+ib] load:      7
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011?00 101000000 1010 1    5 3    101000000.1010  0x1de  [i]           EAOFFSET
+1de A C E  HIJ      QRS         Q     -> tmpbL     0   MOD1    12                      [i]
+1e0   CD F  I  L N    S         SIGMA -> tmpa      5   UNC   EAFINISH    101000000.11             0010000? 101000000 1101 1    5 4    101000000.1101  0x1e1  EALOAD        EAFINISH
+1e1 A C   G I  LM    RSTU       tmpa  -> IND       6   R     DD,P0                     EALOAD
+1e2 A CD    IJ L  OPQRS         OPR   -> tmpb      4   none  RTN
+
+[BX+SI+iw] load:      8
+
+1d4   CD FGH J L  OPQRSTU       HL    -> tmpa                            101000000.00  [BX+SI]
+1d5 A CD FG IJ L  OPQRSTU       IJ    -> tmpb
+1d6   CD F  I  L N     TU       SIGMA -> tmpa      5   UNC   EAOFFSET                             00011?00 101000000 1010 1    5 3    101000000.1010  0x1de  [i]           EAOFFSET
+1de A C E  HIJ      QRS         Q     -> tmpbL     0   MOD1    12                      [i]
+1df ABC E  HIJ L  OPQRSTU       Q     -> tmpbH
+1e0   CD F  I  L N    S         SIGMA -> tmpa      5   UNC   EAFINISH    101000000.11             0010000? 101000000 1101 1    5 4    101000000.1101  0x1e1  EALOAD        EAFINISH
+1e1 A C   G I  LM    RSTU       tmpa  -> IND       6   R     DD,P0                     EALOAD
+1e2 A CD    IJ L  OPQRS         OPR   -> tmpb      4   none  RTN
+
+

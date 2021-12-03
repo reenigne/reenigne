@@ -77,17 +77,17 @@ public:
         {
         public:
             String serialize(void* p, int width, int used, int indent,
-                int delta) const
+                int delta)
             {
                 return decimal(static_cast<Tick*>(p)->_t);
             }
-            void deserialize(const Value& value, void* p) const
+            void deserialize(const Value& value, void* p)
             {
                 static_cast<Tick*>(p)->_t = value.value<Base>();
             }
-            int size() const { return sizeof(int); }
-            Value defaultValue() const { return Tick(0); }
-            Value value(void* p) const { return static_cast<Tick*>(p)->_t; }
+            int size() { return sizeof(int); }
+            Value defaultValue() { return Tick(0); }
+            Value value(void* p) { return static_cast<Tick*>(p)->_t; }
         };
     };
 private:
@@ -107,7 +107,6 @@ private:
     public:
         Body(int digits) : _digits(digits) { }
         String serialize(void* p, int width, int used, int indent, int delta)
-            const
         {
             return hex(*static_cast<int*>(p), _digits);
         }
@@ -183,10 +182,9 @@ public:
         {
         public:
             Body(Simulator* simulator) : _simulator(simulator) { }
-            virtual List<ProtocolDirection> protocolDirections() const = 0;
-            virtual bool canConnectMultiple() const { return false; }
+            virtual List<ProtocolDirection> protocolDirections() = 0;
+            virtual bool canConnectMultiple() { return false; }
             virtual bool canConvertFrom(const ::Type& other, String* reason)
-                const
             {
                 ConnectorT<T>::Type t = connectorTypeFromType(other);
                 if (!t.valid()) {
@@ -200,7 +198,7 @@ public:
                 }
                 return true;
             }
-            virtual ValueT<T> convert(const ValueT<T>& value) const
+            virtual ValueT<T> convert(const ValueT<T>& value)
             {
                 return Value(type(), connectorFromValue(value).value(),
                     value.span());
@@ -284,12 +282,12 @@ public:
         {
         public:
             Body(Simulator* simulator) : B::Type::Body(simulator) { }
-            List<ProtocolDirection> protocolDirections() const
+            List<ProtocolDirection> protocolDirections()
             {
                 return T::protocolDirections();
             }
-            bool canConnectMultiple() const { return T::canConnectMultiple(); }
-            String toString() const { return T::typeName(); }
+            bool canConnectMultiple() { return T::canConnectMultiple(); }
+            String toString() { return T::typeName(); }
         };
     };
 };
@@ -320,24 +318,24 @@ public:
         {
         public:
             Body(Simulator* simulator) : _simulator(simulator) { }
-            ::Type member(Identifier i) const
+            ::Type member(Identifier i)
             {
                 if (i.name() == "*")
                     return StringType();
                 return ::Type();
             }
-            virtual Reference<Component> createComponent() const = 0;
-            bool canConvertFrom(const ::Type& other, String* why) const
+            virtual Reference<Component> createComponent() = 0;
+            bool canConvertFrom(const ::Type& other, String* why)
             {
                 return other.canConvertTo(StructuredType::empty().type(), why);
             }
-            Value convert(const Value& value) const
+            Value convert(const Value& value)
             {
                 return Value(type(), Type(type()).createComponent(),
                     value.span());
             }
-            Simulator* simulator() const { return _simulator; }
-            typename ConnectorT<T>::Type defaultConnectorType() const
+            Simulator* simulator() { return _simulator; }
+            typename ConnectorT<T>::Type defaultConnectorType()
             {
                 return _defaultConnectorType;
             }
@@ -395,19 +393,19 @@ public:
                         component._defaultConnector->type();
                 }
             }
-            Reference<Component> createComponent() const
+            Reference<Component> createComponent()
             {
                 return Reference<Component>::create<C>(Type(type()));
             }
-            String toString() const { return C::typeName(); }
-            ::Type member(Identifier i) const
+            String toString() { return C::typeName(); }
+            ::Type member(Identifier i)
             {
                 if (_members.hasKey(i))
                     return _members[i];
                 return Type::Body::member(i);
             }
-            int size() const { return sizeof(C); }
-            Value value(void* p) const { return static_cast<C*>(p)->value(); }
+            int size() { return sizeof(C); }
+            Value value(void* p) { return static_cast<C*>(p)->value(); }
         private:
             HashTable<Identifier, ::Type> _members;
         };
@@ -608,18 +606,18 @@ private:
         public:
             Body(String name, List<Member> members, int size)
               : StructuredType::Body(name, members), _size(size) { }
-            Value value(void* p) const
+            Value value(void* p)
             {
                 return static_cast<Component*>(p)->value();
             }
-            int size() const { return _size; }
+            int size() { return _size; }
             String serialize(void* p, int width, int used, int indent,
-                int delta) const
+                int delta)
             {
                 return static_cast<Component*>(p)->
                     save(width, used, indent, delta);
             }
-            void deserialize(const Value& value, void* p) const
+            void deserialize(const Value& value, void* p)
             {
                 static_cast<Component*>(p)->load(value);
             }
@@ -638,7 +636,7 @@ private:
         {
         public:
             Body(Component* component) : _component(component) { }
-            Value evaluate(List<Value> arguments, Span span) const
+            Value evaluate(List<Value> arguments, Span span)
             {
                 auto i = arguments.begin();
                 auto ls = i->rValue().value<Structure*>();
@@ -661,8 +659,8 @@ private:
                 _component->simulator()->connect(l, r, span);
                 return Value();
             }
-            Identifier identifier() const { return OperatorAssignment(); }
-            bool argumentsMatch(List<::Type> argumentTypes) const
+            Identifier identifier() { return OperatorAssignment(); }
+            bool argumentsMatch(List<::Type> argumentTypes)
             {
                 if (argumentTypes.count() != 2)
                     return false;
@@ -677,7 +675,7 @@ private:
             // Won't actually be used (since there's only one function matching
             // the argument types) but necessary to avoid AssignmentFunco being
             // an abstract class.
-            List<Tyco> parameterTycos() const
+            List<Tyco> parameterTycos()
             {
                 List<Tyco> r;
                 r.add(LValueType(_component->type()));
@@ -746,7 +744,7 @@ public:
         public:
             Body(Simulator* simulator, C* c)
               : B<C>::Type::Body(simulator), _c(c) { }
-            Value convert(const Value& value) const
+            Value convert(const Value& value)
             {
                 return Value(this->type(), static_cast<Structure*>(_c),
                     value.span());
@@ -840,9 +838,9 @@ public:
         {
         public:
             Body(Simulator* s) : Connector::Type::Body(s) { }
-            virtual ::Type transportType() const = 0;
+            virtual ::Type transportType() = 0;
         };
-        const Body* body() const { return as<Body>(); }
+        const Body* body() { return as<Body>(); }
     };
 };
 
@@ -875,10 +873,7 @@ public:
         {
         public:
             Body(Simulator* s) : Base::Type::Body(s) { }
-            ::Type transportType() const
-            {
-                return typeFromCompileTimeType<T>();
-            }
+            ::Type transportType() { return typeFromCompileTimeType<T>(); }
         };
     };
 };
@@ -1432,7 +1427,7 @@ public:
     public:
         Body(Simulator* simulator) : _simulator(simulator) { }
         Identifier identifier() const { return OperatorAmpersand(); }
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Value l = connectorFromValue(*i);
@@ -1454,7 +1449,7 @@ public:
             c->set("input1", r, r.span());
             return c->getValue("output");
         }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -1471,7 +1466,7 @@ public:
         // Won't actually be used (since there's only one function matching the
         // argument types) but necessary to avoid ComponentFunco being
         // an abstract class.
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(Connector::Type());
@@ -1492,7 +1487,7 @@ public:
     {
     public:
         Body(Simulator* simulator) : ComponentFunco::Body(simulator) { }
-        Identifier identifier() const { return OperatorAmpersand(); }
+        Identifier identifier() { return OperatorAmpersand(); }
     };
 };
 
@@ -1505,7 +1500,7 @@ public:
     {
     public:
         Body(Simulator* simulator) : ComponentFunco::Body(simulator) { }
-        Identifier identifier() const { return OperatorBitwiseOr(); }
+        Identifier identifier() { return OperatorBitwiseOr(); }
     };
 };
 
@@ -1518,8 +1513,8 @@ public:
     {
     public:
         Body(Simulator* simulator) : _simulator(simulator) { }
-        Identifier identifier() const { return OperatorTwiddle(); }
-        Value evaluate(List<Value> arguments, Span span) const
+        Identifier identifier() { return OperatorTwiddle(); }
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Value l = connectorFromValue(*i);
@@ -1534,7 +1529,7 @@ public:
             c->set("input", l, span);
             return c->getValue("output");
         }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 1)
                 return false;
@@ -1544,7 +1539,7 @@ public:
         // Won't actually be used (since there's only one function matching the
         // argument types) but necessary to avoid ComponentFunco being
         // an abstract class.
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(Connector::Type());

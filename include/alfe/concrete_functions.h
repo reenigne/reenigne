@@ -12,15 +12,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
             return Value(l + i->value<Concrete>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorPlus(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -31,7 +31,7 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -48,15 +48,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
             return Value(l - i->value<Concrete>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorMinus(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -67,7 +67,7 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -84,15 +84,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
             return Value(l * i->value<Concrete>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorStar(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -103,7 +103,7 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -120,15 +120,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
             return l * i->convertTo(RationalType()).value<Rational>();
         }
-        Identifier identifier() const { return OperatorStar(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorStar(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -139,7 +139,7 @@ public:
             ++i;
             return i->canConvertTo(RationalType());
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -156,15 +156,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->convertTo(RationalType()).value<Rational>();
             ++i;
             return Value(l * i->value<Concrete>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorStar(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -174,7 +174,7 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(RationalType());
@@ -190,15 +190,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
             return Value(l / i->value<Concrete>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorDivide(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -209,7 +209,7 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -225,15 +225,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Concrete l = i->value<Concrete>();
             ++i;
             return l / i->convertTo(RationalType()).value<Rational>();
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorDivide(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -244,7 +244,7 @@ public:
             ++i;
             return i->canConvertTo(RationalType());
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -260,15 +260,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->convertTo(RationalType()).value<Rational>();
             ++i;
             return Value(l / i->value<Concrete>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorDivide(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -278,7 +278,7 @@ public:
             ++i;
             return ConcreteType(*i).valid();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(RationalType());
@@ -295,7 +295,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<Concrete>();
@@ -305,8 +305,8 @@ public:
                 return l*Rational(1, 1 << -r);
             return l*Rational(1 << r, 1);
         }
-        Identifier identifier() const { return OperatorShiftLeft(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorShiftLeft(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -316,7 +316,7 @@ public:
             ++i;
             return *i == IntegerType();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());
@@ -333,7 +333,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<Concrete>();
@@ -343,8 +343,8 @@ public:
                 return l*Rational(1 << -r, 1);
             return l*Rational(1, 1 << r);
         }
-        Identifier identifier() const { return OperatorShiftRight(); }
-        bool argumentsMatch(List<Type> argumentTypes) const
+        Identifier identifier() { return OperatorShiftRight(); }
+        bool argumentsMatch(List<Type> argumentTypes)
         {
             if (argumentTypes.count() != 2)
                 return false;
@@ -354,7 +354,7 @@ public:
             ++i;
             return *i == IntegerType();
         }
-        List<Tyco> parameterTycos() const
+        List<Tyco> parameterTycos()
         {
             List<Tyco> r;
             r.add(ConcreteTyco());

@@ -74,11 +74,11 @@ private:
         {
         public:
             String serialize(void* p, int width, int used, int indent,
-                int delta) const
+                int delta)
             {
                 return "###\n" + stringValue(p, indent) + "###";
             }
-            void deserialize(const Value& value, void* p) const
+            void deserialize(const Value& value, void* p)
             {
                 auto ram = static_cast<RAM*>(p);
                 auto data = &(ram->_data);
@@ -120,13 +120,13 @@ private:
                         "Expected hexadecimal character");
                 }
             }
-            Value defaultValue() const { return Value(type(), String()); }
-            Value value(void* p) const
+            Value defaultValue() { return Value(type(), String()); }
+            Value value(void* p)
             {
                 return Value(type(), stringValue(p, 0));
             }
         private:
-            String stringValue(void* p, int indent) const
+            String stringValue(void* p, int indent)
             {
                 auto ram = static_cast<RAM*>(p);
                 auto data = &(ram->_data);

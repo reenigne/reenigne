@@ -27,6 +27,7 @@ Sections (in order of execution):
   5: 1000 input pairs for each of AAM and AAD                        aamdFails
   7: Main section tests with override (nopCounts 0-13?)              mainFails/loopFails/repFails
   6: Main section tests with DMA (nopCounts 0-13?)                   mainFails/loopFails/repFails
+  8: (no tests - finished marker)
 
 Subsections for sections 2, 6 and 7:
   0: Basic tests                                                     mainFails
@@ -49,3 +50,12 @@ noLESNop:
   _section 2/6/7, _subsection 0, _opcode fe, ff, (_modrm & 0x38) == 0x18, (_modrm & 0xc0) == 0xc0
   _section 2/6/7, _subsection 0, _opcode fe, ff, (_modrm & 0x38) == 0x28, (_modrm & 0xc0) == 0xc0
 
+
+
+gentests2.h:
+  19 refresh periods
+ * 8-76 refresh phases (average 38)
+ * 27 opcode/modrm combinations
+ * 3 suffixes
+ * 17 nopcounts
+== 994194 tests

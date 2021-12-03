@@ -13,15 +13,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l + i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -35,15 +35,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l + i->value<int>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -56,15 +56,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l + i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorPlus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPlus(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -78,15 +78,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l - i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -101,15 +101,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l - i->value<int>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -123,15 +123,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l - i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -145,15 +145,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l * i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -168,15 +168,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l * i->value<int>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -190,15 +190,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l * i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorStar(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorStar(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -211,15 +211,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l / i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -233,15 +233,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
             ++i;
             return Value(l / i->value<int>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -254,15 +254,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(l / i->value<Rational>());
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -275,15 +275,15 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
             ++i;
             return Value(Rational(l, i->value<int>()));
         }
-        Identifier identifier() const { return OperatorDivide(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorDivide(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -297,7 +297,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<Rational>();
@@ -307,8 +307,8 @@ public:
                 return Rational(l.numerator, l.denominator << -r);
             return Rational(l.numerator << r, l.denominator);
         }
-        Identifier identifier() const { return OperatorShiftLeft(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorShiftLeft(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -322,7 +322,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             auto l = i->value<Rational>();
@@ -332,8 +332,8 @@ public:
                 return Rational(l.numerator << -r, l.denominator);
             return Rational(l.numerator, l.denominator << r);
         }
-        Identifier identifier() const { return OperatorShiftRight(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorShiftRight(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -346,7 +346,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             int l = i->value<int>();
@@ -354,8 +354,8 @@ public:
             int r = i->value<int>();
             return power(Rational(l), r);
         }
-        Identifier identifier() const { return OperatorPower(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPower(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -368,7 +368,7 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             auto i = arguments.begin();
             Rational l = i->value<Rational>();
@@ -376,8 +376,8 @@ public:
             int r = i->value<int>();
             return power(l, r);
         }
-        Identifier identifier() const { return OperatorPower(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorPower(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -390,12 +390,12 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             return Value( - arguments.begin()->value<Rational>());
         }
-        Identifier identifier() const { return OperatorMinus(); }
-        FunctionType type() const
+        Identifier identifier() { return OperatorMinus(); }
+        FunctionType type()
         {
             return FunctionType(RationalType(), RationalType());
         }
@@ -408,12 +408,12 @@ public:
     class Body : public Nullary::Body
     {
     public:
-        Value evaluate(List<Value> arguments, Span span) const
+        Value evaluate(List<Value> arguments, Span span)
         {
             return Value(arguments.begin()->value<Rational>().floor());
         }
-        Identifier identifier() const { return "floor"; }
-        FunctionType type() const
+        Identifier identifier() { return "floor"; }
+        FunctionType type()
         {
             return FunctionType(IntegerType(), RationalType());
         }
