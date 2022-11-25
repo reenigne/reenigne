@@ -15,11 +15,15 @@ mainLoop:
   call doTest
   mov ax,0xc000
   call doTest
+  mov ax,0xc800
+  call doTest
   mov ax,0xd000
   call doTest
   mov ax,0xe000
   call doTest
   mov ax,0xf000
+  call doTest
+  mov ax,0xf800
   call doTest
   ret
 

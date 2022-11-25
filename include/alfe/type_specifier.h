@@ -270,7 +270,7 @@ private:
         TycoT<T> resolve(const ScopeT<T>* scope) const
         {
             Type ret = scope->resolveType(_returnType);
-            FunctionType f = FunctionTemplate().instantiate(ret);
+            FunctionType f = FunctionTemplateT<T>().instantiate(ret);
             for (auto a : _argumentTypes) {
                 Type t = scope->resolveType(a);
                 f = f.instantiate(t);

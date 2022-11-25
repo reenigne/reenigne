@@ -767,7 +767,7 @@ private:
         BreakBody(const BreakOrContinueStatement& statement, const Span& span)
           : Body(span), _statement(statement) { }
     private:
-        BreakOrContinueStatement _statement;
+        BreakOrContinueStatementT<T> _statement;
     };
 
     class ContinueBody : public Body

@@ -1,6 +1,6 @@
   %include "../defaults_bin.asm"
 
-REFRESH_RATE EQU 18
+REFRESH_RATE EQU 19
 ITERATIONS EQU 120
 
   mov al,TIMER0 | BOTH | MODE2 | BINARY
@@ -241,199 +241,371 @@ outOfSpaceMessageEnd:
 
 experimentData:
 
-experimentNop:
-  db "Nop$"
+experimentUpdateMusic0:
+  db "UpdateMusic0$"
   dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  xor di,di
-  mov dx,-1
-  xor bx,bx
+.endInit:
+  dw .endCode - ($+2)
+    mov ax,cs
+    mov es,ax
+    mov es,ax  ; "More magic"
+.endCode:
+
+experimentUpdateMusic1:
+  db "UpdateMusic1$"
+  dw .endInit - ($+2)
+.endInit:
+  dw .endCode - ($+2)
+    mov bx,0
+    cmp bx,[cs:0]
+    je $+2
+    mov es,[cs:1]
+    mov si,[cs:bx]
+    inc bx
+    inc bx
+    mov [cs:9999],bx
+    mov ax,cs
+    mov es,ax
+    lodsb
+    out 0xe0,al
+.endCode:
+
+experimentUpdateMusic:
+  db "UpdateMusic$"
+  dw .endInit - ($+2)
 .endInit:
   dw .endCode - ($+2)
 
+    push   si
+    push   ds
+    lds    si, [cs:9999]
+    lodsb
+    out    0xe0, al
+    lodsb
+    out    0xe0, al
+    pop    ds
+    mov    [cs:9999], si
+    pop    si
+
+.endCode:
+
+experimentUpdateLake_Nop:
+  db "Lake_Nop$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+.endInit:
+  dw .endCode - ($+2)
+
+  times 65 nop
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+experimentUpdateLake_261:
+  db "Lake_261$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+  mov dx,0x3d4
+  mov bx,[cs:1236]
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsb
+
+  times 42 nop
+
+  mov si,1234
+  cmp si,1235
+  je .endCode
+  inc si
+  inc si
+  mov [cs:1236],bx
+  mov si,[cs:si]
+
+  out 0xe0,al
+.endCode:
+
+
+experimentUpdateLake_262:
+  db "Lake_262$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+  mov dx,0x3d4
+  mov bx,[cs:1236]
+.endInit:
+  dw .endCode - ($+2)
+
+;  lodsb
+
+;  mov si,1234
+;  cmp si,1235
+;  je .endCode
+;  inc si
+;  inc si
+;  mov [cs:1236],bx
+;  mov si,[cs:si]
+
+  out 0xe0,al
+
+  jmp near .interrupt8
+.interrupt8:
+  mov cx,ds
+  mov ds,cx
+  mov ds,cx
+  mov ax,1234
+  mov ax,1234
+  mov ax,1234
+  mov ax,1234
+  mov ax,1234
+  mov ax,1234
+  mov ax,1234
+  mov ds,cx
+
+  mov al,0
+  out dx,ax
+
+  mov ax,0x0202
+  out dx,ax
+
+  pop cx
+  mov al,0x0c
+  mov ah,ch
+  out dx,ax
+  inc ax
+  mov ah,cl
+  out dx,ax
+
+  lodsb
+
+.endCode:
+
+
+experimentUpdateLake_200a:
+  db "Lake_200a$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+  mov dx,0x3d4
+  mov bp,1234
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsb
+  out 0xe0,al
+
+  mov bx,[cs:1234]
+  inc cx
+  inc cx
+  cmp bp,1234
+  jne .noRestart
+  mov cx,1235
+.noRestart:
+  mov [cs:1234],bp
+  mov cx,[cs:bx]
+  add cx,97
+  mov ax,[bp-97]
+  stosw
+  mov ax,[bp-95]
+  stosw
+  mov ax,[bp-93]
+  stosw
+  times 6 nop
+
+.endCode:
+
+experimentUpdateLake_200b:
+  db "Lake_200b$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+  mov dx,0x3d4
+  mov bp,1234
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsb
+  out 0xe0,al
+
+  mov bx,[cs:1234]
+  inc cx
+  inc cx
+  cmp bp,1234
+  je .noRestart
+  mov cx,1235
+.noRestart:
+  mov [cs:1234],bx
+  mov cx,[cs:bp]
+  add cx,97
+  mov ax,[bp-97]
+  stosw
+  mov ax,[bp-95]
+  stosw
+  mov ax,[bp-93]
+  stosw
+  times 6 nop
+
+.endCode:
+
+
+experimentUpdateLake_199a:
+  db "Lake_199a$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+  mov dx,0x3d4
+.endInit:
+  dw .endCode - ($+2)
+
+  lodsb
+  out 0xe0,al
+
+  mov ax,0x3f04
+  out dx,ax
+  times 3 nop
+  mov ax,0x0101
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  xchg ax,di
+  xchg ax,bp
+  out dx,ax
+  xchg ax,bp
+  mov ax,es
+  out dx,ax
+
+  mov ax,0x7100
+  out dx,ax        ; e  Horizontal Total         left  0x7100 114
+  mov ax,0x5a02
+  out dx,ax        ; f  Horizontal Sync Position right 0x5a02  90
+
+  mov bp,1234
+
+  mov di,1234
+  mov ax,ds
+  mov es,ax
+  nop
+  nop
+  nop
+  nop
   nop
 .endCode:
 
 
-experimentChess:
-  db "Chess$"
+experimentUpdateLake_7:
+  db "Lake_7$"
   dw .endInit - ($+2)
-  mov ax,0xb800
+  mov ax,0x7000
   mov es,ax
+  mov ds,ax
   xor di,di
-  mov dx,-1
-  xor bx,bx
+  xor si,si
 .endInit:
   dw .endCode - ($+2)
 
-  movsb
-  add di,bx
-.endCode:
-
-
-experimentChess1:
-  db "Chess1$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  xor di,di
-  mov dx,-1
-  xor bx,bx
-.endInit:
-  dw .endCode - ($+2)
-
-  stosb
-  add di,27
-.endCode:
-
-
-experimentChess2:
-  db "Chess2$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  xor di,di
-  mov dx,-1
-  xor bx,bx
-.endInit:
-  dw .endCode - ($+2)
-
-  stosb
-  inc di
-.endCode:
-
-
-experimentXOR1:
-  db "XOR1$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  xor di,di
-  mov dx,-1
-.endInit:
-  dw .endCode - ($+2)
-
-  xor ax,[si-80]
+  mov ax,[bp-1]
   stosw
-  add di,dx
-
-  xor ax,[si]
+  mov ax,[bp-1]
   stosw
-  add di,dx
-
-  xor ax,[si+80]
+  mov ax,[bp-1]
   stosw
-  add di,dx
-  add si,cx
+  mov ax,[bp-1]
+  stosw
+  mov ax,[bp-1]
+  stosw
+  mov ax,[bp-1]
+  stosw
+  mov ax,[bp-1]
+  stosw
+
+  lodsb
+  out 0xe0,al
+
 .endCode:
 
 
-experimentXOR2:
-  db "XOR2$"
+experimentUpdateLake_4:
+  db "Lake_4$"
+  dw .endInit - ($+2)
+  mov ax,0x7000
+  mov es,ax
+  mov ds,ax
+  xor di,di
+  xor si,si
+.endInit:
+  dw .endCode - ($+2)
+
+  mov ax,[bp-1]
+  stosw
+  mov ax,[bp-1]
+  stosw
+  mov ax,[bp-1]
+  stosw
+  mov ax,[bp-1]
+  stosw
+  times 30 nop
+
+  lodsb
+  out 0xe0,al
+
+.endCode:
+
+
+
+experimentUpdate4_6:
+  db "Update4_6$"
   dw .endInit - ($+2)
   mov ax,0xb800
   mov es,ax
   xor di,di
-  mov dx,-1
 .endInit:
   dw .endCode - ($+2)
 
-  xor ax,9999
-  stosw
-  add di,dx
+  mov al,[bx]
+  inc bx
+  out 0xe0,al
+  lodsw
+  xchg ax,di
+  movsw
+  lodsw
+  xchg ax,di
+  movsw
+  lodsw
+  xchg ax,di
+  movsw
+  lodsw
+  xchg ax,di
+  movsw
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
 
 .endCode:
-
-
-experimentXOR3:
-  db "XOR3$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  xor di,di
-  mov dx,-1
-.endInit:
-  dw .endCode - ($+2)
-
-  xor al,99
-  stosb
-  add di,dx
-
-.endCode:
-
-
-experimentXOR4:
-  db "XOR4$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-  xor di,di
-  mov dx,-1
-.endInit:
-  dw .endCode - ($+2)
-
-  xor al,99
-  stosb
-  inc di
-
-.endCode:
-
-
-
-experimentRZ:
-  db "RZ$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-.endInit:
-  dw .endCode - ($+2)
-
-    movsb
-    add si,bx
-
-.endCode:
-
-
-experimentParticle:
-  db "Particle$"
-  dw .endInit - ($+2)
-  mov ax,0xb800
-  mov es,ax
-.endInit:
-  dw .endCode - ($+2)
-
-    mov di,1234
-    mov al,[di]  ; Background image
-    stosb        ; Erase
-
-    mov ax,1234
-    add ax,5678
-    mov [9999],ax
-    mov cx,1234
-    add cx,5678  ; y velocity
-    mov [9999],cx
-
-    mov bl,ch
-    mov bh,12
-    add bx,bx
-    mov di,[bx]
-    mov bl,ah
-    mov bh,34
-    mov al,[bx]
-    mov bh,45
-    add bx,bx
-    add di,[bx]
-    mov [9999],di
-    mov ah,[di]  ; Background image
-    and ah,al
-    not al
-    and al,99 ; Colour
-    stosb  ; Draw
-
-.endCode:
-
-
 
 
 

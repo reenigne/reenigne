@@ -320,7 +320,7 @@ private:
             throw NotYetImplementedException();
         }
     private:
-        ResolutionPath _rest;
+        ResolutionPathT<T> _rest;
     };
     class OuterBody : public Body
     {
@@ -330,7 +330,7 @@ private:
             throw NotYetImplementedException();
         }
     private:
-        ResolutionPath _rest;
+        ResolutionPathT<T> _rest;
     };
     class HereBody : public Body
     {
@@ -342,7 +342,7 @@ private:
             //    s.throwError("Unknown identifier " + i.name());
             return Value(
                 LValueTypeT<T>::wrap(context->getValue(identifier).type()),
-                LValue(context, identifier), s);
+                LValueT<T>(context, identifier), s);
             //return context->getValue(identifier);
         }
     };
@@ -476,8 +476,8 @@ protected:
         }
         virtual void deserialize(const Value& value, void* p) const { }
         virtual int size() const { return 0; }
-        virtual ValueT<T> defaultValue() const { return Value(); }
-        virtual ValueT<T> value(void* p) const { return Value(); }
+        virtual ValueT<T> defaultValue() const { return ValueT<T>(); }
+        virtual ValueT<T> value(void* p) const { return ValueT<T>(); }
         Type type() const { return tyco(); }
         virtual ValueT<T> simplify(const Value& value) const
         {

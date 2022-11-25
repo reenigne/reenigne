@@ -102,7 +102,7 @@ public:
         {
             return create<
                 typename FunctionCallExpressionT<T>::FunctionCallBody>(
-                Expression(expression()).dot(Identifier("toString")),
+                Expression(expression()).dot(IdentifierT<T>("toString")),
                 List<Expression>(), span());
         }
         virtual String toString() const = 0;
@@ -429,7 +429,7 @@ private:
         Rational n;
         Span span;
         if (Space::parseNumber(source, &n, &span))
-            return NumericLiteral(n, span);
+            return NumericLiteralT<T>(n, span);
         return Expression();
     }
 
@@ -513,7 +513,7 @@ private:
         {
             return Expression(this->toString(), this->span());
         }
-        TypeT<T> type() const { return BooleanType(); }
+        TypeT<T> type() const { return BooleanTypeT<T>(); }
         void resolve(Scope* scope) { }
         bool mightHaveSideEffect() const { return false; }
     };
@@ -588,7 +588,7 @@ private:
         }
         TypeT<T> type() const
         {
-            TypeT<T> type = VoidType();
+            TypeT<T> type = VoidTypeT<T>();
             int i = 0;
             for (auto e : _expressions) {
                 if (i == 0)
@@ -731,7 +731,7 @@ public:
         {
             if (_n.denominator == 1)
                 return IntegerTypeT<T>();
-            return RationalType();
+            return RationalTypeT<T>();
         }
         void resolve(Scope* scope) { }
         bool mightHaveSideEffect() const { return false; }
@@ -974,7 +974,7 @@ public:
             }
             // What we have on the left isn't a function, try to call its
             // operator() method instead.
-            IdentifierT<T> i = Identifier(OperatorFunctionCall());
+            IdentifierT<T> i = IdentifierT<T>(OperatorFunctionCall());
             if (!lType.member(i).valid())
                 this->span().throwError("Expression is not a function.");
             if (!LValueTypeT<T>(lType).valid()) {
@@ -1195,7 +1195,7 @@ protected:
             _left.resolve(scope);
             _right.resolve(scope);
         }
-        TypeT<T> type() const { return BooleanType(); }
+        TypeT<T> type() const { return BooleanTypeT<T>(); }
         bool mightHaveSideEffect() const
         {
             return _left.mightHaveSideEffect() || _right.mightHaveSideEffect();
@@ -1266,7 +1266,7 @@ private:
         }
         Expression stringify() const
         {
-            return ConditionalExpression(left(), right().stringify(),
+            return ConditionalExpressionT<T>(left(), right().stringify(),
                 Expression("false", Span()));
         }
     };
@@ -1302,14 +1302,14 @@ private:
         ValueT<T> evaluate(Structure* context) const
         {
             ValueT<T> v = left().evaluate(context);
-            if (v.type() != BooleanType()) {
+            if (v.type() != BooleanTypeT<T>()) {
                 left().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
             if (!v.template value<bool>())
                 return false;
             v = right().evaluate(context);
-            if (v.type() != BooleanType()) {
+            if (v.type() != BooleanTypeT<T>()) {
                 right().span().throwError("Logical operator requires operand "
                     "of type Boolean.");
             }
@@ -1321,8 +1321,8 @@ private:
         }
         Expression stringify() const
         {
-            return ConditionalExpression(left(), Expression("true", Span()),
-                right().stringify());
+            return ConditionalExpressionT<T>(left(),
+                Expression("true", Span()), right().stringify());
         }
     };
 };
@@ -1369,7 +1369,7 @@ private:
         ValueT<T> evaluate(Structure* context) const
         {
             ValueT<T> v = _condition.evaluate(context).rValue();
-            if (v.type() != BooleanType()) {
+            if (v.type() != BooleanTypeT<T>()) {
                 _condition.span().throwError("Conditional operator requires "
                     "operand of type Boolean.");
             }

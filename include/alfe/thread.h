@@ -1,7 +1,7 @@
 #include "alfe/main.h"
 
-#ifndef INCLUDED_LOCK_H
-#define INCLUDED_LOCK_H
+#ifndef INCLUDED_THREAD_H
+#define INCLUDED_THREAD_H
 
 #include "alfe/windows_handle.h"
 #include "alfe/linked_list.h"
@@ -403,4 +403,4 @@ private:
     ThreadPool _threadPool;
 };
 
-#endif // INCLUDED_LOCK_H
+#endif // INCLUDED_THREAD_H
