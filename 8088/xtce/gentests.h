@@ -552,7 +552,7 @@ struct Measurements
     SInt16 _cycles[17 /* nopCounts */];
 };
 
-#if 0
+#if 1
 class Cache
 {
 public:

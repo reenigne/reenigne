@@ -68,7 +68,7 @@ loopTop:
   mov [cs:savedCX],cx
 ;  lockstep
 
-;  sti
+  sti
 ;  outputCharacter 'A'
 
   safeRefreshOff

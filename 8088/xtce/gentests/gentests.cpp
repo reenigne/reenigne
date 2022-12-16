@@ -10,7 +10,7 @@
 #include "fails.h"
 #endif
 
-#include "../xtce.h"
+#include "../xtce_microcode.h"
 #include "../gentests.h"
 
 #define USE_REAL_HARDWARE 1
@@ -234,8 +234,8 @@ public:
                     0, NULL, NULL, &si, &pi) != 0);
                 CloseHandle(pi.hThread);
                 WindowsHandle hProcess = pi.hProcess;
-                IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
-                    WAIT_OBJECT_0);
+                IF_TRUE_THROW(WaitForSingleObject(hProcess, 3*60*1000) !=
+                    WAIT_OBJECT_0, Exception("XT Timed out"));
             }
 
             String result = File("runtests.output").contents();
