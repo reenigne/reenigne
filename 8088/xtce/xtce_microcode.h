@@ -346,7 +346,7 @@ public:
         _lastS = 0;
         _cpu_s = 7;
         _cpu_qs = 0;
-        //_cpu_next_qs = 0;
+        _cpu_next_qs = 0;
 
         _disassembler.reset();
     }
@@ -525,12 +525,14 @@ public:
             _bus_memr = false;
             _bus_memw = false;
         }
-        //_cpu_qs = _cpu_next_qs;
-        //_cpu_next_qs = 0;
-        _cpu_qs = 0;
+        // 8086 Family Users Manual page 4-37 clock cycle 12: "remember
+        // the queue status lines indicate queue activity that has occurred in
+        // the previous clock cycle".
+        _cpu_qs = _cpu_next_qs;
+        _cpu_next_qs = 0;
         return line;
     }
-    void queueOperation(int qs) { _cpu_qs = qs; /* _cpu_next_qs = qs; */ }
+    void queueOperation(int qs) { _cpu_next_qs = qs; }
     void setStatus(int s) { _cpu_s = s; }
     void setStatusHigh(int segment)
     {
@@ -2293,7 +2295,6 @@ public:
         _microcodePointer = 0;
         _microcodeReturn = 0;
     }
-    int instructionCycles() { return _cycle2 - _cycle1; }
     Byte* getRAM() { return _bus.ram(); }
     Word* getRegisters() { return &_registers[24]; }
     Word* getSegmentRegisters() { return &_registers[0]; }
@@ -2301,7 +2302,7 @@ public:
     void setExtents(int logStartCycle, int logEndCycle, int executeEndCycle,
         int stopIP, int stopSeg, int timeIP1, int timeSeg1)
     {
-        _logStartCycle = logStartCycle + 3;
+        _logStartCycle = logStartCycle + 4;
         _logEndCycle = logEndCycle;
         _executeEndCycle = executeEndCycle;
         _stopIP = stopIP;
@@ -2313,7 +2314,7 @@ public:
         //simulateCycle();
     }
     void setInitialIP(int v) { ip() = v; }
-    int cycle() const { return _cycle; }
+    int cycle() const { return _cycle + 9; }
     String log() const { return _log; }
     void reset()
     {
@@ -2377,6 +2378,7 @@ public:
         //int _segment;
         _lastMicrocodePointer = -1;
         _prefetchCompleting = false;
+        _dequeueing = false;
     }
     void run()
     {
@@ -2384,7 +2386,6 @@ public:
             simulateCycle();
         } while ((getRealIP() != _stopIP || cs() != _stopSeg) &&
             _cycle < _executeEndCycle);
-        _cycle2 = _cycle;
     }
     void setConsoleLogging() { _consoleLogging = true; }
 private:
@@ -2403,8 +2404,7 @@ private:
     Byte queueRead()
     {
         Byte byte = _queue & 0xff;
-        _queue >>= 8;
-        --_queueBytes;
+        _dequeueing = true;
         _snifferDecoder.queueOperation(3);
         return byte;
     }
@@ -2513,6 +2513,11 @@ private:
         _zero = zf();
         _auxiliary = af();
         _alu = 0;
+        _mIsM = ((_group & groupNoDirectionBit) != 0 || (_opcode & 2) == 0);
+        _rni = false;
+        _nx = false;
+        _skipRNI = false;
+        _state = stateRunning;
 
         if ((_group & groupEffectiveAddress) != 0) {
             // EALOAD and EADONE finish with RTN
@@ -2668,9 +2673,6 @@ private:
                 doPZS(v);
                 return v & 0x0f;
             case 0x18: // INC
-                {
-                    bool c = _carry;
-                }
                 v = a + 1;
                 doPZS(v);
                 _overflow = topBit((v ^ a) & (v ^ 1));
@@ -2702,7 +2704,8 @@ private:
         stateWaitingUntilFirstByteRead,
         stateWaitingUntilSecondByteRead,
         stateWaitingUntilFirstByteWriteCanStart,
-        stateWaitingUntilSecondByteWriteCanStart,
+        stateWaitingUntilFirstByteWritten,
+//        stateWaitingUntilSecondByteWriteCanStart,
         stateWaitingUntilIRQAcknowledgeCanStart,
         stateWaitingUntilIRQAcknowledgeDone,
         stateSingleCycleWait,
@@ -2775,8 +2778,13 @@ private:
                         ax() = v;
                     break;
                 }
-                if ((_group & groupEffectiveAddress) == 0)
-                    rw() = v;
+                if ((_group & groupEffectiveAddress) == 0) {
+                    if ((_group & groupWidthInOpcodeBit3) != 0 &&
+                        (_opcode & 8) != 0)
+                        rb(_opcode & 7) = v;
+                    else
+                        rw() = v;
+                }
                 else {
                     setMemOrReg(_mIsM, v);
                     _skipRNI = (_mIsM && _useMemory);
@@ -2806,9 +2814,9 @@ private:
     }
     void busAccessDone()
     {
-        if ((_operands & 8) != 0)
+        if ((_operands & 0x10) != 0)
             _rni = true;
-        switch ((_operands >> 6) & 3) {
+        switch (_operands & 3) {
             case 0: // Increment IND by 2
                 ind() += 2;
                 break;
@@ -2830,14 +2838,13 @@ private:
                 return r;
             case 1: // segment 0
                 return 23;
-            case 3: // DS or overridden
-                return _segmentOverride != -1 ? _segmentOverride : _segment;
         }
+        return _segmentOverride != -1 ? _segmentOverride : _segment;
     }
     IOType busType()
     {
-        int t = (_operands >> 1) & 3;
-        if (t == 2)
+        int t = (_operands >> 5) & 3;
+        if (t == 1)
             return ioInterruptAcknowledge;
         if (t == 0)
             return (_group & groupMemory) != 0 ? ioReadMemory : ioReadPort;
@@ -2849,12 +2856,15 @@ private:
         _ioAddress = physicalAddress(_ioSegment, ind());
         _ioType = busType();
         _state = state;
+        _ioDone = false;
     }
     void busStartWrite()
     {
         _ioData = opr() & 0xff;
-        busStart(_wordSize ? stateWaitingUntilSecondByteWriteCanStart :
-            stateRunning);
+        //busStart(_wordSize ? stateWaitingUntilSecondByteWriteCanStart :
+        //    stateRunning);
+        busStart(stateWaitingUntilFirstByteWritten);
+        _ioWriteDone = false;
     }
     void doSecondHalf()
     {
@@ -2886,6 +2896,7 @@ private:
                 switch ((_operands >> 3) & 0x0f) {
                     case 0: // MAXC
                         _counter = _wordSize ? 15 : 7;
+                        _state = stateSingleCycleWait; // HACK: this makes the queuefiller "MUL AL" timing come out right, not sure if it's correct.
                         break;
                     case 1: // FLUSH
                         _queueBytes = 0;
@@ -2916,9 +2927,11 @@ private:
                 }
                 switch (_operands & 7) {
                     case 0: // RNI
-                        if (_skipRNI)
-                            _nx = true;
-                        else
+                        //if (_skipRNI)
+                        //    _nx = true;
+                        //else
+                        //    _rni = true;
+                        if (!_skipRNI)
                             _rni = true;
                         break;
                     case 1: // WB,NX
@@ -3003,11 +3016,6 @@ private:
                 _type = m[2] & 7;
                 _updateFlags = ((m[2] & 8) != 0);
                 _operands = m[3];
-                _rni = false;
-                _nx = false;
-                _mIsM = ((_group & groupNoDirectionBit) != 0 ||
-                    (_opcode & 2) == 0);
-                _skipRNI = false;
                 v = readSource();
                 if (_state == stateWaitingForQueueData)
                     break;
@@ -3032,8 +3040,9 @@ private:
                 busStart(stateWaitingUntilFirstByteRead);
                 break;
             case stateWaitingUntilFirstByteRead:
-                if (_ioType != ioPassive)
+                if (!_ioDone)
                     break;
+                _ioDone = false;
                 opr() = _ioData;
                 if (!_wordSize) {
                     opr() |= 0xff00;
@@ -3054,9 +3063,14 @@ private:
                     break;
                 busStartWrite();
                 break;
-            case stateWaitingUntilSecondByteWriteCanStart:
-                if (_ioType != ioPassive)
+            case stateWaitingUntilFirstByteWritten:
+                if (!_ioWriteDone)
                     break;
+                _ioWriteDone = false;
+                if (!_wordSize) {
+                    busAccessDone();
+                    break;
+                }
                 _ioAddress = physicalAddress(busSegment(), ind() + 1);
                 _ioData = opr() >> 8;
                 _ioType = busType();
@@ -3106,6 +3120,11 @@ private:
     }
     void simulateCycle()
     {
+        if (_dequeueing) {
+            _dequeueing = false;
+            _queue >>= 8;
+            --_queueBytes;
+        }
         if ((_loaderState & 2) != 0)
             executeMicrocode();
         switch (_loaderState) {
@@ -3134,7 +3153,7 @@ private:
                 if ((_nextGroup & groupMicrocoded) == 0)  // 1BL
                     startNonMicrocodeInstruction();
                 else {
-                    if ((_nextGroup & groupEffectiveAddress) != 0)  // SC
+                    if ((_nextGroup & groupEffectiveAddress) == 0)  // SC
                         startMicrocodeInstruction();
                     else {
                         if (_queueBytes != 0) {  // SC
@@ -3147,25 +3166,22 @@ private:
                 }
                 break;
         }
-        if (_ioType == ioPassive && _prefetching &&
-            (_queueBytes < 3 || (_queueBytes == 3 && !_prefetchCompleting))) {
-            _ioType = ioPrefetch;
-            _ioSegment = 1;
-        }
 
         BusState nextState = _busState;
         bool write = _ioType == ioWriteMemory || _ioType == ioWritePort;
         bool ready = true;
         switch (_busState) {
             case t1:
-                if (_ioType == ioPassive)
-                    break;
-                _snifferDecoder.setStatusHigh(_ioSegment);
+                //if (_ioType == ioPassive)
+                //    break;
+                _snifferDecoder.setAddress(_ioAddress);
+                _bus.startAccess(_ioAddress, (int)_ioType);
                 if (write)
                     _snifferDecoder.setData(_ioData);
                 nextState = t2t3tWaitNotLast;
                 break;
             case t2t3tWaitNotLast:
+                _snifferDecoder.setStatusHigh(_ioSegment);
                 _snifferDecoder.setBusOperation((int)_ioType);
                 ready = _bus.ready();
                 if (!ready)
@@ -3176,12 +3192,18 @@ private:
                     _ioType == ioPrefetch) {
                     Byte data = _bus.read();
                     _ioData = data;
-                    _snifferDecoder.setData(data);
                 }
+                else
+                    _ioWriteDone = true;
                 //_bus.setPassiveOrHalt(true);
                 //_snifferDecoder.setStatus((int)ioPassive);
                 break;
             case t3tWaitLast:
+                if (_ioType == ioInterruptAcknowledge ||
+                    _ioType == ioReadPort || _ioType == ioReadMemory ||
+                    _ioType == ioPrefetch) {
+                    _snifferDecoder.setData(_ioData);
+                }
                 nextState = t4;
                 if (_ioType == ioPrefetch)
                     _prefetchCompleting = true;
@@ -3199,6 +3221,8 @@ private:
                     ++_queueBytes;
                     ++ip();
                 }
+                else
+                    _ioDone = true;
                 nextState = tIdle;
                 break;
         }
@@ -3207,15 +3231,17 @@ private:
             if (_ioType == ioPrefetch)
                 _ioAddress = physicalAddress(_ioSegment, ip());
 
-            _snifferDecoder.setAddress(_ioAddress);
-            _bus.startAccess(_ioAddress, (int)_ioType);
-
             _bus.setPassiveOrHalt(_ioType == ioHalt);
             _snifferDecoder.setStatus((int)_ioType);
             //if (nextState == t4)
             //    nextState = t4StatusSet;
             //else
             //    nextState = tIdleStatusSet;
+        }
+        if (_ioType == ioPassive && _prefetching &&
+            (_queueBytes < 3 || (_queueBytes == 3 && !_prefetchCompleting))) {
+            _ioType = ioPrefetch;
+            _ioSegment = 1;
         }
         //if (nextState == t4 || nextState == tIdle) {
         //    if (_ioNext._type == ioPassive && _queueBytes < 4 && _prefetching) {
@@ -3486,8 +3512,8 @@ private:
         switch (n) {
             case 0x00: // F1ZZ
                 if ((_group & groupF1ZZFromPrefix) != 0)
-                    return zf() == (_f1 && _repne);
-                return zf() != lowBit(_opcode);
+                    return _zero == (_f1 && _repne);
+                return _zero != lowBit(_opcode);
             case 0x01: // MOD1
                 return (_modRM & 0x40) != 0;
             case 0x02: // L8 - not sure if there's a better way to compute this
@@ -3495,28 +3521,28 @@ private:
                     return (_opcode & 8) == 0;
                 return !lowBit(_opcode) || (_opcode & 6) == 2;
             case 0x03: // Z
-                return zf();
+                return _zero;
             case 0x04: // NCZ
                 --_counter;
                 return _counter != -1;
             case 0x05: // TEST - no 8087 emulated yet
                 return false;
             case 0x06: // OF
-                return of();
+                return of();  // only used in INTO
             case 0x07: // CY
-                return cf();
+                return _carry;
             case 0x08: // UNC
                 return true;
             case 0x09: // NF1
                 return !_f1;
             case 0x0a: // NZ
-                return !zf();
+                return !_zero;
             case 0x0b: // X0
                 if ((_group & groupMicrocodePointerFromOpcode) == 0)
                     return (_modRM & 8) != 0;
                 return (_opcode & 8) != 0;
             case 0x0c: // NCY
-                return !cf();
+                return !_carry;
             case 0x0d: // F1
                 return _f1;
             case 0x0e: // INT
@@ -3613,8 +3639,6 @@ private:
 
     int _stopIP;
     int _stopSeg;
-    int _cycle1;
-    int _cycle2;
     int _timeIP1;
     int _timeSeg1;
 
@@ -3681,4 +3705,7 @@ private:
     int _segment;
     int _lastMicrocodePointer;
     bool _prefetchCompleting;
+    bool _dequeueing;
+    bool _ioDone;
+    bool _ioWriteDone;
 };

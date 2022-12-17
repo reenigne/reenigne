@@ -8,15 +8,20 @@ nopCounts:
   16: f60000                                                                                                 not used for sections 6 and 7
 
 suffixes: (0-1 used by section 7, 0-2 by section 6 and all for section 2)
-  0: 0400
-  1: 88c00000
-  2: 0400040004000400
+  0: 0400                add al,0
+  1: 88c00000            mov al,al / add [bx+si],al
+  2: 0400040004000400    add al,0 / add al,0 / add al,0 / add al,0
   3: (nothing)
-  4: 0000
-  5: 050000
-  6: 0004
-  7: 909090900004050000
-  8: 88c00400
+  4: 0000                add [bx+si],al
+  5: 050000              add ax,0000
+  6: 0004                add [si],al
+  7: 909090900004050000  nop / nop / nop / nop / add [si],al / add ax,0000
+  8: 88c00400            mov al,al / add al,0
+
+queueFillers:
+  0: b000f6e0            mov al,0 / mul al
+  1: b110d2e9            mov cl,10 / shr cl,cl
+  2: (nothing)
 
 Sections (in order of execution):
   0: recently failed
