@@ -2309,9 +2309,6 @@ public:
         _stopSeg = stopSeg;
         _timeIP1 = timeIP1;
         _timeSeg1 = timeSeg1;
-
-        //_bus.wait();
-        //simulateCycle();
     }
     void setInitialIP(int v) { ip() = v; }
     int cycle() const { return _cycle + 9; }
@@ -2322,7 +2319,6 @@ public:
 
         _cycle = 0;
         _microcodePointer = 0x1800;
-
         _busState = tIdle;
         _ioType = ioPassive;
         _snifferDecoder.reset();
@@ -2336,49 +2332,12 @@ public:
         _f1 = false;
         _repne = false;
         _lock = false;
-
         _loaderState = 0;
-
-        //bool _consoleLogging;
-
-        //DWord _ioAddress;
-        //Byte _ioData;
-        //int _ioSegment;
-
-        //DWord _group;
-        //DWord _nextGroup;
-        //Word _microcodePointer;
-        //Word _nextMicrocodePointer;
-        //Word _microcodeReturn;
-        //Byte _counter; // only 4 bits on the CPU
-        //Byte _alu;
-        //int _segmentOverride;
-        //Byte _opcode;
-        //Byte _modRM;
-        //bool _carry;
-        //bool _zero;
-        //bool _auxiliary;
-        //bool _sign;
-        //Byte _parity;
-        //bool _overflow;
-        //int _aluInput;
-        //Byte _nextModRM;
-        //bool _rni;
-        //bool _nx;
-        //MicrocodeState _state;
-        //int _source;
-        //int _destination;
-        //int _type;
-        //bool _updateFlags;
-        //Byte _operands;
-        //bool _mIsM;
-        //bool _skipRNI;
-        //bool _useMemory;
-        //bool _wordSize;
-        //int _segment;
         _lastMicrocodePointer = -1;
         _prefetchCompleting = false;
         _dequeueing = false;
+        _ioCancelling = 0;
+        _ioRequested = false;
     }
     void run()
     {
@@ -2857,6 +2816,7 @@ private:
         _ioType = busType();
         _state = state;
         _ioDone = false;
+        _ioRequested = false;
     }
     void busStartWrite()
     {
@@ -2961,13 +2921,20 @@ private:
             case 6:
                 switch ((_operands >> 5) & 3) {
                     case 0: // R
+                        _ioRequested = true;
                         if (_ioType != ioPassive) {
                             _state = stateWaitingUntilFirstByteReadCanStart;
+                            if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4) && _ioType == ioPrefetch) {
+                                if (_busState == t4)
+                                    _ioType = ioPassive;
+                                _ioCancelling = (_busState == t3tWaitLast ? 3 : 2);
+                            }
                             return;
                         }
                         busStart(stateWaitingUntilFirstByteRead);
                         return;
                     case 1: // IRQ
+                        _ioRequested = true;
                         if (_ioType != ioPassive) {
                             _state = stateWaitingUntilIRQAcknowledgeCanStart;
                             return;
@@ -2975,6 +2942,7 @@ private:
                         busStart(stateWaitingUntilIRQAcknowledgeDone);
                         return;
                     case 2: // W
+                        _ioRequested = true;
                         if (_ioType != ioPassive) {
                             _state = stateWaitingUntilFirstByteWriteCanStart;
                             return;
@@ -3035,6 +3003,11 @@ private:
                 _state = stateRunning;
                 break;
             case stateWaitingUntilFirstByteReadCanStart:
+                if (_ioCancelling != 0) {
+                    --_ioCancelling;
+                    if (_ioCancelling != 0)
+                        break;
+                }
                 if (_ioType != ioPassive)
                     break;
                 busStart(stateWaitingUntilFirstByteRead);
@@ -3132,13 +3105,19 @@ private:
                 readOpcode(0);
                 break;
             case 1:
-                if (_queueBytes != 0 || (_nextGroup & groupEffectiveAddress) == 0) {  // SC
-                    if ((_nextGroup & groupEffectiveAddress) != 0)
-                        _nextModRM = queueRead();
-                    if ((_nextGroup & groupMicrocoded) == 0)  // 1BL
-                        startNonMicrocodeInstruction();
-                    else
+            case 3:
+                if ((_nextGroup & groupMicrocoded) == 0)  // 1BL
+                    startNonMicrocodeInstruction();
+                else {
+                    if ((_nextGroup & groupEffectiveAddress) == 0)  // SC
                         startMicrocodeInstruction();
+                    else {
+                        _loaderState = 1;
+                        if (_queueBytes != 0) {  // SC
+                            _nextModRM = queueRead();
+                            startMicrocodeInstruction();
+                        }
+                    }
                 }
                 break;
             case 2:
@@ -3147,22 +3126,6 @@ private:
                 else {
                     if (_nx)
                         readOpcode(2);
-                }
-                break;
-            case 3:
-                if ((_nextGroup & groupMicrocoded) == 0)  // 1BL
-                    startNonMicrocodeInstruction();
-                else {
-                    if ((_nextGroup & groupEffectiveAddress) == 0)  // SC
-                        startMicrocodeInstruction();
-                    else {
-                        if (_queueBytes != 0) {  // SC
-                            _nextModRM = queueRead();
-                            startMicrocodeInstruction();
-                        }
-                        else
-                            _loaderState = 1;
-                    }
                 }
                 break;
         }
@@ -3214,7 +3177,7 @@ private:
                 _ioType = ioPassive;
                 break;
             case t4:
-            case t4StatusSet:
+            //case t4StatusSet:
                 if (_prefetchCompleting) {
                     _prefetchCompleting = false;
                     _queue |= (_ioData << (_queueBytes << 3));
@@ -3238,7 +3201,7 @@ private:
             //else
             //    nextState = tIdleStatusSet;
         }
-        if (_ioType == ioPassive && _prefetching &&
+        if (_ioType == ioPassive && _prefetching && !_ioRequested &&
             (_queueBytes < 3 || (_queueBytes == 3 && !_prefetchCompleting))) {
             _ioType = ioPrefetch;
             _ioSegment = 1;
@@ -3629,9 +3592,9 @@ private:
         t2t3tWaitNotLast,
         t3tWaitLast,
         t4,
-        t4StatusSet,
+//        t4StatusSet,
         tIdle,
-        tIdleStatusSet,
+//        tIdleStatusSet,
     };
 
     String _log;
@@ -3708,4 +3671,6 @@ private:
     bool _dequeueing;
     bool _ioDone;
     bool _ioWriteDone;
+    int _ioCancelling;
+    bool _ioRequested;
 };
