@@ -461,7 +461,7 @@ public:
                 "B",   // CH? - not used
                 "M",
                 "R",   // source specified by modrm and direction, destination specified by r field of modrm
-                "tmpaL",    // as dest only - source is SIGNA
+                "tmpaL",    // as dest only - source is SIGMA
                 "tmpbL",    // as dest only - source is ONES
                 "tmpaH",    // as dest only - source is CR
                 "tmpbH",    // as dest only - source is ZERO
