@@ -2338,12 +2338,14 @@ public:
         _dequeueing = false;
         _ioCancelling = 0;
         _ioRequested = false;
+        _ioFirstIdle = false;
+        _prefetchDelayed = false;
     }
     void run()
     {
         do {
             simulateCycle();
-        } while ((getRealIP() != _stopIP || cs() != _stopSeg) &&
+        } while ((getRealIP() != _stopIP + 2 || cs() != _stopSeg) &&
             _cycle < _executeEndCycle);
     }
     void setConsoleLogging() { _consoleLogging = true; }
@@ -2809,10 +2811,10 @@ private:
             return (_group & groupMemory) != 0 ? ioReadMemory : ioReadPort;
         return (_group & groupMemory) != 0 ? ioWriteMemory : ioWritePort;
     }
-    void busStart(MicrocodeState state)
+    void busStart(MicrocodeState state, Word offset)
     {
         _ioSegment = busSegment();
-        _ioAddress = physicalAddress(_ioSegment, ind());
+        _ioAddress = physicalAddress(_ioSegment, offset);
         _ioType = busType();
         _state = state;
         _ioDone = false;
@@ -2820,10 +2822,10 @@ private:
     }
     void busStartWrite()
     {
-        _ioData = opr() & 0xff;
+        _ioWriteData = opr() & 0xff;
         //busStart(_wordSize ? stateWaitingUntilSecondByteWriteCanStart :
         //    stateRunning);
-        busStart(stateWaitingUntilFirstByteWritten);
+        busStart(stateWaitingUntilFirstByteWritten, ind());
         _ioWriteDone = false;
     }
     void doSecondHalf()
@@ -2922,29 +2924,50 @@ private:
                 switch ((_operands >> 5) & 3) {
                     case 0: // R
                         _ioRequested = true;
-                        if (_ioType != ioPassive) {
+                        if (_ioType != ioPassive || _ioFirstIdle) {
                             _state = stateWaitingUntilFirstByteReadCanStart;
                             if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4) && _ioType == ioPrefetch) {
                                 if (_busState == t4)
                                     _ioType = ioPassive;
                                 _ioCancelling = (_busState == t3tWaitLast ? 3 : 2);
                             }
+                            if (_ioFirstIdle)
+                                _ioCancelling = 2;
                             return;
                         }
-                        busStart(stateWaitingUntilFirstByteRead);
+                        busStart(stateWaitingUntilFirstByteRead, ind());
                         return;
                     case 1: // IRQ
                         _ioRequested = true;
-                        if (_ioType != ioPassive) {
+                        if (_ioType != ioPassive || _ioFirstIdle) {
                             _state = stateWaitingUntilIRQAcknowledgeCanStart;
+                            if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4) && _ioType == ioPrefetch) {
+                                if (_busState == t4)
+                                    _ioType = ioPassive;
+                                _ioCancelling = (_busState == t3tWaitLast ? 3 : 2);
+                            }
+                            if (_ioFirstIdle)
+                                _ioCancelling = 2;
                             return;
                         }
-                        busStart(stateWaitingUntilIRQAcknowledgeDone);
+                        busStart(stateWaitingUntilIRQAcknowledgeDone, ind());
                         return;
                     case 2: // W
                         _ioRequested = true;
-                        if (_ioType != ioPassive) {
+                        if (_ioType != ioPassive || _ioFirstIdle) {
                             _state = stateWaitingUntilFirstByteWriteCanStart;
+                            if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4) && _ioType == ioPrefetch) {
+                                if (_busState == t4)
+                                    _ioType = ioPassive;
+                                _ioCancelling = (_busState == t3tWaitLast ? 3 : 2);
+                            }
+                            if (_ioFirstIdle)
+                                _ioCancelling = 2;
+                            return;
+                        }
+                        else {
+                            _state = stateWaitingUntilFirstByteWriteCanStart;
+                            _ioCancelling = 2;
                             return;
                         }
                         busStartWrite();
@@ -3010,52 +3033,72 @@ private:
                 }
                 if (_ioType != ioPassive)
                     break;
-                busStart(stateWaitingUntilFirstByteRead);
+                busStart(stateWaitingUntilFirstByteRead, ind());
                 break;
             case stateWaitingUntilFirstByteRead:
-                if (!_ioDone)
-                    break;
+                if (!_wordSize) {
+                    if (!_ioDone)
+                        break;
+                }
+                else {
+                    if (_ioType != ioPassive)
+                        break;
+                }
                 _ioDone = false;
-                opr() = _ioData;
+                opr() = _ioReadData;
                 if (!_wordSize) {
                     opr() |= 0xff00;
                     _state = stateRunning;
                     break;
                 }
-                _ioAddress = physicalAddress(busSegment(), ind() + 1);
-                _state = stateWaitingUntilSecondByteRead;
+                busStart(stateWaitingUntilSecondByteRead, ind() + 1);
                 break;
             case stateWaitingUntilSecondByteRead:
                 if (_ioType != ioPassive)
                     break;
-                opr() |= _ioData << 8;
+                opr() |= _ioReadData << 8;
                 _state = stateRunning;
                 break;
             case stateWaitingUntilFirstByteWriteCanStart:
+                if (_ioCancelling != 0) {
+                    --_ioCancelling;
+                    if (_ioCancelling != 0)
+                        break;
+                }
                 if (_ioType != ioPassive)
                     break;
                 busStartWrite();
                 break;
             case stateWaitingUntilFirstByteWritten:
-                if (!_ioWriteDone)
-                    break;
+                if (!_wordSize) {
+                    if (!_ioWriteDone)
+                        break;
+                }
+                else {
+                    if (_busState != t4)
+                        break;
+                }
                 _ioWriteDone = false;
                 if (!_wordSize) {
                     busAccessDone();
                     break;
                 }
-                _ioAddress = physicalAddress(busSegment(), ind() + 1);
-                _ioData = opr() >> 8;
-                _ioType = busType();
-                _state = stateRunning;
+                _ioWriteData = opr() & 0xff;
+                busStart(stateRunning, ind() + 1);
+                _ioWriteDone = false;
                 break;
             case stateWaitingUntilIRQAcknowledgeCanStart:
+                if (_ioCancelling != 0) {
+                    --_ioCancelling;
+                    if (_ioCancelling != 0)
+                        break;
+                }
                 if (_ioType != ioPassive)
                     break;
-                busStart(stateWaitingUntilIRQAcknowledgeDone);
+                busStart(stateWaitingUntilIRQAcknowledgeDone, ind());  // No address placed on bus during IRQ Acknowledge - it's left to float
                 break;
             case stateWaitingUntilIRQAcknowledgeDone:
-                opr() = _ioData | 0xff00;
+                opr() = _ioReadData | 0xff00;
                 _state = stateRunning;
                 break;
             case stateSingleCycleWait:
@@ -3133,6 +3176,8 @@ private:
         BusState nextState = _busState;
         bool write = _ioType == ioWriteMemory || _ioType == ioWritePort;
         bool ready = true;
+        bool wasFirstIdle = _ioFirstIdle;
+        _ioFirstIdle = false;
         switch (_busState) {
             case t1:
                 //if (_ioType == ioPassive)
@@ -3140,7 +3185,7 @@ private:
                 _snifferDecoder.setAddress(_ioAddress);
                 _bus.startAccess(_ioAddress, (int)_ioType);
                 if (write)
-                    _snifferDecoder.setData(_ioData);
+                    _snifferDecoder.setData(_ioWriteData);
                 nextState = t2t3tWaitNotLast;
                 break;
             case t2t3tWaitNotLast:
@@ -3153,25 +3198,25 @@ private:
                 if (_ioType == ioInterruptAcknowledge ||
                     _ioType == ioReadPort || _ioType == ioReadMemory ||
                     _ioType == ioPrefetch) {
-                    Byte data = _bus.read();
-                    _ioData = data;
+                    _ioReadData = _bus.read();
                 }
                 else
                     _ioWriteDone = true;
+                if (_ioType != ioPrefetch)
+                    _ioDone = true;
                 //_bus.setPassiveOrHalt(true);
                 //_snifferDecoder.setStatus((int)ioPassive);
                 break;
             case t3tWaitLast:
                 if (_ioType == ioInterruptAcknowledge ||
                     _ioType == ioReadPort || _ioType == ioReadMemory ||
-                    _ioType == ioPrefetch) {
-                    _snifferDecoder.setData(_ioData);
-                }
+                    _ioType == ioPrefetch)
+                    _snifferDecoder.setData(_ioReadData);
                 nextState = t4;
                 if (_ioType == ioPrefetch)
                     _prefetchCompleting = true;
                 if (write)
-                    _bus.write(_ioData);
+                    _bus.write(_ioWriteData);
                 _bus.setPassiveOrHalt(true);
                 _snifferDecoder.setStatus((int)ioPassive);
                 _ioType = ioPassive;
@@ -3180,13 +3225,14 @@ private:
             //case t4StatusSet:
                 if (_prefetchCompleting) {
                     _prefetchCompleting = false;
-                    _queue |= (_ioData << (_queueBytes << 3));
+                    _queue |= (_ioReadData << (_queueBytes << 3));
                     ++_queueBytes;
                     ++ip();
                 }
-                else
-                    _ioDone = true;
+                //else
+                //    _ioDone = true;
                 nextState = tIdle;
+                _ioFirstIdle = true;
                 break;
         }
         if (nextState == tIdle && _ioType != ioPassive) {
@@ -3203,8 +3249,13 @@ private:
         }
         if (_ioType == ioPassive && _prefetching && !_ioRequested &&
             (_queueBytes < 3 || (_queueBytes == 3 && !_prefetchCompleting))) {
-            _ioType = ioPrefetch;
-            _ioSegment = 1;
+            if ((_busState == t4 || wasFirstIdle) && !_prefetchDelayed)
+                _prefetchDelayed = true;
+            else {
+                _prefetchDelayed = false;
+                _ioType = ioPrefetch;
+                _ioSegment = 1;
+            }
         }
         //if (nextState == t4 || nextState == tIdle) {
         //    if (_ioNext._type == ioPassive && _queueBytes < 4 && _prefetching) {
@@ -3618,7 +3669,8 @@ private:
 
     IOType _ioType;
     DWord _ioAddress;
-    Byte _ioData;
+    Byte _ioReadData;
+    Byte _ioWriteData;
     int _ioSegment;
 
     SnifferDecoder _snifferDecoder;
@@ -3673,4 +3725,6 @@ private:
     bool _ioWriteDone;
     int _ioCancelling;
     bool _ioRequested;
+    bool _ioFirstIdle;
+    bool _prefetchDelayed;
 };
