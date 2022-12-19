@@ -2908,20 +2908,17 @@ private:
                             _nx = true;
                         break;
                     case 2: // CORR
-                        if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle || _busState == tIdle) {
+                        //if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle || _busState == tIdle) {
                             _state = stateWaitingForQueueIdle;
-                            return;
-                        }
-                        ip() -= _queueBytes;
-                        _queueBytes = 0; // so that realIP() is correct
+                        //    return;
+                        //}
+                        //ip() -= _queueBytes;
+                        //_queueBytes = 0; // so that realIP() is correct
                         break;
                     case 3: // SUSP
                         _prefetching = false;
-                        if (_busState == t4 || _busState == tIdle) {
-                            //if (_busState == tIdle)
-                            //    _state = stateSingleCycleWait;
+                        if (_busState == t4 || _busState == tIdle)
                             _ioType = ioPassive;
-                        }
                         break;
                     case 4: // RTN
                         _microcodePointer = _microcodeReturn;
@@ -2935,53 +2932,24 @@ private:
             case 6:
                 switch ((_operands >> 5) & 3) {
                     case 0: // R
-                        _ioRequested = true;
                         _state = stateWaitingUntilFirstByteReadCanStart;
-                        _ioCancelling = 2; // (_queueBytes == 4 && _lastIOType == ioPrefetch ? 1 : 2);
-                        if (_ioType != ioPassive || _ioFirstIdle || _ioSecondIdle) {
-                            if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle) /* && _ioType == ioPrefetch*/) {
-                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
-                                if (_busState == t4 || _busState == tIdle)
-                                    _ioType = ioPassive;
-                            }
-                            if (_ioFirstIdle)
-                                _ioCancelling = 2;
-                        }
-                        //if (_lastIOType == ioPrefetch && _busState == tIdle && _queueBytes)
-                        //    _ioCancelling = 1;
-                        return;
+                        break;
                     case 1: // IRQ
-                        _ioRequested = true;
                         _state = stateWaitingUntilFirstByteIRQAcknowledgeCanStart;
-                        _ioCancelling = 2;
-                        if (_ioType != ioPassive || _ioFirstIdle || _ioSecondIdle) {
-                            if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle) /* && _ioType == ioPrefetch*/) {
-                                //_ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)) ? 3 : 2);
-                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
-                                if (_busState == t4 || _busState == tIdle)
-                                    _ioType = ioPassive;
-                            }
-                            if (_ioFirstIdle)
-                                _ioCancelling = 2;
-                        }
-                        return;
+                        break;
                     case 2: // W
-                        _ioRequested = true;
                         _state = stateWaitingUntilFirstByteWriteCanStart;
-                        _ioCancelling = 2;
-                        if (_ioType != ioPassive || _ioFirstIdle || _ioSecondIdle) {
-                            if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle) /* && _ioType == ioPrefetch*/) {
-                                //_ioCancelling = ((_busState == t3tWaitLast /* || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)*/) ? 3 : 2);
-                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
-                                if (_busState == t4 || _busState == tIdle)
-                                    _ioType = ioPassive;
-                            }
-                            if (_ioFirstIdle)
-                                _ioCancelling = 2;
-                        }
-                        return;
+                        break;
                 }
-                busAccessDone();
+                _ioRequested = true;
+                _ioCancelling = 2;
+                if (_ioType != ioPassive || _ioSecondIdle) {
+                    if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle)) {
+                        _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
+                        if (_busState == t4 || _busState == tIdle)
+                            _ioType = ioPassive;
+                    }
+                }
                 break;
             case 5: // long jump or call
             case 7:
