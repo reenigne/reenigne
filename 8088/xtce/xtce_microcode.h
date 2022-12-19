@@ -1771,7 +1771,7 @@ public:
     {
         _address = address;
         _type = type;
-        _cycle = 0;
+        _cycle = 1;
     }
     void wait()
     {
@@ -2205,26 +2205,26 @@ public:
                     mask |= 128 >> j;
                 if (c == '1')
                     bits |= 128 >> j;
-                c = translationString[tsp];
                 ++tsp;
+                c = translationString[tsp];
             }
             for (int j = 0; j < 14; ++j) {
                 while (c != '0' && c != '1') {
-                    c = translationString[tsp];
                     ++tsp;
+                    c = translationString[tsp];
                 }
                 if (c == '1')
                     output |= 8192 >> j;
-                c = translationString[tsp];
                 ++tsp;
+                c = translationString[tsp];
             }
             while (c != 10 && c != 13) {
-                c = translationString[tsp];
                 ++tsp;
+                c = translationString[tsp];
             }
             while (c == 10 || c == 13) {
-                c = translationString[tsp];
                 ++tsp;
+                c = translationString[tsp];
             }
             for (int j = 0; j < 256; ++j) {
                 if ((j & mask) == bits)
@@ -2350,6 +2350,7 @@ public:
         _queueWasFilled = false;
         _lastIOType = ioPassive;
         _ioSecondIdle = false;
+        _interruptPending = false;
     }
     void run()
     {
@@ -2414,7 +2415,7 @@ private:
     {
         if (mem) {
             if (_useMemory)
-                return tmpb();
+                return opr();
             if (!_wordSize)
                 return modRMRB2();
             return modRMRW2();
@@ -2663,6 +2664,8 @@ private:
                 return a + 2; // flags never updated
             case 0x1d: // DEC2
                 return a - 2; // flags never updated
+            default:
+                return 0;
         }
         return v;
     }
@@ -2677,8 +2680,9 @@ private:
         stateWaitingUntilFirstByteWriteCanStart,
         stateWaitingUntilFirstByteWritten,
         stateWaitingUntilSecondByteWritten,
-        stateWaitingUntilIRQAcknowledgeCanStart,
-        stateWaitingUntilIRQAcknowledgeDone,
+        stateWaitingUntilFirstByteIRQAcknowledgeCanStart,
+        stateWaitingUntilFirstByteIRQAcknowledgeRead,
+        stateWaitingUntilSecondByteIRQAcknowledgeRead,
         stateSingleCycleWait,
     };
     DWord readSource()
@@ -2712,7 +2716,7 @@ private:
             case 20: // SIGMA
                 v = doALU();
                 if (_updateFlags) {
-                    flags() = (flags() & 0xf7da) | (_overflow ? 0x800 : 0)
+                    flags() = (flags() & 0xf702) | (_overflow ? 0x800 : 0)
                         | (_sign ? 0x80 : 0) | (_zero ? 0x40 : 0)
                         | (_auxiliary ? 0x10 : 0) | _parity
                         | (_carry ? 1 : 0);
@@ -2904,7 +2908,7 @@ private:
                             _nx = true;
                         break;
                     case 2: // CORR
-                        if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle) {
+                        if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle || _busState == tIdle) {
                             _state = stateWaitingForQueueIdle;
                             return;
                         }
@@ -2914,18 +2918,9 @@ private:
                     case 3: // SUSP
                         _prefetching = false;
                         if (_busState == t4 || _busState == tIdle) {
-                            _state = stateSingleCycleWait;
+                            //if (_busState == tIdle)
+                            //    _state = stateSingleCycleWait;
                             _ioType = ioPassive;
-                        }
-                        else {
-                            if (_busState == t1) {
-                        //        // This is a bit hacky
-                        //        _ioType = ioPassive;
-                        //        _busState = tIdle;
-                        //        _bus.setPassiveOrHalt(false);
-                        //        _snifferDecoder.setStatus((int)_ioType);
-                        //        _state = stateSingleCycleWait;
-                            }
                         }
                         break;
                     case 4: // RTN
@@ -2941,63 +2936,49 @@ private:
                 switch ((_operands >> 5) & 3) {
                     case 0: // R
                         _ioRequested = true;
+                        _state = stateWaitingUntilFirstByteReadCanStart;
+                        _ioCancelling = 2; // (_queueBytes == 4 && _lastIOType == ioPrefetch ? 1 : 2);
                         if (_ioType != ioPassive || _ioFirstIdle || _ioSecondIdle) {
-                            _state = stateWaitingUntilFirstByteReadCanStart;
                             if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle) /* && _ioType == ioPrefetch*/) {
-                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)) ? 3 : 2);
+                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
                                 if (_busState == t4 || _busState == tIdle)
                                     _ioType = ioPassive;
                             }
                             if (_ioFirstIdle)
                                 _ioCancelling = 2;
-                            return;
                         }
-                        else {
-                            _state = stateWaitingUntilFirstByteReadCanStart;
-                            _ioCancelling = 2;
-                            return;
-                        }
-                        busStart(stateWaitingUntilFirstByteRead, ind());
+                        //if (_lastIOType == ioPrefetch && _busState == tIdle && _queueBytes)
+                        //    _ioCancelling = 1;
                         return;
                     case 1: // IRQ
                         _ioRequested = true;
+                        _state = stateWaitingUntilFirstByteIRQAcknowledgeCanStart;
+                        _ioCancelling = 2;
                         if (_ioType != ioPassive || _ioFirstIdle || _ioSecondIdle) {
-                            _state = stateWaitingUntilIRQAcknowledgeCanStart;
                             if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle) /* && _ioType == ioPrefetch*/) {
-                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)) ? 3 : 2);
+                                //_ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)) ? 3 : 2);
+                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
                                 if (_busState == t4 || _busState == tIdle)
                                     _ioType = ioPassive;
                             }
                             if (_ioFirstIdle)
                                 _ioCancelling = 2;
-                            return;
                         }
-                        else {
-                            _state = stateWaitingUntilIRQAcknowledgeCanStart;
-                            _ioCancelling = 2;
-                            return;
-                        }
-                        busStart(stateWaitingUntilIRQAcknowledgeDone, ind());
                         return;
                     case 2: // W
                         _ioRequested = true;
+                        _state = stateWaitingUntilFirstByteWriteCanStart;
+                        _ioCancelling = 2;
                         if (_ioType != ioPassive || _ioFirstIdle || _ioSecondIdle) {
-                            _state = stateWaitingUntilFirstByteWriteCanStart;
                             if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle) /* && _ioType == ioPrefetch*/) {
-                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)) ? 3 : 2);
+                                //_ioCancelling = ((_busState == t3tWaitLast /* || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch)*/) ? 3 : 2);
+                                _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
                                 if (_busState == t4 || _busState == tIdle)
                                     _ioType = ioPassive;
                             }
                             if (_ioFirstIdle)
                                 _ioCancelling = 2;
-                            return;
                         }
-                        else {
-                            _state = stateWaitingUntilFirstByteWriteCanStart;
-                            _ioCancelling = 2;
-                            return;
-                        }
-                        busStartWrite();
                         return;
                 }
                 busAccessDone();
@@ -3125,7 +3106,7 @@ private:
                     break;
                 busAccessDone();
                 break;
-            case stateWaitingUntilIRQAcknowledgeCanStart:
+            case stateWaitingUntilFirstByteIRQAcknowledgeCanStart:
                 if (_ioCancelling != 0) {
                     --_ioCancelling;
                     if (_ioCancelling != 0)
@@ -3133,11 +3114,33 @@ private:
                 }
                 if (_ioType != ioPassive)
                     break;
-                busStart(stateWaitingUntilIRQAcknowledgeDone, ind());  // No address placed on bus during IRQ Acknowledge - it's left to float
+                busStart(stateWaitingUntilFirstByteIRQAcknowledgeRead, ind());  // No address placed on bus during IRQ Acknowledge - it's left to float
                 break;
-            case stateWaitingUntilIRQAcknowledgeDone:
-                opr() = _ioReadData | 0xff00;
-                _state = stateRunning;
+            case stateWaitingUntilFirstByteIRQAcknowledgeRead:
+                if (!_wordSize) {
+                    _ioRequested = false;
+                    if (!_ioDone)
+                        break;
+                }
+                else {
+                    if (_ioType != ioPassive)
+                        break;
+                }
+                _ioDone = false;
+                opr() = _ioReadData;
+                if (!_wordSize) {
+                    opr() |= 0xff00;
+                    busAccessDone();
+                    break;
+                }
+                busStart(stateWaitingUntilSecondByteRead, ind() + 1);
+                break;
+            case stateWaitingUntilSecondByteIRQAcknowledgeRead:
+                _ioRequested = false;
+                if (!_ioDone)
+                    break;
+                opr() |= _ioReadData << 8;
+                busAccessDone();
                 break;
             case stateSingleCycleWait:
                 _state = stateRunning;
@@ -3322,6 +3325,7 @@ private:
         }
         _busState = nextState;
         ++_cycle;
+        _interruptPending = _bus.interruptPending();
         _bus.wait();
     }
     String pad(String s, int n) { return s + (n - s.length()) * String(" "); }
@@ -3369,8 +3373,8 @@ private:
             "L8  ", // jump if short immediate (skip 2nd byte from Q)
             "Z   ", // jump if zero (used in IMULCOF/MULCOF)
             "NCZ ",
-            "OF  ", // jump if overflow flag is set
-            "TEST", // jump if -TEST pin not asserted
+            "TEST", // jump if overflow flag is set
+            "OF  ", // jump if -TEST pin not asserted
             "CY  ",
             "UNC ",
             "NF1 ",
@@ -3563,7 +3567,7 @@ private:
                 --_counter;
                 return _counter != -1;
             case 0x05: // TEST - no 8087 emulated yet
-                return false;
+                return true;
             case 0x06: // OF
                 return of();  // only used in INTO
             case 0x07: // CY
@@ -3602,7 +3606,7 @@ private:
     }
     bool interruptPending()
     {
-        return _nmiRequested || (intf() && _bus.interruptPending());
+        return _nmiRequested || (intf() && _interruptPending);
     }
     void doPZS(Word v)
     {
@@ -3645,12 +3649,20 @@ private:
     Word topBit(bool v) { return v ? (_wordSize ? 0x8000 : 0x80) : 0; }
     Word add(DWord a, DWord b, bool c)
     {
+        if (!_wordSize) {
+            a &= 0xff;
+            b &= 0xff;
+        }
         DWord r = a + b + (c ? 1 : 0);
         doFlags(r, topBit((r ^ a) & (r ^ b)), ((a ^ b ^ r) & 0x10) != 0);
         return r;
     }
     Word sub(DWord a, DWord b, bool c)
     {
+        if (!_wordSize) {
+            a &= 0xff;
+            b &= 0xff;
+        }
         DWord r = a - (b + (c ? 1 : 0));
         doFlags(r, topBit((a ^ b) & (r ^ a)), ((a ^ b ^ r) & 0x10) != 0);
         return r;
@@ -3752,4 +3764,5 @@ private:
     bool _prefetchDelayed;
     bool _queueFlushing;
     bool _queueWasFilled;
+    bool _interruptPending;
 };
