@@ -536,20 +536,7 @@ public:
     void setStatus(int s) { _cpu_s = s; }
     void setStatusHigh(int segment)
     {
-        _cpu_ad &= 0xcffff;
-        switch (segment) {
-            case 0:  // ES
-                break;
-            case 1:  // CS or none
-                _cpu_ad |= 0x20000;
-                break;
-            case 2:  // SS
-                _cpu_ad |= 0x10000;
-                break;
-            case 3:  // DS
-                _cpu_ad |= 0x30000;
-                break;
-        }
+        _cpu_ad = (_cpu_ad & 0xcffff) | ((segment & 3) << 16);
         setBusFloating();
     }
     void setInterruptFlag(bool intf)
@@ -2106,6 +2093,8 @@ public:
         // Initialize microcode data and put it in a format more suitable for
         // software emulation.
 
+        static const bool use8086 = false;
+
         DWord instructions[512];
         for (int i = 0; i < 512; ++i)
             instructions[i] = 0;
@@ -2124,7 +2113,6 @@ public:
                     int ib = y * 24 + yy;
                     for (int xx = 0; xx < 64; ++xx) {
                         int b = (s[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
-                        static const bool use8086 = false;
                         if (use8086)
                             b = (s2[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
                         instructions[xx * 8 + half * 4 + yy % 4] |=
@@ -2193,7 +2181,11 @@ public:
             }
         }
 
-        String translationString = File("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\translation.txt").contents();
+        String translationString;
+        if (use8086)
+            translationString = File("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\translation_8086.txt").contents();
+        else
+            translationString = File("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\translation_8088.txt").contents();
         int tsp = 0;
         char c = translationString[0];
         for (int i = 0; i < 33; ++i) {
@@ -2601,7 +2593,7 @@ private:
             case 0x0f: // SAR
                 return doShift(((a >> 1) & wordMask()) | topBit(topBit(a)), a, lowBit(a), (a & 0x20) != 0);
             case 0x10: // PASS
-                return doShift(a, a, false, false);
+                return doShift(a & wordMask(), a & wordMask(), false, false);
             case 0x14: // DAA
                 oldAF = _auxiliary;
                 t = a;
@@ -2680,6 +2672,7 @@ private:
     {
         stateRunning,
         stateWaitingForQueueData,
+        stateWaitingForQueueIdle1,
         stateWaitingForQueueIdle,
         stateIODelay3,
         stateIODelay2,
@@ -2872,20 +2865,22 @@ private:
                     case 0: // RNI
                         if (!_skipRNI)
                             _rni = true;
-                        //else
-                        //    _state = stateSingleCycleWait;
                         break;
                     case 1: // WB,NX
                         if (!_mIsM || !_useMemory || _alu == 7)
                             _nx = true;
+                        //else
+                        //    _state = stateSingleCycleWait;
                         break;
                     case 2: // CORR
-                        _state = stateWaitingForQueueIdle;
+                        _state = stateWaitingForQueueIdle; // 1;
                         break;
                     case 3: // SUSP
                         _prefetching = false;
-                        if (_busState == t4 || _busState == tIdle)
+                        if (_busState == t4 || _busState == tIdle) {
                             _ioType = ioPassive;
+                            //_state = stateSingleCycleWait;
+                        }
                         break;
                     case 4: // RTN
                         _microcodePointer = _microcodeReturn;
@@ -2897,7 +2892,6 @@ private:
                 }
                 break;
             case 6:
-                _ioRequested = true;
                 _state = stateIODelay1;
                 switch (_busState) {
                     case t1:
@@ -2911,11 +2905,22 @@ private:
                         _ioType = ioPassive;
                         break;
                     case tIdle:
-                        if (/*_ioType != ioPassive &&*/ _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)
+                        if (canStartPrefetch())
                             _state = stateIODelay2;
+                        else {
+                            //if (_ioType == ioPrefetch)
+                                _state = stateIODelay1;
+                            //else {
+                            //    if (_lastIOType != ioPrefetch || _queueBytes < 4 || (_operands & 0x10) != 0 || !_prefetching)
+                            //        _state = stateIODelay1;
+                            //    else
+                            //        _state = stateWaitingUntilFirstByteCanStart;
+                            //}
+                        }
                         _ioType = ioPassive;
                         break;
                 }
+                _ioRequested = true;
                 break;
             case 5: // long jump or call
             case 7:
@@ -2978,6 +2983,9 @@ private:
                 writeDestination(readSource());
                 doSecondHalf();
                 break;
+            case stateWaitingForQueueIdle1:
+                _state = stateWaitingForQueueIdle;
+                break;
             case stateWaitingForQueueIdle:
                 if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle)
                     break;
@@ -3039,6 +3047,7 @@ private:
                 if (!_ioDone)
                     break;
                 busAccessDone(_ioReadData);
+                //_state = stateSingleCycleWait;
                 break;
 
             case stateSingleCycleWait:
@@ -3076,6 +3085,22 @@ private:
             return;
         }
         _loaderState = nextState & 2;
+    }
+    bool canStartPrefetch()
+    {
+        if (!_prefetching) // prefetching turned off for a jump?
+            return false;
+        if (_ioRequested || _ioType != ioPassive || _ioFirstIdle)  // bus busy?
+            return false;
+        int newQueueBytes = _queueBytes + (_prefetchCompleting ? 1 : 0);
+        int newQueueBytes2 = newQueueBytes /* - (_dequeueing ? 1 : 0)*/;
+        if (newQueueBytes2 == 4)  // queue already full?
+            return false;
+        //if (newQueueBytes == 3 && _ioSecondIdle && _lastIOType == ioPrefetch)
+        //    return false;  // not sure why this test needed
+        if (_queueWasFilled && _queueBytes > 2)  // same as newQueueBytes == 4?
+            return false;
+        return true;
     }
     void simulateCycle()
     {
@@ -3121,7 +3146,6 @@ private:
         bool ready = true;
         _ioSecondIdle = _ioFirstIdle;
         _ioFirstIdle = false;
-        int newQueueBytes = _queueBytes;
         switch (_busState) {
             case t1:
                 _snifferDecoder.setAddress(_ioAddress);
@@ -3155,7 +3179,8 @@ private:
                 nextState = t4;
                 if (_ioType == ioPrefetch) {
                     _prefetchCompleting = true;
-                    ++newQueueBytes;
+                    if (_queueBytes == 3)
+                        _queueWasFilled = true;
                 }
                 if (write)
                     _bus.write(_ioReadData);
@@ -3170,8 +3195,6 @@ private:
                     _queue |= (_ioReadData << (_queueBytes << 3));
                     ++_queueBytes;
                     ++ip();
-                    if (_queueBytes == 4)
-                        _queueWasFilled = true;
                 }
                 nextState = tIdle;
                 _ioFirstIdle = true;
@@ -3185,18 +3208,11 @@ private:
             _bus.setPassiveOrHalt(_ioType == ioHalt);
             _snifferDecoder.setStatus((int)_ioType);
         }
-
-        if (_ioType == ioPassive && _prefetching && !_ioRequested && _busState != t4 && !(newQueueBytes == 3 && _ioSecondIdle && _lastIOType == ioPrefetch) &&
-            (_queueBytes < 3 || (_queueBytes == 3 && !_prefetchCompleting) || (_queueWasFilled && _dequeueing))) {
-            if (_queueWasFilled && !_prefetchDelayed)
-                _prefetchDelayed = true;
-            else {
-                _prefetchDelayed = false;
-                _ioType = ioPrefetch;
-                _ioSegment = 1;
-            }
+        if (canStartPrefetch()) {
+            _ioType = ioPrefetch;
+            _ioSegment = 1;
         }
-        if (!_ioFirstIdle && _queueWasFilled)
+        if (!_ioFirstIdle && /*!_ioSecondIdle &&*/ _busState != t3tWaitLast && _busState != t4)
             _queueWasFilled = false;
         if (_queueFlushing) {
             _queueFlushing = false;
@@ -3455,8 +3471,8 @@ private:
         switch (n) {
             case 0x00: // F1ZZ
                 if ((_group & groupF1ZZFromPrefix) != 0)
-                    return _zero == (_f1 && _repne);
-                return _zero != lowBit(_opcode);
+                    return zf() == (_f1 && _repne);
+                return zf() != lowBit(_opcode);
             case 0x01: // MOD1
                 return (_modRM & 0x40) != 0;
             case 0x02: // L8 - not sure if there's a better way to compute this
