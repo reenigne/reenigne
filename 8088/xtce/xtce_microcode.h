@@ -2484,7 +2484,7 @@ private:
         _sign = sf();
         _zero = zf();
         _auxiliary = af();
-        _alu = 0;
+        _alu = 0; // default is ADD tmpa (assumed in EA calculations)
         _mIsM = ((_group & groupNoDirectionBit) != 0 || (_opcode & 2) == 0);
         _rni = false;
         _nx = false;
@@ -2497,6 +2497,7 @@ private:
             if ((_group & groupMicrocodePointerFromOpcode) == 0) {
                 _microcodePointer = ((_modRM << 1) & 0x70) | 0xf00 |
                     ((_opcode & 1) << 12) | ((_opcode & 8) << 4);
+                _state = stateSingleCycleWait;
             }
             _useMemory = ((_modRM & 0xc0) != 0xc0);
             if (_useMemory) {
@@ -2504,7 +2505,12 @@ private:
                 _segment = (lowBit(t) ? 2 : 3);
                 _microcodeReturn = _microcodePointer;
                 _microcodePointer = t >> 1;
-                _state = stateSingleCycleWait;
+                // TODO: not easy to observe this difference as the memory read 
+                // interferes. Update once I've covered f6/f7/fe/ff.
+                //if (_state == stateSingleCycleWait)
+                //    _state = stateTwoCycleWait;
+                //else
+                    _state = stateSingleCycleWait;
             }
         }
     }
@@ -2581,19 +2587,19 @@ private:
             case 0x08: // ROL
                 return doRotate((a << 1) | (topBit(a) ? 1 : 0), a, topBit(a));
             case 0x09: // ROR  
-                return doRotate((a >> 1) | topBit(lowBit(a)), a, lowBit(a));
+                return doRotate(((a >> 1) & wordMask()) | topBit(lowBit(a)), a, lowBit(a));
             case 0x0a: // LRCY
                 return doRotate((a << 1) | (_carry ? 1 : 0), a, topBit(a));
             case 0x0b: // RRCY
-                return doRotate((a >> 1) | topBit(_carry), a, lowBit(a));
+                return doRotate(((a >> 1) & wordMask()) | topBit(_carry), a, lowBit(a));
             case 0x0c: // SHL  
                 return doShift(a << 1, a, topBit(a), (a & 8) != 0);
             case 0x0d: // SHR
-                return doShift(a >> 1, a, lowBit(a), (a & 0x20) != 0);
+                return doShift((a >> 1) & wordMask(), a, lowBit(a), (a & 0x20) != 0);
             case 0x0e: // SETMO
                 return doShift(0xffff, a, false, false);
             case 0x0f: // SAR
-                return doShift((a >> 1) | topBit(topBit(a)), a, lowBit(a), (a & 0x20) != 0);
+                return doShift(((a >> 1) & wordMask()) | topBit(topBit(a)), a, lowBit(a), (a & 0x20) != 0);
             case 0x10: // PASS
                 return doShift(a, a, false, false);
             case 0x14: // DAA
@@ -2665,6 +2671,7 @@ private:
             case 0x1d: // DEC2
                 return a - 2; // flags never updated
             default:
+                console.write("Microcode problem: invalid ALU operation\n");
                 return 0;
         }
         return v;
@@ -2674,16 +2681,11 @@ private:
         stateRunning,
         stateWaitingForQueueData,
         stateWaitingForQueueIdle,
-        stateWaitingUntilFirstByteReadCanStart,
-        stateWaitingUntilFirstByteRead,
-        stateWaitingUntilSecondByteRead,
-        stateWaitingUntilFirstByteWriteCanStart,
-        stateWaitingUntilFirstByteWritten,
-        stateWaitingUntilSecondByteWritten,
-        stateWaitingUntilFirstByteIRQAcknowledgeCanStart,
-        stateWaitingUntilFirstByteIRQAcknowledgeRead,
-        stateWaitingUntilSecondByteIRQAcknowledgeRead,
+        stateWaitingUntilFirstByteCanStart,
+        stateWaitingUntilFirstByteDone,
+        stateWaitingUntilSecondByteDone,
         stateSingleCycleWait,
+        //stateTwoCycleWait,
     };
     DWord readSource()
     {
@@ -2787,8 +2789,9 @@ private:
                 _registers[_destination] = v;
         }
     }
-    void busAccessDone()
+    void busAccessDone(Byte high)
     {
+        opr() |= high << 8;
         if ((_operands & 0x10) != 0)
             _rni = true;
         switch (_operands & 3) {
@@ -2803,41 +2806,6 @@ private:
                 break;
         }
         _state = stateRunning;
-    }
-    int busSegment()
-    {
-        int r = (_operands >> 2) & 3;
-        switch (r) {
-            case 0: // ES
-            case 2: // SS
-                return r;
-            case 1: // segment 0
-                return 23;
-        }
-        return _segmentOverride != -1 ? _segmentOverride : _segment;
-    }
-    IOType busType()
-    {
-        int t = (_operands >> 5) & 3;
-        if (t == 1)
-            return ioInterruptAcknowledge;
-        if (t == 0)
-            return (_group & groupMemory) != 0 ? ioReadMemory : ioReadPort;
-        return (_group & groupMemory) != 0 ? ioWriteMemory : ioWritePort;
-    }
-    void busStart(MicrocodeState state, Word offset)
-    {
-        _ioSegment = busSegment();
-        _ioAddress = physicalAddress(_ioSegment, offset);
-        _ioType = busType();
-        _state = state;
-        _ioDone = false;
-    }
-    void busStartWrite()
-    {
-        _ioWriteData = opr() & 0xff;
-        busStart(stateWaitingUntilFirstByteWritten, ind());
-        _ioWriteDone = false;
     }
     void doSecondHalf()
     {
@@ -2869,7 +2837,6 @@ private:
                 switch ((_operands >> 3) & 0x0f) {
                     case 0: // MAXC
                         _counter = _wordSize ? 15 : 7;
-                        _state = stateSingleCycleWait; // HACK: this makes the queuefiller "MUL AL" timing come out right, not sure if it's correct.
                         break;
                     case 1: // FLUSH
                         _queueBytes = 0;
@@ -2908,12 +2875,7 @@ private:
                             _nx = true;
                         break;
                     case 2: // CORR
-                        //if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle || _busState == tIdle) {
-                            _state = stateWaitingForQueueIdle;
-                        //    return;
-                        //}
-                        //ip() -= _queueBytes;
-                        //_queueBytes = 0; // so that realIP() is correct
+                        _state = stateWaitingForQueueIdle;
                         break;
                     case 3: // SUSP
                         _prefetching = false;
@@ -2930,26 +2892,21 @@ private:
                 }
                 break;
             case 6:
-                switch ((_operands >> 5) & 3) {
-                    case 0: // R
-                        _state = stateWaitingUntilFirstByteReadCanStart;
-                        break;
-                    case 1: // IRQ
-                        _state = stateWaitingUntilFirstByteIRQAcknowledgeCanStart;
-                        break;
-                    case 2: // W
-                        _state = stateWaitingUntilFirstByteWriteCanStart;
-                        break;
-                }
                 _ioRequested = true;
                 _ioCancelling = 2;
                 if (_ioType != ioPassive || _ioSecondIdle) {
                     if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle)) {
-                        _ioCancelling = ((_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)) ? 3 : 2);
+                        if (_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3))
+                            _ioCancelling = 3;
                         if (_busState == t4 || _busState == tIdle)
                             _ioType = ioPassive;
                     }
                 }
+//                else {
+                    if (_ioCancelling == 2 && _lastIOType == ioPrefetch && !_ioFirstIdle && _busState != t4 && _queueBytes == 4 && !_ioSecondIdle)
+                        _ioCancelling = 1;
+//                }
+                _state = stateWaitingUntilFirstByteCanStart;
                 break;
             case 5: // long jump or call
             case 7:
@@ -2965,6 +2922,22 @@ private:
                 _state = stateSingleCycleWait;
                 break;
         }
+    }
+    void busStart()
+    {
+        bool memory = (_group & groupMemory) != 0;
+        switch ((_operands >> 5) & 3) {
+            case 0:
+                _ioType = memory ? ioReadMemory : ioReadPort;
+                break;
+            case 1:
+                _ioType = ioInterruptAcknowledge;
+                break;
+            case 2:
+                _ioType = memory ? ioWriteMemory : ioWritePort;
+                break;
+        }
+        _ioDone = false;
     }
     void executeMicrocode()
     {
@@ -3003,7 +2976,8 @@ private:
                 _queueBytes = 0; // so that realIP() is correct
                 _state = stateRunning;
                 break;
-            case stateWaitingUntilFirstByteReadCanStart:
+
+            case stateWaitingUntilFirstByteCanStart:
                 if (_ioCancelling != 0) {
                     --_ioCancelling;
                     if (_ioCancelling != 0)
@@ -3011,9 +2985,22 @@ private:
                 }
                 if (_ioType != ioPassive)
                     break;
-                busStart(stateWaitingUntilFirstByteRead, ind());
+                _ioWriteData = opr() & 0xff;
+                _ioSegment = (_operands >> 2) & 3;
+                if (_ioSegment == 3)
+                    _ioSegment = _segmentOverride != -1 ? _segmentOverride : _segment;
+                else {
+                    // 9 because it's a register slot that stays as all-zero
+                    // bits, and has the same low two bits (so that the logs
+                    // show the right segment).
+                    if (_ioSegment == 1)
+                        _ioSegment = 9;
+                }
+                _ioAddress = physicalAddress(_ioSegment, ind());
+                _state = stateWaitingUntilFirstByteDone;
+                busStart();
                 break;
-            case stateWaitingUntilFirstByteRead:
+            case stateWaitingUntilFirstByteDone:
                 if (!_wordSize) {
                     _ioRequested = false;
                     if (!_ioDone)
@@ -3024,95 +3011,29 @@ private:
                         break;
                 }
                 _ioDone = false;
-                opr() = _ioReadData;
-                if (!_wordSize) {
-                    opr() |= 0xff00;
-                    busAccessDone();
-                    break;
-                }
-                busStart(stateWaitingUntilSecondByteRead, ind() + 1);
-                break;
-            case stateWaitingUntilSecondByteRead:
-                _ioRequested = false;
-                if (!_ioDone)
-                    break;
-                opr() |= _ioReadData << 8;
-                busAccessDone();
-                break;
-            case stateWaitingUntilFirstByteWriteCanStart:
-                if (_ioCancelling != 0) {
-                    --_ioCancelling;
-                    if (_ioCancelling != 0)
-                        break;
-                }
-                if (_ioType != ioPassive)
-                    break;
-                busStartWrite();
-                break;
-            case stateWaitingUntilFirstByteWritten:
-                if (!_wordSize) {
-                    _ioRequested = false;
-                    if (!_ioWriteDone)
-                        break;
-                }
-                else {
-                    if (_busState != t4)
-                        break;
-                }
-                _ioWriteDone = false;
-                if (!_wordSize) {
-                    busAccessDone();
-                    break;
-                }
                 _ioWriteData = opr() >> 8;
-                busStart(stateWaitingUntilSecondByteWritten, ind() + 1);
-                _ioWriteDone = false;
-                break;
-            case stateWaitingUntilSecondByteWritten:
-                _ioRequested = false;
-                if (!_ioWriteDone)
-                    break;
-                busAccessDone();
-                break;
-            case stateWaitingUntilFirstByteIRQAcknowledgeCanStart:
-                if (_ioCancelling != 0) {
-                    --_ioCancelling;
-                    if (_ioCancelling != 0)
-                        break;
-                }
-                if (_ioType != ioPassive)
-                    break;
-                busStart(stateWaitingUntilFirstByteIRQAcknowledgeRead, ind());  // No address placed on bus during IRQ Acknowledge - it's left to float
-                break;
-            case stateWaitingUntilFirstByteIRQAcknowledgeRead:
-                if (!_wordSize) {
-                    _ioRequested = false;
-                    if (!_ioDone)
-                        break;
-                }
-                else {
-                    if (_ioType != ioPassive)
-                        break;
-                }
-                _ioDone = false;
                 opr() = _ioReadData;
-                if (!_wordSize) {
-                    opr() |= 0xff00;
-                    busAccessDone();
-                    break;
+                if (!_wordSize)
+                    busAccessDone(0xff);
+                else {
+                    _ioAddress = physicalAddress(_ioSegment, ind() + 1);
+                    _state = stateWaitingUntilSecondByteDone;
+                    busStart();
                 }
-                busStart(stateWaitingUntilSecondByteRead, ind() + 1);
                 break;
-            case stateWaitingUntilSecondByteIRQAcknowledgeRead:
+            case stateWaitingUntilSecondByteDone:
                 _ioRequested = false;
                 if (!_ioDone)
                     break;
-                opr() |= _ioReadData << 8;
-                busAccessDone();
+                busAccessDone(_ioReadData);
                 break;
+
             case stateSingleCycleWait:
                 _state = stateRunning;
                 break;
+            //case stateTwoCycleWait:
+            //    _state = stateSingleCycleWait;
+            //    break;
         }
     }
     void setNextMicrocode(int nextState, int nextMicrocode)
@@ -3208,8 +3129,8 @@ private:
                     _ioType == ioPrefetch) {
                     _ioReadData = _bus.read();
                 }
-                else
-                    _ioWriteDone = true;
+                if (_ioType == ioWritePort || _ioType == ioWriteMemory)
+                    _ioReadData = _ioWriteData;
                 if (_ioType != ioPrefetch)
                     _ioDone = true;
                 break;
@@ -3224,7 +3145,7 @@ private:
                     ++newQueueBytes;
                 }
                 if (write)
-                    _bus.write(_ioWriteData);
+                    _bus.write(_ioReadData);
                 _bus.setPassiveOrHalt(true);
                 _snifferDecoder.setStatus((int)ioPassive);
                 _lastIOType = _ioType;
@@ -3576,6 +3497,7 @@ private:
     {
         return _nmiRequested || (intf() && _interruptPending);
     }
+    Word wordMask() { return _wordSize ? 0xffff : 0xff; }
     void doPZS(Word v)
     {
         static Byte table[0x100] = {
@@ -3596,7 +3518,7 @@ private:
             0, 4, 4, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, 4, 4, 0,
             4, 0, 0, 4, 0, 4, 4, 0, 0, 4, 4, 0, 4, 0, 0, 4 };
         _parity = table[v & 0xff];
-        _zero = ((v & (_wordSize ? 0xffff : 0xff)) == 0);
+        _zero = ((v & wordMask()) == 0);
         _sign = topBit(v);
     }
     void doFlags(DWord result, bool of, bool af)
@@ -3724,7 +3646,6 @@ private:
     bool _prefetchCompleting;
     bool _dequeueing;
     bool _ioDone;
-    bool _ioWriteDone;
     int _ioCancelling;
     bool _ioRequested;
     bool _ioFirstIdle;
