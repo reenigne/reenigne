@@ -2681,6 +2681,9 @@ private:
         stateRunning,
         stateWaitingForQueueData,
         stateWaitingForQueueIdle,
+        stateIODelay3,
+        stateIODelay2,
+        stateIODelay1,
         stateWaitingUntilFirstByteCanStart,
         stateWaitingUntilFirstByteDone,
         stateWaitingUntilSecondByteDone,
@@ -2869,6 +2872,8 @@ private:
                     case 0: // RNI
                         if (!_skipRNI)
                             _rni = true;
+                        //else
+                        //    _state = stateSingleCycleWait;
                         break;
                     case 1: // WB,NX
                         if (!_mIsM || !_useMemory || _alu == 7)
@@ -2893,20 +2898,24 @@ private:
                 break;
             case 6:
                 _ioRequested = true;
-                _ioCancelling = 2;
-                if (_ioType != ioPassive || _ioSecondIdle) {
-                    if ((_busState == t2t3tWaitNotLast || _busState == t3tWaitLast || _busState == t4 || _busState == tIdle)) {
-                        if (_busState == t3tWaitLast || (_busState == tIdle && _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3))
-                            _ioCancelling = 3;
-                        if (_busState == t4 || _busState == tIdle)
-                            _ioType = ioPassive;
-                    }
+                _state = stateIODelay1;
+                switch (_busState) {
+                    case t1:
+                    case t2t3tWaitNotLast:
+                        break;
+                        break;
+                    case t3tWaitLast:
+                        _state = stateIODelay2;
+                        break;
+                    case t4:
+                        _ioType = ioPassive;
+                        break;
+                    case tIdle:
+                        if (/*_ioType != ioPassive &&*/ _ioSecondIdle && _lastIOType == ioPrefetch && _queueBytes == 3)
+                            _state = stateIODelay2;
+                        _ioType = ioPassive;
+                        break;
                 }
-//                else {
-                    if (_ioCancelling == 2 && _lastIOType == ioPrefetch && !_ioFirstIdle && _busState != t4 && _queueBytes == 4 && !_ioSecondIdle)
-                        _ioCancelling = 1;
-//                }
-                _state = stateWaitingUntilFirstByteCanStart;
                 break;
             case 5: // long jump or call
             case 7:
@@ -2977,12 +2986,16 @@ private:
                 _state = stateRunning;
                 break;
 
+            case stateIODelay3:
+                _state = stateIODelay2;
+                break;
+            case stateIODelay2:
+                _state = stateIODelay1;
+                break;
+            case stateIODelay1:
+                _state = stateWaitingUntilFirstByteCanStart;
+                break;
             case stateWaitingUntilFirstByteCanStart:
-                if (_ioCancelling != 0) {
-                    --_ioCancelling;
-                    if (_ioCancelling != 0)
-                        break;
-                }
                 if (_ioType != ioPassive)
                     break;
                 _ioWriteData = opr() & 0xff;
