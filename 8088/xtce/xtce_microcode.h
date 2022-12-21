@@ -2520,8 +2520,22 @@ private:
             _repne = !lowBit(_opcode);
             return;
         }
-        if ((_group & groupHLT) != 0)
-            _prefetching = false;
+        if ((_group & groupHLT) != 0) {
+            _loaderState = 2;
+            //_operands = 0x60;  // _ioType = ioHalt
+            _rni = false;
+            _nx = false;
+            //_wordSize = false;
+            //_extraHaltDelay = (_busState != tIdle || _ioFirstIdle);
+            //if (!_extraHaltDelay)
+            //    startIO();
+            //else {
+                //_snifferDecoder.setStatus((int)ioHalt);
+                _state = stateHaltingStart;
+            //}
+
+            return;
+        }
         if ((_group & groupCMC) != 0) {
             flags() ^= 1;
             return;
@@ -2680,6 +2694,11 @@ private:
         stateWaitingUntilFirstByteDone,
         stateWaitingUntilSecondByteDone,
         stateSingleCycleWait,
+        stateHaltingStart,
+        stateHalting3,
+        stateHalting2,
+        stateHalting1,
+        stateHalted,
     };
     DWord readSource()
     {
@@ -2719,6 +2738,7 @@ private:
                 }
                 return v;
             case 22: // CR
+                _wordSize = true; // HACK: not sure how this happens for INT0 on the hardware
                 return _microcodePointer & 0xf;
         }
         return _registers[_source];
@@ -2799,7 +2819,10 @@ private:
                 ind() -= 2;
                 break;
         }
-        _state = stateRunning;
+        if ((_operands & 0x60) == 0x60)
+            _state = stateHalting2;
+        else
+            _state = stateRunning;
     }
     void doSecondMisc()
     {
@@ -2828,6 +2851,15 @@ private:
                 _nx = true;
                 break;
         }
+    }
+    void startIO()
+    {
+        _state = stateIODelay1;
+        if (_busState == t3tWaitLast || canStartPrefetch())
+            _state = stateIODelay2;
+        if (_busState == t4 || _busState == tIdle)
+            _ioType = ioPassive;
+        _ioRequested = true;
     }
     void doSecondHalf()
     {
@@ -2892,27 +2924,7 @@ private:
                 doSecondMisc();
                 break;
             case 6:
-                _state = stateIODelay1;
-                switch (_busState) {
-                    case t1:
-                    case t2t3tWaitNotLast:
-                        break;
-                        break;
-                    case t3tWaitLast:
-                        _state = stateIODelay2;
-                        break;
-                    case t4:
-                        _ioType = ioPassive;
-                        break;
-                    case tIdle:
-                        if (canStartPrefetch())
-                            _state = stateIODelay2;
-                        else
-                            _state = stateIODelay1;
-                        _ioType = ioPassive;
-                        break;
-                }
-                _ioRequested = true;
+                startIO();
                 break;
             case 5: // long jump or call
             case 7:
@@ -2941,6 +2953,9 @@ private:
                 break;
             case 2:
                 _ioType = memory ? ioWriteMemory : ioWritePort;
+                break;
+            case 3:
+                _ioType = ioHalt;
                 break;
         }
         _ioDone = false;
@@ -3051,9 +3066,38 @@ private:
             case stateSingleCycleWait:
                 _state = stateRunning;
                 break;
-            //case stateTwoCycleWait:
-            //    _state = stateSingleCycleWait;
-            //    break;
+
+            case stateHaltingStart:
+                _prefetching = false;
+                _extraHaltDelay = (_ioType == ioPassive || _busState != tIdle);
+                _state = stateHalting3;
+                if (_ioType != ioPassive)
+                    break;
+                _state = stateHalting2;
+                break;
+            case stateHalting3:
+                if (_ioType != ioPassive)
+                    break;
+                _state = stateHalting2;
+                break;
+            case stateHalting2:
+                _snifferDecoder.setStatus((int)ioHalt);
+                _state = stateHalting1;
+                break;
+            case stateHalting1:
+                _state = stateHalted;
+                break;
+            case stateHalted:
+                _snifferDecoder.setStatus((int)ioPassive);
+                if (!interruptPending())
+                    break;
+                if (_extraHaltDelay) {
+                    _extraHaltDelay = false;
+                    break;
+                }
+                _rni = true;
+                _state = stateRunning;
+                break;
         }
     }
     void setNextMicrocode(int nextState, int nextMicrocode)
@@ -3426,13 +3470,13 @@ private:
                     case 5: r += "W,RNI"; break;
                 }
                 r += " ";
-                switch ((o >> 2) & 3) {  // Bits 0 and 1 are segment, bits 2 and 3 are IND update
+                switch ((o >> 2) & 3) {  // Bits 0 and 1 are segment
                     case 0: r += "DA,"; break;  // ES
                     case 1: r += "D0,"; break;  // segment 0
                     case 2: r += "DS,"; break;  // SS
                     case 3: r += "DD,"; break;  // DS
                 }
-                switch (o & 3) {  // Bits 0 and 1 are segment, bits 2 and 3 are IND update
+                switch (o & 3) {  // bits 2 and 3 are IND update
                     case 0: r += "P2"; break;  // Increment IND by 2
                     case 1: r += "BL"; break;  // Adjust IND according to word size and DF
                     case 2: r += "M2"; break;  // Decrement IND by 2
@@ -3675,4 +3719,5 @@ private:
     bool _queueFlushing;
     bool _queueWasFilled;
     bool _interruptPending;
+    bool _extraHaltDelay;
 };
