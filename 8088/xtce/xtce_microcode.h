@@ -2522,18 +2522,9 @@ private:
         }
         if ((_group & groupHLT) != 0) {
             _loaderState = 2;
-            //_operands = 0x60;  // _ioType = ioHalt
             _rni = false;
             _nx = false;
-            //_wordSize = false;
-            //_extraHaltDelay = (_busState != tIdle || _ioFirstIdle);
-            //if (!_extraHaltDelay)
-            //    startIO();
-            //else {
-                //_snifferDecoder.setStatus((int)ioHalt);
-                _state = stateHaltingStart;
-            //}
-
+            _state = stateHaltingStart;
             return;
         }
         if ((_group & groupCMC) != 0) {
@@ -2607,7 +2598,7 @@ private:
             case 0x0f: // SAR
                 return doShift(((a >> 1) & wordMask()) | topBit(topBit(a)), a, lowBit(a), (a & 0x20) != 0);
             case 0x10: // PASS
-                return doShift(a & wordMask(), a & wordMask(), false, false);
+                return doShift(a, a, false, false);
             case 0x14: // DAA
                 oldAF = _auxiliary;
                 t = a;
@@ -2687,6 +2678,7 @@ private:
         stateRunning,
         stateWaitingForQueueData,
         stateWaitingForQueueIdle,
+        stateWaitingForQueueIdleFlush1,
         stateWaitingForQueueIdleFlush,
         stateIODelay2,
         stateIODelay1,
@@ -2699,6 +2691,7 @@ private:
         stateHalting2,
         stateHalting1,
         stateHalted,
+        stateSuspending,
     };
     DWord readSource()
     {
@@ -2723,7 +2716,7 @@ private:
                     return (_wordSize ? ax() : al());
                 if ((_group & groupEffectiveAddress) == 0)
                     return rw();
-                return getMemOrReg(_mIsM);
+                return getMemOrReg(_mIsM); // & wordMask();
             case 19: // R
                 if ((_group & groupEffectiveAddress) == 0)
                     return sr((_opcode >> 3) & 7);
@@ -2819,9 +2812,9 @@ private:
                 ind() -= 2;
                 break;
         }
-        if ((_operands & 0x60) == 0x60)
-            _state = stateHalting2;
-        else
+        //if ((_operands & 0x60) == 0x60)
+        //    _state = stateHalting2;
+        //else
             _state = stateRunning;
     }
     void doSecondMisc()
@@ -2840,8 +2833,14 @@ private:
                 break;
             case 3: // SUSP
                 _prefetching = false;
-                if (_busState == t4 || _busState == tIdle)
+                if (_busState != t4 && _busState != tIdle) {
+                    _state = stateSuspending;
+                    break;
+                }
+                //if (_busState == t4 || _busState == tIdle)
                     _ioType = ioPassive;
+                //if (_busState == t3tWaitLast)
+                //    _state = stateSingleCycleWait;
                 break;
             case 4: // RTN
                 _microcodePointer = _microcodeReturn;
@@ -2893,10 +2892,14 @@ private:
                         _counter = _wordSize ? 15 : 7;
                         break;
                     case 1: // FLUSH
-                        if (_ioType == ioPrefetch || ((_busState == t4 || _ioFirstIdle) && _lastIOType == ioPrefetch)) {
-                            _state = stateWaitingForQueueIdleFlush;
-                            return;
-                        }
+                        //if (_ioType == ioPrefetch || ((_busState == t4 /*|| _ioFirstIdle*/) && _lastIOType == ioPrefetch)) {
+                        //    _state = stateWaitingForQueueIdleFlush1;
+                        //    return;
+                        //}
+                        ////if (_ioType == ioPrefetch || ((_busState == t4 || _ioFirstIdle) && _lastIOType == ioPrefetch)) {
+                        ////    _state = stateWaitingForQueueIdleFlush;
+                        ////    return;
+                        ////}
                         doQueueFlush();
                         break;
                     case 2: // CF1
@@ -2963,6 +2966,7 @@ private:
     void doQueueFlush()
     {
         _queueBytes = 0;
+        _queue = 0;
         _snifferDecoder.queueOperation(2);
         _queueFlushing = true;
     }
@@ -2996,9 +3000,24 @@ private:
                 writeDestination(readSource());
                 doSecondHalf();
                 break;
-            case stateWaitingForQueueIdleFlush:
-                if (_ioType == ioPrefetch || ((_busState == t4 || _ioFirstIdle) && _lastIOType == ioPrefetch))
+
+            case stateSuspending:
+                if (_busState != t4)
                     break;
+                _state = stateRunning;
+                break;
+
+            //case stateWaitingForQueueIdleFlush2:
+            //    _state = stateWaitingForQueueIdleFlush1;
+            //    break;
+            case stateWaitingForQueueIdleFlush1:
+                if (_busState == t3tWaitLast)
+                    break;
+                _state = stateWaitingForQueueIdleFlush;
+                break;
+            case stateWaitingForQueueIdleFlush:
+                //if (_ioType == ioPrefetch || ((_busState == t4 || _ioFirstIdle) && _lastIOType == ioPrefetch))
+                //    break;
                 _state = stateRunning;
                 doQueueFlush();
                 doSecondMisc();
@@ -3588,7 +3607,6 @@ private:
     }
     void doFlags(DWord result, bool of, bool af)
     {
-        _carry = ((result & (_wordSize ? 0x10000 : 0x100)) != 0);
         doPZS(result);
         _overflow = of;
         _auxiliary = af;
@@ -3596,7 +3614,13 @@ private:
     Word bitwise(Word data)
     {
         doFlags(data, false, false);
+        _carry = false;
         return data;
+    }
+    void doAddSubFlags(DWord result, DWord xor, bool of, bool af)
+    {
+        doFlags(result, of, af);
+        _carry = (((result ^ xor) & (_wordSize ? 0x10000 : 0x100)) != 0);
     }
     bool lowBit(DWord v) { return (v & 1) != 0; }
     bool topBit(int w) { return (w & (_wordSize ? 0x8000 : 0x80)) != 0; }
@@ -3604,22 +3628,22 @@ private:
     Word topBit(bool v) { return v ? (_wordSize ? 0x8000 : 0x80) : 0; }
     Word add(DWord a, DWord b, bool c)
     {
-        if (!_wordSize) {
-            a &= 0xff;
-            b &= 0xff;
-        }
+        //if (!_wordSize) {
+        //    a &= 0xff;
+        //    b &= 0xff;
+        //}
         DWord r = a + b + (c ? 1 : 0);
-        doFlags(r, topBit((r ^ a) & (r ^ b)), ((a ^ b ^ r) & 0x10) != 0);
+        doAddSubFlags(r, a ^ b, topBit((r ^ a) & (r ^ b)), ((a ^ b ^ r) & 0x10) != 0);
         return r;
     }
     Word sub(DWord a, DWord b, bool c)
     {
-        if (!_wordSize) {
-            a &= 0xff;
-            b &= 0xff;
-        }
+        //if (!_wordSize) {
+        //    a &= 0xff;
+        //    b &= 0xff;
+        //}
         DWord r = a - (b + (c ? 1 : 0));
-        doFlags(r, topBit((a ^ b) & (r ^ a)), ((a ^ b ^ r) & 0x10) != 0);
+        doAddSubFlags(r, a ^ b, topBit((a ^ b) & (r ^ a)), ((a ^ b ^ r) & 0x10) != 0);
         return r;
     }
     DWord physicalAddress(int segment, Word offset)
