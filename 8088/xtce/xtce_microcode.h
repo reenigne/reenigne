@@ -2570,13 +2570,13 @@ private:
         switch (_alu) {
             case 0x00: // ADD
             case 0x02: // ADC
-                return add(a, tmpb(), cf() && _alu != 0);
+                return add(a, tmpb(), _carry && _alu != 0);
             case 0x01: // OR
                 return bitwise(a | tmpb());
             case 0x03: // SBB
             case 0x05: // SUBT
             case 0x07: // CMP
-                return sub(a, tmpb(), cf() && _alu == 3);
+                return sub(a, tmpb(), _carry && _alu == 3);
             case 0x04: // AND
                 return bitwise(a & tmpb());
             case 0x06: // XOR
@@ -2584,19 +2584,19 @@ private:
             case 0x08: // ROL
                 return doRotate((a << 1) | (topBit(a) ? 1 : 0), a, topBit(a));
             case 0x09: // ROR  
-                return doRotate(((a >> 1) & wordMask()) | topBit(lowBit(a)), a, lowBit(a));
+                return doRotate(((a & wordMask()) >> 1) | topBit(lowBit(a)), a, lowBit(a));
             case 0x0a: // LRCY
                 return doRotate((a << 1) | (_carry ? 1 : 0), a, topBit(a));
             case 0x0b: // RRCY
-                return doRotate(((a >> 1) & wordMask()) | topBit(_carry), a, lowBit(a));
+                return doRotate(((a & wordMask()) >> 1) | topBit(_carry), a, lowBit(a));
             case 0x0c: // SHL  
                 return doShift(a << 1, a, topBit(a), (a & 8) != 0);
             case 0x0d: // SHR
-                return doShift((a >> 1) & wordMask(), a, lowBit(a), (a & 0x20) != 0);
+                return doShift((a & wordMask()) >> 1, a, lowBit(a), (a & 0x20) != 0);
             case 0x0e: // SETMO
                 return doShift(0xffff, a, false, false);
             case 0x0f: // SAR
-                return doShift(((a >> 1) & wordMask()) | topBit(topBit(a)), a, lowBit(a), (a & 0x20) != 0);
+                return doShift(((a & wordMask()) >> 1) | topBit(topBit(a)), a, lowBit(a), (a & 0x20) != 0);
             case 0x10: // PASS
                 return doShift(a, a, false, false);
             case 0x14: // DAA
@@ -2678,8 +2678,6 @@ private:
         stateRunning,
         stateWaitingForQueueData,
         stateWaitingForQueueIdle,
-        stateWaitingForQueueIdleFlush1,
-        stateWaitingForQueueIdleFlush,
         stateIODelay2,
         stateIODelay1,
         stateWaitingUntilFirstByteCanStart,
@@ -2716,7 +2714,7 @@ private:
                     return (_wordSize ? ax() : al());
                 if ((_group & groupEffectiveAddress) == 0)
                     return rw();
-                return getMemOrReg(_mIsM); // & wordMask();
+                return getMemOrReg(_mIsM);
             case 19: // R
                 if ((_group & groupEffectiveAddress) == 0)
                     return sr((_opcode >> 3) & 7);
@@ -2812,10 +2810,7 @@ private:
                 ind() -= 2;
                 break;
         }
-        //if ((_operands & 0x60) == 0x60)
-        //    _state = stateHalting2;
-        //else
-            _state = stateRunning;
+        _state = stateRunning;
     }
     void doSecondMisc()
     {
@@ -2837,10 +2832,7 @@ private:
                     _state = stateSuspending;
                     break;
                 }
-                //if (_busState == t4 || _busState == tIdle)
-                    _ioType = ioPassive;
-                //if (_busState == t3tWaitLast)
-                //    _state = stateSingleCycleWait;
+                _ioType = ioPassive;
                 break;
             case 4: // RTN
                 _microcodePointer = _microcodeReturn;
@@ -2892,15 +2884,10 @@ private:
                         _counter = _wordSize ? 15 : 7;
                         break;
                     case 1: // FLUSH
-                        //if (_ioType == ioPrefetch || ((_busState == t4 /*|| _ioFirstIdle*/) && _lastIOType == ioPrefetch)) {
-                        //    _state = stateWaitingForQueueIdleFlush1;
-                        //    return;
-                        //}
-                        ////if (_ioType == ioPrefetch || ((_busState == t4 || _ioFirstIdle) && _lastIOType == ioPrefetch)) {
-                        ////    _state = stateWaitingForQueueIdleFlush;
-                        ////    return;
-                        ////}
-                        doQueueFlush();
+                        _queueBytes = 0;
+                        _queue = 0;
+                        _snifferDecoder.queueOperation(2);
+                        _queueFlushing = true;
                         break;
                     case 2: // CF1
                         _f1 = !_f1;
@@ -2963,13 +2950,6 @@ private:
         }
         _ioDone = false;
     }
-    void doQueueFlush()
-    {
-        _queueBytes = 0;
-        _queue = 0;
-        _snifferDecoder.queueOperation(2);
-        _queueFlushing = true;
-    }
     void executeMicrocode()
     {
         Byte* m;
@@ -3007,21 +2987,6 @@ private:
                 _state = stateRunning;
                 break;
 
-            //case stateWaitingForQueueIdleFlush2:
-            //    _state = stateWaitingForQueueIdleFlush1;
-            //    break;
-            case stateWaitingForQueueIdleFlush1:
-                if (_busState == t3tWaitLast)
-                    break;
-                _state = stateWaitingForQueueIdleFlush;
-                break;
-            case stateWaitingForQueueIdleFlush:
-                //if (_ioType == ioPrefetch || ((_busState == t4 || _ioFirstIdle) && _lastIOType == ioPrefetch))
-                //    break;
-                _state = stateRunning;
-                doQueueFlush();
-                doSecondMisc();
-                break;
             case stateWaitingForQueueIdle:
                 if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle)
                     break;
@@ -3628,20 +3593,12 @@ private:
     Word topBit(bool v) { return v ? (_wordSize ? 0x8000 : 0x80) : 0; }
     Word add(DWord a, DWord b, bool c)
     {
-        //if (!_wordSize) {
-        //    a &= 0xff;
-        //    b &= 0xff;
-        //}
         DWord r = a + b + (c ? 1 : 0);
         doAddSubFlags(r, a ^ b, topBit((r ^ a) & (r ^ b)), ((a ^ b ^ r) & 0x10) != 0);
         return r;
     }
     Word sub(DWord a, DWord b, bool c)
     {
-        //if (!_wordSize) {
-        //    a &= 0xff;
-        //    b &= 0xff;
-        //}
         DWord r = a - (b + (c ? 1 : 0));
         doAddSubFlags(r, a ^ b, topBit((a ^ b) & (r ^ a)), ((a ^ b ^ r) & 0x10) != 0);
         return r;
