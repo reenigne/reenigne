@@ -536,7 +536,20 @@ public:
     void setStatus(int s) { _cpu_s = s; }
     void setStatusHigh(int segment)
     {
-        _cpu_ad = (_cpu_ad & 0xcffff) | ((segment & 3) << 16);
+        _cpu_ad &= 0xcffff;
+        switch (segment) {
+            case 0:  // ES
+                break;
+            case 2:  // SS
+                _cpu_ad |= 0x10000;
+                break;
+            case 3:  // DS
+                _cpu_ad |= 0x30000;
+                break;
+            default: // CS or none
+                _cpu_ad |= 0x20000;
+                break;
+        }
         setBusFloating();
     }
     void setInterruptFlag(bool intf)
@@ -1758,7 +1771,7 @@ public:
     {
         _address = address;
         _type = type;
-        _cycle = 1;
+        _cycle = 0;
     }
     void wait()
     {
@@ -1836,23 +1849,26 @@ public:
             case s2: _dmaState = s3; break;
             case s3: _dmaState = s4; break;
             case s4: _dmaState = sDelayedT1; _dmac.dmaCompleted(); break;
-            case sDelayedT1: _dmaState = sDelayedT2; break;
+            case sDelayedT1: _dmaState = sDelayedT2; _cycle = 0; break;
             case sDelayedT2: _dmaState = sDelayedT3; break;
-            case sDelayedT3: _dmaState = sIdle; break;
+            case sDelayedT3:
+            //case sDelayedTw:
+            //    if (nonDMAReady())
+                    _dmaState = sIdle;
+                //else
+                //    _dmaState = sDelayedTw;
+                break;
         }
         _previousLock = _lock;
         _previousPassiveOrHalt = _passiveOrHalt;
 
         _lastNonDMAReady = nonDMAReady();
-        ++_cycle;
+        //if (dmaReady() || _dmaState == sDelayedT2)
+            ++_cycle;
     }
     bool ready()
     {
-        if (_dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
-            _dmaState == sWait || _dmaState == s4 || _dmaState == sDelayedT1 ||
-            _dmaState == sDelayedT2 /*|| _dmaState == sDelayedT3*/)
-            return false;
-        return nonDMAReady();
+        return dmaReady() && nonDMAReady();
     }
     void write(Byte data)
     {
@@ -1938,6 +1954,7 @@ public:
         return 0;
     }
     bool getDMAS3() { return _dmaState == s3; }
+    bool getDMADelayedT2() { return _dmaState == sDelayedT2; }
     DWord getDMAAddress()
     {
         return dmaAddressHigh(_dmac.channel()) + _dmac.address();
@@ -1959,10 +1976,18 @@ public:
         return _cgaPhase >> 2;
     }
 private:
+    bool dmaReady()
+    {
+        if (_dmaState == s1 || _dmaState == s2 || _dmaState == s3 ||
+            _dmaState == sWait || _dmaState == s4 || _dmaState == sDelayedT1 ||
+            _dmaState == sDelayedT2 /*|| _dmaState == sDelayedT3*/)
+            return false;
+        return true;
+    }
     bool nonDMAReady()
     {
         if (_type == 1 || _type == 2)  // Read port, write port
-            return _cycle < 2 || _cycle > 2;  // System board adds a wait state for onboard IO devices
+            return _cycle > 2;  // System board adds a wait state for onboard IO devices
         return true;
     }
     bool dack0()
@@ -2013,7 +2038,8 @@ private:
         s4,
         sDelayedT1,
         sDelayedT2,
-        sDelayedT3
+        sDelayedT3,
+        sDelayedTw,
     };
 
     Array<Byte> _ram;
@@ -2332,17 +2358,17 @@ public:
         _lock = false;
         _loaderState = 0;
         _lastMicrocodePointer = -1;
-        _prefetchCompleting = false;
         _dequeueing = false;
         _ioCancelling = 0;
         _ioRequested = false;
-        _ioFirstIdle = false;
+        _t4 = false;
         _prefetchDelayed = false;
         _queueFlushing = false;
-        _queueWasFilled = false;
         _lastIOType = ioPassive;
-        _ioSecondIdle = false;
+        _t5 = false;
         _interruptPending = false;
+        _ready = true;
+        _cyclesUntilCanLowerQueueFilled = 0;
     }
     void run()
     {
@@ -2497,12 +2523,7 @@ private:
                 _segment = (lowBit(t) ? 2 : 3);
                 _microcodeReturn = _microcodePointer;
                 _microcodePointer = t >> 1;
-                // TODO: not easy to observe this difference as the memory read 
-                // interferes. Update once I've covered f6/f7/fe/ff.
-                //if (_state == stateSingleCycleWait)
-                //    _state = stateTwoCycleWait;
-                //else
-                    _state = stateSingleCycleWait;
+                _state = stateSingleCycleWait;
             }
         }
     }
@@ -2525,6 +2546,7 @@ private:
             _rni = false;
             _nx = false;
             _state = stateHaltingStart;
+            _extraHaltDelay = !((_busState == tIdle && !_t5 && !_t6 && _ioType == ioPassive) || (_t5 && _lastIOType != ioPrefetch));
             return;
         }
         if ((_group & groupCMC) != 0) {
@@ -2667,9 +2689,6 @@ private:
                 return a + 2; // flags never updated
             case 0x1d: // DEC2
                 return a - 2; // flags never updated
-            default:
-                console.write("Microcode problem: invalid ALU operation\n");
-                return 0;
         }
         return v;
     }
@@ -2846,7 +2865,7 @@ private:
     void startIO()
     {
         _state = stateIODelay1;
-        if (_busState == t3tWaitLast || canStartPrefetch())
+        if ((_busState == t3 || _busState == tWait) || canStartPrefetch())
             _state = stateIODelay2;
         if (_busState == t4 || _busState == tIdle)
             _ioType = ioPassive;
@@ -2865,9 +2884,6 @@ private:
             case 1: // precondition ALU
                 _alu = _operands >> 3;
                 _nx = lowBit(_operands);
-                // This is surprisingly complicated, and may not be the same
-                // logic the actual CPU uses. But it should give the same
-                // results.
                 if (_mIsM && _useMemory && _alu != 7 &&
                     (_group & groupEffectiveAddress) != 0)
                     _nx = false;
@@ -2948,7 +2964,6 @@ private:
                 _ioType = ioHalt;
                 break;
         }
-        _ioDone = false;
     }
     void executeMicrocode()
     {
@@ -2988,7 +3003,7 @@ private:
                 break;
 
             case stateWaitingForQueueIdle:
-                if (_ioType != ioPassive || _busState == t4 || _ioFirstIdle)
+                if (_ioType != ioPassive || _busState == t4 || _t4)
                     break;
                 ip() -= _queueBytes;
                 _queueBytes = 0; // so that realIP() is correct
@@ -2996,9 +3011,13 @@ private:
                 break;
 
             case stateIODelay2:
+                if (!_ready)
+                    break;
                 _state = stateIODelay1;
                 break;
             case stateIODelay1:
+                if (_busState == t4)
+                    break;
                 _state = stateWaitingUntilFirstByteCanStart;
                 break;
             case stateWaitingUntilFirstByteCanStart:
@@ -3020,16 +3039,10 @@ private:
                 busStart();
                 break;
             case stateWaitingUntilFirstByteDone:
-                if (!_wordSize) {
+                if (!_wordSize)
                     _ioRequested = false;
-                    if (!_ioDone)
-                        break;
-                }
-                else {
-                    if (_ioType != ioPassive)
-                        break;
-                }
-                _ioDone = false;
+                if (_ioType != ioPassive)
+                    break;
                 _ioWriteData = opr() >> 8;
                 opr() = _ioReadData;
                 if (!_wordSize)
@@ -3042,7 +3055,7 @@ private:
                 break;
             case stateWaitingUntilSecondByteDone:
                 _ioRequested = false;
-                if (!_ioDone)
+                if (_ioType != ioPassive)
                     break;
                 busAccessDone(_ioReadData);
                 break;
@@ -3053,7 +3066,6 @@ private:
 
             case stateHaltingStart:
                 _prefetching = false;
-                _extraHaltDelay = (_ioType == ioPassive || _busState != tIdle);
                 _state = stateHalting3;
                 if (_ioType != ioPassive)
                     break;
@@ -3116,19 +3128,92 @@ private:
     {
         if (!_prefetching) // prefetching turned off for a jump?
             return false;
-        if (_ioRequested || _ioType != ioPassive || _ioFirstIdle)  // bus busy?
+        if (_ioRequested || _ioType != ioPassive || _t4)  // bus busy?
             return false;
-        if (_queueBytes == 4 || (_queueWasFilled && _queueBytes == 3))
+        if (_queueFilled)
             return false;
         return true;
     }
+    enum BusState
+    {
+        t1,
+        t2,
+        t3,
+        tWait,
+        t4,
+        tIdle,
+    };
+    BusState completeIO(bool write)
+    {
+        if (!_ready)
+            return tWait;
+        if (!write) {
+            _ioReadData = _bus.read();
+            _snifferDecoder.setData(_ioReadData);
+        }
+        else
+            _ioReadData = _ioWriteData;
+        _bus.setPassiveOrHalt(true);
+        _snifferDecoder.setStatus((int)ioPassive);
+        _lastIOType = _ioType;
+        _ioType = ioPassive;
+        return t4;
+    }
     void simulateCycle()
     {
-        if (_dequeueing /* && (_busState != t4 || (_ioType != ioPrefetch && _ioType != ioPassive))*/) {
+        BusState nextState = _busState;
+        bool write = _ioType == ioWriteMemory || _ioType == ioWritePort;
+        _t6 = _t5;
+        _t5 = _t4;
+        _t4 = false;
+        _ready = _bus.ready();
+        bool prefetchCompleting = false;
+        switch (_busState) {
+            case t1:
+                _snifferDecoder.setAddress(_ioAddress);
+                _bus.startAccess(_ioAddress, (int)_ioType);
+                nextState = t2;
+                break;
+            case t2:
+                _snifferDecoder.setStatusHigh(_ioSegment);
+                _snifferDecoder.setBusOperation((int)_ioType);
+                if (write)
+                    _snifferDecoder.setData(_ioWriteData);
+                if (_ioType == ioInterruptAcknowledge)
+                    _bus.setLock(_state == stateWaitingUntilFirstByteDone);
+                nextState = t3;
+                break;
+            case t3:
+                if (_ioType == ioPrefetch && _queueBytes == 3 && !_dequeueing) {
+                    _queueFilled = true;
+                    _cyclesUntilCanLowerQueueFilled = 3;
+                }
+                nextState = completeIO(write);
+                break;
+            case tWait:
+                nextState = completeIO(write);
+                break;
+            case t4:
+                if (_lastIOType == ioWriteMemory || _lastIOType == ioWritePort)
+                    _bus.write(_ioReadData);
+                if (_lastIOType == ioPrefetch)
+                    prefetchCompleting = true;
+                nextState = tIdle;
+                _t4 = true;
+                break;
+        }
+        if (_dequeueing) {
             _dequeueing = false;
             _queue >>= 8;
             --_queueBytes;
         }
+        if (_cyclesUntilCanLowerQueueFilled == 0 || (_cyclesUntilCanLowerQueueFilled == 1 && _queueBytes < 3)) {
+            _cyclesUntilCanLowerQueueFilled = 0;
+            if (_busState == tIdle && !(_t4 && _lastIOType == ioPrefetch) && _queueBytes < 4)
+                _queueFilled = false;
+        }
+        else
+            --_cyclesUntilCanLowerQueueFilled;
         if ((_loaderState & 2) != 0)
             executeMicrocode();
         switch (_loaderState) {
@@ -3161,64 +3246,10 @@ private:
                 break;
         }
 
-        BusState nextState = _busState;
-        bool write = _ioType == ioWriteMemory || _ioType == ioWritePort;
-        bool ready = true;
-        _ioSecondIdle = _ioFirstIdle;
-        _ioFirstIdle = false;
-        switch (_busState) {
-            case t1:
-                _snifferDecoder.setAddress(_ioAddress);
-                _bus.startAccess(_ioAddress, (int)_ioType);
-                if (write)
-                    _snifferDecoder.setData(_ioWriteData);
-                nextState = t2t3tWaitNotLast;
-                break;
-            case t2t3tWaitNotLast:
-                _snifferDecoder.setStatusHigh(_ioSegment);
-                _snifferDecoder.setBusOperation((int)_ioType);
-                ready = _bus.ready();
-                if (!ready)
-                    break;
-                nextState = t3tWaitLast;
-                if (_ioType == ioInterruptAcknowledge ||
-                    _ioType == ioReadPort || _ioType == ioReadMemory ||
-                    _ioType == ioPrefetch) {
-                    _ioReadData = _bus.read();
-                }
-                if (_ioType == ioWritePort || _ioType == ioWriteMemory)
-                    _ioReadData = _ioWriteData;
-                if (_ioType != ioPrefetch)
-                    _ioDone = true;
-                break;
-            case t3tWaitLast:
-                if (_ioType == ioInterruptAcknowledge ||
-                    _ioType == ioReadPort || _ioType == ioReadMemory ||
-                    _ioType == ioPrefetch)
-                    _snifferDecoder.setData(_ioReadData);
-                nextState = t4;
-                if (_ioType == ioPrefetch) {
-                    _prefetchCompleting = true;
-                    if (_queueBytes == 3)
-                        _queueWasFilled = true;
-                }
-                if (write)
-                    _bus.write(_ioReadData);
-                _bus.setPassiveOrHalt(true);
-                _snifferDecoder.setStatus((int)ioPassive);
-                _lastIOType = _ioType;
-                _ioType = ioPassive;
-                break;
-            case t4:
-                if (_prefetchCompleting && _prefetching) {
-                    _prefetchCompleting = false;
-                    _queue |= (_ioReadData << (_queueBytes << 3));
-                    ++_queueBytes;
-                    ++ip();
-                }
-                nextState = tIdle;
-                _ioFirstIdle = true;
-                break;
+        if (prefetchCompleting) {
+            _queue |= (_ioReadData << (_queueBytes << 3));
+            ++_queueBytes;
+            ++ip();
         }
         if (nextState == tIdle && _ioType != ioPassive) {
             nextState = t1;
@@ -3232,8 +3263,6 @@ private:
             _ioType = ioPrefetch;
             _ioSegment = 1;
         }
-        if (!_ioFirstIdle && _busState != t3tWaitLast && _busState != t4)
-            _queueWasFilled = false;
         if (_queueFlushing) {
             _queueFlushing = false;
             _prefetching = true;
@@ -3244,9 +3273,18 @@ private:
             _snifferDecoder.setPITBits(_bus.pitBits());
             _snifferDecoder.setBusOperation(_bus.getBusOperation());
             _snifferDecoder.setInterruptFlag(intf());
-            if (_bus.getDMAS3())
+            if (_bus.getDMAS3()) {
+                _savedAddress = _ioAddress;
                 _snifferDecoder.setAddress(_bus.getDMAAddress());
-            _snifferDecoder.setReady(ready);
+            }
+            else {
+                if (_bus.getDMADelayedT2()) {
+                    _snifferDecoder.setAddress(_savedAddress);
+                    //_snifferDecoder.setStatus((int)_ioType);
+                    _snifferDecoder.setBusOperation((int)_ioType);
+                }
+            }
+            _snifferDecoder.setReady(_ready);
             _snifferDecoder.setLock(_lock);
             _snifferDecoder.setDMAS(_bus.getDMAS());
             _snifferDecoder.setIRQs(_bus.getIRQLines());
@@ -3608,15 +3646,6 @@ private:
         return ((sr(segment) << 4) + offset) & 0xfffff;
     }
 
-    enum BusState
-    {
-        t1,
-        t2t3tWaitNotLast,
-        t3tWaitLast,
-        t4,
-        tIdle,
-    };
-
     String _log;
     BusEmulator _bus;
 
@@ -3689,16 +3718,18 @@ private:
     bool _wordSize;
     int _segment;
     int _lastMicrocodePointer;
-    bool _prefetchCompleting;
     bool _dequeueing;
-    bool _ioDone;
     int _ioCancelling;
     bool _ioRequested;
-    bool _ioFirstIdle;
-    bool _ioSecondIdle;
+    bool _t4;
+    bool _t5;
+    bool _t6;
     bool _prefetchDelayed;
     bool _queueFlushing;
-    bool _queueWasFilled;
+    bool _queueFilled;
     bool _interruptPending;
     bool _extraHaltDelay;
+    DWord _savedAddress;
+    bool _ready;
+    int _cyclesUntilCanLowerQueueFilled;
 };
