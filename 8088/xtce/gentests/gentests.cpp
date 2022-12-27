@@ -527,14 +527,14 @@ private:
     String log(Test test)
     {
         initCPU(test);
-        _emulator->setExtents(_logSkip, 4096, 4096, _stopIP, _stopSeg, _timeIP1, _timeSeg1);
+        _emulator->setExtents(_logSkip, 4096, 4096, _stopIP, _stopSeg);
         _emulator->run();
         return _emulator->log();
     }
     int expected(Test test)
     {
         initCPU(test);
-        _emulator->setExtents(0, 0, 4096, _stopIP, _stopSeg, _timeIP1, _timeSeg1);
+        _emulator->setExtents(0, 0, 4096, _stopIP, _stopSeg);
         try {
             _emulator->run();
         } catch (...) { }

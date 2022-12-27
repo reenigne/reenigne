@@ -1755,7 +1755,6 @@ public:
         _dmaState = sIdle;
         _passiveOrHalt = true;
         _lock = false;
-        //_previousLock = false;
         _previousPassiveOrHalt = true;
         _lastNonDMAReady = true;
         _cgaPhase = 0;
@@ -1827,7 +1826,7 @@ public:
                 break;
             case sHRQ:
                 //_dmaState = _lastNonDMAReady ? sAEN : sPreAEN;
-                if ((_passiveOrHalt || _previousPassiveOrHalt) && !_lock /* !_previousLock*/ && _lastNonDMAReady)
+                if ((_passiveOrHalt || _previousPassiveOrHalt) && !_lock && _lastNonDMAReady)
                     _dmaState = sAEN;
                 break;
             //case sHoldWait:
@@ -1853,7 +1852,6 @@ public:
             case sDelayedT2: _dmaState = sDelayedT3; break;
             case sDelayedT3: _dmaState = sIdle; break;
         }
-        //_previousLock = _lock;
         _previousPassiveOrHalt = _passiveOrHalt;
 
         _lastNonDMAReady = nonDMAReady();
@@ -2061,7 +2059,6 @@ private:
     DMAState _dmaState;
     Byte _dmaRequests;
     bool _lock;
-    bool _previousLock;
     bool _previousPassiveOrHalt;
     bool _lastNonDMAReady;
     Byte _cgaPhase;
@@ -2113,26 +2110,21 @@ public:
 
         static const bool use8086 = false;
 
+        Directory roms("roms");
+
         DWord instructions[512];
         for (int i = 0; i < 512; ++i)
             instructions[i] = 0;
         for (int y = 0; y < 4; ++y) {
             int h = (y < 3 ? 24 : 12);
             for (int half = 0; half < 2; ++half) {
-                String s = File(
-                    String("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
-                    (half == 1 ? "l" : "r") + decimal(y) + ".txt", true).
-                    contents();
-                String s2 = File(
-                    String("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
-                    (half == 1 ? "l" : "r") + decimal(y) + "a.txt", true).
+                String s = File((half == 1 ? "l" : "r") +
+                    decimal(y) + (use8086 ? "a" : "") + ".txt", roms).
                     contents();
                 for (int yy = 0; yy < h; ++yy) {
                     int ib = y * 24 + yy;
                     for (int xx = 0; xx < 64; ++xx) {
                         int b = (s[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
-                        if (use8086)
-                            b = (s2[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
                         instructions[xx * 8 + half * 4 + yy % 4] |=
                             b << (20 - (ib >> 2));
                     }
@@ -2164,10 +2156,8 @@ public:
             int xx[9] = { 0, 8, 24, 40, 56, 72, 88, 104, 120 };
             int xp = xx[g];
             for (int h = 0; h < 2; ++h) {
-                String s = File(
-                    String("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\") +
-                    decimal(g) + (h == 0 ? "t" : "b") + ".txt", true).
-                    contents();
+                String s = File(decimal(g) + (h == 0 ? "t" : "b") + ".txt",
+                    roms).contents();
                 for (int y = 0; y < 11; ++y) {
                     for (int x = 0; x < n; ++x) {
                         int b = (s[y * (n + 2) + x] == '0' ? 1 : 0);
@@ -2199,11 +2189,9 @@ public:
             }
         }
 
-        String translationString;
-        if (use8086)
-            translationString = File("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\translation_8086.txt").contents();
-        else
-            translationString = File("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\translation_8088.txt").contents();
+        String translationString = File(
+            use8086 ? "translation_8086.txt" : "translation_8088.txt", roms).
+            contents();
         int tsp = 0;
         char c = translationString[0];
         for (int i = 0; i < 33; ++i) {
@@ -2244,9 +2232,7 @@ public:
 
         int groupInput[38 * 18];
         int groupOutput[38 * 15];
-        String groupString = File(
-            String("..\\..\\..\\..\\Projects\\Emulation\\PC\\8086\\group.txt")).
-            contents();
+        String groupString = File("group.txt", roms).contents();
         for (int x = 0; x < 38; ++x) {
             for (int y = 0; y < 15; ++y) {
                 groupOutput[y * 38 + x] =
@@ -2310,15 +2296,13 @@ public:
     Word* getSegmentRegisters() { return &_registers[0]; }
     void stubInit() { _bus.stubInit(); }
     void setExtents(int logStartCycle, int logEndCycle, int executeEndCycle,
-        int stopIP, int stopSeg, int timeIP1, int timeSeg1)
+        int stopIP, int stopSeg)
     {
         _logStartCycle = logStartCycle + 4;
         _logEndCycle = logEndCycle;
         _executeEndCycle = executeEndCycle;
         _stopIP = stopIP;
         _stopSeg = stopSeg;
-        _timeIP1 = timeIP1;
-        _timeSeg1 = timeSeg1;
     }
     void setInitialIP(int v) { ip() = v; }
     int cycle() const { return _cycle - 11; }
@@ -2360,7 +2344,7 @@ public:
         _t5 = false;
         _interruptPending = false;
         _ready = true;
-        _cyclesUntilCanLowerQueueFilled = 0;
+        //_cyclesUntilCanLowerQueueFilled = 0;
         _locking = false;
     }
     void run()
@@ -3178,7 +3162,7 @@ private:
             case t3:
                 if (_ioType == ioPrefetch && _queueBytes == 3 && !_dequeueing) {
                     _queueFilled = true;
-                    _cyclesUntilCanLowerQueueFilled = 3;
+                    //_cyclesUntilCanLowerQueueFilled = 3;
                 }
                 nextState = completeIO(write);
                 break;
@@ -3199,13 +3183,15 @@ private:
             _queue >>= 8;
             --_queueBytes;
         }
-        if (_cyclesUntilCanLowerQueueFilled == 0 || (_cyclesUntilCanLowerQueueFilled == 1 && _queueBytes < 3)) {
-            _cyclesUntilCanLowerQueueFilled = 0;
+        //if (_cyclesUntilCanLowerQueueFilled == 0 || (_cyclesUntilCanLowerQueueFilled == 1 && _queueBytes < 3)) {
+            //_cyclesUntilCanLowerQueueFilled = 0;
+        if ((_queueBytes < 3 || (_busState == tIdle && (_lastIOType != ioPrefetch || (!_t4 && !_t5))))) {
             if (_busState == tIdle && !(_t4 && _lastIOType == ioPrefetch) && _queueBytes < 4)
                 _queueFilled = false;
         }
-        else
-            --_cyclesUntilCanLowerQueueFilled;
+        //}
+        //else
+        //    --_cyclesUntilCanLowerQueueFilled;
         if ((_loaderState & 2) != 0)
             executeMicrocode();
         if (_locking) {
@@ -3219,6 +3205,15 @@ private:
                 break;
             case 1:
             case 3:
+                if ((_group & groupNonPrefix) != 0) {
+                    _segmentOverride = -1;
+                    _f1 = false;
+                    _repne = false;
+                    if (_lock) {
+                        _lock = false;
+                        _bus.setLock(false);
+                    }
+                }
                 if ((_nextGroup & groupMicrocoded) == 0)  // 1BL
                     startNonMicrocodeInstruction();
                 else {
@@ -3229,12 +3224,6 @@ private:
                         if (_queueBytes != 0) {  // SC
                             _nextModRM = queueRead();
                             startMicrocodeInstruction();
-                        }
-                        else {
-                            if (_lock && (_group & groupNonPrefix) != 0) {
-                                _lock = false;
-                                _bus.setLock(false);
-                            }
                         }
                     }
                 }
@@ -3623,10 +3612,10 @@ private:
         _carry = false;
         return data;
     }
-    void doAddSubFlags(DWord result, DWord xor, bool of, bool af)
+    void doAddSubFlags(DWord result, DWord x, bool of, bool af)
     {
         doFlags(result, of, af);
-        _carry = (((result ^ xor) & (_wordSize ? 0x10000 : 0x100)) != 0);
+        _carry = (((result ^ x) & (_wordSize ? 0x10000 : 0x100)) != 0);
     }
     bool lowBit(DWord v) { return (v & 1) != 0; }
     bool topBit(int w) { return (w & (_wordSize ? 0x8000 : 0x80)) != 0; }
@@ -3654,8 +3643,6 @@ private:
 
     int _stopIP;
     int _stopSeg;
-    int _timeIP1;
-    int _timeSeg1;
 
     int _cycle;
     int _logStartCycle;
@@ -3734,6 +3721,6 @@ private:
     bool _extraHaltDelay;
     DWord _savedAddress;
     bool _ready;
-    int _cyclesUntilCanLowerQueueFilled;
+    //int _cyclesUntilCanLowerQueueFilled;
     bool _locking;
 };

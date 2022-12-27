@@ -1,0 +1,46 @@
+XTCE-trace - a cycle exact XT emulator
+
+This program executes a .com file and outputs a trace (one line per cycle)
+showing what the bus and microcode engine are doing each cycle.
+
+To use, simply run the program from the console specifying the name of your
+.com file as the argument:
+
+trace.exe test.com
+
+The output will be printed to the console. You can redirect it to a file in
+the usual way:
+
+trace.exe test.com >test.log
+
+XTCE currently implments the following devices:
+* 8088 CPU
+* 640kB RAM
+* 8237 Direct Memory Acccess (DMA) controller
+* 8259 Programmable Interrupt Controller (PIC)
+* 8253 Programmable Interval Timer (PIT)
+* 8255 Programmable Peripherial Interface (PPI)
+* DMA page registers
+* NMI switch (though currently there is no way to trigger an NMI anyway).
+
+The program will be loaded and executed at 0x00a8:0x0100, and execution will
+continue until CS:IP reaches 0x0000:0x0000, which is the address that the
+"int 0x20" vector points at. There is an "int 0x20" instruction at
+0x00a8:0x0000 for terminating the program in the usual way (e.g. executing
+a "ret" instruction without pushing anything on to the stack first) but
+there are no DOS or BIOS services installed. Also no interrupts or DRAM
+refresh DMA cycles will occur by default, but these can be enabled by
+programming the corresponding devices in the usual way.
+
+XTCE is based on XTCE-microcode which has passed more than 11,000,000 tests
+to ensure cycle exactness. The following areas of its CPU implementation have
+not yet been tested for cycle-exactness:
+* The trap flag.
+* Hardware interrupts occurring between instructions or during instructions
+other than HLT and WAIT.
+
+The latest version of XTCE-trace can be found at:
+https://www.reenigne.org/software/xtce_trace.zip
+
+The latest source code for xtce_trace can be found at:
+https://github.com/reenigne/reenigne/tree/master/8088/xtce/trace
