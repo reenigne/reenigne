@@ -214,9 +214,9 @@ public:
     Test(std::initializer_list<Instruction> instructions, int nopCount,
         int refreshPeriod = 0, int refreshPhase = 0)
     {
-        int n = instructions.size();
+        auto n = instructions.size();
         auto p = instructions.begin();
-        for (int i = 0; i < n; ++i)
+        for (auto i = 0; i < n; ++i)
             _instructions.append(p[i]);
         _refreshPeriod = refreshPeriod;
         _refreshPhase = refreshPhase;

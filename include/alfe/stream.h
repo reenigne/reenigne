@@ -81,7 +81,7 @@ public:
     }
     void write(const String& s) const { write(&s[0], s.length()); }
     void write(const Exception& e) const { e.write(*this); }
-    void write(const void* buffer, int bytes) const
+    void write(const void* buffer, size_t bytes) const
     {
         if (bytes == 0)
             return;

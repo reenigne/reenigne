@@ -17,6 +17,7 @@ suffixes: (0-1 used by section 7, 0-2 by section 6 and all for section 2)
   6: 0004                add [si],al
   7: 909090900004050000  nop / nop / nop / nop / add [si],al / add ax,0000
   8: 88c00400            mov al,al / add al,0
+  9: 00060000            add [0000],al
 
 queueFillers:
   0: b000f6e0            mov al,0 / mul al

@@ -1755,7 +1755,7 @@ public:
         _dmaState = sIdle;
         _passiveOrHalt = true;
         _lock = false;
-        _previousLock = false;
+        //_previousLock = false;
         _previousPassiveOrHalt = true;
         _lastNonDMAReady = true;
         _cgaPhase = 0;
@@ -1827,7 +1827,7 @@ public:
                 break;
             case sHRQ:
                 //_dmaState = _lastNonDMAReady ? sAEN : sPreAEN;
-                if ((_passiveOrHalt || _previousPassiveOrHalt) && !_previousLock && _lastNonDMAReady)
+                if ((_passiveOrHalt || _previousPassiveOrHalt) && !_lock /* !_previousLock*/ && _lastNonDMAReady)
                     _dmaState = sAEN;
                 break;
             //case sHoldWait:
@@ -1851,20 +1851,13 @@ public:
             case s4: _dmaState = sDelayedT1; _dmac.dmaCompleted(); break;
             case sDelayedT1: _dmaState = sDelayedT2; _cycle = 0; break;
             case sDelayedT2: _dmaState = sDelayedT3; break;
-            case sDelayedT3:
-            //case sDelayedTw:
-            //    if (nonDMAReady())
-                    _dmaState = sIdle;
-                //else
-                //    _dmaState = sDelayedTw;
-                break;
+            case sDelayedT3: _dmaState = sIdle; break;
         }
-        _previousLock = _lock;
+        //_previousLock = _lock;
         _previousPassiveOrHalt = _passiveOrHalt;
 
         _lastNonDMAReady = nonDMAReady();
-        //if (dmaReady() || _dmaState == sDelayedT2)
-            ++_cycle;
+        ++_cycle;
     }
     bool ready()
     {
@@ -2039,7 +2032,6 @@ private:
         sDelayedT1,
         sDelayedT2,
         sDelayedT3,
-        sDelayedTw,
     };
 
     Array<Byte> _ram;
@@ -2369,6 +2361,7 @@ public:
         _interruptPending = false;
         _ready = true;
         _cyclesUntilCanLowerQueueFilled = 0;
+        _locking = false;
     }
     void run()
     {
@@ -2532,8 +2525,7 @@ private:
         _loaderState = 0;
         startInstruction();
         if ((_group & groupLOCK) != 0) {
-            _lock = true;
-            _bus.setLock(true);
+            _locking = true;
             return;
         }
         if ((_group & groupREP) != 0) {
@@ -3011,7 +3003,7 @@ private:
                 break;
 
             case stateIODelay2:
-                if (!_ready)
+                if (!_ready && (_busState == t3 || _busState == tWait))
                     break;
                 _state = stateIODelay1;
                 break;
@@ -3216,6 +3208,11 @@ private:
             --_cyclesUntilCanLowerQueueFilled;
         if ((_loaderState & 2) != 0)
             executeMicrocode();
+        if (_locking) {
+            _locking = false;
+            _lock = true;
+            _bus.setLock(true);
+        }
         switch (_loaderState) {
             case 0:
                 readOpcode(0);
@@ -3232,6 +3229,12 @@ private:
                         if (_queueBytes != 0) {  // SC
                             _nextModRM = queueRead();
                             startMicrocodeInstruction();
+                        }
+                        else {
+                            if (_lock && (_group & groupNonPrefix) != 0) {
+                                _lock = false;
+                                _bus.setLock(false);
+                            }
                         }
                     }
                 }
@@ -3732,4 +3735,5 @@ private:
     DWord _savedAddress;
     bool _ready;
     int _cyclesUntilCanLowerQueueFilled;
+    bool _locking;
 };

@@ -133,8 +133,8 @@ public:
             AppendableArray<Test> bunch;
             AppendableArray<int> runningTests;
             do {
-                if (totalCount % 100 == 99)
-                    printf(".");
+                //if (totalCount % 100 == 99)
+                //    printf(".");
                 ++totalCount;
                 Test t;
                 if (haveRetained) {
@@ -148,6 +148,11 @@ public:
                 }
                 int cycles = expected(t);
                 Instruction instruction = t.instruction(0);
+
+                if (totalCount % 10000 == 9999) {
+                    console.write(decimal(totalCount) + ": ");
+                    t.write();
+                }
 
                 // Modify and uncomment to force a passing test to fail to see
                 // its sniffer log.
@@ -214,6 +219,8 @@ public:
                 //console.write(emulator.log(_tests[t]));
                 //return;
             }
+            console.write(decimal(totalCount) + ": ");
+            bunch[0].write();
 
             {
                 auto h = File("runtest.bin").openWrite();
@@ -531,7 +538,7 @@ private:
         try {
             _emulator->run();
         } catch (...) { }
-        return _emulator->cycle();
+        return _emulator->cycle() + (test.refreshPeriod() == 0 ? 0 : 3);
     }
 
 
