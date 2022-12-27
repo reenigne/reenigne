@@ -1730,10 +1730,9 @@ private:
 class BusEmulator
 {
 public:
-    BusEmulator() : _ram(0xa0000), _rom(0x8000)
+    BusEmulator(Directory roms) : _ram(0xa0000), _rom(0x8000)
     {
-        File("Q:\\external\\8088\\roms\\ibm5160\\1501512.u18", true).
-            openRead().read(&_rom[0], 0x8000);
+        File("1501512.u18", roms).openRead().read(&_rom[0], 0x8000);
         _pit.setGate(0, true);
         _pit.setGate(1, true);
         _pit.setGate(2, true);
@@ -2094,7 +2093,7 @@ class CPUEmulator
         groupLoadSegmentRegister        = 0x1000000,
     };
 public:
-    CPUEmulator() : _consoleLogging(false)
+    CPUEmulator(Directory roms) : _consoleLogging(false), _bus(roms)
     {
         _registers[24] = 0x100;
         auto byteData = reinterpret_cast<Byte*>(&_registers[24]);
@@ -2109,8 +2108,6 @@ public:
         // software emulation.
 
         static const bool use8086 = false;
-
-        Directory roms("roms");
 
         DWord instructions[512];
         for (int i = 0; i < 512; ++i)

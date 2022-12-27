@@ -16,7 +16,7 @@ public:
         
         Word initialSegment = 0xa8;
 
-        CPUEmulator emulator;
+        CPUEmulator emulator(Directory("roms"));
         emulator.reset();
         Word* registers = emulator.getRegisters();
         registers[0] = 0x0000;  // AX

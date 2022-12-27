@@ -8,14 +8,16 @@ To use, simply run the program from the console specifying the name of your
 
 trace.exe test.com
 
-The output will be printed to the console. You can redirect it to a file in
-the usual way:
+The output will be printed to the console. You may wish to enlarge the
+window horizontally so that each cycle's output fits on one line. You can also
+redirect it to a file in the usual way:
 
 trace.exe test.com >test.log
 
 XTCE currently implments the following devices:
 * 8088 CPU
 * 640kB RAM
+* 32kB ROM (IBM XT 5160 BIOS, loaded at 0xf8000).
 * 8237 Direct Memory Acccess (DMA) controller
 * 8259 Programmable Interrupt Controller (PIC)
 * 8253 Programmable Interval Timer (PIT)
@@ -32,7 +34,7 @@ there are no DOS or BIOS services installed. Also no interrupts or DRAM
 refresh DMA cycles will occur by default, but these can be enabled by
 programming the corresponding devices in the usual way.
 
-XTCE is based on XTCE-microcode which has passed more than 11,000,000 tests
+XTCE is based on XTCE-microcode which has passed more than 12,000,000 tests
 to ensure cycle exactness. The following areas of its CPU implementation have
 not yet been tested for cycle-exactness:
 * The trap flag.

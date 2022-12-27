@@ -24,7 +24,8 @@ public:
         File("runtests.bin").readIntoArray(&testProgram);
         File("runstub.bin").readIntoArray(&_runStub);
 
-        CPUEmulator emulator;
+        Directory roms("roms");
+        CPUEmulator emulator(roms);
         _emulator = &emulator;
 
 #if GENERATE_NEWFAILS
