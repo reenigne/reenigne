@@ -2379,7 +2379,7 @@ private:
     Word& ax() { return rw(0); }
     Byte& rb(int r) { return *_byteRegisters[r]; }
     Byte& al() { return rb(0); }
-    Word& sr(int r) { return _registers[r]; }
+    Word& sr(int r) { return _registers[r & 3]; }
     Word& cs() { return sr(1); }
     bool cf() { return lowBit(flags()); }
     void setCF(bool v) { flags() = (flags() & ~1) | (v ? 1 : 0); }

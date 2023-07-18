@@ -34,12 +34,18 @@ there are no DOS or BIOS services installed. Also no interrupts or DRAM
 refresh DMA cycles will occur by default, but these can be enabled by
 programming the corresponding devices in the usual way.
 
-XTCE is based on XTCE-microcode which has passed more than 12,000,000 tests
+XTCE is based on XTCE-microcode which has passed more than 13,000,000 tests
 to ensure cycle exactness. The following areas of its CPU implementation have
 not yet been tested for cycle-exactness:
 * The trap flag.
 * Hardware interrupts occurring between instructions or during instructions
 other than HLT and WAIT.
+
+The full microcode disassembly (which contains a key.txt file describing all
+the abbreviations) can be found at
+https://www.reenigne.org/misc/8086_microcode.zip . A high-level overview of
+how the CPU's microcode engine works can be found at
+https://www.righto.com/2022/11/how-8086-processors-microcode-engine.html .
 
 The latest version of XTCE-trace can be found at:
 https://www.reenigne.org/software/xtce_trace.zip

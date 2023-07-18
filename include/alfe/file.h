@@ -65,6 +65,25 @@ public:
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
     };
+    bool exists()
+    {
+#ifdef _WIN32
+        NullTerminatedWideString data(path());
+        DWORD dwAttr = GetFileAttributes(data);
+        if (dwAttr == 0xffffffff) {
+            DWORD dwError = GetLastError();
+            if (dwError == ERROR_FILE_NOT_FOUND)
+                return false;
+            if (dwError == ERROR_PATH_NOT_FOUND)
+                return false;
+            IF_ZERO_CHECK_THROW_LAST_ERROR(0);
+        }
+        return true;
+#else
+        NullTerminatedString data(path());
+        return access(data, F_OK) == 0;
+#endif
+    }
 protected:
     const Body* body() const { return as<Body>(); }
 
