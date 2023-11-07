@@ -776,7 +776,7 @@ public:
             512,   // nInBufferSize
             0,     // nDefaultTimeOut
             NULL), // lpSecurityAttributes
-            *this);  
+            *this);
         if (!f.valid())
             throw Exception::systemError("Creating pipe " + path());
         return f;
@@ -894,7 +894,7 @@ template<class T, class V = Void> void applyToWildcard(T& functor,
 #endif
     FindHandleT<T> handle(directory, name);
     while (!handle.complete()) {
-        if (handle.isDirectory()) {
+        if (handle.isDirectory() && !handle.isJunction()) {
             Directory child = handle.directory();
             if (c == -1)
                 if (recurseIntoDirectories)

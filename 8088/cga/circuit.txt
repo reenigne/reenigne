@@ -103,7 +103,7 @@ Memory address latches:
     D6  = +A0                                            Q6 = VRAM A5
     D7  = +A13                                           Q7 = VRAM A6
     CLK = +Q1
-    EN  = -EN CPU RAS ADDR
+    EN  = -EN CPU CAS ADDR  (incorrectly shown as -EN CRT CAS ADDR in older schematic)
 
 +ALPHA DOTS = (-CURSOR BLINK NOR -CURSOR DLY) OR (+CHG DOTS AND (-BLINK OR 3NAND(-CURSOR DLY, +ENABLE BLINK, +AT7)))
 
