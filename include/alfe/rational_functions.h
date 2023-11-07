@@ -21,7 +21,7 @@ public:
             return Value(l + i->value<Rational>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -43,7 +43,7 @@ public:
             return Value(l + i->value<int>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -64,7 +64,7 @@ public:
             return Value(l + i->value<Rational>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -86,7 +86,7 @@ public:
             return Value(l - i->value<Rational>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -109,7 +109,7 @@ public:
             return Value(l - i->value<int>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -131,7 +131,7 @@ public:
             return Value(l - i->value<Rational>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -153,7 +153,7 @@ public:
             return Value(l * i->value<Rational>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -176,7 +176,7 @@ public:
             return Value(l * i->value<int>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -198,7 +198,7 @@ public:
             return Value(l * i->value<Rational>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -219,7 +219,7 @@ public:
             return Value(l / i->value<Rational>());
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return
                 FunctionType(RationalType(), RationalType(), RationalType());
@@ -241,7 +241,7 @@ public:
             return Value(l / i->value<int>());
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -262,7 +262,7 @@ public:
             return Value(l / i->value<Rational>());
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), RationalType());
         }
@@ -283,7 +283,7 @@ public:
             return Value(Rational(l, i->value<int>()));
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -308,7 +308,7 @@ public:
             return Rational(l.numerator << r, l.denominator);
         }
         Identifier identifier() { return OperatorShiftLeft(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -333,7 +333,7 @@ public:
             return Rational(l.numerator, l.denominator << r);
         }
         Identifier identifier() { return OperatorShiftRight(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -355,7 +355,7 @@ public:
             return power(Rational(l), r);
         }
         Identifier identifier() { return OperatorPower(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -377,7 +377,7 @@ public:
             return power(l, r);
         }
         Identifier identifier() { return OperatorPower(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType(), IntegerType());
         }
@@ -395,7 +395,7 @@ public:
             return Value( - arguments.begin()->value<Rational>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), RationalType());
         }
@@ -413,7 +413,7 @@ public:
             return Value(arguments.begin()->value<Rational>().floor());
         }
         Identifier identifier() { return "floor"; }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(IntegerType(), RationalType());
         }

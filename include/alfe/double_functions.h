@@ -20,7 +20,7 @@ public:
             return Value(l + i->value<double>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -41,7 +41,7 @@ public:
             return Value(l + i->value<Rational>().value<double>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -62,7 +62,7 @@ public:
             return Value(l.value<double>() + i->value<double>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -83,7 +83,7 @@ public:
             return Value(l - i->value<double>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -104,7 +104,7 @@ public:
             return Value(l - i->value<Rational>().value<double>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -125,7 +125,7 @@ public:
             return Value(l.value<double>() - i->value<double>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -146,7 +146,7 @@ public:
             return Value(l * i->value<double>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -167,7 +167,7 @@ public:
             return Value(l * i->value<Rational>().value<double>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -188,7 +188,7 @@ public:
             return Value(l.value<double>() * i->value<double>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -209,7 +209,7 @@ public:
             return Value(l / i->value<double>());
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -230,7 +230,7 @@ public:
             return Value(l / i->value<Rational>().value<double>());
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -251,7 +251,7 @@ public:
             return Value(l.value<double>() / i->value<double>());
         }
         Identifier identifier() { return OperatorDivide(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -272,7 +272,7 @@ public:
             return l*pow(2.0, i->value<int>());
         }
         Identifier identifier() { return OperatorShiftLeft(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), IntegerType());
         }
@@ -294,7 +294,7 @@ public:
             return l/pow(2.0, i->value<int>());
         }
         Identifier identifier() { return OperatorShiftRight(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), IntegerType());
         }
@@ -315,7 +315,7 @@ public:
             return pow(l, i->value<double>());
         }
         Identifier identifier() { return OperatorPower(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), DoubleType());
         }
@@ -336,7 +336,7 @@ public:
             return pow(l, i->value<Rational>().value<double>());
         }
         Identifier identifier() { return OperatorPower(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType(), RationalType());
         }
@@ -357,7 +357,7 @@ public:
             return pow(l.value<double>(), i->value<double>());
         }
         Identifier identifier() { return OperatorPower(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), RationalType(), DoubleType());
         }
@@ -375,7 +375,7 @@ public:
             return Value( - arguments.begin()->value<double>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(DoubleType(), DoubleType());
         }

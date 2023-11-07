@@ -19,7 +19,7 @@ public:
             return Value(l + i->value<String>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(StringType(), StringType(), StringType());
         }
@@ -40,7 +40,7 @@ public:
             return Value(l*i->value<String>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(StringType(), IntegerType(), StringType());
         }
@@ -61,7 +61,7 @@ public:
             return Value(l*i->value<int>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(StringType(), StringType(), IntegerType());
         }

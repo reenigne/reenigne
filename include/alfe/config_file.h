@@ -91,51 +91,61 @@ public:
         addFunco(ShiftRightDoubleInteger());
         addFunco(NegativeDouble());
     }
-    template<class V> ConfigOption<V> addOption(String name)
+    template<class V> ConfigOption<V> addOption(String name,
+        Type type = Type(),
+        Expression e = Expression())
     {
-        VariableDefinition v(typeFromCompileTimeType<V>(), name);
+        if (!type.valid())
+            type = typeFromCompileTimeType<V>();
+        VariableDefinition v(type, name, e);
         _code.insert<VariableDefinitionStatement>(v, Span());
         return ConfigOption<V>(this, name);
     }
 
-    void addOption(String name, Type type)
+    //void addOption(String name, Type type)
+    //{
+    //    addOption(name, Value(type));
+    //}
+    template<class V> ConfigOption<V> addDefaultOption(String name, Type type,
+        const V& defaultValue)
     {
-        addOption(name, Value(type));
+        StructuredType s(type);
+        Expression e = Expression::from(defaultValue);
+        if (s.valid()) {
+            return addOption<V>(name,
+                s.lValueFromRValue(defaultValue, &_structureOwner), e);
+        }
+        return addOption<V>(name, type, e);
     }
-//    template<class V> void addDefaultOption(String name, Type type,
-//        const V& defaultValue)
-//    {
-//        StructuredType s(type);
-//        if (s.valid()) {
-//            addOption(name,
-//                s.lValueFromRValue(defaultValue, &_structureOwner));
-//        }
-//        else
-//            addOption(name, Value(type, defaultValue));
-//    }
-//    template<class V> ConfigOption<V> addDefaultOption(String name,
-//        const V& defaultValue)
-//    {
-//        addDefaultOption(name, typeFromCompileTimeType<V>(), defaultValue);
-//        return ConfigOption<V>(this, name);
-//    }
-//    void addType(Type type, TycoIdentifier identifier = TycoIdentifier())
-//    {
-//        _scope.addType(type, identifier);
-//    }
-private:
-    void addOption(String name, Value defaultValue)
+    template<class V> ConfigOption<V> addDefaultOption(String name,
+        const V& defaultValue)
     {
-        VariableDefinition v(defaultValue.type(), name);
-        _code.insert<VariableDefinitionStatement>(v, Span());
-        set(name, defaultValue, Span());
+        return addDefaultOption(name, typeFromCompileTimeType<V>(),
+            defaultValue);
     }
-public:
-//    void addFunco(Funco funco)
+    void addTyco(Tyco tyco, TycoIdentifier identifier = TycoIdentifier())
+    {
+        if (!identifier.valid()) {
+            // TODO: We might want to avoid going via String here. Should Tyco
+            // have an identifier() method?
+            identifier = TycoIdentifier(tyco.toString());
+        }
+        _code.insert<TycoDefinitionStatement>(identifier, type,
+            identifier.span());
+    }
+//private:
+//    void addOption(String name, Value defaultValue)
 //    {
-//        _scope.addFunction(funco.identifier(), funco);
+//        VariableDefinition v(defaultValue.type(), name);
+//        _code.insert<VariableDefinitionStatement>(v, Span());
+//        set(name, defaultValue, Span());
 //    }
-//
+//public:
+    void addFunco(Funco funco)
+    {
+        _code.insert<ExternalFuncoDefinitionStatement>(funco);
+    }
+
 //    void load(File file)
 //    {
 //        _file = file;

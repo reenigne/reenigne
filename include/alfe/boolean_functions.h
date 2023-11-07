@@ -16,7 +16,7 @@ public:
             return Value(!arguments.begin()->value<bool>());
         }
         Identifier identifier() { return OperatorNot(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(BooleanType(), BooleanType());
         }

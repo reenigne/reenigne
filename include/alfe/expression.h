@@ -150,6 +150,17 @@ public:
     TypeT<T> type() { return body()->type(); }
     bool mightHaveSideEffect() { return body()->mightHaveSideEffect(); }
 
+    static Expression from(Rational r) { return NumericLiteral(r); }
+    static Expression from(String s)
+    {
+        return StringLiteralExpression(s);
+    }
+    static Expression from(bool b)
+    {
+        if (b)
+            return create<TrueBody>();
+       return create<FalseBody>();
+    }
 protected:
     const Body* body() const { return as<Body>(); }
     Body* body() { return as<Body>(); }

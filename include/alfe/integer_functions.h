@@ -19,7 +19,7 @@ public:
             return Value(l + i->value<int>());
         }
         Identifier identifier() { return OperatorPlus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
@@ -40,7 +40,7 @@ public:
             return Value(l - i->value<int>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
@@ -61,7 +61,7 @@ public:
             return Value(l * i->value<int>());
         }
         Identifier identifier() { return OperatorStar(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(IntegerType(), IntegerType(), IntegerType());
         }
@@ -86,7 +86,7 @@ public:
             return l << r;
         }
         Identifier identifier() { return OperatorShiftLeft(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -111,7 +111,7 @@ public:
             return Rational(l, 1 << r);
         }
         Identifier identifier() { return OperatorShiftRight(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(RationalType(), IntegerType(), IntegerType());
         }
@@ -132,7 +132,7 @@ public:
             return Value(l < i->value<int>());
         }
         Identifier identifier() { return OperatorLessThan(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -154,7 +154,7 @@ public:
             return Value(l > i->value<int>());
         }
         Identifier identifier() { return OperatorGreaterThan(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -176,7 +176,7 @@ public:
             return Value(l <= i->value<int>());
         }
         Identifier identifier() { return OperatorLessThanOrEqualTo(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -198,7 +198,7 @@ public:
             return Value(l >= i->value<int>());
         }
         Identifier identifier() { return OperatorGreaterThanOrEqualTo(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(BooleanType(), IntegerType(), IntegerType());
         }
@@ -216,7 +216,7 @@ public:
             return Value( - arguments.begin()->value<int>());
         }
         Identifier identifier() { return OperatorMinus(); }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(IntegerType(), IntegerType());
         }

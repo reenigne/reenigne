@@ -8,60 +8,63 @@ class Interpreter : Uncopyable
 public:
     void interpret(Code code)
     {
-        CodeNode p = code.next();
-        do {
-            if (p.isSentinel())
-                break;
-            ConditionalStatement cs = p;
-            if (cs.valid()) {
-                cs.condition().walk(this);
-                if (pop().value<bool>())
-                    cs.trueStatement().walk(this);
-                else
-                    cs.falseStatement().walk(this);
-                return Result::advance;
-            }
-            ForeverStatement fes = c;
-            if (fes.valid()) {
-                // TODO: handle break and continue
-                while (true)
-                    fes.code().walk(this);
-            }
-            WhileStatement ws = c;
-            if (ws.valid()) {
-                // TODO: handle break and continue
-                do {
-                    ws.doStatement().walk(this);
-                    ws.condition().walk(this);
-                    if (!pop().value<bool>())
-                        break;
-                    ws.statement().walk(this);
-                } while (true);
-                ws.doneStatement().walk(this);
-                return Result::advance;
-            }
-            ForStatement fs = c;
-            if (fs.valid()) {
-                // TODO: handle break and continue
-                fs.preStatement().walk(this);
-                do {
-                    fs.condition().walk(this);
-                    if (!pop().value<bool>())
-                        break;
-                    fs.statement().walk(this);
-                    fs.postStatement().walk(this);
-                } while (true);
-                fs.doneStatement().walk(this);
-                return Result::advance;
-            }
-            VariableDefinitionStatement vds = c;
-            if (vds.valid()) {
-                // TODO
-                return Result::advance;
-            }
+        Interpret i;
+        code.walk(&i);
+
+        //CodeNode p = code.next();
+        //do {
+        //    if (p.isSentinel())
+        //        break;
+        //    ConditionalStatement cs = p;
+        //    if (cs.valid()) {
+        //        cs.condition().walk(this);
+        //        if (pop().value<bool>())
+        //            cs.trueStatement().walk(this);
+        //        else
+        //            cs.falseStatement().walk(this);
+        //        return Result::advance;
+        //    }
+        //    ForeverStatement fes = c;
+        //    if (fes.valid()) {
+        //        // TODO: handle break and continue
+        //        while (true)
+        //            fes.code().walk(this);
+        //    }
+        //    WhileStatement ws = c;
+        //    if (ws.valid()) {
+        //        // TODO: handle break and continue
+        //        do {
+        //            ws.doStatement().walk(this);
+        //            ws.condition().walk(this);
+        //            if (!pop().value<bool>())
+        //                break;
+        //            ws.statement().walk(this);
+        //        } while (true);
+        //        ws.doneStatement().walk(this);
+        //        return Result::advance;
+        //    }
+        //    ForStatement fs = c;
+        //    if (fs.valid()) {
+        //        // TODO: handle break and continue
+        //        fs.preStatement().walk(this);
+        //        do {
+        //            fs.condition().walk(this);
+        //            if (!pop().value<bool>())
+        //                break;
+        //            fs.statement().walk(this);
+        //            fs.postStatement().walk(this);
+        //        } while (true);
+        //        fs.doneStatement().walk(this);
+        //        return Result::advance;
+        //    }
+        //    VariableDefinitionStatement vds = c;
+        //    if (vds.valid()) {
+        //        // TODO
+        //        return Result::advance;
+        //    }
 
 
-        } while (true);
+        //} while (true);
     }
     //template<class U> U evaluate(String text, const U& def)
     //{
@@ -184,9 +187,9 @@ private:
             if (nl.valid()) {
                 Rational r = nl.value();
                 if (r.denominator == 1)
-                    push(_n.numerator);
+                    push(r.numerator);
                 else
-                    push(_n);
+                    push(r);
                 return Result::advance;
             }
             FunctionCallExpression fce = o;
@@ -232,47 +235,48 @@ private:
                         fce.span()));
                     return Result::advance;
                 }
-                Type lType = l.type();
+                fce.span().throwError("Not yet implemented");
+                //Type lType = l.type();
 
 
 
 
 
 
-                if (lType == FuncoTypeT<T>()) {
-                    return l.template value<OverloadedFunctionSet>().evaluate(
-                        arguments, this->span());
-                }
-                // What we have on the left isn't a function, try to call its
-                // operator() method instead.
-                IdentifierT<T> i = Identifier(OperatorFunctionCall());
-                if (!lType.member(i).valid())
-                    this->span().throwError("Expression is not a function.");
-                if (!LValueTypeT<T>(lType).valid()) {
-                    auto m = l.template value<HashTable<Identifier, Value>>();
-                    l = m[i];
-                    l = Value(l.type(), l.value(), this->span());
-                }
-                else {
-                    StructureT<T>* p = l.template
-                        value<LValue>().rValue().template value<Structure*>();
-                    l = Value(LValueTypeT<T>::wrap(p->getValue(i).type()),
-                        LValue(p, i), this->span());
-                }
-                List<Value> convertedArguments;
-                Function f = l.template value<Function>();
-                List<Tyco> parameterTycos = f.parameterTycos();
-                auto ii = parameterTycos.begin();
-                for (auto a : arguments) {
-                    Type type = *ii;
-                    if (!type.valid()) {
-                        a.span().throwError("Function parameter's type "
-                            "constructor is not a type.");
-                    }
-                    convertedArguments.add(a.convertTo(type));
-                    ++ii;
-                }
-                push(f.evaluate(convertedArguments, this->span()));
+                //if (lType == FuncoType()) {
+                //    return l.template value<OverloadedFunctionSet>().evaluate(
+                //        arguments, this->span());
+                //}
+                //// What we have on the left isn't a function, try to call its
+                //// operator() method instead.
+                //Identifier i = Identifier(OperatorFunctionCall());
+                //if (!lType.member(i).valid())
+                //    this->span().throwError("Expression is not a function.");
+                //if (!LValueTypeT<T>(lType).valid()) {
+                //    auto m = l.template value<HashTable<Identifier, Value>>();
+                //    l = m[i];
+                //    l = Value(l.type(), l.value(), this->span());
+                //}
+                //else {
+                //    StructureT<T>* p = l.template
+                //        value<LValue>().rValue().template value<Structure*>();
+                //    l = Value(LValueTypeT<T>::wrap(p->getValue(i).type()),
+                //        LValue(p, i), this->span());
+                //}
+                //List<Value> convertedArguments;
+                //Function f = l.template value<Function>();
+                //List<Tyco> parameterTycos = f.parameterTycos();
+                //auto ii = parameterTycos.begin();
+                //for (auto a : arguments) {
+                //    Type type = *ii;
+                //    if (!type.valid()) {
+                //        a.span().throwError("Function parameter's type "
+                //            "constructor is not a type.");
+                //    }
+                //    convertedArguments.add(a.convertTo(type));
+                //    ++ii;
+                //}
+                //push(f.evaluate(convertedArguments, this->span()));
                 return Result::advance;
             }
             return Result::recurse;
