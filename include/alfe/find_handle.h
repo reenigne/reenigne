@@ -15,7 +15,10 @@ public:
         NullTerminatedWideString data(_path);
         _handle = FindFirstFile(data, &_data);
         if (_handle == INVALID_HANDLE_VALUE) {
-            if (GetLastError() == ERROR_FILE_NOT_FOUND)
+            DWORD lastError = GetLastError();
+            if (lastError == ERROR_FILE_NOT_FOUND ||
+                lastError == ERROR_ACCESS_DENIED ||
+                lastError == ERROR_INVALID_HANDLE)
                 _complete = true;
             else
                 throwError();
@@ -27,13 +30,16 @@ public:
     void next()
     {
         do {
-            if (FindNextFile(_handle, &_data) == 0)
-                if (GetLastError() == ERROR_NO_MORE_FILES) {
+            if (FindNextFile(_handle, &_data) == 0) {
+                DWORD lastError = GetLastError();
+                if (lastError == ERROR_NO_MORE_FILES ||
+                    lastError == ERROR_INVALID_HANDLE) {
                     _complete = true;
                     return;
                 }
                 else
                     throwError();
+            }
             String n = name();
             if (n == "." || n == "..")
                 continue;
@@ -49,14 +55,24 @@ public:
     {
         return (_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     }
+    bool isJunction() const
+    {
+        return (_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    }
     bool isSymlink() const
     {
-        return (_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 &&
-            _data.dwReserved0 == IO_REPARSE_TAG_SYMLINK;
+        return isJunction() && _data.dwReserved0 == IO_REPARSE_TAG_SYMLINK;
     }
     String name() const
     {
-        return _data.cFileName;
+        try {
+            String n(_data.cFileName);
+            return n;
+        }
+        catch (...)
+        {
+            return "<bad filename>";
+        }
     }
     FileSystemObject object() const
     {

@@ -180,11 +180,114 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  mov dx,0x3d8
+  xchg ax,bx
+  out dx,ax
+  xchg ax,cx
+  out dx,ax
+  xchg ax,bp
+  out dx,ax
+  xchg ax,si
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  xchg ax,bx
+  out dx,ax
+  xchg ax,cx
+  out dx,ax
+  xchg ax,bp
+  out dx,ax
+  xchg ax,si
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  xchg ax,bx
+  out dx,ax
+  xchg ax,cx
+  out dx,ax
+  xchg ax,bp
+  out dx,ax
+  xchg ax,si
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  ret
+
+
+  mov ax,0x7000
+  mov ds,ax
+  mov es,ax
+  mov bp,0x8080
+  mov word[bp+2],ax
+  mov word[bp+4],ax
+  mov word[es:0x0302],emptyRoutine
+  xor si,si
+  xor bx,bx
+  mov word[si],bx
+  mov word[si+2],bx
+  mov word[si+4],bx
+  mov word[si+6],bx
+
+  mov cx,4
+
+  lodsb
+  or al,2
+ltop:
+  mov ah,[bx]
+  inc bx
+  or ah,3
+  mov es,[bp+2]
+  mov di,ax
+  call word[es:di]
+  lodsb
+  or al,2
+  mov es,[bp+4]
+  mov di,ax
+  call word[es:di]
+  loop ltop
+emptyRoutine:
+  ret
+
+
+
   mov ax,0xb800
   mov es,ax
   xor di,di
   mov ax,cs
   mov ds,ax
+
+    movsw
+    add si,bx
+    movsw
+    add si,bx
+    movsw
+    add si,bx
+    movsw
+    add si,bx
+    movsw
+    add si,bx
+    movsw
+
+    movsw
+    movsw
+    movsw
+    movsw
+    movsw
+
+    movsw
+    add si,bx
+    movsb
+    add si,bx
+    movsw
+    add si,bx
+    movsb
+    add si,bx
+    movsw
+    add si,bx
+    movsb
+    add si,bx
+    movsw
+
 
     movsb
     add si,bx

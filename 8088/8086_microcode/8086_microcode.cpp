@@ -277,10 +277,10 @@ public:
                     for (int xx = 0; xx < 64; ++xx) {
                         int b = (s[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
                         int b2 = (s2[yy * 66 + (63 - xx)] == '0' ? 1 : 0);
-                        if (b != 0) {   // 8088
-                        //if (b2 != 0) {  // 8086
+                        //if (b != 0) {   // 8088
+                        if (b2 != 0) {  // 8086
                             instructions[xx * 8 + half * 4 + yy % 4] |=
-                                1 << (ib >> 2);
+                                1 << (20 - (ib >> 2));
                         }
                         //if (b != b2) {
                         //    printf("Quad %i column %i row %i side %i  old %i new %i\n", y, xx, yy, half, b, b2);
@@ -313,6 +313,50 @@ public:
                 }
             }
         }
+
+        int groupInput[38 * 18];
+        int groupOutput[38 * 15];
+        String groupString = File(
+            String("..\\..\\..\\Projects\\Emulation\\PC\\8086\\group.txt")).
+            contents();
+        for (int x = 0; x < 38; ++x) {
+            for (int y = 0; y < 15; ++y) {
+                groupOutput[y * 38 + x] =
+                    (groupString[y * 40 + x] == '0' ? 1 : 0);
+            }
+            for (int y = 0; y < 18; ++y) {
+                int c = groupString[((y/2) + 15) * 40 + x];
+                if ((y & 1) == 0)
+                    groupInput[y * 38 + x] = ((c == '*' || c == '0') ? 1 : 0);
+                else
+                    groupInput[y * 38 + x] = ((c == '*' || c == '1') ? 1 : 0);
+            }
+        }
+        //for (int y0 = 0; y0 < 18; ++y0) {
+        //    for (int y1 = 0; y1 < 18; ++y1) {
+        //        bool compatible = true;
+        //        for (int x = 0; x < 38; ++x) {
+        //            if (groupInput[y0 * 38 + x] == 1 && groupInput[y1 * 38 + x] == 1) {
+        //                compatible = false;
+        //                break;
+        //            }
+        //        }
+        //        if (compatible) {
+        //            printf("%i and %i are compatible\n", y0, y1);
+        //        }
+        //    }
+        //}
+        //int groupYY[18] = { 1, 0,  3, 2,  4, 6,  5, 7,  11, 10,  12, 13,  8, 9,  15, 14,  16, 17 };
+        //for (int y = 0; y < 18; y += 2) {
+        //    for (int x = 0; x < 38; ++x) {
+        //        int y0 = groupInput[groupYY[y] * 38 + x];
+        //        int y1 = groupInput[groupYY[y + 1] * 38 + x];
+        //        static const char c[] = "?01*";
+        //        printf("%c", c[y0 + y1 * 2]);
+        //    }
+        //    printf("\n");
+        //}
+
 
         //// S field in group 3 is always either s_blank or s_sigma - look for this pattern
         //for (int p = 0; p < 512 - 16; ++p) {
@@ -380,130 +424,103 @@ public:
             printf("%03x ", i);
             int d = instructions[i];
             for (int b = 0; b < 21; ++b) {
-                if ((d & (1 << b)) != 0)
+                if ((d & (1 << (20 - b))) != 0)
                     printf("%c", 'A' + b);
                 else
                     printf(" ");
             }
             printf("       ");
-            int s = (d >> 5) & 0x1f;
-            int dd = d & 0x1f;
-            int typ = (d >> 11) & 7;
-            int dest = ((d >> 14) & 8) + ((d >> 16) & 4) +
-                ((d >> 18) & 2) + ((d >> 20) & 1);
+            int s = ((d >> 13) & 1) + ((d >> 10) & 6) + ((d >> 11) & 0x18);
+            int dd = ((d >> 20) & 1) + ((d >> 18) & 2) + ((d >> 16) & 4) + ((d >> 14) & 8) + ((d >> 12) & 0x10);
+            int typ = (d >> 7) & 7;
+            if ((typ & 4) == 0)
+                typ >>= 1;
+
             if (d == 0) {
                 printf("                                         ");
                 goto afterDisassembly;
             }
-            switch (s) {
-                case 0x01: printf("X    "); break; // AH
-                case 0x02: printf("A    "); break; // AL
-                case 0x03: printf("XA   "); break; // AX
-                case 0x04: printf("RC   "); break; // CS 0x06d
-                case 0x07: printf("BC   "); break; // CX
-                case 0x08: printf("PC   "); break;
-                case 0x09: printf("SIGMA"); break;
-                case 0x0a: printf("tmpa "); break;  // 0x043 looks like IND saveed in tmpa around stack op
-                case 0x0b: printf("SP   "); break;  // actual SP register
-                case 0x0c: printf("IND  "); break;
-                case 0x0d:
-                    if (dd == 0x07)
-                        printf("     ");
-                    else
-                        printf("ONES ");
-                    break;
-                case 0x0e: printf("tmpb "); break;
-                case 0x0f: printf("MP   "); break; // BP
-                case 0x11: printf("M    "); break;
-                case 0x13: printf("DE   "); break; // DX
-                case 0x15: printf("R    "); break;  // source specified by modrm and direction
-                case 0x17: printf("HL   "); break; // BX
-                case 0x18: printf("OPR  "); break;
-                case 0x1a: printf("tmpc "); break;
-                case 0x19: printf("CR   "); break;  // low 3 bits of microcode address Counting Register + 1? Used as interrupt number at 0x198 (1), 0x199 (2), 0x1a7 (0), 0x1af (4), and 0x1b2 (3)
-                case 0x1b: printf("IJ   "); break;
-                case 0x1c: printf("Q    "); break;
-                case 0x1d: printf("ZERO "); break;
-                case 0x1e: printf("F    "); break;  // flags register
-                case 0x1f: printf("IK   "); break;
-                default: printf("[%3x]", s); break;
-            }
-            if (s != 0x0d || dd != 7)
-                printf(" -> ");
-            else
-                printf("    ");
-            switch (dd) {
-                case 0x00: printf("RA     "); break; // ES
-                case 0x01: printf("RC     "); break; // CS
-                case 0x02: printf("RS     "); break; // SS - presumably, to fit pattern. Only used in RESET
-                case 0x03: printf("RD     "); break; // DS
-                case 0x04: printf("PC     "); break;
-                case 0x05: printf("IND    "); break;
-                case 0x06: printf("OPR    "); break;
-                case 0x07:
-                    if (s == 0xd)
-                        printf("       ");
-                    else
-                        printf("no dest");
-                    break;
-                case 0x08: printf("A      "); break;
-                case 0x0c: printf("tmpa   "); break;
-                case 0x0d: printf("tmpb   "); break;
-                case 0x0e: printf("tmpc   "); break;
-                case 0x0f: printf("F      "); break; // flags register
-                case 0x10: printf("X      "); break; // AH?
-                case 0x12: printf("M      "); break;
-                case 0x13: printf("R      "); break; // register specified by r field of modrm
-                case 0x14: printf("tmpaL  "); break;
-                case 0x15: printf("tmpbL  "); break;
-                case 0x16: printf("tmpaH  "); break;
-                case 0x17: printf("tmpbH  "); break;
-                case 0x18: printf("XA     "); break; // AX?
-                case 0x19: printf("BC     "); break; // CX?
-                case 0x1a: printf("DE     "); break; // DX?
-                case 0x1c: printf("SP     "); break;  // actual SP register
-                case 0x1e: printf("IJ     "); break;
-                case 0x1f: printf("IK     "); break;
-                default: printf("[%2x]   ", dd); break;
+            static const char* regNames[] = {
+                "RA",  // ES
+                "RC",  // CS
+                "RS",  // SS - presumably, to fit pattern. Only used in RESET
+                "RD",  // DS
+                "PC",
+                "IND",
+                "OPR",
+                "no dest",  // as dest only - source is Q
+                "A",   // AL
+                "C",   // CL? - not used
+                "E",   // DL? - not used
+                "L",   // BL? - not used
+                "tmpa",
+                "tmpb",
+                "tmpc",
+                "F",   // flags register
+                "X",   // AH
+                "B",   // CH? - not used
+                "M",
+                "R",   // source specified by modrm and direction, destination specified by r field of modrm
+                "tmpaL",    // as dest only - source is SIGMA
+                "tmpbL",    // as dest only - source is ONES
+                "tmpaH",    // as dest only - source is CR
+                "tmpbH",    // as dest only - source is ZERO
+                "XA",  // AX
+                "BC",  // CX
+                "DE",  // DX
+                "HL",  // BX
+                "SP",  // SP
+                "MP",  // BP
+                "IJ",  // SI
+                "IK",  // DI
+            };
+            if (s == 0x15 && dd == 0x07)  // "ONES  -> Q" used as no-op move
+                printf("                ");
+            else {
+                const char* source = regNames[s];
+                const char* dest = regNames[dd];
+
+                switch (s) {
+                    case 0x07: source = "Q"; break;
+                    case 0x14: source = "SIGMA"; break;
+                    case 0x15: source = "ONES"; break;
+                    case 0x16: source = "CR"; break;  // low 3 bits of microcode address Counting Register + 1? Used as interrupt number at 0x198 (1), 0x199 (2), 0x1a7 (0), 0x1af (4), and 0x1b2 (3)
+                    case 0x17: source = "ZERO"; break;
+                }
+                printf("%-5s -> %-7s", source, regNames[dd]);
             }
             printf("   ");
 
+            if (typ == 4 && (d & 0x7f) == 0x7f) {
+                printf("                  ");
+                goto afterSecondHalf;
+            }
+            printf("%i   ", typ);
             switch (typ) {  // TYP bits
                 case 0:
-                case 4:
                 case 5:
                 case 7:
-                    if (typ == 5)
-                        printf("5   ");
-                    else {
-                        if (typ == 7)
-                            printf("7   ");
-                        else
-                            printf("0   ");
-                    }
-
-                    switch ((d >> 13) & 0x0f) {
+                    switch ((d >> 4) & 0xf) {
                         case 0x00: printf("F1ZZ"); break;
-                        case 0x01: printf("UNC "); break;
-                        case 0x02: printf("NCZ "); break;
-                        case 0x03: printf("NCY "); break;
-                        case 0x04: printf("L8  "); break; // jump if short immediate (skip 2nd byte from Q)
-                        case 0x05: printf("NZ  "); break; // jump if not zero (used in JCXZ and LOOP)
+                        case 0x01: printf("MOD1"); break; // jump if short offset in effective address
+                        case 0x02: printf("L8  "); break; // jump if short immediate (skip 2nd byte from Q)
+                        case 0x03: printf("Z   "); break; // jump if zero (used in IMULCOF/MULCOF)
+                        case 0x04: printf("NCZ "); break;
+                        case 0x05: printf("TEST"); break; // jump if -TEST pin not asserted
                         case 0x06: printf("OF  "); break; // jump if overflow flag is set
-                        case 0x07: printf("INT "); break; // jump if interrupt is pending
-                        case 0x08: printf("MOD1"); break; // jump if short offset in effective address
+                        case 0x07: printf("CY  "); break;
+                        case 0x08: printf("UNC "); break;
                         case 0x09: printf("NF1 "); break;
-                        case 0x0a: printf("TEST"); break; // jump if -TEST pin not asserted
-                        case 0x0b: printf("F1  "); break;
-                        case 0x0c: printf("Z   "); break; // jump if zero (used in IMULCOF/MULCOF)
-                        case 0x0d: printf("X0  "); break; // jump if bit 3 of opcode is 1
-                        case 0x0e: printf("CY  "); break;
+                        case 0x0a: printf("NZ  "); break; // jump if not zero (used in JCXZ and LOOP)
+                        case 0x0b: printf("X0  "); break; // jump if bit 3 of opcode is 1
+                        case 0x0c: printf("NCY "); break;
+                        case 0x0d: printf("F1  "); break;
+                        case 0x0e: printf("INT "); break; // jump if interrupt is pending
                         case 0x0f: printf("XC  "); break;  // jump if condition based on low 4 bits of opcode
-                        default: printf("[%2x]", (d >> 13) & 0x0f); break;
                     }
                     printf("  ");
                     if (typ == 5) {
-                        switch (dest) {
+                        switch (d & 0xf) {
                             case 0: printf("FARCALL "); break;
                             case 1: printf("NEARCALL"); break;
                             case 2: printf("RELJMP  "); break;
@@ -518,7 +535,7 @@ public:
                     }
                     else {
                         if (typ == 7) {
-                            switch (dest) {
+                            switch (d & 0xf) {
                                 case 0: printf("FARRET  "); break;
                                 case 1: printf("RPTS    "); break;
                                 case 2: printf("CORX    "); break; // unsigned multiply tmpc and tmpb, result in tmpa:tmpc
@@ -532,96 +549,99 @@ public:
                             }
                         }
                         else
-                            printf("%4i    ", dest);
+                            printf("%4i    ", d & 0xf);
+                    }
+                    break;
+                case 4:
+                    switch ((d >> 3) & 0x0f) {  // od14 od15 od16 od17   d3 d4 d5 d6
+                        case 0x00: printf("MAXC "); break;
+                        case 0x01: printf("FLUSH"); break;
+                        case 0x02: printf("CF1  "); break;
+                        case 0x03: printf("CITF "); break;  // clear interrupt and trap flags
+                        case 0x04: printf("RCY  "); break;  // reset carry
+                        case 0x06: printf("CCOF "); break;  // clear carry and overflow
+                        case 0x07: printf("SCOF "); break;  // set carry and overflow
+                        case 0x08: printf("WAIT "); break;  // not sure what this does
+                        case 0x0f: printf("none "); break;
+                    }
+                    printf(" ");
+                    switch (d & 7) {  // od18 od19 od20  d0 d1 d2
+                        case 0: printf("RNI     "); break;
+                        case 1: printf("WB,NX   "); break;  // possible write back to EA
+                        case 2: printf("CORR    "); break;
+                        case 3: printf("SUSP    "); break;
+                        case 4: printf("RTN     "); break;
+                        case 5: printf("NX      "); break;
+                        case 7: printf("none    "); break;
                     }
                     break;
                 case 1:
-                    if (((d >> 14) & 0x0f) == 0x0f && ((d >> 18) & 7) == 0x07) {
-                        printf("                  ");
-                        break;
+                    {
+                        switch ((d >> 3) & 0x1f) {  // od13 od14 od15 od16 od17   d3 d4 d5 d6 d7
+                            case 0x00: printf("ADD "); break;
+                            case 0x01: printf("OR  "); break; // not used in microcode
+                            case 0x02: printf("ADC "); break;
+                            case 0x03: printf("SBB "); break; // not used in microcode
+                            case 0x04: printf("AND "); break; // 0x09e
+                            case 0x05: printf("SUBT"); break;
+                            case 0x06: printf("XOR "); break; // not used in microcode
+                            case 0x07: printf("CMP "); break; // not used in microcode
+                            case 0x08: printf("ROL "); break; // not used in microcode
+                            case 0x09: printf("ROR "); break; // not used in microcode
+                            case 0x0a: printf("LRCY"); break;
+                            case 0x0b: printf("RRCY"); break;
+                            case 0x0c: printf("SHL "); break; // not used in microcode
+                            case 0x0d: printf("SHR "); break; // not used in microcode
+                            case 0x0e: printf("SETMO"); break; // not used in microcode
+                            case 0x0f: printf("SAR "); break; // not used in microcode
+                            case 0x10: printf("PASS"); break;
+                            case 0x11: printf("XI  "); break;
+                            case 0x14: printf("DAA "); break; // not used in microcode
+                            case 0x15: printf("DAS "); break; // not used in microcode
+                            case 0x16: printf("AAA "); break; // not used in microcode
+                            case 0x17: printf("AAS "); break; // not used in microcode
+                            case 0x18: printf("INC "); break;
+                            case 0x19: printf("DEC "); break;
+                            case 0x1a: printf("COM1"); break;
+                            case 0x1b: printf("NEG "); break;
+                            case 0x1c: printf("INC2"); break;
+                            case 0x1d: printf("DEC2"); break;
+                        }
                     }
-                    printf("4   ");
-                    switch ((d >> 14) & 0x0f) {
-                        case 0x00: printf("MAXC "); break;
-                        case 0x02: printf("RCY  "); break;  // reset carry
-                        case 0x04: printf("CF1  "); break;
-                        case 0x06: printf("CCOF "); break;  // clear carry and overflow
-                        case 0x08: printf("FLUSH"); break;
-                        case 0x0c: printf("CITF "); break;  // clear interrupt and trap flags
-                        case 0x0e: printf("SCOF "); break;  // set carry and overflow
-                        case 0x0f: printf("none "); break;
-                        default: printf("[%2x] ", (d >> 14) & 0x0f); break;
+                    printf("  ");
+                    switch (d & 7) {
+                        case 0x00: printf("tmpa    "); break;
+                        case 0x01: printf("tmpa, NX"); break;
+                        case 0x02: printf("tmpb    "); break;
+                        case 0x03: printf("tmpb, NX"); break;
+                        case 0x04: printf("tmpc    "); break;
+                        case 0x05: printf("tmpc, NX"); break;  // Not in patent, filling in the pattern
+                    }
+                    break;
+                case 6:
+                    switch ((d >> 4) & 7) {
+                        case 0x00: printf("R    "); break;
+                        case 0x02: printf("IRQ  "); break;
+                        case 0x04: printf("w    "); break;
+                        case 0x05: printf("W,RNI"); break;
                     }
                     printf(" ");
-                    switch ((d >> 18) & 7) {
-                        case 0x00: printf("RNI     "); break;
-                        case 0x01: printf("RTN     "); break;
-                        case 0x02: printf("CORR    "); break;
-                        case 0x04: printf("WB,NX   "); break;  // possible write back to EA
-                        case 0x05: printf("NWB,NX  "); break;  // no write back to EA
-                        case 0x06: printf("SUSP    "); break;
-                        case 0x07: printf("none    "); break;
-                        default:  printf("[%2x]    ", (d >> 18) & 0x07); break;
-                    }
-                    break;
-                case 2:
-                case 6:
-                    printf("1   ");
-                    switch ((d >> 13) & 0x1f) {
-                        case 0x00: printf("ADD "); break;
-                        case 0x01: printf("PASS"); break;
-                        case 0x03: printf("INC "); break;
-                        case 0x04: printf("AND "); break; // 0x09e
-                        case 0x07: printf("INC2"); break;
-                        case 0x08: printf("XZC "); break;  // XOR zero flag computed from argument with incoming carry flag, used in IMULCOF
-                        case 0x0a: printf("LRCY"); break;
-                        case 0x0b: printf("COM1"); break;
-                        case 0x11: printf("XI  "); break;
-                        case 0x13: printf("DEC "); break;
-                        case 0x14: printf("SUBT"); break;
-                        case 0x17: printf("DEC2"); break;
-                        case 0x1a: printf("RRCY"); break;
-                        case 0x1b: printf("NEG "); break;
-                        default: printf("[%2x]", (d >> 13) & 0x1f); break;
-                    }
-                    printf("  ");
-                    switch ((d >> 18) & 7) {
-                        case 0x00: printf("tmpa    "); break;
-                        case 0x01: printf("tmpc    "); break;
-                        case 0x02: printf("tmpb    "); break;
-                        case 0x03: printf("tmpb?   "); break;
-                        case 0x04: printf("tmpa, NX"); break;
-                        case 0x05: printf("tmpc, NX"); break;  // Not in patent, filling in the pattern
-                        case 0x06: printf("tmpb, NX"); break;
-                        case 0x07: printf("tmpb?,NX"); break;  // Not in patent, filling in the pattern
-                        default: printf("[%2x]    ", (d >> 18) & 7); break;
-                    }
-                    break;
-                case 3:
-                    printf("6   ");
-                    switch ((d >> 14) & 0x07) {
-                        case 0x00: printf("R   "); break;
-                        case 0x01: printf("w   "); break;
-                        case 0x02: printf("IRQ "); break;
-                        case 0x05: printf("W   "); break;  // Not sure what the difference is between w and W
-                        default: printf("[%2x]", (d >> 14) & 0x07); break;
-                    }
-                    printf("  ");
-                    switch ((d >> 17) & 3) {  // Bits 0 and 1 are segment, bits 2 and 3 are IND update
+                    switch ((d >> 2) & 3) {
                         case 0x00: printf("DA,"); break;  // ES
-                        case 0x01: printf("DS,"); break;  // SS
-                        case 0x02: printf("D0,"); break;  // segment 0
+                        case 0x01: printf("D0,"); break;  // segment 0
+                        case 0x02: printf("DS,"); break;  // SS
                         case 0x03: printf("DD,"); break;  // DS
                     }
-                    switch ((d >> 19) & 3) {  // Bits 0 and 1 are segment, bits 2 and 3 are IND update
+                    switch (d & 3) {
                         case 0x00: printf("P2"); break;  // Increment IND by 2
-                        case 0x01: printf("M2"); break;  // Decrement IND by 2
-                        case 0x02: printf("BL"); break;  // Adjust IND according to word size and DF
+                        case 0x01: printf("BL"); break;  // Adjust IND according to word size and DF
+                        case 0x02: printf("M2"); break;  // Decrement IND by 2
                         case 0x03: printf("P0"); break;  // Don't adjust IND
                     }
                     printf("   ");
                     break;
             }
+            afterSecondHalf:
             printf(" ");
             if (((d >> 10) & 1) != 0)
                 printf("F");

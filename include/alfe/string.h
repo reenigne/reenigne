@@ -54,7 +54,7 @@ public:
         String operator+(const char* a)
         {
             int l = bytes();
-            int al = strlen(a);
+            int al = static_cast<int>(strlen(a));
             String s(l + al);
             write(s.data());
             memcpy(s.data() + l, a, al);
@@ -162,8 +162,10 @@ public:
         String operator+(const char* a)
         {
             int l = bytes();
-            int al = strlen(a);
-            String s(l + al);
+            int al = static_cast<int>(strlen(a));
+            //if (l + al > std::numeric_limits<int>::max())
+            //    throw Exception("String too long");
+            String s(static_cast<int>(l + al));
             write(s.data());
             memcpy(s.data() + l, a, al);
             return s;

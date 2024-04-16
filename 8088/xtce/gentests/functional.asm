@@ -1,20 +1,20 @@
 org 0
 cpu 8086
 
-testA:
-  dw 0     ; cycle count ignored (computed by emulator)
-  db 0     ; MUL queuefiller, no NOPs
-  db 0     ; Refresh period
-  db 0     ; Refresh phase
-  db .preambleEnd - ($+1)
-.preambleEnd:
-  db .instructionsEnd - ($+1)
-
-  out 0xe0,al
-
-.instructionsEnd:
-  db .fixupsEnd - ($+1)
-.fixupsEnd:
+;testA:
+;  dw 0     ; cycle count ignored (computed by emulator)
+;  db 0     ; MUL queuefiller, no NOPs
+;  db 0     ; Refresh period
+;  db 0     ; Refresh phase
+;  db .preambleEnd - ($+1)
+;.preambleEnd:
+;  db .instructionsEnd - ($+1)
+;
+;  out 0xe0,al
+;
+;.instructionsEnd:
+;  db .fixupsEnd - ($+1)
+;.fixupsEnd:
 
 %if 0        ; Test is currently not working on hardware - SPK seems to be always 0 even as T/C2OUT is oscillating and SPKRDATA is 1. Hardware issue?
 test0:

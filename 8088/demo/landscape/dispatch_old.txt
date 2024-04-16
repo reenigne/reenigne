@@ -1,0 +1,68 @@
+dispatch:
+  mov ah,0                                                       ; 2
+  xchg ax,si                                                     ; 1
+  add si,si                                                      ; 2
+  mov si,[ss:si+0x2345]  ; sky pointer table                     ; 5
+  xchg ax,si                                                     ; 1
+  jmp [ss:si+0xfedc]                                             ; 5
+
+groundFixup3:                                                    ; 6
+  mov byte[es:di+239],0xb0
+
+groundFixup2:
+  mov byte[es:di+159],0xb0
+
+groundFixup1:
+  mov byte[es:di+79],0xb0
+
+fixup0:
+  mov si,dx                                                      ; 2
+  add di,[ss:si+0x1234]  ; dx = 100 => di += 80*dx + 2           ; 5
+  ret                                                            ; 1
+
+skyFixup1:
+  mov si,ax                                                      ; 2
+  add si,dx                                                      ; 2
+  ss: movsw                                                      ; 2
+  dec di                                                         ; 1
+  dec di                                                         ; 1
+  jmp fixup0                                                     ; 3
+
+skyFixup2:
+  mov si,ax                                                      ; 2
+  add si,dx                                                      ; 2
+  ss: movsw                                                      ; 2
+  add di,bp                                                      ; 2
+  dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,80-2                                                    ; 3
+  jmp fixup0                                                     ; 3
+
+skyFixup3:
+  mov si,ax                                                      ; 2
+  add si,dx                                                      ; 2
+  ss: movsw                                                      ; 2
+  add di,bp                                                      ; 2
+  dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,bp                                                      ; 2
+  dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,160-2                                                   ; 4
+  jmp fixup0                                                     ; 3
+
+skyFixup4:
+  mov si,ax                                                      ; 2
+  add si,dx                                                      ; 2
+  ss: movsw                                                      ; 2
+  add di,bp                                                      ; 2
+  dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,bp                                                      ; 2
+  dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,bp                                                      ; 2
+  dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,240-2                                                   ; 4
+  jmp fixup0                                                     ; 3

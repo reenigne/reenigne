@@ -375,6 +375,10 @@ class Program : public ProgramBase
         int queueLength = 0;
 
         int lastS = 0;
+        bool lastIOW = false;
+        bool lastIOR = false;
+        bool lastMEMW = false;
+        bool lastMEMR = false;
 
         for (int th = 0; th < length; ++th)
             for (int tl = 0; tl < (fastSampling ? 3 : 1); ++tl) {
@@ -581,19 +585,20 @@ class Program : public ProgramBase
                     default: o += "!c"; tNext = 0; break;
                 }
                 o += " ";
-                if (aen)
+                if (dmas == 3) {
                     switch (d) {
                         // This is a bit of a hack since we don't have access
                         // to the right lines to determine the DMA state
                         // properly. This probably breaks for memory-to-memory
                         // copies.
-                        case -1: d = 0; break;
+                        case -1: d = -2; break;
+                        case -2: d = 0; break;
                         case 0: d = 1; break;
                         case 1: d = 2; break;
                         case 2: d = 3; break;
                         case 3:
                         case 5:
-                            if ((iow && memr) || (ior && memw))
+                            if ((lastIOW && lastMEMR) || (lastIOR && lastMEMW))
                                 d = 4;
                             else
                                 d = 5;
@@ -601,8 +606,12 @@ class Program : public ProgramBase
                         case 4:
                             d = -1;
                     }
+                }
+                else
+                    d = (d == 3 ? 4 : -1);
                 switch (d) {
                     case -1: o += "  "; break;
+                    case -2: o += "SA"; break;
                     case 0: o += "S0"; break;
                     case 1: o += "S1"; break;
                     case 2: o += "S2"; break;
@@ -628,7 +637,7 @@ class Program : public ProgramBase
                         instruction = disassembler.disassemble(b, qs == 1);
                     }
                 }
-                if (tNext == 4 || d == 4) {
+                if (tNext == 4 || d == 3) {
                     if (t == 4 && d == 4)
                         o += "!e";
                     String seg;
@@ -646,7 +655,7 @@ class Program : public ProgramBase
                             type = "f";
                             seg = "   ";
                         }
-                        if (d == 4) {
+                        if (d == 3) {
                             type = "d";
                             seg = "   ";
                         }
@@ -655,11 +664,15 @@ class Program : public ProgramBase
                             o += "<-" + type + " ";
                         else
                             o += type + "-> ";
-                        if (memr || memw)
-                            o += "[" + seg + hex(address, 5, false) + "]";
+                        if (memr || memw) {
+                            if (d == 3) 
+                                o += "[   " + hex(address, 5, false) + "]";
+                            else
+                                o += "[" + seg + hex(address, 5, false) + "]";
+                        }
                         else
                             o += "port[" + hex(address, 4, false) + "]";
-                        if (lastS == 4 && d != 4) {
+                        if (lastS == 4 && d != 3) {
                             if (queueLength >= 4)
                                 o += "!f";
                             else {
@@ -678,6 +691,10 @@ class Program : public ProgramBase
                     o += " ";
                 o += " " + instruction + "\n";
                 lastS = s;
+                lastIOW = iow;
+                lastIOR = ior;
+                lastMEMW = memw;
+                lastMEMR = memr;
                 t = tNext;
             }
         File(_arguments[2], true).save(o);

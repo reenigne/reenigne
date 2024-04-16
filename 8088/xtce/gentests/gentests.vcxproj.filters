@@ -32,6 +32,12 @@
     <ClInclude Include="..\..\..\include\alfe\space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\gentests.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\xtce_microcode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\include\alfe.natvis" />

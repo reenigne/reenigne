@@ -4,6 +4,8 @@
 #define INCLUDED_USER_H
 
 #include "alfe/bitmap.h"
+#include "alfe/linked_list.h"
+#include "alfe/thread.h"
 
 // TODO: Xlib port
 

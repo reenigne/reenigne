@@ -267,8 +267,8 @@ protected:
         }
         virtual void deserialize(const Value& value, void* p) { }
         virtual int size() { return 0; }
-        virtual ValueT<T> defaultValue() { return Value(); }
-        virtual ValueT<T> value(void* p) { return Value(); }
+        virtual ValueT<T> defaultValue() { return ValueT<T>(); }
+        virtual ValueT<T> value(void* p) { return ValueT<T>(); }
         Type type() { return tyco(); }
         virtual ValueT<T> simplify(const Value& value)
         {

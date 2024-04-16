@@ -2221,3 +2221,107 @@ savedSP:
 
 
 data:
+
+
+
+
+
+
+
+
+  refreshOn 19
+   mov dx,0x3d9
+   mov ax,0xb800
+   mov es,ax
+   mov [cs:savedStack],sp
+   mov [cs:savedStack+2],ss
+   mov ax,0x7000
+   mov ss,ax
+   mov sp,0
+
+   mov ax,0x7000
+   mov ds,ax            ; 2 0
+   mov sp,[bx]          ; 2 2
+   pop di               ; 1 2
+   mov al,[es:di]       ; 3 1 +WS
+   pop cx               ; 1 2
+   and ax,cx            ; 2 0
+   pop cx               ; 1 2
+   or ax,cx             ; 2 0
+   stosw                ; 1 2 +WS +WS
+   pop ax               ; 1 2
+   and ah,[es:di+1]     ; 4 1 +WS
+   pop cx
+   or ax,cx             ; 2 0
+   stosw                ; 1 2 +WS +WS
+   pop ax
+   out dx,al
+   mov ds,bp
+   lodsb
+   out 0xe0,al
+
+   mov ax,0x7000
+   mov ds,ax            ; 2 0
+   mov sp,[bx]          ; 2 2
+   pop di               ; 1 2
+   mov al,[es:di]       ; 3 1 +WS
+   pop cx               ; 1 2
+   and ax,cx            ; 2 0
+   pop cx               ; 1 2
+   or ax,cx             ; 2 0
+   stosw                ; 1 2 +WS +WS
+   pop ax               ; 1 2
+   and ah,[es:di+1]     ; 4 1 +WS
+   pop cx
+   or ax,cx             ; 2 0
+   stosw                ; 1 2 +WS +WS
+   pop ax
+   out dx,al
+   mov ds,bp
+   lodsb
+   out 0xe0,al
+
+   mov ax,0x7000
+   mov ds,ax            ; 2 0
+   mov sp,[bx]          ; 2 2
+   pop di               ; 1 2
+   mov al,[es:di]       ; 3 1 +WS
+   pop cx               ; 1 2
+   and ax,cx            ; 2 0
+   pop cx               ; 1 2
+   or ax,cx             ; 2 0
+   stosw                ; 1 2 +WS +WS
+   pop ax               ; 1 2
+   and ah,[es:di+1]     ; 4 1 +WS
+   pop cx
+   or ax,cx             ; 2 0
+   stosw                ; 1 2 +WS +WS
+   pop ax
+   out dx,al
+   mov ds,bp
+   lodsb
+   out 0xe0,al
+
+   mov sp,[cs:savedStack]
+   mov ss,[cs:savedStack+2]
+   ret
+   savedStack: dw 0,0
+
+
+
+  cld
+  cld
+;  mov ds,bp            ; 2 0
+
+  pop ax               ; 1 2
+  out dx,al            ; 1 1
+
+
+
+
+  mov dx,0x3d4
+  mov ax,0
+  out dx,ax
+
+
+

@@ -81,13 +81,17 @@ public:
     }
     void write(const String& s) const { write(&s[0], s.length()); }
     void write(const Exception& e) const { e.write(*this); }
-    void write(const void* buffer, int bytes) const
+    void write(const void* buffer, size_t bytes) const
     {
         if (bytes == 0)
             return;
 #ifdef _WIN32
         DWORD bytesWritten;
-        if (WriteFile(handle(), buffer, bytes, &bytesWritten, NULL) == 0 ||
+        if (bytes > std::numeric_limits<DWORD>::max()) {
+            throw Exception("Trying to write too many bytes to " +
+                _file.path());
+        }
+        if (WriteFile(handle(), buffer, static_cast<DWORD>(bytes), &bytesWritten, NULL) == 0 ||
             bytesWritten != bytes)
             throw Exception::systemError("Writing file " + _file.path());
 #else

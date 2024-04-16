@@ -65,6 +65,25 @@ public:
         virtual String path() const = 0;
         virtual bool isRoot() const = 0;
     };
+    bool exists()
+    {
+#ifdef _WIN32
+        NullTerminatedWideString data(path());
+        DWORD dwAttr = GetFileAttributes(data);
+        if (dwAttr == 0xffffffff) {
+            DWORD dwError = GetLastError();
+            if (dwError == ERROR_FILE_NOT_FOUND)
+                return false;
+            if (dwError == ERROR_PATH_NOT_FOUND)
+                return false;
+            IF_ZERO_CHECK_THROW_LAST_ERROR(0);
+        }
+        return true;
+#else
+        NullTerminatedString data(path());
+        return access(data, F_OK) == 0;
+#endif
+    }
 protected:
     const Body* body() const { return as<Body>(); }
 
@@ -757,7 +776,7 @@ public:
             512,   // nInBufferSize
             0,     // nDefaultTimeOut
             NULL), // lpSecurityAttributes
-            *this);  
+            *this);
         if (!f.valid())
             throw Exception::systemError("Creating pipe " + path());
         return f;
@@ -875,7 +894,7 @@ template<class T, class V = Void> void applyToWildcard(T& functor,
 #endif
     FindHandleT<T> handle(directory, name);
     while (!handle.complete()) {
-        if (handle.isDirectory()) {
+        if (handle.isDirectory() && !handle.isJunction()) {
             Directory child = handle.directory();
             if (c == -1)
                 if (recurseIntoDirectories)
