@@ -180,6 +180,40 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  mov dx,0x3d8
+  xchg ax,bx
+  out dx,ax
+  xchg ax,cx
+  out dx,ax
+  xchg ax,bp
+  out dx,ax
+  xchg ax,si
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  xchg ax,bx
+  out dx,ax
+  xchg ax,cx
+  out dx,ax
+  xchg ax,bp
+  out dx,ax
+  xchg ax,si
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  xchg ax,bx
+  out dx,ax
+  xchg ax,cx
+  out dx,ax
+  xchg ax,bp
+  out dx,ax
+  xchg ax,si
+  out dx,ax
+  xchg ax,di
+  out dx,ax
+  ret
+
+
   mov ax,0x7000
   mov ds,ax
   mov es,ax

@@ -4,7 +4,6 @@
 #include "alfe/bitmap.h"
 #include "alfe/statement.h"
 #include "alfe/stack.h"
-#include "alfe/code.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,8 +51,7 @@ public:
     }
     const Address& operator+=(int delta) { _offset += delta; return *this; }
     operator DWord() const { return ((_segment << 4) + _offset) & 0xfffff; }
-    bool operator==(const Address& other) const = delete;
-    bool equivalent(const Address& other) const
+    bool operator==(const Address& other) const
     {
         return DWord(*this) == other;
     }
@@ -133,16 +131,14 @@ public:
                 _emulator->runtimeError("Execute/modify/execute detected at "
                     "address " + address.toString() + ".");
             }
-            // TODO: put this back under control of config file option. Can't use this for U6 because it loads and executes u6cga.drv
-            //if ((_flags[address] & written) != 0) {
-            //    _emulator->runtimeError("Execute of written byte detected at "
-            //        "address " + address.toString() + ".");
-            //}
-            // TODO: put this back under control of config file option.
-            //if ((_flags[address] & read) != 0) {
-            //    _emulator->runtimeError("Execute of read byte detected at "
-            //        "address " + address.toString() + ".");
-            //}
+            if ((_flags[address] & written) != 0) {
+                _emulator->runtimeError("Execute of written byte detected at "
+                    "address " + address.toString() + ".");
+            }
+            if ((_flags[address] & read) != 0) {
+                _emulator->runtimeError("Execute of read byte detected at "
+                    "address " + address.toString() + ".");
+            }
         }
         else {
             if (!preStart)
@@ -178,11 +174,11 @@ public:
     Address cb(Address address)
     {
         return address +
-            static_cast<int>(static_cast<SInt8>(_bytes[address + 1])) + 2;
+            static_cast<int>(static_cast<SInt8>(_bytes[address + 1]));
     }
     Address cw(Address address)
     {
-        return address + (getWord(address + 1) + 3);
+        return Address(address.segment(), getWord(address + 1));
     }
     Address cp(Address address)
     {
@@ -219,7 +215,7 @@ public:
     }
     bool segmentValid(Address address)
     {
-        return address.equivalent(address.changeSegment(_segments[address]));
+        return address == address.changeSegment(_segments[address]);
     }
     bool setSegment(Address address)
     {
@@ -238,26 +234,17 @@ public:
             _flags[address] |= firstByteOfInstruction;
     }
     void setBad(Address address) { _flags[address] |= bad; }
-    Address addressFromPhysical(DWord physical, Word suggested)
+    Address addressFromPhysical(DWord physical)
     {
         Address a(physical >> 4, physical & 0xf);
-        if (segmentValid(a))
-            return a.changeSegment(_segments[a]);
-        Address s = a.changeSegment(suggested);
-        if (s.equivalent(a))
-            return s;
-        return a;
+        if (!segmentValid(a))
+            return a;
+        return a.changeSegment(_segments[a]);
     }
 
     // Adds an edge where execution passes from "from" to "to".
     void addPredecessor(Address from, Address to)
     {
-        //Predecessor* pp = _predecessors[to];
-        //while (pp != 0) {
-        //    if (pp->_address.equivalent(from))
-        //        return;
-        //    pp = pp->_next;
-        //}
         Predecessor* p = new Predecessor(from);
         p->_next = _predecessors[to];
         _predecessors[to] = p;
@@ -336,12 +323,8 @@ public:
     {
         // Search through for executed instructions that are followed by a
         // non-executed instruction
-        Word segment = 1;
         for (int i = 0; i < _size; ++i) {
-            Address a = _memory->addressFromPhysical(i, segment);
-            //if (a.segment() != segment)
-            //    console.write("Changing segment to " + hex(a.segment(), 4, false) + "\n");
-            segment = a.segment();
+            Address a = _memory->addressFromPhysical(i);
             if (!_memory->executedFirstByte(a))
                 continue;
             int size = getInstructionSize(a);
@@ -362,10 +345,9 @@ public:
                 continue;
             }
             if (type == 5) {  // TODO: do same check for unconditional JMP/CALL destinations?
+                // TODO: put this back
                 //error("Instruction should have continued at address " +
                 //    a.toString() + ". Try running for longer.");
-                console.write("Instruction should have continued at address " +
-                    a.toString() + ". Try running for longer.\n");
                 continue;
             }
             pushTask(type, next);
@@ -417,7 +399,6 @@ public:
                 continue;
             }
 
-            //console.write("Statically disassembling from " + a.toString() + "\n");
             do {
                 // Do a static disassembly starting at address
                 if (_memory->data(a)) {
@@ -436,6 +417,7 @@ public:
                 _memory->setStatic(a, true);
                 int size = getInstructionSize(a);
                 if (size == 0) {
+                    _memory->setBad(a);
                     pushTask(0, a);
                     // Invalid instruction - don't try to disassemble.
                     break;
@@ -443,7 +425,7 @@ public:
                 for (int i = 1; i < size; ++i)
                     _memory->setStatic(a + i, false);
                 Address next = processEndOfBasicBlock(a);
-                if (next.equivalent(a))
+                if (next == a)
                     break;
                 a = next;
             } while (true);
@@ -453,42 +435,37 @@ public:
         bool executed = false;
         bool read = false;
         bool written = false;
-        bool code = true;
-        bool initialised = false;
-        segment = 1;
+        Word segment = 1;
         for (int i = 0; i < _size; ++i) {
-            Address a = _memory->addressFromPhysical(i, segment);
+            Address a = _memory->addressFromPhysical(i);
             Word newSegment = a.segment();
             if (newSegment != segment) {
-                console.write("; --- Segment = " + hex(newSegment, 4, false) +
-                    " ---\n");
+                console.write("; Segment = " + hex(newSegment, 4, false) +
+                    "\n");
                 segment = newSegment;
             }
-            if (_memory->firstByte(a) && !_memory->data(a)) {
+            if (_memory->firstByte(a)) {
                 bool newExecuted = _memory->executedFirstByte(a);
-                if (newExecuted != executed || !code) {
+                if (newExecuted != executed) {
                     if (newExecuted)
                         console.write("; --- Dynamic ---\n");
                     else
                         console.write("; --- Static ---\n");
                     executed = newExecuted;
                 }
-                code = true;
                 String instruction = disassembleInstruction(a);
                 Memory::Predecessor* predecessor = _memory->getPredecessor(a);
                 if (predecessor != 0) {
-                    console.write("l" + hex(a.segment(), 4, false) + "_" + hex(a.offset(), 4, false) + ":");
-                    //for (int x = instruction.length(); x < 30; ++x)
-                    //    instruction += " ";
-                    console.write(" ; we get here from ");
+                    for (int x = instruction.length(); x < 30; ++x)
+                        instruction += " ";
+                    instruction += "; we get here from ";
                     while (predecessor != 0) {
-                        console.write(predecessor->_address.toString());
+                        instruction += a.toString();
                         Memory::Predecessor* next = predecessor->_next;
                         if (next != 0)
-                            console.write(", ");
+                            instruction += ", ";
                         predecessor = next;
                     }
-                    console.write("\n");
                 }
                 console.write("  " + instruction + "\n");
                 i += getInstructionSize(a) - 1;
@@ -496,65 +473,55 @@ public:
             else {
                 bool newRead = _memory->wasRead(a);
                 bool newWritten = _memory->wasWritten(a);
-                bool newInitialised = _memory->isInitialized(a);
-                if (newRead != read || newWritten != written || code || newInitialised != initialised) {
-                    console.write("p" + hex(a.segment(), 4, false) + "_" + hex(a.offset(), 4, false) + ":");
-                    if (newInitialised) {
-                        if (newRead) {
-                            if (newWritten)
-                                console.write("  ; --- Read and written ---\n");
-                            else
-                                console.write("  ; --- Read only ---\n");
-                        }
-                        else {
-                            if (newWritten)
-                                console.write("  ; --- Written only ---\n");
-                            else
-                                console.write("  ; --- Neither read nor written ---\n");
-                        }
+                if (newRead != read || newWritten != written) {
+                    if (newRead) {
+                        if (newWritten)
+                            console.write("; --- Read and written ---\n");
+                        else
+                            console.write("; --- Read only ---\n");
                     }
-                    else
-                        console.write("  ; -- Uninitialised ---\n");
+                    else {
+                        if (newWritten)
+                            console.write("; --- Written only ---\n");
+                        else
+                            console.write("; --- Neither read nor written ---\n");
+                    }
                     read = newRead;
                     written = newWritten;
-                    initialised = newInitialised;
                 }
-                code = false;
 
                 Word offset = a.offset();
                 int x;
-                if (initialised) {
-                    String instruction = "  db ";
-                    String ascii = " ; ";
-                    for (x = 0; x < (offset & 0xf); ++x) {
-                        instruction += "      ";
-                        ascii += " ";
-                    }
-                    bool needComma = false;
-                    for (; x < 0x10; ++x) {
-                        if (_memory->firstByte(a) && !_memory->data(a))
-                            break;
-                        if (_memory->wasRead(a) != read ||
-                            _memory->wasWritten(a) != written)
-                            break;
-                        if (needComma)
-                            instruction += ", ";
-                        else
-                            ascii += "\"";
-                        Byte b = _memory->getByte(a);
-                        ++a;
-                        ++i;
-                        instruction += hex(b, 2);
-                        needComma = true;
-                        if (b >= 0x20 && b < 0x7f)
-                            ascii += codePoint(b);
-                        else
-                            ascii += ".";
-                    }
-                    console.write(instruction.alignLeft(100) + ascii + "\"\n");
-                    --i;
+                String instruction = "  db ";
+                String ascii = " ; ";
+                for (x = 0; x < (offset & 0xf); ++x) {
+                    instruction += "      ";
+                    ascii += " ";
                 }
+                bool needComma = false;
+                for (; x < 0x10; ++x) {
+                    if (_memory->firstByte(a))
+                        break;
+                    if (_memory->wasRead(a) != read ||
+                        _memory->wasWritten(a) != written)
+                        break;
+                    if (needComma)
+                        instruction += ", ";
+                    else
+                        ascii += "\"";
+                    Byte b = _memory->getByte(a);
+                    ++a;
+                    ++i;
+                    instruction += hex(b, 2);
+                    needComma = true;
+                    if (b >= 0x20 && b < 0x7f)
+                        ascii += codePoint(b);
+                    else
+                        ascii += ".";
+                }
+                console.write(instruction + ascii + "\"\n");
             }
+
         }
     }
 private:
@@ -590,7 +557,6 @@ private:
     String ea()
     {
         String s;
-        _offset = 2;
         switch (mod()) {
             case 0: s = disp(); break;
             case 1: s = disp() + sb(); _offset = 3; break;
@@ -633,23 +599,13 @@ private:
     {
         if (m)
             ea();
-        Word w = _memory->getWord(_address + _offset);
-        if (w < 10)
-            return decimal(w);
-        return hex(w, 4);
-    }
-    String number(Byte b)
-    { 
-        if (b < 10)
-            return decimal(b);
-        return hex(b, 2);
+        return hex(_memory->getWord(_address + _offset), 4, false);
     }
     String ib(bool m = false)
     {
         if (m)
             ea();
-        Byte b = _memory->getByte(_address + _offset);
-        return number(b);
+        return hex(_memory->getByte(_address + _offset), 2, false);
     }
     String sb(bool m = false)
     {
@@ -657,8 +613,8 @@ private:
             ea();
         UInt8 byte = _memory->getByte(_address + _offset);
         if ((byte & 0x80) == 0)
-            return "+" + number(byte);
-        return "-" + number(-byte);
+            return "+" + hex(byte, 2, false);
+        return "-" + hex(-byte, 2, false);
     }
     String accum() { return !_wordSize ? "al" : "ax"; }
     String segreg(int r)
@@ -674,14 +630,13 @@ private:
     {
         _address = address;
         _opcode = _memory->getByte(address);
-        _modRM = _memory->getByte(address + 1);
         _wordSize = (_opcode & 1) != 0;
         _doubleWord = false;
         _offset = 1;
         if ((_opcode & 0xc4) == 0)
             return alu(op1()) + regMemPair();
         if ((_opcode & 0xc6) == 4)
-            return alu(op1()) + accum() + ", " + imm(true);
+            return alu(op1()) + accum() + ", " + imm();
         if ((_opcode & 0xe7) == 6)
             return "push " + segreg(op1());
         if ((_opcode & 0xe7) == 7)
@@ -906,11 +861,7 @@ private:
         }
         return a;
     }
-    void pushTask(int type, Address address)
-    {
-        //console.write("Pushing task of type " + decimal(type) + " at " + address.toString() + "\n");
-        _tasks[type].push(address);
-    }
+    void pushTask(int type, Address address) { _tasks[type].push(address); }
     int getInstructionSize(Address address)
     {
         static const int s[] = {
@@ -927,7 +878,7 @@ private:
              3, 3, 3, 3, 1, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1, 1,
              2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
              0, 0, 3, 1,-1,-1,-2,-3, 0, 0, 3, 1, 1, 2, 1, 1,
-            -1,-1,-1,-1, 2, 2, 1, 1,-1,-1,-1,-1,-1,-1,-1,-1,
+             2, 2, 2, 2, 2, 2, 1, 1,-1,-1,-1,-1,-1,-1,-1,-1,
              2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 5, 2, 1, 1, 1, 1,
              1, 0, 1, 1, 1, 1,-1,-1, 1, 1, 1, 1, 1, 1,-1,-1
         };
@@ -954,7 +905,7 @@ private:
         int l = s[opcode];
         if (l < 0) {
             Byte modrm = _memory->getByte(address + 1);
-            l = 1 + ms[modrm] - l;
+            l = -l + ms[modrm];
             if ((opcode & 0xfc) == 0xe0 && (modrm & 0x38) == 0x30) {
                 // SETMO
                 return 0;
@@ -967,7 +918,7 @@ private:
                 // CALL/JMP/PUSH indirect byte
                 return 0;
             }
-            if ((opcode == 0x8d || (opcode & 0xfe) == 0xc4) &&
+            if ((opcode == 0x8d || (opcode & 0xfe) == 0x84) &&
                 (modrm & 0xc0) == 0xc0) {
                 // LEA/LES/LDS reg,reg
                 return 0;
@@ -992,10 +943,6 @@ private:
             if (opcode == 0x8f && (modrm & 0x38) != 0) {
                 // POP rmw alias
                 return 0;
-            }
-            if ((opcode & 0xfe) == 0xf6 && (modrm & 0x38) < 0x10) {
-                // TEST rmw,imm
-                l += 1 + (opcode & 1);
             }
         }
         DWord segment = _memory->segment(address);
@@ -1046,8 +993,8 @@ private:
     }
     Address findPreviousAddress(Address address)
     {
+        --address;
         do {
-            --address;
             if (_memory->firstByte(address))
                 return address;
         } while (true);
@@ -1284,7 +1231,7 @@ public:
         running = true;
         bool prefix = false;
         int lastios = 0;
-        for (int i = 0; i < 21851920 /*1000000000 */; ++i) {
+        for (int i = 0; i < /*1000000000*/ 50000; ++i) {
             int iosElapsed = ios - lastios;
             lastios = ios;
             iosToTimerIRQ -= iosElapsed;
@@ -1302,18 +1249,18 @@ public:
                 iosToFrame += 19912;
                 program->update();
             }
-            //if (i >= 48664) {
-            //    printf("%09i %04x:%04x ", i, cs(), ip);
-            //    for (int j = 0; j < 12; ++j) {
-            //        if (j != 9) {
-            //            printf("%04x",registers[j]);
-            //            if (j != 11)
-            //                printf(" ");
-            //            else
-            //                printf("\n");
-            //        }
-            //    }
-            //}
+            if (i >= 0 /* 48697*/) {
+                printf("%09i %04x:%04x ", i, cs(), ip);
+                for (int j = 0; j < 12; ++j) {
+                    if (j != 9) {
+                        printf("%04x",registers[j]);
+                        if (j != 11)
+                            printf(" ");
+                        else
+                            printf("\n");
+                    }
+                }
+            }
             if (!repeating) {
                 if (!prefix) {
                     segmentOverride = -1;
@@ -1724,7 +1671,7 @@ public:
                                     }
                                     break;
                                 case 0x3d:
-                                    console.write("Opening file " + String(dsdx()) + "\n");
+                                    printf("Opening file %s\n", dsdx());
                                     fileDescriptor = open(dsdx(), al() & 3, 0700);
                                     if (fileDescriptor != -1) {
                                         setCF(false);
@@ -1760,9 +1707,8 @@ public:
                                         setAX(6);  // Invalid handle
                                         break;
                                     }
-                                    console.write("Reading " + decimal(cx()) +
-                                        " bytes from " + bx() + " to " +
-                                        Address(ds(), dx()).toString() + "\n");
+                                    printf("Reading %i bytes from %i to "
+                                        "%04x:%04x\n", cx(), bx(), ds(), dx());
                                     data = ::read(fileDescriptor,
                                         pathBuffers[0], cx());
                                     dsdx(true, cx());
@@ -2262,7 +2208,7 @@ private:
             char p;
             if (write) {
                 p = pathBuffers[buffer][i];
-                _memory->writeByte(Address(segmentAddress(seg), offset + i), p,
+                _memory->writeByte(Address(segmentAddress(seg), offset), p,
                     false);
             }
             else {
@@ -2294,8 +2240,15 @@ private:
     void writeByte(Byte value, Word offset, int seg = -1,
         bool preStart = false)
     {
-        _memory->writeByte(Address(segmentAddress(seg), offset), value,
+        Word segment = segmentAddress(seg);
+        if ((((segment << 4) + offset) & 0xfffff) == 0x70 && value == 0)
+            console.write("ping");
+        _memory->writeByte(Address(segment, offset), value,
             preStart);
+
+        // TODO: put back
+        //_memory->writeByte(Address(segmentAddress(seg), offset), value,
+        //    preStart);
     }
     void writeWord(Word value, Word offset, int seg = -1,
         bool preStart = false)
@@ -2670,9 +2623,10 @@ private:
                 name = functionNames[callee];
             else
                 name = "sub_" + hex(callee, 5, false);
-            console.write(":" + hex(caller & 0xffff, 4, false) + " " + name);
+            NullTerminatedString n(name);
+            printf(":%04x %s", caller & 0xffff, (const char*)n);
         }
-        console.write("\n");
+        printf("\n");
         //decompileFunction(physicalAddress);
     }
     void recordReturn()

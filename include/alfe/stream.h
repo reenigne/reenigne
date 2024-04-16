@@ -87,7 +87,11 @@ public:
             return;
 #ifdef _WIN32
         DWORD bytesWritten;
-        if (WriteFile(handle(), buffer, bytes, &bytesWritten, NULL) == 0 ||
+        if (bytes > std::numeric_limits<DWORD>::max()) {
+            throw Exception("Trying to write too many bytes to " +
+                _file.path());
+        }
+        if (WriteFile(handle(), buffer, static_cast<DWORD>(bytes), &bytesWritten, NULL) == 0 ||
             bytesWritten != bytes)
             throw Exception::systemError("Writing file " + _file.path());
 #else
