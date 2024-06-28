@@ -113,7 +113,7 @@ doneReloc:
 
   mov ax,0xf000
   mov es,ax
-  cmp byte[0xff70],0xcc
+  cmp byte[es:0xff70],0xcc
   je biosOk
   mov byte[badBIOS],1
 biosOk:
@@ -127,7 +127,6 @@ biosOk:
   in al,0x21
   mov [imr],al
 
-
   ; Enable auto-EOI
   mov al,0x13  ; ICW4 needed, not cascaded, call address interval 8, edge triggered
   out 0x20,al  ; Set ICW1
@@ -137,6 +136,8 @@ biosOk:
   out 0x21,al  ; Set ICW4
   mov al,0xfe ;bc  ; Enable IRQs 0 (timer). Leave disabled 1 (keyboard) and 6 (floppy disk).
   out 0x21,al  ; Leave disabled 2 (EGA/VGA/slave 8259) 3 (COM2/COM4), 4 (COM1/COM3), 5 (hard drive, LPT2) and 7 (LPT1)
+
+  cli
 
   xor ax,ax
   mov ds,ax
@@ -169,10 +170,11 @@ biosOk:
   mov ax,cs
   mov ds,ax
 
-  cli
   mov ss,ax
   xor sp,sp
+;   mov sp,0xfffe
   sti
+
   mov si,testCases+2
   mov [testCaseOffset],si
 testLoop:
@@ -222,6 +224,8 @@ cleanup:
   cmp word[singleTest],-1
   jne noFails
 
+  mov ax,cs
+  mov ds,ax
   mov si,passedMessage
   mov cx,failureMessage1 - passedMessage
   outputString
@@ -636,6 +640,7 @@ snifferAdjustNoStub:
 snifferDoneAdjust:
 
   safeRefreshOff
+
   writePIT16 0, 2, 2    ; Ensure an IRQ0 is pending
   writePIT16 0, 2, 100  ; Queue an IRQ0 to execute from HLT
   sti
