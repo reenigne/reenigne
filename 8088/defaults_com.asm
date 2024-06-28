@@ -5,6 +5,7 @@ org 0x100
   call doPrintCharacter
 %endmacro
 
+%undef outputHex
 %macro outputHex 0
   call doPrintHex
 %endMacro

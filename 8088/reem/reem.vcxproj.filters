@@ -47,5 +47,8 @@
     <ClInclude Include="..\..\include\alfe\stack.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\alfe\code.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -5,52 +5,12 @@
 #include "alfe/cga.h"
 //#include "alfe/config_file.h"
 
-
-static const float phi = (sqrt(5.0f) + 1) / 2;
-
-Shape shape
-{ {{  phi,     1,     0},  // Icosahedron
-  { -phi,     1,     0},
-  {  phi,    -1,     0},
-  { -phi,    -1,     0},
-  {    1,     0,   phi},
-  {    1,     0,  -phi},
-  {   -1,     0,   phi},
-  {   -1,     0,  -phi},
-  {    0,   phi,     1},
-  {    0,  -phi,     1},
-  {    0,   phi,    -1},
-  {    0,  -phi,    -1}},
-  sqrt(phi * phi + 1) * 1.01f,
- {{1, { 4,  8,  0}},
-  {2, {10,  5,  0}},
-  {3, { 9,  4,  2}},
-  {4, { 5, 11,  2}},
-  {5, { 8,  6,  1}},
-  {6, { 7, 10,  1}},
-  {7, { 6,  9,  3}},
-  {6, {11,  7,  3}},
-  {9, { 8, 10,  0}},
-  {10, {10,  8,  1}},
-  {11, {11,  9,  2}},
-  {12, { 9, 11,  3}},
-  {13, { 0,  2,  4}},
-  {14, { 2,  0,  5}},
-  {15, { 3,  1,  6}},
-  {1, { 1,  3,  7}},
-  {2, { 4,  6,  8}},
-  {3, { 6,  4,  9}},
-  {4, { 7,  5, 10}},
-  {5, { 5,  7, 11}}} };
-
-
-
 struct ViewParameters
 {
-	SInt16 _ex;
+	SInt16 _ex;  // Eye position
 	SInt16 _ey;
 	SInt16 _ez;
-	SInt16 _xx;
+	SInt16 _xx;  // Rotation matrix
 	SInt16 _xy;
 	SInt16 _xz;
 	SInt16 _yx;
@@ -65,13 +25,13 @@ ViewParameters view;
 
 struct Vertex
 {
-	SInt16 _x;
+	SInt16 _x;   // World coordinates
 	SInt16 _y;
 	SInt16 _z;
-	SInt32 _sx;
+	SInt32 _sx;  // Screen-space (translated and rotated) coordinates
 	SInt32 _sy;
 	SInt16 _sz;
-	SInt16 _px;
+	SInt16 _px;  // Projected (pixel) coordinates
 	SInt16 _py;
 
 	void transform()
@@ -852,8 +812,49 @@ int sortedTriangleCount;
 Triangle** sortBuffer;
 int nextFreeSortPosition;
 
+struct Face
+{
+	Face() { }
+	Face(int colour, std::initializer_list<int> vertices)
+	{
+		_colour = colour;
+		_nVertices = vertices.size();
+		_vertices.allocate(_nVertices);
+		_vertex0 = &_vertices[0];
+		for (int i = 0; i < _nVertices; ++i)
+			_vertex0[i] = vertices.begin()[i];
+	}
+	int _colour;
+	int* _vertex0;
+	int _nVertices;
+private:
+	Array<int> _vertices;
+};
+
 struct Shape
 {
+	Shape(std::initializer_list<Vertex> vertices, float scale,
+		std::initializer_list<Face> faces)
+	{
+		_nVertices = vertices.size();
+		_vertices.allocate(_nVertices);
+		_vertex0 = &_vertices[0];
+		float distance = (256.0 / 200.0) * (5.0 / 6.0);
+		scale = distance / (scale * sqrt(1 + distance * distance));
+		for (int i = 0; i < _nVertices; ++i) {
+			_vertex0[i] = vertices.begin()[i] * scale;
+			_vertex0[i].x = SFix8p8::fromRepresentation(adjust(_vertex0[i].x.representation()));
+			_vertex0[i].y = SFix8p8::fromRepresentation(adjust(_vertex0[i].y.representation()));
+			_vertex0[i].z = SFix8p8::fromRepresentation(adjust(_vertex0[i].z.representation()));
+		}
+
+		_nFaces = faces.size();
+		_faces.allocate(_nFaces);
+		_face0 = &_faces[0];
+		for (int i = 0; i < _nFaces; ++i)
+			_face0[i] = faces.begin()[i];
+	}
+
 	void process()
 	{
 		for (int i = 0; i < vertexCount; ++i)
@@ -996,7 +997,51 @@ struct Shape
 		Triangle** rightArray = naturalMergeSortBothRunsKnown(array + leftCount, rightCount, middleRunLength, rightRunLength);
 		return merge(leftArray, leftCount, rightArray, rightCount);
 	}
+private:
+	Vertex* _vertex0;
+	int _nVertices;
+	Face* _face0;
+	int _nFaces;
+	Array<Vertex> _vertices;
+	Array<Face> _faces;
 };
+
+static const float phi = (sqrt(5.0f) + 1) / 2;
+
+Shape shape
+{{{  phi,     1,     0},  // Icosahedron
+  { -phi,     1,     0},
+  {  phi,    -1,     0},
+  { -phi,    -1,     0},
+  {    1,     0,   phi},
+  {    1,     0,  -phi},
+  {   -1,     0,   phi},
+  {   -1,     0,  -phi},
+  {    0,   phi,     1},
+  {    0,  -phi,     1},
+  {    0,   phi,    -1},
+  {    0,  -phi,    -1}},
+  sqrt(phi * phi + 1) * 1.01f,
+ {{1, { 4,  8,  0}},
+  {2, {10,  5,  0}},
+  {3, { 9,  4,  2}},
+  {4, { 5, 11,  2}},
+  {5, { 8,  6,  1}},
+  {6, { 7, 10,  1}},
+  {7, { 6,  9,  3}},
+  {6, {11,  7,  3}},
+  {9, { 8, 10,  0}},
+  {10, {10,  8,  1}},
+  {11, {11,  9,  2}},
+  {12, { 9, 11,  3}},
+  {13, { 0,  2,  4}},
+  {14, { 2,  0,  5}},
+  {15, { 3,  1,  6}},
+  {1, { 1,  3,  7}},
+  {2, { 4,  6,  8}},
+  {3, { 6,  4,  9}},
+  {4, { 7,  5, 10}},
+  {5, { 5,  7, 11}}} };
 
 class ThreeDWindow : public RootWindow
 {

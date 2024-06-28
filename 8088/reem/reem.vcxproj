@@ -152,6 +152,7 @@
     <Natvis Include="..\..\include\alfe.natvis" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\alfe\code.h" />
     <ClInclude Include="..\..\include\alfe\config_file.h" />
     <ClInclude Include="..\..\include\alfe\expression.h" />
     <ClInclude Include="..\..\include\alfe\linked_list.h" />
