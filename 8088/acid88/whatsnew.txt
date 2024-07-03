@@ -1,4 +1,12 @@
-v1.1: Fixed missing text in documentation.
+v1.1: Added tests, now up to 623.
+
+* Fixed missing text in documentation.
+* Added output of number of tests passed/ran.
+* Moved tests that crash MartyPC-gha32 to last.
+* Fixed missing cycle counts that were causing all tests to fail on original
+  hardware.
+* Fixed a bug in BIOS detection.
+* Turned interrupts off while updating interrupt vectors.
 
 2020092616080114:
 

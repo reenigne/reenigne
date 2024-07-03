@@ -7,7 +7,7 @@
 #define GENERATE_NEWFAILS 0
 
 #if GENERATE_NEWFAILS
-#include "fails.h"
+//#include "fails.h"
 #endif
 
 #include "../xtce_microcode.h"

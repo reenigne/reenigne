@@ -224,8 +224,6 @@ cleanup:
   cmp word[singleTest],-1
   jne noFails
 
-  mov ax,cs
-  mov ds,ax
   mov si,passedMessage
   mov cx,failureMessage1 - passedMessage
   outputString
@@ -259,6 +257,17 @@ cleanup:
   mov cx,failureMessageEnd - failureMessage4
   outputString
 noFails:
+
+; Uncomment to send back measured tests
+;   mov ax,cs
+;   mov ds,ax
+;   mov si,testCases
+;   mov cx,[si]
+;   inc cx
+;   inc cx
+;   mov dl,0
+;   sendFile
+
   disconnect
   mov ax,0x4c00
   int 0x21
@@ -269,10 +278,21 @@ notDone:
   cmp ax,[testCaseIndex]
   jne nextTestCase
 
-;    mov ax,[testCaseIndex]
-;    call outputDecimal
 ;    outputCharacter ' '
 .notSingleTest:
+   mov ax,[passed]
+   call outputDecimal
+   outputCharacter '/'
+   mov ax,[testCaseIndex]
+   push cx
+   call outputDecimal
+   pop ax
+   add cx,ax
+   inc cx
+.backspaceLoop:
+   outputCharacter 8
+   loop .backspaceLoop
+
 ;   outputCharacter 'm'
   call doMeasurement
 ;   outputCharacter 'c'
@@ -288,6 +308,10 @@ adjustNoStub:
 doneAdjust:
   cmp word[singleTest],-1
   jne doSniffer
+
+; Uncomment to save test measurement
+;   mov [si],ax
+
   cmp ax,[si]
   jne testFailed
 
@@ -309,6 +333,13 @@ nextTestCase:
   jmp testLoop
 
 testFailed:
+;   push ax
+;   call outputDecimal
+;   outputCharacter ' '
+;   mov ax,[si]
+;   call outputDecimal
+;   pop ax
+
   cmp word[firstFail],-1
   jne notFirstFail
 
@@ -318,6 +349,10 @@ testFailed:
   pop ax
   add ax,210
   mov [firstFailObserved],ax
+
+;   call outputDecimal
+;   outputCharacter '*'
+
   mov si,[testCaseOffset]
   mov ax,[si]
   add ax,210
@@ -834,14 +869,19 @@ interruptFE:
 
 
 outputDecimal:
+  mov cx,5
   cmp ax,10000
   jae .d5
+  dec cx
   cmp ax,1000
   jae .d4
+  dec cx
   cmp ax,100
   jae .d3
+  dec cx
   cmp ax,10
   jae .d2
+  dec cx
   jmp .d1
 .d5:
   mov bx,10000
@@ -880,7 +920,7 @@ outputDecimal:
   outputCharacter
   ret
 
-bannerMessage: db "Acid88 v1.0 - https://github.com/reenigne/reenigne/tree/master/8088/acid88",13,10
+bannerMessage: db "Acid88 v1.1 - https://github.com/reenigne/reenigne/tree/master/8088/acid88",13,10
 passedMessage: db "Passed: "
 failureMessage1: db "First failing test: "
 failureMessage2: db ". Took "

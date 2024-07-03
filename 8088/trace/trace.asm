@@ -180,6 +180,50 @@ savedCX: dw 0
 lut: db 0x88,8
 
 testRoutine:
+  push ds
+  xor bx,bx
+  mov ds,bx
+
+   mov word[3*4],testRoutineContinue
+   mov [3*4+2],cs
+
+  mov byte[0xfe70],0xcc ;0xcb
+  mov byte[0xff6f],0xcc ;0xcb
+  pop ds
+  mov word[bx+2], 0xfff7
+  mov cx,0xffff
+  mov ax,0x21
+  push ds
+  push ax
+  pop ax
+  pop ds
+  mov byte[bx], 0
+;   mov word[bx], 0xffff
+
+  mov al,0
+  mul al
+  xchg ax,cx
+;  nop
+
+;   mov ax,0xffff
+;   mov bx,0xffff
+;   mov cx,0xffff
+;   mov dx,0xffff
+;   mov si,0xffff
+;   mov di,0xffff
+;   mov sp,0xffff
+;   mov bp,0xffff
+
+  db 0xfe,0xe9
+;  db 0xfe, 0xe8
+
+testRoutineContinue:
+  add sp,6
+
+  ret
+
+
+
   mov dx,0x3d8
   xchg ax,bx
   out dx,ax
