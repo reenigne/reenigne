@@ -39,6 +39,7 @@ main:
 
   xor bx,bx
   xor di,di
+  xor bp,bp
   mov si,0x81
 findInitialSpaces:
   lodsb
@@ -51,6 +52,11 @@ searchLoop:
   cmp al,0x20
   je foundEnd
 startSearch:
+  cmp al,'-'
+  jne notMinus
+  inc bp
+  jmp searchLoop
+notMinus:
   cmp al,'0'
   jl notNumber
   cmp al,'9'
@@ -69,6 +75,10 @@ notNumber:
 foundEnd:
   test di,di
   jz notSingleTest
+  test bp,bp
+  jz noNegate
+  neg bx
+noNegate:
   mov [singleTest],bx
 notSingleTest:
 
@@ -110,6 +120,8 @@ enoughRAM:
   push ax
   retf
 doneReloc:
+  mov ax,cs
+  mov ds,ax
 
   mov ax,0xf000
   mov es,ax
@@ -175,6 +187,34 @@ biosOk:
 ;   mov sp,0xfffe
   sti
 
+
+  ; Calibrate
+  mov word[testCaseOffset],calibrationTestcase
+  call doMeasurement
+  neg bx
+  mov ax,bx
+  sub ax,6599  ; Calibration value on reenigne's XT (AMD P8253)
+  mov [calibrationValue],ax
+  cmp ax,0
+  je skipOffsetMessage
+  push ax
+  mov si,offsetMessage
+  mov cx,offsetMessage1 - offsetMessage
+  outputString
+  pop ax
+  call outputDecimal
+  mov si,offsetMessage1
+  mov cx,offsetMessageEnd - offsetMessage1
+  outputString
+skipOffsetMessage:
+  ; Set up histogram
+  mov si,testCases
+  add si,[si]
+  inc si
+  inc si
+  mov [histogramStart],si
+  mov [histogramEnd],si
+
   mov si,testCases+2
   mov [testCaseOffset],si
 testLoop:
@@ -222,8 +262,11 @@ cleanup:
   out 0x21,al
 
   cmp word[singleTest],-1
-  jne noFails
+  jle outputFailsMessages
+noFails1:
+  jmp noFails
 
+outputFailsMessages:
   mov si,passedMessage
   mov cx,failureMessage1 - passedMessage
   outputString
@@ -236,7 +279,7 @@ cleanup:
   outputCharacter 10
   mov ax,[firstFail]
   cmp ax,-1
-  je noFails
+  je noFails1
   push ax
   mov si,failureMessage1
   mov cx,failureMessage2 - failureMessage1
@@ -256,6 +299,57 @@ cleanup:
   mov si,failureMessage4
   mov cx,failureMessageEnd - failureMessage4
   outputString
+
+  mov si,[histogramStart]
+  mov bx,si
+  mov di,[histogramEnd]
+  sub di,4
+
+sortLoop:
+  cmp si,di
+  jae doneSortPass
+  mov ax,[si]
+  cmp ax,[si+4]
+  jle noSwap
+  xchg ax,[si+4]
+  mov [si],ax
+  mov ax,[si+2]
+  xchg ax,[si+6]
+  mov [si+2],ax
+noSwap:
+  add si,4
+  jmp sortLoop
+doneSortPass:
+  mov si,bx
+  sub di,4
+  cmp bx,di
+  jb sortLoop
+
+  mov si,[histogramStart]
+histogramOutputLoop:
+  push si
+  mov si,deltaMessage1
+  mov cx,deltaMessage2 - deltaMessage1
+  outputString
+  pop si
+  mov ax,[si]
+  push si
+  call outputDecimal
+  mov si,deltaMessage2
+  mov cx,deltaMessage3 - deltaMessage2
+  outputString
+  pop si
+  mov ax,[si+2]
+  push si
+  call outputDecimal
+  mov si,deltaMessage3
+  mov cx,deltaMessageEnd - deltaMessage3
+  outputString
+  pop si
+  add si,4
+  cmp si,[histogramEnd]
+  jne histogramOutputLoop
+
 noFails:
 
 ; Uncomment to send back measured tests
@@ -272,14 +366,24 @@ noFails:
   mov ax,0x4c00
   int 0x21
 notDone:
+
+   ; singleTest = 0..nTests-1  -  execute just that one test
+   ; singleTest = -nTests-1..-1 - execute tests up to but not including -singleTest
+
   mov ax,[singleTest]
   cmp ax,-1
-  je .notSingleTest
+  jle .testRange
   cmp ax,[testCaseIndex]
-  jne nextTestCase
+  jne .nextTestCase1
+  jmp .singleTest
+.nextTestCase1:
+  jmp nextTestCase
+.testRange:
+   neg ax
+   cmp ax,[testCaseIndex]
+   jle nextTestCase
+.singleTest:
 
-;    outputCharacter ' '
-.notSingleTest:
    mov ax,[passed]
    call outputDecimal
    outputCharacter '/'
@@ -296,9 +400,13 @@ notDone:
 ;   outputCharacter 'm'
   call doMeasurement
 ;   outputCharacter 'c'
+
   mov ax,bx
   neg ax
+  sub ax,[calibrationValue]
   mov si,[testCaseOffset]
+  cmp byte[skippedTest],1
+  je nextTestCase
   cmp byte[si+3],0
   je adjustNoStub
   sub ax,4725-92 +12 - 30 + 2 - 8 ;-25  ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
@@ -306,8 +414,40 @@ notDone:
 adjustNoStub:
   sub ax,4615 + 2095 ;-25 ; Recalculate this whenever we change the code between ***TIMING START***  and ***TIMING END***
 doneAdjust:
+
+   push ax
+   sub ax,[si]
+
+;    push ax
+;    push ax
+;    outputCharacter '*'
+;    pop ax
+;    call outputDecimal
+;    pop ax
+
+   ; Add to histogram data
+   push si
+   mov si,[histogramStart]
+histogramSearchLoop:
+   cmp si,[histogramEnd]
+   jne checkHistogramMatch
+   mov [si],ax
+   mov word[si+2],1
+   add word[histogramEnd],4
+   jmp histogramDone
+checkHistogramMatch:
+   cmp [si],ax
+   je histogramMatch
+   add si,4
+   jmp histogramSearchLoop
+histogramMatch:
+   inc word[si+2]
+histogramDone:
+   pop si
+   pop ax
+
   cmp word[singleTest],-1
-  jne doSniffer
+  jg doSniffer
 
 ; Uncomment to save test measurement
 ;   mov [si],ax
@@ -544,13 +684,19 @@ doneNops:
 
   mov cl,[si]                 ; instruction bytes
   inc si
+  mov byte[skippedTest],0
   cmp byte[badBIOS],0
   je .biosOK
   cmp word[si],0xd8fe
   je .skipTest
   cmp word[si],0xe8fe
+  je .skipTest
+  cmp word[si],0xd8ff
+  je .skipTest
+  cmp word[si],0xe8ff
   jne .biosOK
 .skipTest:
+  mov byte[skippedTest],1
   mov word[si],0
 .biosOK:
   push bx
@@ -870,6 +1016,15 @@ interruptFE:
 
 outputDecimal:
   mov cx,5
+  cmp ax,0
+  jge .notNegative
+  inc cx
+  neg ax
+  push ax
+  mov al,'-'
+  outputCharacter
+  pop ax
+.notNegative:
   cmp ax,10000
   jae .d5
   dec cx
@@ -920,15 +1075,22 @@ outputDecimal:
   outputCharacter
   ret
 
-bannerMessage: db "Acid88 v1.1 - https://github.com/reenigne/reenigne/tree/master/8088/acid88",13,10
+bannerMessage: db "Acid88 v1.2 - https://github.com/reenigne/reenigne/tree/master/8088/acid88",13,10
 passedMessage: db "Passed: "
 failureMessage1: db "First failing test: "
 failureMessage2: db ". Took "
 failureMessage3: db " cycles, expected "
-failureMessage4: db " cycles."
+failureMessage4: db " cycles.",13,10
 failureMessageEnd:
 memoryMessage: db "Not enough memory"
 memoryMessageEnd:
+offsetMessage: db "Applying offset of "
+offsetMessage1: db " cycles",13,10
+offsetMessageEnd:
+deltaMessage1: db " "
+deltaMessage2: db " cycles off in "
+deltaMessage3: db " tests."
+deltaMessageEnd:
 
 ; The tests were designed to be run from segment 0x10a8, which (in a DOS
 ; program) we can't guarantee that we own. To avoid breaking TSRs etc.
@@ -951,8 +1113,9 @@ passed: dw 0
 firstFail: dw -1
 firstFailExpected: dw 0
 firstFailObserved: dw 0
-singleTest: dw -1
+singleTest: dw -32767
 badBIOS: db 0
+skippedTest: db 0
 
 testCaseIndex: dw 0
 testCaseOffset: dw 0
@@ -992,6 +1155,21 @@ delayTable:
   dw delayData + i*10
   %assign i i+1
 %endrep
+
+calibrationTestcase:
+  dw 0
+  db 0
+  db 0
+  db 0
+  db 0
+  db 0
+  db 0
+calibrationValue:
+  dw 0
+histogramStart:
+  dw 0
+histogramEnd:
+  dw 0
 
 testCases:
 

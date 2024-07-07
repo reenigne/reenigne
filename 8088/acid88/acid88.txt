@@ -18,10 +18,11 @@ Requirements:
 clock).
 * Standard PC/XT hardware (PIT/PIC/DMAC).
 * At least 128kB free conventional RAM.
-* Some tests will only pass with the 1501512 XT BIOS (the "JMP FAR rb" and
-"CALL FAR rb" undocumented instructions cause control flow to pass into the
+* Some tests will only pass with the 1501512 XT BIOS (the "JMP FAR r" and
+"CALL FAR r" undocumented instructions cause control flow to pass into the
 ROM area, and require byte 0xCC at address 0xFFF70 to resume correctly with
-the current implementation.
+the current implementation. These tests will be skipped if that byte is not
+present.
 * DOS 2.0 or later.
 
 On running acid88.com with no arguments, the program will iterate through all
@@ -30,11 +31,19 @@ of tests. If any tests fail, it will also display the number of the first
 failing test, the number of cycles it took to execute, and the number of cycles
 it should have taken. If your emulator is running very fast, the count may
 become negative, wrap, and be displayed as a large integer (approaching 65535).
+If some any tests fail, acid88 will show the distribution of how many tests are
+off by each number of cycles.
 
 The test number can be used as a command line argument (e.g. "acid88 123") to
 run just that single test, for the purposes of emulator debugging. The code
 under test will be placed at 10A8:0000 - you can place a breakpoint at this
-location and start logging when this breakpoint is hit.
+location and start logging when this breakpoint is hit. The first time the
+breakpoint is hit will be the calibration run, so continue and hit the
+breakpoint a second time to see the test code.
+
+If a negative number is specified on the command line, acid88 will run all
+tests up to (but not including) the test corresponding to the absolute value of
+the specified number.
 
 You can also obtain a cycle-by-cycle log of how the same code behaves on a real
 machine by running Acid88 on the XT Server - http://www.reenigne.org/xtserver .

@@ -28,11 +28,14 @@ public:
     {
         int skipped = 0;
         do {
+            int cycles = _input[_ip + 0] + (_input[_ip + 1] << 8);
+            if (cycles == 32768)
+                console.write("Zero cycle count found.\n");
             int preambleBytes = _input[_ip + 5];
             int instructionBytes = _input[_ip + 6 + preambleBytes];
             Byte instructionByte0 = _input[_ip + 7 + preambleBytes];
             Byte instructionByte1 = _input[_ip + 8 + preambleBytes];
-            bool endOne = (instructionByte0 == 0xfe && (instructionByte1 == 0xd8 || instructionByte1 == 0xe8));
+            bool endOne = ((instructionByte0 /*& 0xfe*/) == 0xfe && (instructionByte1 == 0xd8 || instructionByte1 == 0xe8));
             int fixupBytes = _input[_ip + 7 + preambleBytes + instructionBytes];
             int length = 8 + preambleBytes + instructionBytes + fixupBytes;
             if (endOne == endOnes) {

@@ -1,5 +1,15 @@
-2024070317523226: 
- 
+v1.2: Various fixes and improvements.
+
+* Added ability to only run first N tests by specifying -N on the command
+  line.
+* Fixed another bug in the BIOS detection. Without the correct BIOS, the
+  "CALL/JMP FAR reg" instructions will be skipped. Skipped word variants
+  as well as byte variants.
+* Added calibration step to compensate for 8253 PIT differences.
+* Added output to show how many tests are off by which numbers of cycles.
+
+2024070317523226:
+
 v1.1: Added tests, now up to 623.
 
 * Fixed missing text in documentation.

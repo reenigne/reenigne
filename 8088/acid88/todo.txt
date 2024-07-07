@@ -1,0 +1,32 @@
+Acid88:
+  See if I can make fed8 and fee8 work without BIOS support
+    Change preamble to set cx to 0xffff
+    Set 0x0ff6f to 0xcc (save and restore afterwards)
+    fed8_f: change "803800" NOPs to "8038FF"
+    fed8_d: AAA ("37" NOPs) modifies tmpb in a complicated way so might be tricky
+    fed8_0: "MOV AL,0" in the queue filler sets tmpb to 0 - can't easily be modified without changing timing
+    fed0_b: "900228" NOPs modifies tmpb in a complicated way so migth be tricky
+    Let's pass on this for now
+  Reorganise the fe jmp/call instructions to come last
+    Probably easiest to do on the modern PC, post-processing the sent timed file
+  Do we have any fee8 or is it just the three fed8 that need to be moved?
+    Should be seven fed8 and five fee8
+
+
+fe 10  call near b[bx+si]
+fe 18  call far b[b+si]
+fe d0  call near byte register
+fe d8  call far byte register        needs BIOS support    405
+fe e0  jmp near byte register
+fe e8  jmp far byte register         needs BIOS support
+
+
+fe d8
+
+
+fe 10  call near byte[bx+si]  read 0xc0 from [bx+si]                            jump to 20a40  =   cs:ffc0  i.e. upper byte is set to 0xff
+fe 18  call far  byte[bx+si]  read 0xef from [bx+si], read 0xff from [bx+si+2]  jump to 0ffdf  = ffff:ffef  i.e. upper bytes of both reads are set to 0xff
+fe d0  call near al                                                             jump to 10a80  =   cs:0000  i.e. ax
+fe d8  call far  al                                   read 0xf7 from [ds:2]     jump to fff70
+
+
