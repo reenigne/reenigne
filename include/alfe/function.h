@@ -22,7 +22,7 @@ protected:
     class Body : public Handle::Body
     {
     public:
-        virtual FunctionType type() { return FuncoType(); };
+        virtual FuncoTyco type() { return FuncoType(); };
         virtual Value evaluate(List<Value> arguments, Span span) = 0;
         virtual Identifier identifier() = 0;
         virtual bool argumentsMatch(List<Type> argumentTypes) = 0;
@@ -75,7 +75,7 @@ public:
     }
     int compareTo(Funco other) { return body()->compareTo(other); }
     String toString() { return body()->toString(); }
-    FunctionType type() { return body()->type(); }
+    FuncoTyco type() { return body()->type(); }
     List<Tyco> parameterTycos() { return body()->parameterTycos(); }
 };
 

@@ -10,7 +10,8 @@ same league as the most accurate emulators I currently know about, and should
 allow your emulator to run 8088 MPH correctly if it also has good composite
 CGA and PC speaker support.
 
-Note that Acid88 is currently focussed on timing, and is not
+Note that Acid88 is currently focussed on timing, and is not a thorough
+functional testsuite.
 
 Requirements:
 * Genuine (or accurately emulated) Intel 8088 CPU running at 4.77MHz (4x PIT

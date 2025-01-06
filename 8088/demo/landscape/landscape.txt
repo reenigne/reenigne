@@ -1,18 +1,264 @@
-Plan:
-  Make Windows mockup to see how it looks
-    Find older mockups
-  Write asm code to generate unrolled code
-  Write startup and main loop
-  Make xtserver version - append landscape.dat to binary
+    AX: encoded screen y value (*3) from perspective table, colour byte
+    BX: camera U/V position
+    CX: -81 = DI adjustment to get to previous line after VRAM update
+    DX: encoded screen y value (*3) for block to draw or for yMin (highest pixel drawn)
+    SI: current r position (pointer into perspective table)
+    DI: CGA offset of next pixel to be plotted (above last pixel plotted)
+    SP: Real stack, also segment of landscape table (128*128*4)
+    BP: colour byte, encoded screen y value (*3) from perspective table
+    SS: Real stack segment, adjusted so SP can have the right value
+    DS: segment of landscape table and of perspective table for landscape height
+    CS: filling code and unrolled column/distance loops
+    ES: CGA segment 0xb800
 
-Problem: ConfigFile is broken until we write the interpreter, but we'd like to be able to use ConfigFiles in little programs like this
-  Solution 1: Finish interpreter - needs doing anyway, but will bog me down and dishearten
-  Solution 2: Don't use ConfigFile for this. Leads to code I'm less proud of (even if it is just a quick hack)
-  Solution 3: Branch
-    Check github history to see if any new ALFE changes are already committed/pushed
-    Commit changes
-    Make a "NewALFE" branch
-    Check out master branch without these changes
+Memory map:
+  Startup code                                                        01f1
+    sine table
+    distance table
+  Landscape (64kB)                                                    0230
+  Render code segment (64kB):        Unexpanded sky data (stomped on) 1230
+    fillingD (303 bytes)
+    columns (64483 bytes)
+    fixup (436 bytes)
+    unused (14 bytes)
+    before-fillingD (300 bytes)
+  Stack (64kB) - relative to SP                                       2230
+    inner-loop SP value
+    return address from render loop (4)
+    initial SP value
+    sky pointer table (256*2)
+    sky jump table (21*3)
+    expanded sky data (160*10*3)
+    di correction tables (11*11*3)
+    cameraU (2)
+    cameraV (2)
+    cameraAngle (2)
+    columnStarts (160*2)
+    ...
+    stack
+  Perspective table (6336 bytes? More if height can change)           3230
+
+Problem: We want to make this as generic as possible, so SP can be anything, and the stack could be split over the segment boundary
+Therefore we need to allocate an entire 64kB
+
+
+PUSH decrements, then stores. So [SP] is the last word pushed on the stack.
+
+SS:SP is same address as stackBaseSegment:stackTop - 4 - 15 + (0..15)
+SS*16 + SP = stackBaseSegment*16 + stackTop - 15 - 4 + (0..15)
+SS*16 = stackBaseSegment*16 + stackTop - 15 - 4 + (0..15) - SP
+SS = stackBaseSegment + ((stackTop - (15 + 4 + SP)) >> 4)
+
+Filling code:
+
+  ...
+  stosb       ; yMin - y = -6
+  add di,cx                                            ; cx = -81
+  stosb       ; yMin - y = -3
+  add di,cx
+fillingD:     ; yMin - y = 0    new yMin = y             this needs to be at CS:0
+  mov dx,bp
+  ret
+  add dx,bp   ; yMin - y = 3    new yMin = yMin
+  ret
+  add dx,bp   ; yMin - y = 6    new yMin = yMin
+  ret
+  ...
+
+                        ; initially, dx = yMin
+  mov ds,sp             ; bx encodes initialU and initialV                                              2        0xdc8e
+  lds bp,[0x1234 + bx]  ; 0x1234 encodes u and v, unrolled on angle and r                               4 4
+                        ; bp encodes colour, ds encodes height (pointer to perspective table)
+  lodsw                 ; si encodes r, ax encodes y                                                    1 2
+  sub dx,ax             ; dx = yMin - y                                                                 2 0
+  xchg ax,bp            ; ax = colour  bp = y                                                           1 0
+  call dx               ; do colour fill                                                                2 2  18
+                        ; dx = y (if we plotted) or y + yMin - y = yMin (if we didn't) -> new yMin
+
+Iteration: 12 bytes
+Column: 4 + 12*32 + 14 = 402 bytes
+Columns: 402*160 + 3 = 64323 bytes
+Filling: 201*3 = 603 bytes
+Fixup code: 517 bytes
+93 bytes remaining
+
+Sky jump table: ~60 bytes       -> Can be moved to SS
+DI correction table: ~60 bytes  -> Can be moved to SS
+
+
+
+  mov ds,sp             ; 2
+  mov ds,[0x1234 + bx]  ; 4
+  lodsw                 ; 1
+  sub dx,ax             ; 2
+  mov al,
+
+
+yMin - y negative does drawing. So y=0 is at the bottom of the screen and y=99 is at the top
+
+Notes:
+  If FOV is 90 degrees horizontally we need to unroll for 160 angles * 32 r * 10 = 51200 bytes plus 201*3 = 603 bytes for the filling code
+
+Pre-column setup code:
+  xor si,si             ; 0xf631
+  xor dx,dx             ; 0xd231
+
+Post-column code:
+  mov bp,dx             ; 0xd589
+fixup:
+  sub bp,0x12           ; 0xee83 +ib           si = yMax - last_yMax
+  mov [cs:fixup+2],dl   ; 0x2e 0x1688 +iw
+  call [bp+0x1234]      ; 0x?? 0x?? +iw
+
+
+SP could be anything (within reason - it's not going to be <0x400 or >=0x8000)
+Unless we reserve 64kB for SS, we don't get to control where we put the sky jump table
+  Therefore, let's use "call [bp+0x1234]" for sky jump
+  That means column size is 32*12 + 4 + 14 = 402
+  That means that instead of:
+
+  pop bp                                                         ; 1
+  mov ax,bp                                                      ; 2
+  cbw                                                            ; 1
+  xchg ax,bp                                                     ; 1
+  add bp,bp                                                      ; 2
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+
+  we want to use:
+
+  pop bp                                                         ; 1
+  mov ax,bp                                                      ; 2
+  and bp,0x1fe                                                   ; 4
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+  ...
+  jmp ax
+
+
+
+
+
+If new landscape-top is below old landscape-top, draw new sky in difference
+
+If new landscape-top is above old landscape-top, fill difference with 0xb0
+
+
+
+groundFixup3:                                                    ; 6
+  mov byte[es:di+239],0xb0
+
+groundFixup2:
+  mov byte[es:di+159],0xb0
+
+groundFixup1:
+  mov byte[es:di+79],0xb0
+
+fixup0:
+  mov bp,dx                                                      ; 2
+  add di,[bp+0x1234]  ;             di += 80*((dx+81)/3) +2      ; 4
+  ret                                                            ; 1
+
+skyFixup1:
+  pop bp                                                         ; 1
+  mov ax,bp                                                      ; 2
+  cbw                                                            ; 1
+  xchg ax,bp                                                     ; 1
+  add bp,bp                                                      ; 2
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+  add si,dx                                                      ; 2
+    dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  mov bp,dx                                                      ; 2
+  add di,[bp+0x1334]  ;             di += 80*((dx+81)/3) + 1     ; 4  Suppose dx = 99*3-81  di += 80*100+1
+  jmp ax                                                         ; 2
+
+skyFixup2:
+  pop bp                                                         ; 1
+  mov ax,bp                                                      ; 2
+  cbw                                                            ; 1
+  xchg ax,bp                                                     ; 1
+  add bp,bp                                                      ; 2
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+  add si,dx                                                      ; 2
+    dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,cx                                                      ; 2
+  dec di                                                         ; 1
+  inc si                                                         ; 1
+  ss: movsw                                                      ; 2
+  mov bp,dx                                                      ; 2
+  add di,[bp+0x1434]  ; dx = 100 => di += 80*dx + 2              ; 4
+  jmp ax                                                         ; 2
+
+skyFixup3:
+  pop bp                                                         ; 1
+  mov ax,bp                                                      ; 2
+  cbw                                                            ; 1
+  xchg ax,bp                                                     ; 1
+  add bp,bp                                                      ; 2
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+  add si,dx                                                      ; 2
+    dec di                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,cx                                                      ; 2
+  dec di                                                         ; 1
+  inc si                                                         ; 1
+  ss: movsw                                                      ; 2
+  add di,cx                                                      ; 2
+  dec di                                                         ; 1
+  inc si                                                         ; 1
+  ss: movsw                                                      ; 2
+  mov bp,dx                                                      ; 2
+  add di,[bp+0x1534]  ; dx = 100 => di += 80*dx + 2              ; 4
+  jmp ax                                                         ; 2
+
+skyFixup4:
+  pop bp                                                         ; 1
+  mov ax,bp                                                      ; 2
+  cbw                                                            ; 1
+  xchg ax,bp                                                     ; 1
+  add bp,bp                                                      ; 2
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+  add si,dx                                                      ; 2
+  mov ax,ss                                                      ; 2
+  mov ds,ax                                                      ; 2
+  dec cx                                                         ; 1
+    dec di                                                         ; 1
+  movsw                                                          ; 1
+  add di,cx                                                      ; 2
+  inc si                                                         ; 1
+  movsw                                                          ; 1
+  add di,cx                                                      ; 2
+  inc si                                                         ; 1
+  movsw                                                          ; 1
+  add di,cx                                                      ; 2
+  inc si                                                         ; 1
+  movsw                                                          ; 1
+  inc cx                                                         ; 1
+  mov si,dx                                                      ; 2
+  add di,[si+0x1634]  ; dx = 100 => di += 80*dx + 2              ; 4
+  jmp ax                                                         ; 2
+
+
+
+10*6-1 + 7 +  23 + 29 + 35 + 40 + 44 + 48 + 52 + 56 + 60 + 64 = 530
+
+
+  mov al,0xb0
+  stosb
+  add di,bp
+
+
+  mov si,dx
+  add si,si
+  add di,[cs:
+
+max d/di (i*tau/402 + sin(i*tau/402*p + k)*q) = tau/402 + q*tau*p/402 = tau*(1 + p*q)/402 = tau/160  p*q = 402/160 - 1 = 1.5125
+Suppose p = 3, q = 0.5
+
+  Need a table of offsets to the angle routines
+
+
+
 
 
 int buffer[100];
@@ -103,47 +349,8 @@ c = 138/930 = 0.148          46/310
 
 
 
-most recent routine from http://lists.oldskool.org/private/pcdemo/2016-March/004265.html
-
-lds ax,[0x1234 + bp]    ; 4 4
-mov cl,[si + 0x1b]      ; 3 1
-xchg dl,cl              ; 2 0
-sub cl,dl               ; 2 0
-jbe .occluded           ; 2
-rep stosb
-.occluded:
 
 
-Filling code:
-
-  ...
-  stosb       ; yMin - y = -6
-  add di,bx
-  stosb       ; yMin - y = -3
-  add di,bx
-fillingD:     ; yMin - y = 0    new yMin = y             this needs to be at CS:0
-  mov dx,cx
-  ret
-  add dx,cx   ; yMin - y = 3    new yMin = yMin
-  ret
-  add dx,cx   ; yMin - y = 6    new yMin = yMin
-  ret
-  ...
-                        ; initially, dx = yMin
-
-                        ; bp encodes initialU and initialV
-  lds cx,[0x1234 + bp]  ; 0x1234 encodes u and v, unrolled on angle and r                               4 4
-                        ; cx (cl) encodes colour, ds encodes height (pointer to perspective table)
-  lodsw                 ; si encodes r, ax encodes y                                                    1 2
-  sub dx,ax             ; dx = yMin - y                                                                 2 0
-  xchg ax,cx            ; ax = colour  cx = y                                                           1 0
-  call dx               ; do colour fill                                                                2 2  18
-                        ; dx = y (if we plotted) or y + yMin - y = yMin (if we didn't)
-
-
-Notes:
-  Stack is in same segment as landscape. We need to limit how much stack we use, and take care to choose our path so as to read stack data as landscape
-  If FOV is 90 degrees horizontally we need to unroll for 160 angles * 32 r * 10 = 51200 bytes plus 201*3 = 603 bytes for the filling code
 
 
 
@@ -230,8 +437,118 @@ Map:
 
 
 
+fc72 -10  6
+fc78 -9   6
+fc7e -8   6
+fc84 -7   6
+fc8a -6   6
+fc90 -5   6
+fc96 -4   6
+fc9c -3   6
+fca2 -2   6
+fca8 -1   5
+fcad 0    7
+fcb4 1   23
+fccb 2   29
+fce8 3   35
+fd0b 4   40
+fd33 5   44
+fd5f 6   48
+fd8f 7   52
+fdc3 8   56
+fdfb 9   60
+fe37 10
+
+
+
+  stack data at 2232:18bd
+
+
+dx is 0xd2 == 97
+hwm is 0xd8 == 99
+
+sky pointer is [0x52 + 0x237] = 0x43a  - check this is correct for column 1
+sky data at 0x43a + 0xd2 = 0x50c - check this is correct for third from top
+  We'd expect it to be at (10 + 7)*3 + 0x476 = 0x4a9 - not correct - off by 99
+
+Value in skyPointerTable needs to be skyDataTable plus 0x8d = 90*3-81
+
+
+inner SP is 233
+initial SP is 237
+skyPointerTable at SS:0237 to SS:0437
+skyJumpTable at SS:0437 to SS:0476
+skyDataTable at SS:0476 to SS:1736
+
+
+
 
 Rejected:
+
+    Adjust initial dx and perspective table y values so that possible sky values are in range -0x80..0x7f?
+
+DX at bottom of screen  DX range at end  Stored as  After sub
+ 0                        270..300       14..44     226..286
+-81                       189..219       -67..-37   226..286
+
+
+  ; SP value in inner loop (initialising DS) is landscapeSegment
+  mov bx,stackTop - 15  ; reserve enough space for alignment (0..15)
+  sub bx,ax
+  mov cx,4
+  mov dx,bx
+  and dx,0xfff0  ; This is the value that must be subtracted from a stackBaseSegment offset to get an SS offset
+  shr bx,cx
+  mov si,stackBaseSegment
+  add bx,si                ; SS
+  cli
+  mov ss,bx
+  mov sp,ax
+  sti
+
+
+  is it faster to use:
+
+  pop bp                                                         ; 1
+  push bp                                                        ; 1
+  and bp,0x1fe                                                   ; 4
+  mov si,[bp+0x2345]  ; sky pointer table                        ; 4
+  ...
+  ret                                                            ; 1
+
+  ? This is 2 bytes shorter but does 4 more bytes of stack IO so probably not
+
+
+  Fix up location of interrupt stack once we know how much stack space the main loop code needs
+
+  Possible optimisation:
+    Move "add si,dx" to dispatch
+      Saves space but not time (since then it would run for ground adjust too)
+
+  Possible optimisation:
+    Set DS in dispatch to segment containing sky pointer table, sky jump table, sky data
+      SI has a fixed value at this point, though need an extra byte per column to control it
+      BP has a fixed value of -81 - can't use that as segment
+    This might be worthwhile but we don't have suitable register to spare to hold the segment
+
+  Can we use a "stosb ; add di,bp" chain instead of MOVs for ground fixup?
+    Is this faster?
+      Possibly not with all the fixing up we'd have to do
+
+Move "mov [cs:fixup+2],dl" to fixup code? Savings at most 800 bytes, but takes longer as need to compute the address
+  - not necessary: we have 16 bytes to spare in CS!
+
+  Stack is in same segment as landscape. We need to limit how much stack we use, and take care to choose our path so as to not read stack data as landscape
+
+most recent routine from http://lists.oldskool.org/private/pcdemo/2016-March/004265.html
+
+lds ax,[0x1234 + bp]    ; 4 4
+mov cl,[si + 0x1b]      ; 3 1
+xchg dl,cl              ; 2 0
+sub cl,dl               ; 2 0
+jbe .occluded           ; 2
+rep stosb
+.occluded:
 
 Suppose height and height differences all fit in 1 byte (-42 <= yMin - y <= 42?)
 
@@ -257,8 +574,83 @@ xchg ax,bx             1 0  22  19.6fps   243506 cycles/frame
 40*32 = 1280 iterations of the core code per frame  = 190 cycles
 saving 16 cycles (4 IOs) gives 21.4fps
 
+    Are there areas where camera must never go?
+      Yes, we have to stay within 26 of the edges
+        A circular path doesn't go inside that: 64/sqrt(2) ~= 45, or about ~19 from the edge
+    Use a circular path for now. Circumference = pi*128 = ~402. Let's use this as the number of frames (about 20s at 20fps)
+    Want to change angle by no more than tau/160 in a frame
+
+                        ; initially, dx = yMin
+                        ; bp encodes initialU and initialV
+  lds cx,[0x1234 + bp]  ; 0x1234 encodes u and v, unrolled on angle and r                               4 4
+                        ; cx (cl) encodes colour, ds encodes height (pointer to perspective table)
+  lodsw                 ; si encodes r, ax encodes y                                                    1 2
+  sub dx,ax             ; dx = yMin - y                                                                 2 0
+  xchg ax,cx            ; ax = colour  cx = y                                                           1 0
+  call dx               ; do colour fill                                                                2 2  18
+                        ; dx = y (if we plotted) or y + yMin - y = yMin (if we didn't)
+
 
 
 Done:
   Find some real world data?
+Problem: ConfigFile is broken until we write the interpreter, but we'd like to be able to use ConfigFiles in little programs like this
+  Solution 1: Finish interpreter - needs doing anyway, but will bog me down and dishearten
+  Solution 2: Don't use ConfigFile for this. Leads to code I'm less proud of (even if it is just a quick hack)
+  Solution 3: Branch
+    Check github history to see if any new ALFE changes are already committed/pushed
+    Commit changes
+    Make a "NewALFE" branch
+    Check out master branch without these changes
+    Find older mockups
+  Make Windows mockup to see how it looks
+  Write asm code to generate unrolled code
+    Make a path that skims the outer sides and inner corners
+      x^n + y^n = 1
+      2*((27/64)^n) = 1
+      log ((27/64)^n) = log (1/2)
+      n*log (27/64) = log (1/2)
+      n = (log (1/2))/(log (27/64)) = 0.8
+    Save IMR
+    Restore IMR
+    Set IMR to PIT only
+    Store 6 bytes below SP
+      Does push decrement or store first? Decrement first. So if we keep sp=0, need to save [-6], [-4] and [-2]
+    Move 6 byte interrupt stack
+    Restore 6 bytes below SP
+    Switch SS/SP for other interrupts
+  Write interrupt code
+    Switch SS/SP back on resume
+    Fake RETF
+    Deal with race condition edge case
+  Save old interrupt 8
+  Set new interrupt 8 vector
+  Restore interrupt 8
+  Compute camera path
+    Pick a direction that causes us to go through every point
+      Motion vector of 0x1.00, 0x0.9f should work
+    Just rotate camera
+    bp = camera position
+  Reinit variables before each frame:
+    bx = -81
+  Problem! Can't use CALL if we have no stack.
+  So don't put landscape in SS
+      Save new landscape-top position in old landscape-top slot
+  Figure out inter-column code
+    Before
+      si = 0 (or height above landscape)
+      dx = yMin = 0
+    After
+  Add "mov ds,sp" to speedcode generator
+Also need to fix up di as currently it's different for sky and ground
+  Write horizon fixup routines
+      Fix up sky
+        If new landscape-top is below old landscape-top, draw new sky in difference
+        If new landscape-top is above old landscape-top, fill difference with 0xb0
+      di = bottom of next column
+  Reinit variables before each column:
+  Sky values: need a way to tell the sky fixup routines where we are in the sky
+dx = 0x0081  = 129 => 210 = 70 - shouldn't be this low!
+new bp = 0x00c4
+difference (previous frame's hwm) = -0x43 = 0xffbd  i.e. previous hwm == 0x00bd => 270 = 90 - ok
 

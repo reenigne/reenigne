@@ -10,7 +10,7 @@
 #include "fails.h"
 #endif
 
-#include "../xtce.h"
+#include "../xtce_microcode.h"
 #include "../gentests.h"
 
 #define USE_REAL_HARDWARE 1
@@ -24,7 +24,8 @@ public:
         File("runtests.bin").readIntoArray(&testProgram);
         File("runstub.bin").readIntoArray(&_runStub);
 
-        CPUEmulator emulator;
+        Directory roms("roms");
+        CPUEmulator emulator(roms);
         _emulator = &emulator;
 
 #if GENERATE_NEWFAILS
@@ -133,8 +134,8 @@ public:
             AppendableArray<Test> bunch;
             AppendableArray<int> runningTests;
             do {
-                if (totalCount % 100 == 99)
-                    printf(".");
+                //if (totalCount % 100 == 99)
+                //    printf(".");
                 ++totalCount;
                 Test t;
                 if (haveRetained) {
@@ -148,6 +149,11 @@ public:
                 }
                 int cycles = expected(t);
                 Instruction instruction = t.instruction(0);
+
+                if (totalCount % 10000 == 9999) {
+                    console.write(decimal(totalCount) + ": ");
+                    t.write();
+                }
 
                 // Modify and uncomment to force a passing test to fail to see
                 // its sniffer log.
@@ -214,6 +220,8 @@ public:
                 //console.write(emulator.log(_tests[t]));
                 //return;
             }
+            console.write(decimal(totalCount) + ": ");
+            bunch[0].write();
 
             {
                 auto h = File("runtest.bin").openWrite();
@@ -234,8 +242,8 @@ public:
                     0, NULL, NULL, &si, &pi) != 0);
                 CloseHandle(pi.hThread);
                 WindowsHandle hProcess = pi.hProcess;
-                IF_FALSE_THROW(WaitForSingleObject(hProcess, 3*60*1000) ==
-                    WAIT_OBJECT_0);
+                IF_TRUE_THROW(WaitForSingleObject(hProcess, 3*60*1000) !=
+                    WAIT_OBJECT_0, Exception("XT Timed out"));
             }
 
             String result = File("runtests.output").contents();
@@ -520,18 +528,18 @@ private:
     String log(Test test)
     {
         initCPU(test);
-        _emulator->setExtents(_logSkip, 4096, 4096, _stopIP, _stopSeg, _timeIP1, _timeSeg1);
+        _emulator->setExtents(_logSkip, 4096, 4096, _stopIP, _stopSeg);
         _emulator->run();
         return _emulator->log();
     }
     int expected(Test test)
     {
         initCPU(test);
-        _emulator->setExtents(0, 0, 4096, _stopIP, _stopSeg, _timeIP1, _timeSeg1);
+        _emulator->setExtents(0, 0, 4096, _stopIP, _stopSeg);
         try {
             _emulator->run();
         } catch (...) { }
-        return _emulator->cycle();
+        return _emulator->cycle() + (test.refreshPeriod() == 0 ? 0 : 3);
     }
 
 

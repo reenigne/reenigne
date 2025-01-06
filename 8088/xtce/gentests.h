@@ -214,9 +214,9 @@ public:
     Test(std::initializer_list<Instruction> instructions, int nopCount,
         int refreshPeriod = 0, int refreshPhase = 0)
     {
-        int n = instructions.size();
+        auto n = instructions.size();
         auto p = instructions.begin();
-        for (int i = 0; i < n; ++i)
+        for (auto i = 0; i < n; ++i)
             _instructions.append(p[i]);
         _refreshPeriod = refreshPeriod;
         _refreshPhase = refreshPhase;
@@ -440,6 +440,12 @@ public:
         console.write("}, " + decimal((_queueFiller << 5) + _nops) + ", " +
             decimal(_refreshPeriod) + ", " + decimal(_refreshPhase) + "}\n");
     }
+    void write2()
+    {
+        write();
+        for (int i = 0; i < _preamble.count(); ++i)
+            console.write(String("") + hex(_preamble[i], 2, false));
+    }
     void setCycles(int cycles) { _cycles = cycles; }
     int cycles() { return _cycles; }
     void preamble(Byte p) { _preamble.append(p); }
@@ -464,7 +470,7 @@ public:
 
     bool operator==(const Test& other) const
     {
-        if (_queueFiller != other._queueFiller || /*_nops != other._nops || */
+        if (_queueFiller != other._queueFiller || _nops != other._nops ||
             _refreshPeriod != other._refreshPeriod ||
             _refreshPhase != other._refreshPhase)
             return false;
@@ -527,6 +533,27 @@ public:
         h.mixin(_refreshPhase);
         return h;
     }
+
+    String hexName()
+    {
+        String r;
+        for (auto i : _instructions) {
+            Byte p[6];
+            int l = i.length();
+            i.output(p);
+            for (int j = 0; j < l; ++j)
+                r += hex(p[j], 2, false);
+        }
+        r += "_";
+        r += decimal(_nops + _queueFiller * 32);
+        if (_refreshPeriod != 0) {
+            r += "_";
+            r += decimal(_refreshPeriod);
+            r += "_";
+            r += decimal(_refreshPhase);
+        }
+        return r;
+    }
 private:
     int _queueFiller;
     int _nops;
@@ -540,6 +567,10 @@ private:
     int _refreshPhase;
 };
 
+#if GENERATE_NEWFAILS
+#include "gentests/fails.h"
+#endif
+
 static int nopCounts = 17;
 
 struct Measurements
@@ -552,7 +583,7 @@ struct Measurements
     SInt16 _cycles[17 /* nopCounts */];
 };
 
-#if 0
+#if 1
 class Cache
 {
 public:
@@ -664,16 +695,19 @@ public:
         _m(0), _i(-1), _subsection(-1), _d(0, 65535), _refreshPeriod(0),
         _refreshPhase(0), _segment(-1)
     {
-        Array<Byte> functional;
-        File("functional.bin").readIntoArray(&functional);
-        Byte* p = &functional[0];
-        int i = 0;
-        while (i < functional.count()) {
-            Test t;
-            t.read(p);
-            p += t.length();
-            i += t.length();
-            _functional.append(t);
+        File functionalFile("functional.bin");
+        if (functionalFile.exists()) {
+            Array<Byte> functional;
+            functionalFile.readIntoArray(&functional);
+            Byte* p = &functional[0];
+            int i = 0;
+            while (i < functional.count()) {
+                Test t;
+                t.read(p);
+                p += t.length();
+                i += t.length();
+                _functional.append(t);
+            }
         }
 
         auto s = File("fails.dat").tryOpenRead();
@@ -774,7 +808,10 @@ public:
 #if GENERATE_NEWFAILS
     bool inFailsArray() { return _inFailsArray; }
 #endif
-
+    int refreshPeriod() { return _refreshPeriod; }
+    Word w1() { return _w1; }
+    Word w2() { return _w2; }
+    Word w3() { return _w3; }
 private:
     Test getNextTest1()
     {
@@ -783,6 +820,9 @@ private:
 #endif
         Test t;
         Instruction i;
+        _w1 = 0xffff;
+        _w2 = 0xffff;
+        _w3 = 0xffff;
         switch (_section) {
             case 1:  // Functional tests
                 t = _functional[_i];
@@ -1214,6 +1254,7 @@ private:
                         t.addInstruction(i);
                         t.preamble(0xb1);
                         t.preamble(_count);
+                        _w1 = _count;
                         break;
                     case 4:  // LOOP with CX==1
                         i = Instruction(_opcode);
@@ -1232,6 +1273,7 @@ private:
                         t.preamble(0x10);  // MOV AX,0x10A8  so that LES doesn't change ES
                         t.preamble(0xb9);
                         t.preamble(_count);
+                        _w1 = _count;
                         t.preamble(0x00);  // MOV CX,c
                         t.preamble(0xbe);
                         t.preamble(0x00);
@@ -1468,6 +1510,7 @@ private:
                                 _inFailsArray = true;
                         }
                         break;
+                    case 3:  // Shift/rotate with various counts
                     case 5:  // String operations with various counts
                         for (int i = 0; i < sizeof(repFails)/sizeof(repFails[0]); ++i) {
                             auto p = &repFails[i];
@@ -1499,11 +1542,13 @@ private:
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
+                    _w1 = a;
                     Word b = _d(_generator);
                     t.preamble(0xba);
                     t.preamble(b & 0xff);
                     t.preamble(b >> 8);  // MOV DX,a
                     t.setQueueFiller(1);
+                    _w2 = b;
 #if GENERATE_NEWFAILS
                     for (int i = 0; i < sizeof(mulFails)/sizeof(mulFails[0]); ++i) {
                         auto p = &mulFails[i];
@@ -1558,10 +1603,15 @@ private:
                     for (int i = 0; i < sizeof(divFails)/sizeof(divFails[0]); ++i) {
                         auto p = &divFails[i];
                         if (_opcode == 0xf6) {
+                            _w1 = a;
+                            _w2 = c & 0xff;
                             if (p->_test.sameInstructions(t) && a == p->_w1 && (c & 0xff) == p->_w2)
                                 _inFailsArray = true;
                         }
                         else {
+                            _w1 = a;
+                            _w2 = b;
+                            _w3 = c;
                             if (p->_test.sameInstructions(t) && a == p->_w1 && b == p->_w2 && c == p->_w3)
                                 _inFailsArray = true;
                         }
@@ -1602,6 +1652,7 @@ private:
                     t.preamble(0xb8);
                     t.preamble(a & 0xff);
                     t.preamble(a >> 8);  // MOV AX,a
+                    _w1 = a;
 #if GENERATE_NEWFAILS
                     for (int i = 0; i < sizeof(aamdFails)/sizeof(aamdFails[0]); ++i) {
                         auto p = &aamdFails[i];
@@ -1903,6 +1954,9 @@ public:
     int _rep;
     int _groupStartCount;
     int _segment;
+    int _w1;
+    int _w2;
+    int _w3;
 
     std::mt19937 _generator;
     std::uniform_int_distribution<int> _d;

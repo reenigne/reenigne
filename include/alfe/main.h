@@ -55,6 +55,7 @@ bool alerting = false;
 #endif
 
 Stream console;
+Stream errorConsole;
 
 class ProgramBase : public Uncopyable
 {
@@ -81,6 +82,7 @@ public:
     {
         BEGIN_CHECKED {
             console = Stream(STDOUT_FILENO, Console());
+            errorConsole = Stream(STDERR_FILENO, Console());
             BEGIN_CHECKED {
                 _arguments.allocate(argc);
                 for (int i = 0; i < argc; ++i)
@@ -150,6 +152,8 @@ private:
 
         BEGIN_CHECKED {
             console = Stream(GetStdHandle(STD_OUTPUT_HANDLE), Console(),
+                false);
+            errorConsole = Stream(GetStdHandle(STD_ERROR_HANDLE), Console(),
                 false);
             // We can't validate console here because we might be in a GUI
             // program where there is no console.

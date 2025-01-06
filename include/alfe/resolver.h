@@ -549,7 +549,7 @@ private:
                 TycoSpecifier r = fts.returnType();
                 r.walk(this);
                 Type ret = resolveType(r);
-                FunctionType f = FunctionTemplate().instantiate(ret);
+                FuncoTyco f = FunctionTemplate().instantiate(ret);
                 List<TycoSpecifier> argumentTypes = fts.argumentTypes();
                 for (auto a : argumentTypes) {
                     a.walk(this);

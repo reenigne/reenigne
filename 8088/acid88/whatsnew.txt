@@ -1,3 +1,5 @@
-2020092616080114: 
- 
+v1.1: Fixed missing text in documentation.
+
+2020092616080114:
+
 v1.0: Initial release with 550 tests.

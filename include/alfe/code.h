@@ -311,6 +311,8 @@ protected:
 
 template<class T, class Base> class DoublyLinkedList;
 
+// T is the type of the items in the list
+// Base is the type that the list member type derives from
 template<class T, class Base = HandleBase> class DoublyLinkedListMember
   : public Base
 {
@@ -540,10 +542,10 @@ private:
     friend class Statement;
 };
 
-class Code : public ReferenceCounted<DoublyLinkedList<CodeNode, CodeNode>>
+class Code : public ReferenceCounted<DoublyLinkedList<CodeNode, Annotation>>
 {
 private:
-    typedef ReferenceCounted<DoublyLinkedList<CodeNode, CodeNode>> Base;
+    typedef ReferenceCounted<DoublyLinkedList<CodeNode, Annotation>> Base;
 public:
 
     Code() : Base(Base::create<Body>()) { }
@@ -572,13 +574,13 @@ protected:
 //    friend class Code;
 };
 
-// Normally, an Annotation represents a point in the program, so one would 
+// Normally, an Annotation represents a point in the program, so one would
 // expect it to be associated with a Location rather than a Span. However,
 // there is typically whitespace separating adjacent Statements, so the end of
 // one Statement does not generally have the same Location as the beginning of
 // the next one. Thus source locations are represented by a SpanAnnotation on
 // a Statement marking the beginning and end Locations of that Statement.
-// 
+//
 // TODO: Possibly in the future change this so that the Annotation point holds
 // the end Location of the previous statement and the start Location of the
 // annotated statement?
@@ -714,26 +716,32 @@ private:
     template<class N, class B> friend class DoublyLinkedListMember;
 };
 
-class FunctionDefinitionStatement : public Statement
+class FuncoDefinitionStatement : public Statement
 {
 public:
-    FunctionDefinitionStatement(const Handle& other)
+    FuncoDefinitionStatement(const Handle& other)
       : Statement(to<Body>(other)) { }
     TycoSpecifier returnTypeSpecifier()
     {
         return body()->_returnTypeSpecifier;
     }
     Identifier name() { return body()->_name; }
+    TemplateParameters templateParameters()
+    {
+        return body()->_templateParameters;
+    }
     Code parameters() { return body()->_parameters; }
 protected:
     class Body : public Statement::Body
     {
     public:
         Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
-            Code parameters, const Span& span)
+            TemplateParameters templateParameters, Code parameters,
+            const Span& span)
           : Statement::Body(span),
             _returnTypeSpecifier(returnTypeSpecifier), _name(name),
-            _parameters(parameters) { }
+            _templateParameters(templateParameters), _parameters(parameters)
+        { }
     protected:
         CodeWalker::Result walk(CodeWalker* walker)
         {
@@ -741,40 +749,43 @@ protected:
                 return CodeWalker::Result::abort;
             if (_name.walk(walker) == CodeWalker::Result::abort)
                 return CodeWalker::Result::abort;
+            if (_templateParameters.walk(walker) == CodeWalker::Result::abort)
+                return CodeWalker::Result::abort;
             return _parameters.walk(walker);
         }
     private:
         TycoSpecifier _returnTypeSpecifier;
         Identifier _name;
         Code _parameters;
+        TemplateParameters _templateParameters;
 
-        friend class FunctionDefinitionStatement;
+        friend class FuncoDefinitionStatement;
     };
 private:
     Body* body() { return as<Body>(); }
 };
 
-class FunctionDefinitionCodeStatement : public FunctionDefinitionStatement
+class FuncoDefinitionCodeStatement : public FuncoDefinitionStatement
 {
 public:
-    FunctionDefinitionCodeStatement(Annotation a)
-      : FunctionDefinitionStatement(to<Body>(a)) { }
+    FuncoDefinitionCodeStatement(Annotation a)
+      : FuncoDefinitionStatement(to<Body>(a)) { }
     Code code() const { return body()->_body; }
 private:
-    class Body : public FunctionDefinitionStatement::Body
+    class Body : public FuncoDefinitionStatement::Body
     {
     public:
         Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
-            Code parameters, Code body,
+            TemplateParameters templateParameters, Code parameters, Code body,
             const Span& span)
-          : FunctionDefinitionStatement::Body(returnTypeSpecifier, name,
-              parameters, span),
+          : FuncoDefinitionStatement::Body(returnTypeSpecifier, name,
+              templateParameters, parameters, span),
             _body(body) { }
         CodeWalker::Result walk(CodeWalker* walker)
         {
             auto r = walker->visit(codeNode());
             if (r == CodeWalker::Result::recurse) {
-                if (FunctionDefinitionStatement::Body::walk(walker) ==
+                if (FuncoDefinitionStatement::Body::walk(walker) ==
                     CodeWalker::Result::abort)
                     return CodeWalker::Result::abort;
                 if (_body.walk(walker) == CodeWalker::Result::abort)
@@ -785,33 +796,33 @@ private:
     private:
         Code _body;
 
-        friend class FunctionDefinitionCodeStatement;
+        friend class FuncoDefinitionCodeStatement;
     };
     Body* body() const { return as<Body>(); }
 
     template<class N, class B> friend class DoublyLinkedListMember;
 };
 
-class FunctionDefinitionFromStatement : public FunctionDefinitionStatement
+class FunctionDefinitionFromStatement : public FuncoDefinitionStatement
 {
 public:
     FunctionDefinitionFromStatement(Annotation a)
-      : FunctionDefinitionStatement(to<Body>(a)) { }
+      : FuncoDefinitionStatement(to<Body>(a)) { }
     Expression from() const { return body()->_from; }
 private:
-    class Body : public FunctionDefinitionStatement::Body
+    class Body : public FuncoDefinitionStatement::Body
     {
     public:
         Body(const TycoSpecifier& returnTypeSpecifier, const Identifier& name,
             Code parameters, Expression from, const Span& span)
-            : FunctionDefinitionStatement::Body(returnTypeSpecifier, name,
-                parameters, span),
+            : FuncoDefinitionStatement::Body(returnTypeSpecifier, name,
+                TemplateParameters(), parameters, span),
             _from(from) { }
         CodeWalker::Result walk(CodeWalker* walker)
         {
             auto r = walker->visit(codeNode());
             if (r == CodeWalker::Result::recurse) {
-                if (FunctionDefinitionStatement::Body::walk(walker) ==
+                if (FuncoDefinitionStatement::Body::walk(walker) ==
                     CodeWalker::Result::abort)
                     return CodeWalker::Result::abort;
                 if (_from.walk(walker) == CodeWalker::Result::abort)
@@ -823,6 +834,29 @@ private:
         Expression _from;
 
         friend class FunctionDefinitionFromStatement;
+    };
+    Body* body() const { return as<Body>(); }
+
+    template<class N, class B> friend class DoublyLinkedListMember;
+};
+
+// An external function definition is one that comes from the code invoking the
+// ALFE compiler/interpreter rather than the ALFE code being
+// compiled/interpreted.
+class ExternalFuncoDefinitionStatement : public FuncoDefinitionStatement
+{
+public:
+    ExternalFuncoDefinitionStatement(Annotation a)
+      : FuncoDefinitionStatement(to<Body>(a)) { }
+private:
+    class Body : public FuncoDefinitionStatement::Body
+    {
+    public:
+        Body(const Funco& funco)
+            : FuncoDefinitionStatement::Body(returnTypeSpecifier, name,
+                templateParameters, parameters, span),
+            _body(body) { }
+
     };
     Body* body() const { return as<Body>(); }
 

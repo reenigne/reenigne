@@ -1,0 +1,37 @@
+  Remove dedup code                                           Fixed but commented
+Changing segment too often in initial staticDisassembly       Not a bug
+Remove debug spew from StaticDisassembler                     Fixed but commented
+Search for runs of zeroes and elide                           No need to fix now that we suppress uninitialised
+Write a program to look up a binary string in game.exe, search for it in m.exp and return the symbol. Run it on all the data symbols    No longer needed
+
+Get rid of ping                                               Fixed
+Add predecessors for dynamic jumps
+Add predecessors for data accesses
+Comment branch/jump/call instructions with source address
+Mark filenames as read                                        Should be fixed but not working (see p3D85_0707)
+Back-propagate bad from 1d25_000e to 194c_3d9b - segment change resets
+Need a way to find or mark jump tables - missing code at 1ecb_0614
+  Jump table at 11fb_2106 has values and target
+  Jump table at 11fb_22c2 only has targets
+Bad code at 210c_43f6 - mark ESC and WAIT as bad
+  Don't statically disassemble after jmp?
+What's going on with 3BA0_000A?
+Disassemble graphics code
+Put back disabled tests
+Add input
+Record inputs
+
+Byte at 0FF0:0002 previously accessed at 0CAE:3422.
+CS:IP = 1000:0010
+
+
+Use symbol table
+  Generate list of function addresses that can be used to make the config file
+  Find extents of functions:
+    Find places that are reached from CALL instructions
+    Make sure they are only reached from CALL instructions
+    Search ahead to find RET instruction
+    Look at all successors and predecessors in range
+    Make sure their targets are also in range
+    Dump addresses of functions for making symbol table
+  Put disassembly into Code format first

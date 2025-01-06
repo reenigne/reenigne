@@ -76,7 +76,8 @@ Set start_address_low                                                           
 
 0        10        20        30        40        50        60        70        80        90       100       110   0        10        20        30        40        50        60        70        80        90       100       110
 |         |         |         |         |         |         |         |         |         |         |         |   |         |         |         |         |         |         |         |         |         |         |         |
-                                                                                          Ssssssssssssssss
+********************************************************************************        *                         ********************************************************************************        *
+                                                                                          Ssssssssssssssss                                                                                                  Ssssssssssssssss
                                                                                 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa                                                                                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                                                                                 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb                                                                                bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 ccccccccc                                                                                 ccccccccccccccccccccccccccccccccc                                                                                 cccccccccccccccccccccccc
@@ -90,7 +91,7 @@ eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee                                                
                                                                                  a          b         c           d          e            f        H          L
                                                                                                      a          b         c           d          e            f        H          L
 
-
+                                                  Actual                          b      a           d         c          e         f                 H          L
 
 
 

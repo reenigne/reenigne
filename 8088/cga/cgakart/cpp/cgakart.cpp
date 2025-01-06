@@ -334,7 +334,7 @@ public:
 		Bitmap<SRGB> tiles = PNGFileFormat<SRGB>().load(
 			File("Q:\\Work\\Website\\Andrew\\computer\\u6maps\\u6tiles.png",
 				true));
-		String skybox1 = File("q:\\skybox_out.dat", true).contents();
+		String skybox1 = File("q:\\external\\skybox_out.dat", true).contents();
 		Bitmap<SRGB> paletteImage = PNGFileFormat<SRGB>().load(
 			File("Q:\\8bpp_000_out_cropped.png", true));
 

@@ -433,6 +433,21 @@ private:
     };
 };
 
+// An external TycoSpecifier is one that comes from the code invoking the ALFE
+// compiler/interpreter rather than the ALFE code being compiled/interpreted.
+//class ExternalTycoSpecifier : public TycoSpecifier
+//{
+//public:
+//    ExternalTycoSpecifier(Tyco tyco) { *this = create<Body>(tyco); }
+//    ExternalTycoSpecifier(Handle other) : TycoSpecifier(other) { }
+//private:
+//    class Body : public TycoSpecifier::Body
+//    {
+//    public:
+//        Body(Tyco tyco) : TycoSpecifier::Body(tyco) { }
+//    };
+//};
+
 template<class T> class TypeOfTypeSpecifierT : public TypeSpecifier
 {
 public:

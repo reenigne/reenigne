@@ -3048,7 +3048,7 @@ public:
             return Value(maxDistance < 15*15*3);
         }
         Identifier identifier() { return "bitmapIsRGBI"; }
-        FunctionType type()
+        FuncoTyco type()
         {
             return FunctionType(BooleanType(), _bitmapType);
         }
@@ -3066,7 +3066,7 @@ public:
 
         ConfigFile configFile;
         _config = &configFile;
-        configFile.addType(VectorType());
+        configFile.addTyco(VectorType());
         configFile.addOption("inputPicture", bitmapType);
         configFile.addDefaultOption("mode", 0x1a);
         configFile.addDefaultOption("palette", 0x0f);

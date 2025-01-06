@@ -9,6 +9,7 @@
 #include "alfe/wrap.h"
 #include "alfe/timer.h"
 #include "alfe/bitmap_png.h"
+#include "alfe/thread.h"
 
 #ifdef COLOURS_3BIT
 static const SRGB rgbiPalette[16] = {

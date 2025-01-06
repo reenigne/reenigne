@@ -12,8 +12,8 @@ typedef TypeT<void> Type;
 template<class T> class PointerTypeT;
 typedef PointerTypeT<void> PointerType;
 
-template<class T> class FunctionTypeT;
-typedef FunctionTypeT<void> FunctionType;
+template<class T> class FuncoTycoT;
+typedef FuncoTycoT<void> FuncoTyco;
 
 template<class T> class FunctionTemplateT;
 typedef FunctionTemplateT<void> FunctionTemplate;
@@ -267,8 +267,8 @@ protected:
         }
         virtual void deserialize(const Value& value, void* p) { }
         virtual int size() { return 0; }
-        virtual ValueT<T> defaultValue() { return Value(); }
-        virtual ValueT<T> value(void* p) { return Value(); }
+        virtual ValueT<T> defaultValue() { return ValueT<T>(); }
+        virtual ValueT<T> value(void* p) { return ValueT<T>(); }
         Type type() { return tyco(); }
         virtual ValueT<T> simplify(const Value& value)
         {
@@ -1286,20 +1286,20 @@ public:
     };
 };
 
-template<class T> class FunctionTypeT : public Tyco
+template<class T> class FuncoTycoT : public Tyco
 {
 public:
-    FunctionTypeT(const Tyco& t) : Tyco(t) { }
+    FuncoTycoT(const Tyco& t) : Tyco(t) { }
 
-    static FunctionType nullary(const Type& returnType)
+    static FuncoTyco nullary(const Type& returnType)
     {
         return create<NullaryBody>(returnType);
     }
-    FunctionTypeT(Type returnType, Type argumentType)
+    FuncoTycoT(Type returnType, Type argumentType)
       : Tyco(FunctionType(
             FunctionTemplateT<T>().instantiate(returnType)).
             instantiate(argumentType)) { }
-    FunctionTypeT(Type returnType, Type argumentType1,
+    FuncoTycoT(Type returnType, Type argumentType1,
         Type argumentType2)
       : Tyco(FunctionType(FunctionType(FunctionTemplateT<T>().
             instantiate(returnType)).instantiate(argumentType1)).
@@ -1313,7 +1313,7 @@ public:
         return body()->instantiate(argument);
     }
     bool isNullary() const { return body()->isNullary(); }
-    FunctionType parent() const { return body()->parent(); }
+    FuncoTyco parent() const { return body()->parent(); }
     void addParameterTycos(List<Tyco>* list) const
     {
         body()->addParameterTycos(list);
@@ -1342,7 +1342,7 @@ private:
                     ") to instantiate Function because it requires a type");
             }
 
-            FunctionType t(create<ArgumentBody>(tyco(), argument));
+            FuncoTyco t(create<ArgumentBody>(tyco(), argument));
             _instantiations.add(argument, t);
             return t;
         }
@@ -1384,7 +1384,7 @@ private:
     class ArgumentBody : public Body
     {
     public:
-        ArgumentBody(FunctionType parent, const Type& argumentType)
+        ArgumentBody(FuncoTyco parent, const Type& argumentType)
           : _parent(parent), _argumentType(argumentType) { }
         String toString2(bool* needComma)
         {
@@ -1434,7 +1434,7 @@ private:
             return r;
         }
     private:
-        FunctionTypeT<T> _parent;
+        FuncoTycoT<T> _parent;
         Type _argumentType;
     };
     Body* body() const { return as<Body>(); }
@@ -1442,7 +1442,7 @@ private:
     {
         return body()->toString2(needComma);
     }
-    FunctionTypeT(const Handle& t) : Tyco(t) { }
+    FuncoTycoT(const Handle& t) : Tyco(t) { }
 };
 
 template<class T> class FunctionTemplateT
@@ -1456,7 +1456,7 @@ public:
     public:
         virtual Tyco partialInstantiate(bool final, Tyco argument)
         {
-            return FunctionType::nullary(argument);
+            return FuncoTyco::nullary(argument);
         }
         Kind kind()
         {
