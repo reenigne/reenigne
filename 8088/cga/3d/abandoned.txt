@@ -1,0 +1,445 @@
+If we're using < everywhere, we need to adjust to pick up == points on one side
+  Adjust (with +1) on edges that are rightwards and/or downwards
+
+              4x4
+              32x32
+  32x32 64x64 64x64 64x64 64x64 32x32
+              64x64
+              32x32
+              4x4
+
+If we divided nodes into two instead of four:
+  512x256 - 1              0,0 (320x200) **
+  256x256 - 2              0,0 (256x200) **  256,0 (64x200) **
+  256x128 - 4              0,0 (256x128) **  256,0 (64x128) *.      0,128 (256x72) **    256,128 (64x72) *.
+  128x128 - 4              0,0 (128x128) **  256,0 (64x128) **      0,128 (128x72) **    256,128 (64x72) **
+  128x64  - 4              0,0 (128x64)  **  256,0 (64x64)  *.      0,192 (64x8)   *.    256,192 (64x8)  *.
+  64x64   - 2              0,0 (64x64)   **                         0,192 (64x8)   *.
+  64x32   - 2              0,0 (64x32)   **                         0,192 (64x8)   *.
+  32x32   - 2              0,0 (32x32)   **                         0,192 (32x8)   *.
+  32x16   - 2              0,0 (32x16)   **                         0,192 (32x8)   *.
+  16x16   - 2              0,0 (16x16)   **                         0,192 (16x8)   *.
+  16x8    - 1              0,0 (16x8)    **
+  8x8     - 1              0,0 (8x8)     **
+  8x4     - 1              0,0 (8x4)     **
+  4x4     - 1              0,0 (4x4)     **
+  4x2     - 1              0,0 (4x2)     **
+  2x2     - 1              0,0 (2x2)     **                                   52 *s  31 node sizes
+Since splitting and calling sub-node routines are relatively expensive, point checks are relatively cheap, it's probably not worth dividing by two
+
+With 0,0 at center
+  512x512 - 1
+  256x256 - 4
+  128x128 - 6
+  64x64   - 9
+  32x32   - 3
+  16x16   - 3
+  8x8     - 3
+  4x4     - 1
+  2x2     - 1 total 31
+
+  initial adjustment for 0,0 at top-left of quadtree looks like:
+    sub ax,cx
+    shr cx,1
+    shr cx,1
+    sub ax,cx
+    shl cx,1
+    shl cx,1
+
+Can use remaining 7 bytes of the node segments for lookup tables (jmp/call assumes routine variants are in different segments and suitably aligned):
+  mov es,ax
+  mov ax,[es:0xe] or jmp word[es:0xc] or call word[es:0xa]
+12 bits in 64kB, 13 bits in 128kB or 14 bits in 256kB (15 bits would probably be excessive)
+
+  Not sensible to keep the LSByte of span as 0 so we can reuse the register during splitting
+    We'd have to keep zeroing it as we shift right
+
+https://en.wikipedia.org/wiki/Merge_sort
+https://en.wikipedia.org/wiki/Timsort
+https://stackoverflow.com/questions/220044/which-sort-algorithm-works-best-on-mostly-sorted-data
+https://www.toptal.com/developers/sorting-algorithms/nearly-sorted-initial-order#:~:text=Insertion%20sort%20is%20the%20clear,adapt%20to%20nearly%20sorted%20data.
+https://www.google.com/search?q=natural+mergesort&oq=natural+mergesort&gs_lcrp=EgZjaHJvbWUqCwgAEEUYJxg7GIoFMgsIABBFGCcYOxiKBTIJCAEQABhDGIoFMgkIAhAAGEMYigUyCQgDEAAYQxiKBTIKCAQQABixAxiABDIQCAUQLhivARjHARixAxiABDIJCAYQABhDGIoFMhMIBxAuGIMBGK8BGMcBGLEDGIAEMgoICBAAGLEDGIAEMhMICRAuGIMBGMcBGLEDGNEDGIAE0gEIMTcwOGowajeoAgCwAgA&sourceid=chrome&ie=UTF-8#ip=1
+https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/rasterization-stage.html
+
+
+      reciprocal table implementation:
+        x not scaled - (xScale = 0x1.0000 essentially) - just use rotated value - 0x3ffe scales to 0x3ffe
+        yScale = 0x0.d555 - 0x3ffe scales to 0x3552
+        Set zScale according to number of reciprocal table entries we want. Suppose we want 32kB reciprocal table and 32kB limit table
+          16384 entries, range and domain both 0..0x3ffe
+          suppose z = 0x0100 gives output of 0x0100 i.e. reciprocalTable[x] = 0x10000/x
+          Then quarter square table would have to give 0x0280*0x0100 = 0x0280 so is actually square >> 10
+            qsquare[0x0280 + 0x0100] - qsquare[0x0280 - 0x0100] = qsquare[0x0380] - qsquare[0x0180] = 0x0310 - 0x090 = 0x0280
+            qsquare[0x3ffe + 0x3ffe] - qsquare[0x3ffe - 0x3ffe] = qsquare[0x7ffc] - qsquare[0x0000] = 0xfff00 - 0x0000 overflows
+          x = 0x3ffe  z = 0x3ffe  1/z = 0x0004
+            qsquare[0x3ffe + 0x0004] - qsquare[0x3ffe - 0x0004] = qsquare[0x4002] - qsquare[0x3ffa] = 0x40040 - 0x3ff40 = 0x100 (overflow cancels)
+          We want an extra factor of 0x2.8 in the qsquare table to account for zScale. So qsquare[x] = x*x*0x0.00a0
+            qsquare[0x3ffe + 0x0004] - qsquare[0x3ffe - 0x0004] = qsquare[0x4002] - qsquare[0x3ffa] = 0xa00a0 - 0x9fe20 = 0x280 (overflow cancels)
+          qsquare is 0 for inputs 0..0x0e. qsquare[0x10] = 0x0.a which rounds to 1
+          qsquare is first 2 for input 0x1a if we round to nearest, 0x1e if we truncate
+             So everything over distance 0x09d8 (of 0x3ffe) is 0
+          We would like to have reciprocalTable[0x3ffc] - reciprocalTable[0x3ffe] >= 1
+          reciprocalTable[x] = k/x
+          k*(1/0x3ffc - 1/0x3ffe) = 1
+          k = 1/(1/0x3ffc - 1/0x3ffe)) = 0x7ff4004
+          So we really need 32 bits of dynamic range in the reciprocal table for this implmentation to work
+
+; Using multiply by reciprocal instead of idiv
+  mov di,cx                ; 2 0
+  mov bx,[recipTable+di]   ; 4 2
+  mov ax,[si+bx]           ; 2 2
+  neg bx                   ; 2 0
+  sub ax,[si+bx]           ; 2 2
+  push ax
+  mov si,y
+  mov ax,[si+bx]           ; 2 2
+  neg bx                   ; 2 0
+  sub ax,[si+bx]           ; 2 2  112 cycles but no overflow checking, savings 421-112=309 cycles =  1.02 scanlines
+  push ax
+
+; With overflow checking
+  cmp cx,0                 ; 3 0
+  jle zNegative            ; 2 0
+  mov di,cx                ; 2 0
+  mov si,ax
+  cmp ax,0                 ; 2 0
+  jl xNegative             ; 2 0
+  mov dx,[limitTable+di]   ; 4 2
+  cmp ax,dx                ; 2 0
+  jg xOverflow             ; 2 0
+  mov bx,[recipTable+di]   ; 4 2
+  mov ax,[si+bx]           ; 2 2
+  neg bx                   ; 2 0
+  sub ax,[si+bx]           ; 2 0
+  push ax
+  mov si,y
+  cmp si,0                 ; 3 0
+  jl yNegative             ; 2 0
+  cmp si,dx                ; 2 0
+  jg yOverflow             ; 2 0
+  mov ax,[si+bx]           ; 2 2
+  neg bx                   ; 2 0
+  sub ax,[si+bx]           ; 2 2  220 cycles best case (228 cycles for x, y negative - average 224), savings 421-224=197 cycles = 0.65 scanlines
+  push ax
+
+      There will in general be more edges than vertices (Euler's formula for a polyhedron E = V + F-2)
+        but there are 2 divs for a vertex and one for an edge so the vertices are more important to optimise
+          not true! There are two: one for the span and one for the intercept
+
+
+      Try xScale = 0x7fff, yScale = 0x6aaa, zScale = 0x0033
+      World point 0x7fff, 0x7fff - scaled to 0x3fff.0001, 0x0019.7fcd
+      We want to compute the projection by shifting both of these right by 8 bits, so 0x003f.ff00 / 0x.1980 = 0x0282
+      imul/idiv implementation:
+        xScale = 0x007f, yScale = 0x006b, zScale = 0x3333  high word of scaled z = (0x3333*0x7fff) >> 16 == 0x1999  (or maybe 0x0100, 0x00d5, 0x6666 ?)  (or even 0x0200, 0x01ab, 0xcccc)  ( 0x0280, 0x0215,  0x10000)
+        0x003f7f81/0x1999 = 0x027b                                                                                           0x007fff00/0x3333 = 0x27f         0x00fffe00/0x6665 = 0x280      0x013ffd80/0x7fff = 0x0280
+      square table and idiv implementation:
+        x not scaled - (xScale = 0x1.0000 essentially) - just use rotated value - 0x7ffe scales to 0x7ffe
+        yScale = 0x0.d555 - 0x7fff scales to 0x6aa9
+        Shift left to 0x007fff00, 0x006aa900
+        zScale = 0x6666 - 0x7fff scales to 0x3333
+        project to 0x27f, 0x215
+
+
+        xScale = 0x007f, yScale = 0x006b, zScale = 0x3333  high word of scaled z = (0x3333*0x7fff) >> 16 == 0x1999
+        0x003f7f81/0x1999 = 0x027b
+
+
+    SInt16 shift14div(SInt32 m, SInt32 d)
+    {
+        SInt32 h = d >> 16;
+        if (h > 0) {               // 0x0001'0000 <= d < 0x8000'0000
+            if (h >= 0x100) {        // 0x0100'0000 <= d < 0x8000'0000
+                if (h >= 0x1000) {     // 0x1000'0000 <= d < 0x8000'0000
+                    if (h >= 0x2000) {   // 0x2000'0000 <= d < 0x8000'0000
+                        if (h >= 0x4000) { // 0x4000'0000 <= d < 0x8000'0000
+                            d >>= 15;
+                            m >>= 1;
+                        }
+                        else                    // 0x2000'0000 <= d < 0x4000'0000
+                            d >>= 14;
+                    }
+                    else {                    // 0x1000'0000 <= d < 0x2000'0000
+                        d >>= 13;
+                        m <<= 1;
+                    }
+                }
+                else {                      // 0x0100'0000 <= d < 0x1000'0000
+                    if (h >= 0x400) {    // 0x0400'0000 <= d < 0x1000'0000
+                        if (h >= 0x800) {  // 0x0800'0000 <= d < 0x1000'0000
+                            d >>= 12;
+                            m <<= 2;
+                        }
+                        else {                  // 0x0400'0000 <= d < 0x0800'0000
+                            d >>= 11;
+                            m <<= 3;
+                        }
+                    }
+                    else {                    // 0x0100'0000 <= d < 0x0400'0000
+                        if (h >= 0x200) {  // 0x0200'0000 <= d < 0x0400'0000
+                            d >>= 10;
+                            m <<= 4;
+                        }
+                        else {                  // 0x0100'0000 <= d < 0x0200'0000
+                            d >>= 9;
+                            m <<= 5;
+                        }
+                    }
+                }
+            }
+            else {                        // 0x0001'0000 <= d < 0x0100'0000
+                if (h >= 0x10) {       // 0x0010'0000 <= d < 0x0100'0000
+                    if (h >= 0x40) {     // 0x0040'0000 <= d < 0x0100'0000
+                        if (h >= 0x80) {   // 0x0080'0000 <= d < 0x0100'0000
+                            d >>= 8;
+                            m <<= 6;
+                        }
+                        else {                  // 0x0040'0000 <= d < 0x0080'0000
+                            d >>= 7;
+                            m <<= 7;
+                        }
+                    }
+                    else {                    // 0x0010'0000 <= d < 0x0040'0000
+                        if (h >= 0x20) {   // 0x0020'0000 <= d < 0x0040'0000
+                            d >>= 6;
+                            m <<= 8;
+                        }
+                        else {                  // 0x0010'0000 <= d < 0x0020'0000
+                            d >>= 5;
+                            m <<= 9;
+                        }
+                    }
+                }
+                else {                      // 0x0001'0000 <= d < 0x0010'0000
+                    if (h >= 0x4) {      // 0x0004'0000 <= d < 0x0010'0000
+                        if (h >= 0x8) {    // 0x0008'0000 <= d < 0x0010'0000
+                            d >>= 4;
+                            m <<= 10;
+                        }
+                        else {                  // 0x0004'0000 <= d < 0x0008'0000
+                            d >>= 3;
+                            m <<= 11;
+                        }
+                    }
+                    else {                    // 0x0001'0000 <= d < 0x0004'0000
+                        if (h >= 0x2) {    // 0x0002'0000 <= d < 0x0004'0000
+                            d >>= 2;
+                            m <<= 12;
+                        }
+                        else {                    // 0x0001'0000 <= d < 0x0002'0000
+                            d >>= 1;
+                            m <<= 13;
+                        }
+                    }
+                }
+            }
+            return m / static_cast<SInt16>(d);
+        }
+        // 0x0000'0000 <= d < 0x0001'0000
+        if ((d & 0xffff) == 0)  // Handle with interrupt 0? (Probably quicker to just test)
+            return 0x4000;
+        else
+            return (m << 14) / static_cast<SInt16>(d); // No point shifting both d and m left - it won't change the result!
+    }
+
+
+
+    SInt16 safeDivide(SInt32 intercept, SInt16 span)  // Handle with interrupt 0
+    {
+        SInt16 interceptHigh = intercept >> 16;
+        if (interceptHigh >= 0) {
+            if (span >= 0) {  // Note: span can never be 0
+                if (interceptHigh >= span)
+                    return 0x4000;
+            }
+            else { // span < 0
+                if (interceptHigh >= -span)
+                    return -0x4000;
+            }
+        }
+        else {
+            if (span >= 0) {
+                if (-interceptHigh >= span)
+                    return -0x4000;
+            }
+            else { // span < 0
+                if (-interceptHigh >= -span)
+                    return 0x4000;
+            }
+        }
+        return intercept / span;
+
+    }
+
+
+    void handleOverflow()
+    {
+        if (_sx >= 0) {
+            if (_sy >= 0) {
+                if (_sx > _sy) {   // 0 <= _sy < _sx
+                    _px = 0x4000;
+                    _py = shift14div(_sy, _sx);
+                }
+                else {             // 0 <= _sx <= _sy
+                    _py = 0x4000;
+                    _px = shift14div(_sx, _sy);
+                }
+            }
+            else { // _sy < 0
+                if (_sx > -_sy) {  // 0 < -_sy < _sx
+                    _px = 0x4000;
+                    _py = shift14div(_sy, _sx);
+                }
+                else {             // 0 < _sx <= -_sy
+                    _py = -0x4000;
+                    _px = -shift14div(_sx, _sy);
+                }
+            }
+        }
+        else { // _sx < 0
+            if (_sy >= 0) {
+                if (-_sx > _sy) {  // 0 <= _sy < -_sx
+                    _px = -0x4000;
+                    _py = -shift14div(_sy, _sx);
+                }
+                else {             // 0 < -_sx <= _sy
+                    _py = 0x4000;
+                    _px = shift14div(_sx, _sy);
+                }
+            }
+            else { // _sy < 0
+                if (-_sx > -_sy) { // 0 < -_sy < -_sx
+                    _px = -0x4000;
+                    _py = -shift14div(_sy, _sx);
+                }
+                else {             // 0 < -_sx <= -_sy
+                    _py = -0x4000;
+                    _px = -shift14div(_sx, _sy);
+                }
+            }
+        }
+        if (_sz < 0) {  // => interior/exterior code should treat Z=0 as positive
+            _px = -_px;
+            _py = -_py;
+        }
+    }
+
+        if (_sz == 0 || _sx / _sz <= -0x8000 || _sx / _sz >= 0x8000)  // Handle with interrupt 0
+            handleOverflow();
+        else {
+            _px = _sx / _sz;
+            if (_sy / _sz <= -0x8000 || _sy / _sz >= 0x8000)  // Handle with interrupt 0
+                handleOverflow();
+            else
+                _py = _sy / _sz;
+        }
+
+
+
+; Older:
+;
+;; case spanx >= 0, spany >= 0, spanx > spany
+;; compute:
+;;   _span = (spany << spanBits) / spanx;
+;;   _intercept = safeDivide(intercept, spanx);
+;; si = spanx
+;; di = spany
+;; cx:ax = intercept
+;
+;log512 equ 11858  ; 0x3ffe*log(512)/log(0x8001)
+;
+;  mov dx,[di]             ; log(spanx)                                                                           2 2
+;  mov bx,[si]             ; log(spany)                                                                           2 2
+;  sub bx,dx               ; log(spany) - log(spanx)                                                              2 0
+;  es: mov si,[bx+log512]  ; exp(log(512) + log(spany) - log(spanx)) = 512*spany/spanx                            4 2
+;  mov bx,cx               ; high word of intercept                                                               2 0
+;  shl bx,1                ; high word of intercept << 1                                                          2 0
+;  mov bx,[bx]             ; log(high word of intercept << 1)                                                     2 2
+;  sub bx,dx               ; log(high word of intercept << 1) - log(spanx)                                        2 0
+;  es: mov di,[bx+log64k]  ; exp(log(high word of intercept << 1) - log(spanx)) = high word of intercept/spanx    3 2
+;  xchg bx,ax              ; low word of intercept                                                                1 0
+;  shr bx,1                ; low word of intercept >> 1                                                           2 0
+;  mov bx,[bx-0x4000]      ; log(low word of intercept >> 1)                                                      4 2
+;  sub bx,dx               ; log(low word of intercept >> 1) - log(spanx)                                         2 0
+;  es: add di,[bx]         ; exp(log(low word of intercept >> 1) - log(spanx)) = low word of intercept/spanx      3 2   188 cycles
+;
+;
+;; idiv method for comparison
+;
+;; mov dx,cx  ; 2 0
+;; div si     ; 2 0
+;; mov cx,ax  ; 2 0
+;; mov ax,di  ; 2 0
+;; xor dx,dx  ; 2 0
+;; mov dh,dl  ; 2 0
+;; mov dl,ah  ; 2 0
+;; mov ah,al  ; 2 0
+;; shl ax,1   ; 2 0
+;; rcl dx,1   ; 2 0
+;; div si     ; 2 0  88 cycles in IOs, 306 cycles in DIVs, -32 cycles in prefetch savings  total 362 cycles
+
+
+
+  cmp bx,0
+  jnz notGenerate
+  ; TODO: record degenerate = true, processed = true
+  ; TODO: return true
+
+notDegenerate:
+
+
+
+
+Does the +0.5 log offset cause any issues for edge equation calculation?
+  It means that we don't need to do an explicit degenerate check
+  It means that the A point of an edge is offset by (1,1) subpixel from the B point
+    This means that a vertex is at a different position with respect to the two edges it is on
+      The adjusted vertex position is the intersection of the adjusted lines
+  It means that there are no truely horizontal or vertical lines (though not noticably since they're only off by a quarter of a pixel no matter how long they are in the other dimension
+  We shouldn't get any problems with gaps since both half-edges use the same equation
+    However, it could cause small gaps if a face is incorrectly determined to be back-facing
+      Need to make sure that the obvious orient implementation (plugging vertex C into the AB edge equation) gives the same results as checking all pixels (what the renderer essentially does)
+
+Assume all lines verticalish and positive    ax>bx ay>by
+slope       (ax-bx)/(ay-by)
+intercept   ax - ay*(ax-bx)/(ay-by)
+equation    slope*y + intercept = x
+
+slopeab     (1+ax-bx)/(1+ay-by)
+interceptab ax - (1+ay)*(1+ax-bx)/(1+ay-by)
+equation    slope*y + intercept = x
+orientation (1+ax-bx)/(1+ay-by)*(1 + cy) + ax - (1+ay)*(1+ax-bx)/(1+ay-by) - cx > 0
+            (1+ax-bx)*(1 + cy) - (1+ay)*(1+ax-bx) > (cx - ax)*(1+ay-by)
+            cy + ax + ax*cy - bx - bx*cy + ax - bx + ay + ay*ax - ay*bx > cx + cx*ay - cx*by - ax - ax*ay + ax*by
+
+            ay + cy - 2*bx + 3*ax - cx + ax*cy - ax*by - cx*ay + cx*by - bx*cy + 2*ay*ax - ay*bx > 0
+
+slopebc     (1+bx-cx)/(1+by-cy)
+interceptbc bx - (1+by)*(1+bx-cx)/(1+by-cy)
+            slopebc*y + interceptbc = x
+
+slopeca     (1+cx-ax)/(1+cy-ay)
+interceptca cx - (1+cy)*(1+cx-ax)/(1+cy-ay)
+            slopeca*y + interceptca = x
+
+Corrected c point dx,dy is solution to
+            slopebc*dy + interceptbc = dx
+            slopeca*dy + interceptca = dx
+            (slopebc - slopeca)*dy + interceptbc - interceptca = 0
+            (slopebc - slopeca)*dy = interceptca - interceptbc
+            dy = (interceptca - interceptbc)/(slopebc - slopeca)
+            dx = slopebc*(interceptca - interceptbc)/(slopebc - slopeca) + interceptbc
+
+            ((1+bx-cx)/(1+by-cy))*dy + bx - (1+by)*(1+bx-cx)/(1+by-cy) = dx
+            ((1+cx-ax)/(1+cy-ay))*dy + cx - (1+cy)*(1+cx-ax)/(1+cy-ay) = dx
+
+            ((1+bx-cx)/(1+by-cy))*dy + bx - (1+by)*(1+bx-cx)/(1+by-cy) - ((1+cx-ax)/(1+cy-ay))*dy - cx + (1+cy)*(1+cx-ax)/(1+cy-ay) = 0
+            ((1+bx-cx)/(1+by-cy) - (1+cx-ax)/(1+cy-ay))*dy + bx - cx + (1+cy)*(1+cx-ax)/(1+cy-ay) - (1+by)*(1+bx-cx)/(1+by-cy) = 0
+            ((1+bx-cx)*(1+cy-ay) - (1+cx-ax)*(1+by-cy))*dy + bx*(1+by-cy)*(1+cy-ay) - cx*(1+by-cy)*(1+cy-ay) + (1+cy)*(1+cx-ax)*(1+by-cy) - (1+by)*(1+bx-cx)*(1+cy-ay) = 0
+
+            (2*cy - 2*cx + ax - ay + bx - by + bx*cy - bx*ay + cx*ay - cx*by + ax*by - ax*cy)*dy + bx*(1+by-cy)*(1+cy-ay) - cx*(1+by-cy)*(1+cy-ay) + (1+cy)*(1+cx-ax)*(1+by-cy) - (1+by)*(1+bx-cx)*(1+cy-ay) = 0
+
+Abandoned because the algebra is too hairy, I've already made at least one mistake (2*ay*ax in orientation calculation) and the effect is likely to be small given that there are other
+inaccuracies in multiplications and divisions.
+
+Could add a fudge factor to orient if this ends up being noticeable/annoying - then triangles with an orient very close to zero will go through the render code

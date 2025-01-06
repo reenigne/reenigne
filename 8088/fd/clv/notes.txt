@@ -1,0 +1,246 @@
+48tpi
+Most 5.25" disks (those called single-density or double-density) can reliably hold around 11,600 flux transitions per inch,
+ and have track radii from 2.250 inch (57.2 mm) to 1.354 inch (34.4 mm), or track lengths of 359 mm to 216 mm
+216mm * 11600 flux transitions per inch = 98645 flux transitions per track
+8 flux transitions per byte = 12331 bytes per track.
+But suppose we keep the inner track at 6250
+track 1 can hold 6250*359/210 = 10684 bytes
+average track can hold 8467 bytes raw, 8261 bytes cooked
+total
+https://thejpster.org.uk/blog/blog-2023-08-28/#:~:text=Most%205.25%22%20disks%20(those%20called,359%20mm%20to%20216%20mm.
+
+
+3a790
+
+seconds = ticks/(157500000/11/12)
+rpm = 60/seconds = 60*157500000/11/12 / ticks
+
+rpm*100 = 6000*157500000/11/12/8 / (ticks >> 3)
+
+894886363.63636363636363636363636
+
+
+
+
+
+Before adding NOP: byte at **ef or **ee messed up  - dma address 120f  so messed up address was **fe or **fd
+After adding NOP: byte at  **ee or **ed messed up  - dma address 1210  so messed up address was **fe or **fd
+It's getting messed up only if we add 3 when figuring out when to interrupt the write
+The lack of consistency suggests some interaction with the 765/DMA
+Reads seem to be consistent suggesting that the bytes are corrupt on disk
+But it must be
+
+
+0E65 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0CCA .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0F61 .wR4010.2020.0000.0601.C8EEF 0072 0F61 120F
+R4010.2020.0000.0601.C8EEF 0072 0F61 120F
+0DC6 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0C2B .wR4010.2020.0000.0601.C8BEE 003D 0C2B 120F
+R4010.2020.0000.0601.C8BEE 003D 0C2B 120F
+0EC2 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0D27 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0FBE .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0E23 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0C88 .wR4010.2020.0000.0601.C8BEE 009A 0C88 120F
+R4010.2020.0000.0601.C8BEE 009A 0C88 120F
+0F1F .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0D84 .wR4010.2020.0000.0601.C8CEE 0096 0D84 120F
+R4010.2020.0000.0601.C8CEE 0096 0D84 120F
+0BE9 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0E80 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0CE5 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0F7C .wR4010.2020.0000.0601.C8EEE 008E 0F7C 120F
+R4010.2020.0000.0601.C8EEE 008E 0F7C 120F
+0DE1 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0C46 .wR4010.2020.0000.0601.C8BEE 0058 0C46 120F
+R4010.2020.0000.0601.C8BEE 0058 0C46 120F
+0EDD .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0D42 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0FD9 .wR4010.2020.0000.0601.C8EEE 00EB 0FD9 120F
+R4010.2020.0000.0601.C8EEE 00EB 0FD9 120F
+0E3E .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0CA3 .wR4010.2020.0000.0601.c
+R4010.2020.0000.0601.c
+0F3A .wR4010.2020.0000.0601.c
+
+
+0E65 .wR4010.2020.0000.0601.858BC8E0E
+0CCA .wR4010.2020.0000.0601.c
+0F61 .wR4010.2020.0000.0601.c
+0DC6 .wR4010.2020.0000.0601.0006C8D0E
+0C2B .wR4010.2020.0000.0601.c
+0EC2 .wR4010.2020.0000.0601.828BC8E0E
+0D27 .wR4010.2020.0000.0601.c
+0FBE .wR4010.2020.0000.0601.c
+0E23 .wR4010.2020.0000.0601.c
+0C88 .wR4010.2020.0000.0601.c
+0F1F .wR4010.2020.0000.0601.c
+0D84 .wR4010.2020.0000.0601.c
+0BE9 .wR4010.2020.0000.0601.5B50C8B0E
+0E80 .wR4010.2020.0000.0601.828BC8E0E
+0CE5 .wR4010.2020.0000.0601.5650C8C0E
+0F7C .wR4010.2020.0000.0601.7E78C8F0E
+0DE1 .wR4010.2020.0000.0601.c
+0C46 .wR4010.2020.0000.0601.c
+0EDD .wR4010.2020.0000.0601.8A8BC8E0E
+0D42 .wR4010.2020.0000.0601.0306C8D0E
+0FD9 .wR4010.2020.0000.0601.c
+0E3E .wR4010.2020.0000.0601.c
+0CA3 .wR4010.2020.0000.0601.5A50C8C0E
+0F3A .wR4010.2020.0000.0601.7478C8F0E
+0D9F .wR4010.2020.0000.0601.c
+0C04 .wR4010.2020.0000.0601.c
+0E9B .wR4010.2020.0000.0601.838BC8E0E
+0D00 .wR4010.2020.0000.0601.5E50C8C0E
+0F97 .wR4010.2020.0000.0601.c
+0DFC .wR4010.2020.0000.0601.c
+0C61 .wR4010.2020.0000.0601.c
+0EF8 .wR4010.2020.0000.0601.c
+0D5D .wR4010.2020.0000.0601.0006C8D0E
+
+
+1466 F2080.0000.0000.0000..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+1995 F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+165F F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+1B8E F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+1858 F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+1522 F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+1A51 F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+171B F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+13E5 F2080.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+1858 F7060.0000.0000.0601..W4004.0004.0000.0601.R4004.0004.0000.0601.0002C8000
+
+1CCB F2080.0000.0000.0000..W4004.1004.0000.0201.R4004.1004.0000.0201.C8000
+1995 F2080.1000.0000.0201..W4004.1004.0000.0201.R4004.1004.0000.0201.C8000
+1EC4 F2080.1000.0000.0201..W4004.1004.0000.0201.R4004.1004.0000.0201.C8000
+1B8E F2080.1000.0000.0201..W4004.0004.0000.0201.R4004.0004.0000.0201.C8000
+
+F 80 20 00 00 00 00 00 00  time out, drive not ready  seek end
+W 04 40 04 10 00 00 01 02  sector not found           abnormal termination  no data  wrong cylinder?
+R 04 40 04 10 00 00 01 02  sector not found
+F 80 20 00 10 00 00 01 02  time out, drive not ready
+W 04 40 04 10 00 00 01 02  sector not found
+R 04 40 04 00 00 00 01 02  sector not found
+
+1CCB f.W4002.0001.0000.0601.R4002.0001.0000.0601.C8000
+1995 F2080.0000.0000.0601..W4002.0001.0000.0601.R4002.0001.0000.0601.C8000
+1EC4 1B8E ^CTerminate batch job (Y/N)?
+
+W 02 40 01 00 00 00 01 06  address mark not found or bad sector  abnormal termination  missing address mark
+R 02 40 01 00 00 00 01 06
+F 80 20 00 00 00 00 01 06
+W 04 40 04 00 00 00 01 06  sector not found                      abnormal termination  no data
+R 04 40 04 00 00 00 01 06
+F 60 70 00 00 00 00 01 06  controller error/seek failure?        abnormal termination  seek end  equipment check
+
+
+
+
+13E5 .wR4010.2020.0000.0601.c
+1420 .wR4010.2020.0000.0601.c
+1466 .wR4010.2020.0000.0601.c
+14A1 .wR4010.2020.0000.0601.c
+1522 .wR4010.2020.0000.0601.c
+155D .wR4010.2020.0000.0601.c
+15DE .wR4010.2020.0000.0601.c
+1619 .wR4010.2020.0000.0601.c
+165F .wR4010.2020.0000.0601.c
+169A .wR4010.2020.0000.0601.c
+171B .wR4010.2020.0000.0601.c
+1756 .wR4010.2020.0000.0601.c
+17D7 .wR4010.2020.0000.0601.c                     6103
+1858 .wR4002.0001.0000.0601.C8000 1858 1858 120C  6232
+1893 .wR4002.0001.0000.0601.C8000 1893 1893 120C
+1914 .wR4002.0001.0000.0601.C8000 1914 1914 120C
+194F .wR4002.0001.0000.0601.C8000 194F 194F 120C
+1995 .wR4002.0001.0000.0601.C8000 1995 1995 120C
+19D0 .wR4002.0001.0000.0601.C8000 19D0 19D0 120C
+1A51 .wR4002.0001.0000.0601.C8000 1A51 1A51 120C
+1A8C .wR4002.0001.0000.0601.C8000 1A8C 1A8C 120C
+1B0D .wR4002.0001.0000.0601.C8000 1B0D 1B0D 120C
+1B8E .wR4002.0001.0000.0601.C8000 1B8E 1B8E 120C
+1BC9 .wR4002.0001.0000.0601.C8000 1BC9 1BC9 120C
+
+
+184e 0064 0064
+1850 0064 1064
+184f 0064 2064
+1853 0064 3064
+183b 0064 4064
+1865 0064 5064
+1865 0064 6064
+1853 0064 7064
+1859 7064 7064
+
+
+
+
+CLV:
+  Do some read graph experiments
+    Implement timeout routine
+    Init interrupt E but just store time and call back into previous implementation
+    Measure time between sending command to 765 and DMA incrementing
+      Minimise this time
+    Format first needs to wait for:
+      DMA to start
+      Interrupt E (which we'll get first if there is a failure)
+      Timeout
+    Format then needs to wait for:
+      Half a revolution
+      Interrupt E (which we'll get first if there is a failure)
+    Write needs to wait for:
+      DMA to reach track length
+      Interrupt E (which we'll get first if there is a failure)
+      Timeout waiting for interrupt E
+    Set up a timeout system
+
+
+    Write a track with no slowdown
+    Turn off motor for 2 seconds
+    Record read of track
+      Need to implement read via 765 directly
+    Switch to graphics mode
+    Draw graph of
+  Determine maximum reliable length and maximum possible length
+    Keep track of four variables - alternate between experiments
+  Can't reliably write 6222 bytes
+  Programmable pause with motor on
+    Redo readTimer with irqPeriod instead of dutyCycle and totalPeriod
+
+    *32 timer ticks: range 0-ffff gives 0-1.75 seconds with a resolution of 26.8us (disk transfers a byte in 32us)
+
+  Programmable pause with motor off
+  Change read and write to use 765 directly
+
+  Get rid of second read
+  Figure out relationship between pwm duty cycle and rpm
+    Figure out if we're overrunning or underrunning format by changing sector size to 4096 - overrunning
+      Store DMA addresses and timer 2 values
+  Find minimum RPM at which we can reliably write
+  Try different tracks
+  Figure out if interrupt E is called when index sensor is triggered
+
+
+HDL (Head Load), US0/US1 (Unit Select), MFM outputs of 765 are not connected
+  RDY is connected to +
+
+Interrupt E:
+  Figure out if, on my system, it fires when the index hole is passed during a broken read
+  Even if it does, it's not useful for timing the start of the next iteration in makeflop, since it might differ between 765 variants
+

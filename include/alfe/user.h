@@ -617,6 +617,14 @@ public:
     void invalidate() { redrawWindow(RDW_INVALIDATE | RDW_FRAME); }
     Vector outerSize() const { return _outerSize; }
     Vector outerTopLeft() const { return _outerTopLeft; }
+    Vector screenToClient(Vector screen)
+    {
+        POINT p;
+        p.x = screen.x;
+        p.y = screen.y;
+        IF_ZERO_THROW(ScreenToClient(_hWnd, &p));
+        return Vector(p.x, p.y);
+    }
 private:
     Vector adjustRect(Vector size)
     {
@@ -705,12 +713,7 @@ protected:
                     if (uMsg == WM_MOUSEWHEEL) {
                         buttons = GET_KEYSTATE_WPARAM(wParam);
                         wheel = GET_WHEEL_DELTA_WPARAM(wParam);
-                        POINT p;
-                        p.x = position.x;
-                        p.y = position.y;
-                        IF_ZERO_THROW(ScreenToClient(_hWnd, &p));
-                        position.x = p.x;
-                        position.y = p.y;
+                        position = screenToClient(position);
                     }
                     else {
                         buttons = w;

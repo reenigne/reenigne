@@ -827,6 +827,42 @@ private:
             case 1:  // Functional tests
                 t = _functional[_i];
                 break;
+            case 8:  // Interrupt tests
+                {
+                    int i1n = _d(_generator);
+                    int i2n = _d(_generator);
+                    Instruction i1(i1n & 0xff, i1n >> 8);
+                    Instruction i2(i2n & 0xff, i2n >> 8);
+                    t.addInstruction(i1);
+                    t.addInstruction(i2);
+                    int nopCount = _d(_generator) % 17;
+                    t.setNops(nopCount);
+                    int delay = _d(_generator) % 220;
+
+                    t.preamble(0x31);
+                    t.preamble(0xdb);  // XOR BX,BX
+                    t.preamble(0x8e);
+                    t.preamble(0xdb);  // MOV DS,BX
+                    t.preamble(0xc7);
+                    t.preamble(0x47);
+                    t.preamble(0x20);
+                    t.fixup();
+                    t.preamble(0x01 + t.codeLength());
+                    t.preamble(0x00);  // MOV WORD[BX+0x20],1
+                    t.preamble(0x8c);
+                    t.preamble(0x4f);
+                    t.preamble(0x22);  // MOV [BX+0x22],CS
+                    t.preamble(0xb0);
+                    t.preamble(0x14);  // MOV AL,0x14
+                    t.preamble(0xe6);
+                    t.preamble(0x43);  // OUT 0x43,AL
+                    t.preamble(0xb0);
+                    t.preamble(0x43);  // MOV AL,0x3F   was 1A but the next interrupt came too soon
+                    t.preamble(0xe6);
+                    t.preamble(0x40);  // OUT 0x40,AL
+                    t.preamble(0xfb);  // STI
+                }
+                break;
             case 2:  // Main section tests without DMA
             case 6:  // Main section tests with DMA
             case 7:  // Main section tests with override
@@ -1820,6 +1856,22 @@ private:
             ++_i;
             if (_i < _functional.count())
                 return;
+            _section = INTERRUPT_TESTING ? 8 : 2;
+            _opcode = 0;
+            _m = 0;
+            _r = 0;
+            _nopCount = 0;
+            _suffix = 0;
+            _subsection = 0;
+            _refreshPeriod = 0;
+            _refreshPhase = 0;
+            return;
+            //_groupStartCount = _c;
+        }
+        if (_section == 8) {
+            ++_count;
+            if (_count < 1000)
+                return;
             _section = 2;
             _opcode = 0;
             _m = 0;
@@ -1850,6 +1902,7 @@ private:
             _opcode = 0xf6;
             _m = 0xe2;
             _count = 0;
+            _generator = std::mt19937(); // Reset seed
             return;
         }
         if (_section == 3) {  // 1000 input pairs for each multiply instruction

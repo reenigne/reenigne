@@ -22,4 +22,12 @@
   <ItemGroup>
     <Natvis Include="..\..\..\..\include\alfe.natvis" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\..\include\alfe\user.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\alfe\main.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

@@ -5,10 +5,7 @@
 #include <random>
 
 #define GENERATE_NEWFAILS 0
-
-#if GENERATE_NEWFAILS
-//#include "fails.h"
-#endif
+#define INTERRUPT_TESTING 1
 
 #include "../xtce_microcode.h"
 #include "../gentests.h"

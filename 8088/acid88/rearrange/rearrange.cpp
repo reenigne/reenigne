@@ -31,6 +31,7 @@ public:
             int cycles = _input[_ip + 0] + (_input[_ip + 1] << 8);
             if (cycles == 32768)
                 console.write("Zero cycle count found.\n");
+            console.write(String(decimal((cycles + 1000) & 0xffff)).alignRight(5) + "\n");
             int preambleBytes = _input[_ip + 5];
             int instructionBytes = _input[_ip + 6 + preambleBytes];
             Byte instructionByte0 = _input[_ip + 7 + preambleBytes];

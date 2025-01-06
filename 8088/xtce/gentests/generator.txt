@@ -27,6 +27,7 @@ queueFillers:
 Sections (in order of execution):
   0: recently failed
   1: Functional
+  8: Interrupt (if INTERRUPT_TESTING)
   2: Main section tests without DMA (nopCounts 0-16?)                mainFails/loopFails/repFails
   3: 1000 input pairs for each multiply instruction                  mulFails
   4: 1000 input pairs for each divide instruction                    divFails

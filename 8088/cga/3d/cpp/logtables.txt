@@ -1,0 +1,47 @@
+Figure out overflow/underflow for log/exp calculations
+  Projection:
+    Rotated: 0..0x7ffc
+    Log: 0..0x3ffc
+    Exp: (log(0x280) == 0x27c6) + (-0x3ffc..0x3ffc) = -0x1836..0x67c2
+    Result: 0..0x3ffe or 0x8000
+  Projection overflow:
+    Exp: (log(0x3ffe) == 0x3bb8) + (-0x3ffc..0x0000) = -0.0446..0x3bb8
+    Result: 0..0x3ffe
+  Span:
+    Span: 0..0x7ffc
+    Log: 0..0x3ffc
+    Exp: (log(0x200) == 0x2668) + (-0x3ffc..0x0000) = -0x1994..0x2668
+      Will want to make 2^spanBits greater than eyeScreenDistance to ensure log range union doesn't span more than 0x7ffe
+      However, they are measuring the same thing. Figure out what to do once we've written the top-level triangle rendering code
+    Result: 0..0x0200
+  Intersect:
+    Span ratio log: -0x3ffc..0x0000
+    Coord: -0x3ffe..0x3ffe
+    Coord log: 0x0000..0x3bb8
+    Exp: (0x0000..0x3bb8) + (-0x3ffc..0x0000) = -0x3ffc..0x3bb8
+    Result: 0..0x3fea
+    Our log calculation can underflow by 0x27c6 (we'd be fine if we were multiplying by 0x280 instead of midpoint)
+    We have 0x4446 of overflow value 0x8000s (16 octaves) so we can just mask off high bit
+      Except that would break sign bit, so need to shl and sar
+      60 octaves, 30 per sign (16 overflow, 13.416 normal, 0.586 zero)
+    Can we just do shl without sar? (adjusting scale factor of span calculation as well to match)
+      This would cause maximum intersect to be 0x7fd4 which would overflow when we added span or 1<<spanBits to it
+
+4100.0
+4419.4  319.4  0x13f4                    0x0280-0x3ffe
+5511.a 1092.6  0x4446                    0x8000
+5551.a   40.0  0x0280                    0x0000
+6467.4  915.a  0x393a                    0x0001-0x3ffe
+7559.a 1092.6  0x4446                    0x8000          16.005 octaves
+7599.a   40.0  0x0280                    0x0000           0.586 octaves
+8196.0  596.6  0x2546 + 0x13f4 = 0x393a  0xfffe-0xc002   13.416 octaves
+
+Choice of k for log table:
+  Currently k = 0x3ffe/log(0x8001) = 1575.6107193738781839036978826169
+  which corresponds to 1092.1301277940308606172834881588 per octave
+  We could make that 1092 per octave or 1024 per octave (or should we make it 1093 and reduce the input range? We do need to leave some space in the log segment for a stack...)
+    Increasing k means that some higher values will cause overflow on the inputs of the exp table, so means we need to reduce the maximum viewing distance - don't want to do that
+    Decreasing k means that decreasing the precision - don't want to do that either
+    Therefore don't use 1024 per octave - it's neat but loses more precision that we want to
+    Reduce the maximum viewing distance to allow for the amount of stack space that we need, then choose an integer k that makes the best use of the exptable space given that
+
