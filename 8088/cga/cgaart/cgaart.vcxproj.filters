@@ -191,6 +191,9 @@
     <ClInclude Include="..\..\..\include\alfe\flattener.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\alfe\stack.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\..\..\include\alfe.natvis" />

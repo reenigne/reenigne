@@ -1,4 +1,5 @@
 #include "alfe/code.h"
+#include "alfe/stack.h"
 
 #ifndef INCLUDED_FLATTENER_H
 #define INCLUDED_FLATTENER_H
@@ -6,11 +7,11 @@
 class Flattener
 {
 public:
-    void resolve(Code code)
+    Code flatten(Code code)
     {
-        Flatten flatten;
-        code.walk(&flatten);
+        code = Flatten().flattened(code);
         code.annotate<CodeFormAnnotation>().setFlattened(true);
+        return code;
     }
 private:
     class Flatten : public CodeWalker
@@ -20,76 +21,148 @@ private:
         {
             ConditionalStatement cs = c;
             if (cs.valid()) {
+                // if ($condition) $trueStatement else $falseStatement
+                // ->
+                // if (!$condition) goto falseTarget;
+                // $trueStatement
+                // goto doneStatement;
+                // falseTarget:
+                // $falseStatement
+                // doneStatement:
+                // 
+                // We can re-use the ConditionalStatement
                 cs.setCondition(!cs.condition());
+                Code falseStatement = cs.falseStatement();
                 cs.setFalseStatement(Code());
                 Code doJump;
                 Identifier falseTarget(1);
                 doJump.insert<GotoStatement>(falseTarget);
+                Code trueStatement = cs.trueStatement();
                 cs.setTrueStatement(doJump);
                 CodeNode n = cs.next();
-                n.insert(cs.trueStatement());
+                n.insert(trueStatement);
                 Identifier doneTarget(1);
                 n.insert<GotoStatement>(doneTarget);
                 n.insert<LabelStatement>(falseTarget);
-                n.insert(cs.falseStatement());
+                n.insert(falseStatement);
                 n.insert<LabelStatement>(doneTarget);
                 return Result::advance;
             }
             ForeverStatement fes = c;
             if (fes.valid()) {
-                CodeNode n = fes.next();
-                Identifier l(1);
-                n.insert<LabelStatement>(l);
-                n.insert(fes.code());
-                n.insert<GotoStatement>(l);
-                fes.destroy();
-                return Result::advance;
+                // forever $statement
+                // ->
+                // continueTarget:
+                // $statement
+                // goto continueTarget:
+                // breakTarget:
+                Identifier continueTarget(1);
+                Identifier breakTarget(1);
+                fes.insert<LabelStatement>(continueTarget);
+                continueLabels.push(continueTarget);
+                breakLabels.push(breakTarget);
+                fes.insert(flattened(fes.code()));
+                breakLabels.pop();
+                continueLabels.pop();
+                fes.insert<GotoStatement>(continueTarget);
+                fes.insert<LabelStatement>(breakTarget);
+                return Result::remove;
             }
             WhileStatement ws = c;
             if (ws.valid()) {
-                CodeNode n = ws.next();
-                Identifier l(1);
-                Identifier d(1);
-                n.insert<LabelStatement>(l);
-                n.insert(ws.doStatement());
+                // do $doStatment while($condition) $statement done $doneStatement
+                // ->
+                // loopTarget:
+                // $doStatement  // Note that continue goes to condititionTarget here
+                // conditionTarget:
+                // if (!$condition) goto doneTarget;
+                // $statement    // Note that continue goes to loopTarget here
+                // goto loopTarget:
+                // doneTarget:
+                // $doneStatement
+                // breakTarget:
+                Identifier loopTarget(1);
+                Identifier conditionTarget(1);
+                Identifier doneTarget(1);
+                Identifier breakTarget(1);
+                continueLabels.push(conditionTarget);
+                breakLabels.push(breakTarget);
+                ws.insert<LabelStatement>(loopTarget);
+                ws.insert(flattened(ws.doStatement()));
                 Code doJump;
-                doJump.insert<GotoStatement>(d);
-                n.insert<ConditionalStatement>(!ws.condition(), doJump,
+                doJump.insert<GotoStatement>(doneTarget);
+                ws.insert<ConditionalStatement>(!ws.condition(), doJump,
                     Code());
-                n.insert(ws.statement());
-                n.insert<GotoStatement>(l);
-                n.insert<LabelStatement>(d);
-                n.insert(ws.doneStatement());
-                ws.destroy();
-                return Result::advance;
+                continueLabels.pop();
+                continueLabels.push(loopTarget);
+                ws.insert(flattened(ws.statement()));
+                ws.insert<GotoStatement>(loopTarget);
+                ws.insert<LabelStatement>(doneTarget);
+                ws.insert(flattened(ws.doneStatement()));
+                breakLabels.pop();
+                continueLabels.pop();
+                ws.insert<LabelStatement>(breakTarget);
+                return Result::remove;
             }
             ForStatement fs = c;
             if (fs.valid()) {
-                CodeNode n = fs.next();
-                Identifier l(1);
-                Identifier d(1);
-                n.insert(fs.preStatement());
-                n.insert<LabelStatement>(l);
+                // for ($preStatement; $condition; $postStatement) $statement
+                // ->
+                // $preStatement
+                // loopTarget:
+                // if (!$condition) goto doneTarget;
+                // $statement   
+                // continueTarget:
+                // $postStatement
+                // goto loopTarget:
+                // doneTarget:
+                // $doneStatement
+                // breakTarget:
+                Identifier loopTarget(1);
+                Identifier continueTarget(1);
+                Identifier doneTarget(1);
+                Identifier breakTarget(1);
+                continueLabels.push(continueTarget);
+                breakLabels.push(breakTarget);
+                fs.insert(flattened(fs.preStatement()));
+                fs.insert<LabelStatement>(loopTarget);
                 Code doJump;
-                doJump.insert<GotoStatement>(d);
-                n.insert<ConditionalStatement>(!fs.condition(), doJump,
+                doJump.insert<GotoStatement>(doneTarget);
+                fs.insert<ConditionalStatement>(!fs.condition(), doJump,
                     Code());
-                n.insert(fs.statement());
-                n.insert(fs.postStatement());
-                n.insert<GotoStatement>(l);
-                n.insert<LabelStatement>(d);
-                n.insert(fs.doneStatement());
-                fs.destroy();
-                return Result::advance;
+                fs.insert(flattened(fs.statement()));
+                fs.insert<LabelStatement>(continueTarget);
+                fs.insert(flattened(fs.postStatement()));
+                fs.insert<GotoStatement>(loopTarget);
+                fs.insert<LabelStatement>(doneTarget);
+                fs.insert(flattened(fs.doneStatement()));
+                return Result::remove;
             }
-
+            BreakOrContinueStatement bcs = c;
+            if (bcs.valid()) {
+                if (bcs.hasContinue()) {
+                    bcs.insert<GotoStatement>(
+                        continueLabels.fromTop(bcs.breakCount()));
+                }
+                else {
+                    bcs.insert<GotoStatement>(
+                        breakLabels.fromTop(bcs.breakCount() - 1));
+                }
+                return Result::remove;
+            }
             return Result::recurse;
         }
         Result visit(ParseTreeObject o) { return Result::recurse; }
         Result visit(Tyco t) { return Result::recurse; }
+        Code flattened(Code c)
+        {
+            c.walk(this);
+            return c;
+        }
+
     private:
-        List<LabelStatement> breakLabels;
-        List<LabelStatement> continueLabels;
+        Stack<Identifier> breakLabels;
+        Stack<Identifier> continueLabels;
     };
 };
 

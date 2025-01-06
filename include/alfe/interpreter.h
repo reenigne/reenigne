@@ -8,61 +8,10 @@ class Interpreter : Uncopyable
 public:
     void interpret(Code code)
     {
-        CodeNode p = code.next();
-        do {
-            if (p.isSentinel())
-                break;
-            ConditionalStatement cs = p;
-            if (cs.valid()) {
-                cs.condition().walk(this);
-                if (pop().value<bool>())
-                    cs.trueStatement().walk(this);
-                else
-                    cs.falseStatement().walk(this);
-                return Result::advance;
-            }
-            ForeverStatement fes = c;
-            if (fes.valid()) {
-                // TODO: handle break and continue
-                while (true)
-                    fes.code().walk(this);
-            }
-            WhileStatement ws = c;
-            if (ws.valid()) {
-                // TODO: handle break and continue
-                do {
-                    ws.doStatement().walk(this);
-                    ws.condition().walk(this);
-                    if (!pop().value<bool>())
-                        break;
-                    ws.statement().walk(this);
-                } while (true);
-                ws.doneStatement().walk(this);
-                return Result::advance;
-            }
-            ForStatement fs = c;
-            if (fs.valid()) {
-                // TODO: handle break and continue
-                fs.preStatement().walk(this);
-                do {
-                    fs.condition().walk(this);
-                    if (!pop().value<bool>())
-                        break;
-                    fs.statement().walk(this);
-                    fs.postStatement().walk(this);
-                } while (true);
-                fs.doneStatement().walk(this);
-                return Result::advance;
-            }
-            VariableDefinitionStatement vds = c;
-            if (vds.valid()) {
-                // TODO
-                return Result::advance;
-            }
-
-
-        } while (true);
+        Interpret interpret;
+        code.walk(&interpret);
     }
+
     //template<class U> U evaluate(String text, const U& def)
     //{
     //    CharacterSource s(text);
@@ -109,44 +58,45 @@ private:
                     cs.falseStatement().walk(this);
                 return Result::advance;
             }
-            ForeverStatement fes = c;
-            if (fes.valid()) {
-                // TODO: handle break and continue
-                while (true)
-                    fes.code().walk(this);
-            }
-            WhileStatement ws = c;
-            if (ws.valid()) {
-                // TODO: handle break and continue
-                do {
-                    ws.doStatement().walk(this);
-                    ws.condition().walk(this);
-                    if (!pop().value<bool>())
-                        break;
-                    ws.statement().walk(this);
-                } while (true);
-                ws.doneStatement().walk(this);
-                return Result::advance;
-            }
-            ForStatement fs = c;
-            if (fs.valid()) {
-                // TODO: handle break and continue
-                fs.preStatement().walk(this);
-                do {
-                    fs.condition().walk(this);
-                    if (!pop().value<bool>())
-                        break;
-                    fs.statement().walk(this);
-                    fs.postStatement().walk(this);
-                } while (true);
-                fs.doneStatement().walk(this);
-                return Result::advance;
-            }
+            //ForeverStatement fes = c;
+            //if (fes.valid()) {
+            //    // TODO: handle break and continue
+            //    while (true)
+            //        fes.code().walk(this);
+            //}
+            //WhileStatement ws = c;
+            //if (ws.valid()) {
+            //    // TODO: handle break and continue
+            //    do {
+            //        ws.doStatement().walk(this);
+            //        ws.condition().walk(this);
+            //        if (!pop().value<bool>())
+            //            break;
+            //        ws.statement().walk(this);
+            //    } while (true);
+            //    ws.doneStatement().walk(this);
+            //    return Result::advance;
+            //}
+            //ForStatement fs = c;
+            //if (fs.valid()) {
+            //    // TODO: handle break and continue
+            //    fs.preStatement().walk(this);
+            //    do {
+            //        fs.condition().walk(this);
+            //        if (!pop().value<bool>())
+            //            break;
+            //        fs.statement().walk(this);
+            //        fs.postStatement().walk(this);
+            //    } while (true);
+            //    fs.doneStatement().walk(this);
+            //    return Result::advance;
+            //}
             VariableDefinitionStatement vds = c;
             if (vds.valid()) {
                 // TODO
                 return Result::advance;
             }
+
 
             return Result::recurse;
         }
@@ -184,9 +134,9 @@ private:
             if (nl.valid()) {
                 Rational r = nl.value();
                 if (r.denominator == 1)
-                    push(_n.numerator);
+                    push(r.numerator);
                 else
-                    push(_n);
+                    push(r);
                 return Result::advance;
             }
             FunctionCallExpression fce = o;
@@ -233,31 +183,26 @@ private:
                     return Result::advance;
                 }
                 Type lType = l.type();
-
-
-
-
-
-
-                if (lType == FuncoTypeT<T>()) {
-                    return l.template value<OverloadedFunctionSet>().evaluate(
-                        arguments, this->span());
+                if (lType == FuncoType()) {
+                    push (l.template value<OverloadedFunctionSet>().evaluate(
+                        arguments, o.span()));
+                    return Result::advance;
                 }
                 // What we have on the left isn't a function, try to call its
                 // operator() method instead.
-                IdentifierT<T> i = Identifier(OperatorFunctionCall());
+                Identifier i = Identifier(OperatorFunctionCall());
                 if (!lType.member(i).valid())
-                    this->span().throwError("Expression is not a function.");
-                if (!LValueTypeT<T>(lType).valid()) {
+                    o.span().throwError("Expression is not a function.");
+                if (!LValueType(lType).valid()) {
                     auto m = l.template value<HashTable<Identifier, Value>>();
                     l = m[i];
-                    l = Value(l.type(), l.value(), this->span());
+                    l = Value(l.type(), l.value(), o.span());
                 }
                 else {
-                    StructureT<T>* p = l.template
+                    Structure* p = l.template
                         value<LValue>().rValue().template value<Structure*>();
-                    l = Value(LValueTypeT<T>::wrap(p->getValue(i).type()),
-                        LValue(p, i), this->span());
+                    l = Value(LValueType::wrap(p->getValue(i).type()),
+                        LValue(p, i), o.span());
                 }
                 List<Value> convertedArguments;
                 Function f = l.template value<Function>();
@@ -272,7 +217,7 @@ private:
                     convertedArguments.add(a.convertTo(type));
                     ++ii;
                 }
-                push(f.evaluate(convertedArguments, this->span()));
+                push(f.evaluate(convertedArguments, o.span()));
                 return Result::advance;
             }
             return Result::recurse;
@@ -284,9 +229,15 @@ private:
     private:
         Value pop()
         {
+            Value t = _stack[_valuesOnStack - 1];
+            --_valuesOnStack;
+            return t;
         }
         void push(Value t)
         {
+            _stack.ensure(_valuesOnStack + 1);
+            _stack[_valuesOnStack] = t;
+            ++_valuesOnStack;
         }
 
         int _valuesOnStack;

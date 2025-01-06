@@ -156,7 +156,6 @@ class ArrayType;
 #include "alfe/array_functions.h"
 #include "alfe/boolean_functions.h"
 #include "alfe/double_functions.h"
-#include "alfe/interpreter.h"
 
 class AnnotationNotFoundException : public Exception
 {
@@ -669,10 +668,11 @@ private:
 class LabelStatement : public Statement
 {
 public:
-    VariableDefinition variableDefinition()
+    VariableDefinition variableDefinition() const
     {
         return body()->_variableDefinition;
     }
+    Identifier identifier() const { return variableDefinition().identifier(); }
 private:
     class Body : public Statement::Body
     {
@@ -795,6 +795,8 @@ private:
 class FunctionDefinitionFromStatement : public FunctionDefinitionStatement
 {
 public:
+    FunctionDefinitionFromStatement(Annotation a)
+      : FunctionDefinitionStatement(to<Body>(a)) { }
     Expression from() const { return body()->_from; }
 private:
     class Body : public FunctionDefinitionStatement::Body
@@ -1429,5 +1431,6 @@ private:
 };
 
 #include "alfe/parser.h"
+#include "alfe/interpreter.h"
 
 #endif // INCLUDED_CODE_H
