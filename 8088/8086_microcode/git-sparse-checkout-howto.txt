@@ -1,0 +1,12 @@
+To checkout *only* this '8086_microcode/' directory:
+
+mkdir -p 8086/
+cd 8086/
+git init
+git config core.sparseCheckout true
+echo 8088/8086_microcode/ >> .git/info/sparse-checkout
+git remote add -f origin git@github.com:reenigne/reenigne.git
+git checkout master
+cd 8088/8086_microcode/
+ls -l 8086_microcode.cpp
+
